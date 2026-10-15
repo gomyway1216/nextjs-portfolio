@@ -330,14 +330,14 @@ export const restarted = (ledger: Ledger, game: string): Ledger =>
 
 // ── Receipts ────────────────────────────────────────────────────────────────
 
-const RECEIPT_SHAPE = /^[a-z0-9-]{1,24}:[a-z0-9]{1,24}:[a-z0-9-]{1,16}$/;
+const RECEIPT_SHAPE = /^[a-z0-9-]{1,24}:[a-z0-9-]{1,24}:[a-z0-9-]{1,16}$/;
 /** Whether a text will do as a receipt. */
 export const isReceipt = (value: unknown): value is string => typeof value === 'string' && RECEIPT_SHAPE.test(value);
 
 /**
  * The receipt for one move of a round's medals: the game's name, the round's
- * (letters and digits, up to 24) and the step's (`stake`, `pay`…). Null when
- * one of them will not do.
+ * (letters, digits and hyphens, up to 24) and the step's (`stake`, `pay`…).
+ * Null when one of them will not do.
  */
 export function receiptOf(game: string, round: string, step: string): string | null {
   const receipt = `${game}:${round}:${step}`;

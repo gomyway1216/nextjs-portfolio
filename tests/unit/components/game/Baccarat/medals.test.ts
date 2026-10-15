@@ -42,11 +42,11 @@ import {
   type TableStore,
 } from '@/components/game/Baccarat/medals';
 import { ledgerKey, type BankState } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, parseLedger, resetLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, parseLedger, receiptsOf, resetLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { GUEST } from '@/components/game/MedalPusher/account';
 import { BONUS_CARD } from '@/components/game/MedalPusher/records';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 
 // The table at the medal bank, with a browser made of fakes (bankFakes.ts): one storage every page shares, the one
 // card, and a channel between the pages. No real account, token or network is anywhere in it.
@@ -208,7 +208,7 @@ describe('the table at the bank', () => {
     expect(coup).not.toBeNull();
     expect(storedBalance(browser)).toBe(WELCOME - 10);
     // Written down before the stake was taken, under the medals' own device name, in case the page is killed before it can pay.
-    expect(parseCoup(browser.storage.get(keyOf(page)))).toEqual({ id: coup!.id, owner: null, device: deviceOf(page), era: 0, stake: 10, returned: 25, spentBefore: 0, state: 'dealt' });
+    expect(parseCoup(browser.storage.get(keyOf(page)))).toEqual({ id: coup!.id, owner: null, device: deviceOf(page), era: 0, stake: 10, returned: 25, spentBefore: 0, state: 'dealt', receipts: true });
     // A second coup is not dealt over one in flight.
     expect(table.deal(5, 0)).toBeNull();
     expect(table.settle(coup!.id)).toBe('paid');
@@ -372,7 +372,8 @@ describe('the table at the bank', () => {
     expect(storedBalance(browser)).toBe(WELCOME + 20);
     expect(browser.storage.has(key)).toBe(false);
 
-    // A browser whose striking off does not take: the coup stays, marked paid, and is not paid again.
+    // A browser whose striking off does not take: the coup stays as it was dealt, its return in under its receipt and
+    // its receipts let go of with it, and is not paid again: to the next table it is a coup whose stake never went in.
     const stuck = new FakeBrowser();
     const page = stuck.open();
     const sticky = createMedalTable(page.bank, { ...storeOf(stuck), remove: () => undefined }, { granted: () => undefined, yielding: () => undefined, paid: () => undefined, resumed: () => undefined });
@@ -381,7 +382,7 @@ describe('the table at the bank', () => {
     const paid = sticky.deal(10, 30)!;
     expect(sticky.settle(paid.id)).toBe('paid');
     expect(storedBalance(stuck)).toBe(WELCOME + 20);
-    expect(parseCoup(stuck.storage.get(keyOf(page)))?.state).toBe('paid');
+    expect(parseCoup(stuck.storage.get(keyOf(page)))?.state).toBe('dealt');
     sticky.resume();
     const other = stuck.open();
     tableOn(other);
@@ -583,6 +584,102 @@ describe('the table at the bank', () => {
     await quiet(browser);
     expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
     expect(storedBalance(browser)).toBe(WELCOME);
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The coup and the medals are two writes (medals.ts): the browser is killed at every moment of a coup and started
+  // again, and the next table to hold the card settles what it left. Every coup is paid exactly once, or, if its stake
+  // never went in, never dealt at all. Here the table writes through the page's own storage, which can die.
+  const storeOn = (page: FakePage): TableStore => ({
+    read: (key) => page.env.read(key),
+    write: (key, text) => {
+      page.env.write(key, text);
+      return true;
+    },
+    remove: (key) => page.env.remove(key),
+  });
+  const quietHooks: TableHooks = { granted: () => undefined, yielding: () => undefined, paid: () => undefined, resumed: () => undefined };
+  const tables = new Map<FakeBrowser, { page: FakePage; table: ReturnType<typeof createMedalTable> }>();
+  let coups = 0;
+  const setUp = async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const table = createMedalTable(page.bank, storeOn(page), quietHooks, () => `coup${++coups}`);
+    table.sit();
+    await quiet(browser);
+    tables.set(browser, { page, table });
+    return browser;
+  };
+  /** The table opened again on what the browser left: it settles a coup left written down as it is given the card. */
+  const reopened = async (after: FakeBrowser) => {
+    const page = after.open();
+    const table = createMedalTable(page.bank, storeOn(page), quietHooks, () => `coup${++coups}`);
+    table.sit();
+    await quiet(after);
+    return { page, table };
+  };
+  const spentIn = (browser: FakeBrowser): number => {
+    const ledger = parseLedger(browser.storage.get(ledgerKey(null)) ?? null)!;
+    return ledger.rows[ledger.device]?.spent ?? 0;
+  };
+
+  for (const [what, returned] of [
+    ['a coup that wins', 25],
+    ['a coup that loses', 0],
+  ] as const) {
+    it(`pays ${what} exactly once, or never deals it, wherever the browser dies between the deal and the settling`, async () => {
+      const writes = await atEveryWrite(
+        setUp,
+        (browser) => {
+          const { table } = tables.get(browser)!;
+          const coup = table.deal(10, returned);
+          if (coup) table.settle(coup.id);
+        },
+        async (after, reached) => {
+          const dealt = spentIn(after) === 10;
+          const { page, table } = await reopened(after);
+          expect(storedBalance(after), `died after ${reached} writes`).toBe(dealt ? WELCOME - 10 + returned : WELCOME);
+          expect(after.storage.has(keyOf(page)), `died after ${reached} writes`).toBe(false);
+          // The next coup deals and pays as ever, with every receipt let go of once it is settled.
+          const next = table.deal(5, 10)!;
+          expect(table.settle(next.id)).toBe('paid');
+          const ledger = parseLedger(after.storage.get(ledgerKey(null)) ?? null)!;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([]);
+          expect(storedBalance(after)).toBe((dealt ? WELCOME - 10 + returned : WELCOME) + 5);
+        },
+      );
+      expect(writes).toBeGreaterThanOrEqual(returned > 0 ? 4 : 3);
+    });
+  }
+
+  it('pays a coup exactly once wherever the browser dies while the page going pays it', async () => {
+    await atEveryWrite(
+      setUp,
+      (browser) => {
+        const { page, table } = tables.get(browser)!;
+        table.deal(10, 25);
+        page.hide('left');
+      },
+      async (after, reached) => {
+        const dealt = spentIn(after) === 10;
+        await reopened(after);
+        expect(storedBalance(after), `died after ${reached} writes`).toBe(dealt ? WELCOME + 15 : WELCOME);
+      },
+    );
+  });
+
+  it('pays nothing for a coup whose stake never went in, even when other medals have been spent since', async () => {
+    const browser = await setUp();
+    const { page } = tables.get(browser)!;
+    // Written down, the browser gone before its stake went in; then another machine spent medals of this device.
+    const written: Coup = { id: 'neverdealt', owner: null, device: deviceOf(page), era: 0, stake: 10, returned: 30, spentBefore: 0, state: 'dealt', receipts: true };
+    browser.storage.set(keyOf(page), serializeCoup(written));
+    page.bank.take(10);
+    expect(storedBalance(browser)).toBe(WELCOME - 10);
+    tables.get(browser)!.table.resume();
+    expect(storedBalance(browser)).toBe(WELCOME - 10);
+    expect(browser.storage.has(keyOf(page))).toBe(false);
   });
 });
 

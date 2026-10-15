@@ -328,7 +328,7 @@ export type BankEvent =
 export interface Move {
   /** The game's name at the bank. */
   game: string;
-  /** The round's name: letters and digits, up to 24, that no other round of the game on this device has. */
+  /** The round's name: letters, digits and hyphens, up to 24, that no other round of the game on this device has. */
   round: string;
   /** The step's name within the round: letters, digits and hyphens, up to 16 (`stake`, `pay`…). */
   step: string;

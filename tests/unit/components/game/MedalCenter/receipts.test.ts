@@ -74,7 +74,7 @@ describe('a move of a round’s medals, in the ledger', () => {
   it('holds no more than a device may: one move too many is not made until a round is let go of', () => {
     let ledger = createLedger('phone00001');
     for (let i = 0; i < RECEIPTS.device; i++) ledger = moved(ledger, r(`round${i}`, 'stake'), 0);
-    expect(applyMove(ledger, r('one-more'.replace('-', ''), 'stake'), 0)).toBeNull();
+    expect(applyMove(ledger, r('one-more', 'stake'), 0)).toBeNull();
     // Moves made before are still known as made.
     expect(applyMove(ledger, r('round0', 'stake'), 0)?.applied).toBe(false);
     const freed = forgetReceipts(ledger, 'slot-machine', ['round5']);

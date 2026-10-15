@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { ThreeCardPoker } from '@/components/game/ThreeCardPoker';
 import { HoleCard, PlayingCard, cardLabel } from '@/components/game/ThreeCardPoker/Cards';
 import { OddsTab, THRESHOLD_HANDS } from '@/components/game/ThreeCardPoker/OddsTab';
@@ -44,7 +45,7 @@ describe('PlayTab', () => {
     expect(markup.match(/data-on="true"/g)).toBeNull();
     expect(markup.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
     expect(markup).toContain('Your medals');
-    expect(markup).toContain('Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.');
+    expect(markup).toContain(`data-testid="tcp-not-money">${NOT_MONEY.en}<`);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}" data-testid="tcp-counter-center">Medal Game Center<`);
     expect(markup).not.toContain('tcp-refill');
     expect(markup).not.toContain('tcp-card-away');
@@ -76,7 +77,7 @@ describe('PlayTab', () => {
   it('is localized, felt and medals included', () => {
     const markup = render(<PlayTab />, 'ja');
     expect(markup).toContain('持ちメダル');
-    expect(markup).toContain('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。');
+    expect(markup).toContain(`data-testid="tcp-not-money">${NOT_MONEY.ja}<`);
     expect(markup).toContain('aria-label="1回5枚ベット"');
     expect(markup).toContain('>ディール<');
     expect(markup).toContain('>プレイ</button>');
@@ -156,9 +157,9 @@ describe('the words', () => {
       ['en', MONEY_EN],
       ['ja', MONEY_JA],
     ] as const) {
-      const { notMoney, ...rest } = getStrings(language);
+      const notMoney = NOT_MONEY[language];
       expect(notMoney).toMatch(money);
-      for (const word of everyWord(rest)) expect(word, `${language}: ${word}`).not.toMatch(money);
+      for (const word of everyWord(getStrings(language))) expect(word, `${language}: ${word}`).not.toMatch(money);
       const page = wordsOf(render(<ThreeCardPoker />, language)).replace(notMoney, '');
       expect(page).not.toMatch(money);
       expect(page.length).toBeGreaterThan(500);

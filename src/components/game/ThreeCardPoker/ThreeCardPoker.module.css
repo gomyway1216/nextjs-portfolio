@@ -1135,7 +1135,8 @@
   height: 30px;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
 }
-.counterLabel {
+/* Two classes, so that the site's colour for headings in the dark theme (`.dark h2`) does not take the gold off it. */
+.counter .counterLabel {
   margin: 0;
   color: #f3d27a;
   font-size: 0.8rem;

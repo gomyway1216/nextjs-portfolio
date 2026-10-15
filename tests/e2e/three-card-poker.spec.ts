@@ -6,7 +6,7 @@ import { createSession } from '../../src/components/game/MedalPusher/session';
 import { STORAGE_KEY, serialize } from '../../src/components/game/MedalPusher/storage';
 import { handOdds } from '../../src/components/game/ThreeCardPoker/analysis';
 import { decide, evaluate, settle, type Bets, type Card, type Decision, type Rank, type Suit } from '../../src/components/game/ThreeCardPoker/engine';
-import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand } from '../../src/components/game/ThreeCardPoker/medalTable';
+import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand, tableKey } from '../../src/components/game/ThreeCardPoker/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { arrived } from './streamedPage';
 
@@ -32,9 +32,12 @@ async function medals(page: Page): Promise<number> {
   return Number(((await page.getByTestId('tcp-medals').textContent()) ?? '').replace(/,/g, ''));
 }
 
+/** The name the seeded guest's medals are kept under. */
+const SEEDED = 'seedtable01';
+
 /** Medals for this browser's guest, as the medal center keeps them, put in before the page opens. */
 async function seedMedals(page: Page, count: number, hand: string | null = null) {
-  const ledger = take(createLedger('seedtable01'), WELCOME - count);
+  const ledger = take(createLedger(SEEDED), WELCOME - count);
   expect(ledger).not.toBeNull();
   await page.addInitScript(
     ([bankKey, bank, tableKey, table]) => {
@@ -42,8 +45,14 @@ async function seedMedals(page: Page, count: number, hand: string | null = null)
       window.localStorage.setItem(bankKey, bank);
       if (table !== null) window.localStorage.setItem(tableKey, table);
     },
-    [BANK_KEY, serializeLedger(ledger!), TABLE_KEY, hand] as const,
+    [BANK_KEY, serializeLedger(ledger!), tableKey(SEEDED), hand] as const,
   );
+}
+
+/** The hand kept for this browser's guest's medals, as text, or null. */
+async function storedHand(page: Page): Promise<string | null> {
+  const ledger = await storedBank(page);
+  return ledger ? page.evaluate((key) => window.localStorage.getItem(key), tableKey(ledger.device)) : null;
 }
 
 const onTable = (page: Page) => page.getByTestId('tcp-on-table');
@@ -160,7 +169,7 @@ test('a played hand shows its exact value and settles every bet by the rules, in
   const bonus = category === 'straight' || category === 'threeOfAKind' || category === 'straightFlush';
   await expect(page.locator('li[data-line="anteBonus"]')).toHaveCount(bonus ? 1 : 0);
   // The hand is kept as paid: nothing pays it again.
-  await expect.poll(async () => parseHand(await page.evaluate((key) => window.localStorage.getItem(key), TABLE_KEY))?.paid).toBe(true);
+  await expect.poll(async () => parseHand(await storedHand(page))?.paid).toBe(true);
 });
 
 test('folding forfeits the Ante and Pair Plus and still shows the dealer', async ({ page }) => {
@@ -368,7 +377,7 @@ test('a hand decided just before the page went away is paid once when it comes b
   // Q-K-A of spades against 7-high: Ante 1:1, Play pushes, the Ante Bonus 5:1 and Pair Plus 40:1. The Ante, Pair
   // Plus and Play bets (5 each) have been taken; nothing has been paid.
   const cards = (texts: string[]) => texts.map((text) => ({ rank: text[0] as Rank, suit: text[1] as Suit }));
-  const hand = { v: 1 as const, era: 0, player: cards(['Q♠', 'K♠', 'A♠']), dealer: cards(['2♥', '5♦', '7♣']), bets: { ante: 5, pairPlus: 5 }, decision: 'play' as const, paid: false };
+  const hand = { v: 1 as const, era: 0, device: SEEDED, player: cards(['Q♠', 'K♠', 'A♠']), dealer: cards(['2♥', '5♦', '7♣']), bets: { ante: 5, pairPlus: 5 }, decision: 'play' as const, paid: false };
   const won = settle(hand.bets, 'play', hand.player, hand.dealer).returned;
   expect(won).toBe(245);
   await seedMedals(page, WELCOME - 15, serializeHand(hand));
@@ -417,6 +426,56 @@ test('when another tab takes the medals the table stops taking bets and says so,
   await medalsAre(page, WELCOME - 2);
 });
 
+test('leaving for another page while the dealer turns over pays the hand as the table is put away', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+  await chooseStep(page, 5);
+  await firstAnte(page);
+  await pairPlusSpot(page).click();
+  const player = await deal(page);
+  await medalsAre(page, WELCOME - 10);
+  // Play, and at once go to the games list by the site's own link: the page is not reloaded, the table is taken down
+  // in the middle of the dealer's turning over (it pays at the end of it, more than a second later).
+  await playButton(page).click();
+  const leftAt = Date.now();
+  await page.locator('a[href="/games"]').first().click();
+  await page.waitForURL(/\/games$/);
+  const tookMs = Date.now() - leftAt;
+  const dealer = await (async () => {
+    const hand = parseHand(await storedHand(page));
+    expect(hand?.paid).toBe(true);
+    return hand!.dealer;
+  })();
+  const result = settle({ ante: 5, pairPlus: 5 }, 'play', player, dealer);
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 15 + result.returned);
+  test.info().annotations.push({ type: 'left after', description: `${tookMs} ms` });
+});
+
+test('a reset heard in a tab whose medals are away starts that tab over too', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openGame(page);
+  await firstAnte(page);
+  const player = await deal(page);
+  await act(page, decide('optimal', player));
+  await expect(page.getByTestId('tcp-stats')).toContainText('Hands1');
+  // Another tab takes the medals, and resets them at the Medal Game Center.
+  const other = await context.newPage();
+  await openGame(other);
+  await expect(page.getByTestId('tcp-card-away')).toBeVisible({ timeout: 10_000 });
+  await resetAtCenter(other);
+  // This tab's session and the bets to repeat are gone, although it never had the medals back.
+  await expect(page.getByTestId('tcp-stats')).toContainText('Hands0', { timeout: 10_000 });
+  await expect(message(page)).toHaveText('The medals have been reset at the Medal Game Center: this table starts over.');
+  await expect(page.locator('[data-hand="player"] [data-rank]')).toHaveCount(0);
+  await page.bringToFront();
+  await page.getByTestId('tcp-play-here').click();
+  await expect(page.getByTestId('tcp-card-away')).toHaveCount(0);
+  await medalsAre(page, WELCOME);
+  await page.getByRole('button', { name: 'Rebet' }).click();
+  await expect(onTable(page)).toHaveText('0');
+});
+
 test('after the Medal Game Center’s reset the table starts over: a hand from before is gone, and nothing of it is paid', async ({ page }) => {
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -436,7 +495,7 @@ test('after the Medal Game Center’s reset the table starts over: a hand from b
     const ledger = await storedBank(page);
     return ledger ? (ledger.restarted[`${TCP_GAME}@${ledger.device}`] ?? -1) : -1;
   }).toBe(1);
-  expect(await page.evaluate((key) => window.localStorage.getItem(key), TABLE_KEY)).toBeNull();
+  expect(await storedHand(page)).toBeNull();
   await firstAnte(page);
   await deal(page);
   await medalsAre(page, WELCOME - 1);

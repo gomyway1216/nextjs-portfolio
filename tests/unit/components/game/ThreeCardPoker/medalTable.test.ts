@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import {
   ANTE_BONUS_PAYS,
   CATEGORIES,
@@ -32,6 +32,7 @@ import {
   type TableStore,
 } from '@/components/game/ThreeCardPoker/medalTable';
 import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 // Three Card Poker at the medal center, against the medal center's real bank (createBank) in a browser of fakes: one
 // storage every page shares, the one member's card, and the channel between the pages. No account is named and
@@ -64,14 +65,25 @@ function table(page: FakePage, onYield: (why: string) => void = () => undefined)
   });
   const medals: TableMedals = {
     holding: () => seat.holding(),
-    owner: () => page.bank.owner(),
-    era: () => page.bank.getState().ledger?.era ?? null,
+    ledger: () => {
+      const ledger = page.bank.getState().ledger;
+      return ledger ? { era: ledger.era, device: ledger.device } : null;
+    },
     balance: () => page.bank.balance(),
     take: (n) => page.bank.take(n),
     give: (n) => page.bank.give(n),
   };
-  const store: TableStore = { read: (key) => page.env.read(key), write: (key, text) => page.env.write(key, text), remove: (key) => page.env.remove(key) };
-  return { seat, told, game: createTable(medals, store) };
+  // The browser's storage, which can be made full: then it can be read, and takes no write.
+  const store: TableStore = {
+    read: (key) => page.env.read(key),
+    write: (key, text) => {
+      if (full.on) throw new Error('full');
+      page.env.write(key, text);
+    },
+    remove: (key) => page.env.remove(key),
+  };
+  const full = { on: false };
+  return { seat, told, full, game: createTable(medals, store) };
 }
 
 async function seated(browser = new FakeBrowser()) {
@@ -319,8 +331,10 @@ describe('the medal center’s reset', () => {
     expect(game.pay()).toBeNull();
     expect(storedBalance(browser)).toBe(WELCOME);
     expect(page.bank.restartDue(TCP_GAME)).toBe(true);
+    const key = tableKey(page.bank.getState().ledger?.device ?? '');
+    expect(browser.storage.has(key)).toBe(true);
     game.restart();
-    expect(browser.storage.has(TABLE_KEY)).toBe(false);
+    expect(browser.storage.has(key)).toBe(false);
     page.bank.restarted(TCP_GAME);
     await quiet(browser);
     expect(page.bank.restartDue(TCP_GAME)).toBe(false);
@@ -339,13 +353,12 @@ describe('the medal center’s reset', () => {
 });
 
 describe('what storage holds', () => {
-  const hand: SavedHand = { v: 1, era: 0, player: BIG_WIN.player, dealer: BIG_WIN.dealer, bets: { ante: 5, pairPlus: 5 }, decision: 'play', paid: false };
+  const hand: SavedHand = { v: 1, era: 0, device: 'device0001', player: BIG_WIN.player, dealer: BIG_WIN.dealer, bets: { ante: 5, pairPlus: 5 }, decision: 'play', paid: false };
 
   it('reads back what it writes', () => {
     expect(parseHand(serializeHand(hand))).toEqual(hand);
     expect(JSON.parse(serializeHand(hand)).cards).toHaveLength(6);
-    expect(tableKey(null)).toBe(TABLE_KEY);
-    expect(tableKey('test-player-1')).toBe(`${TABLE_KEY}:test-player-1`);
+    expect(tableKey('device0001')).toBe(`${TABLE_KEY}:device0001`);
   });
 
   it('reads anything else as no hand, and never throws', () => {
@@ -364,6 +377,8 @@ describe('what storage holds', () => {
       JSON.stringify({ ...good, v: undefined }),
       JSON.stringify({ ...good, era: -1 }),
       JSON.stringify({ ...good, era: 1.5 }),
+      JSON.stringify({ ...good, device: undefined }),
+      JSON.stringify({ ...good, device: 'Not A Device!' }),
       JSON.stringify({ ...good, cards: [0, 1, 2, 3, 4] }),
       JSON.stringify({ ...good, cards: [0, 1, 2, 3, 4, 4] }),
       JSON.stringify({ ...good, cards: [0, 1, 2, 3, 4, 52] }),
@@ -384,20 +399,22 @@ describe('what storage holds', () => {
 
   it('opens over an unreadable save with no hand on the table, and deals over it', async () => {
     const browser = new FakeBrowser();
-    browser.storage.set(TABLE_KEY, '{"bankroll":1000,"chips":[1,5,25,100,500]}');
+    // A guest's medals kept under a name of their own, and text the table cannot read under it and under its bare name.
+    browser.storage.set(BANK_KEY, serializeLedger(createLedger('seedtable01')));
+    browser.storage.set(tableKey('seedtable01'), '{"bankroll":1000,"chips":[1,5,25,100,500]}');
+    browser.storage.set(TABLE_KEY, '{"bankroll":1000,"bets":{"ante":5,"pairPlus":0}}');
     const { game } = await seated(browser);
     expect(game.open()).toBeNull();
     expect(game.deal({ ante: 1, pairPlus: 0 }, RAGS).ok).toBe(true);
     expect(storedBalance(browser)).toBe(WELCOME - 1);
-    expect(handStage(parseHand(browser.storage.get(TABLE_KEY)))).toBe('deciding');
+    expect(handStage(parseHand(browser.storage.get(tableKey('seedtable01'))))).toBe('deciding');
   });
 
   it('plays on from memory in a browser whose storage throws, without moving a medal twice', () => {
     let balance = 50;
     const medals: TableMedals = {
       holding: () => true,
-      owner: () => null,
-      era: () => 0,
+      ledger: () => ({ era: 0, device: 'device0001' }),
       balance: () => balance,
       take: (n) => (n <= balance ? ((balance -= n), true) : false),
       give: (n) => ((balance += n), true),
@@ -422,6 +439,101 @@ describe('what storage holds', () => {
     expect(game.pay()?.settlement.returned).toBe(245);
     expect(game.pay()).toBeNull();
     expect(balance).toBe(35 + 245);
+  });
+});
+
+describe('a browser whose storage is full: it can be read, and takes no write', () => {
+  it('moves no medals for a step it cannot write down, so a reload can never take or pay them again', async () => {
+    const { browser, game, full } = await seated();
+    full.on = true;
+    expect(game.deal({ ante: 5, pairPlus: 5 }, BIG_WIN)).toEqual({ ok: false, why: 'kept' });
+    expect(storedBalance(browser)).toBe(WELCOME);
+    expect(game.open()).toBeNull();
+    full.on = false;
+    expect(game.deal({ ante: 5, pairPlus: 5 }, BIG_WIN).ok).toBe(true);
+    expect(storedBalance(browser)).toBe(WELCOME - 10);
+
+    full.on = true;
+    expect(game.play()).toEqual({ ok: false, why: 'kept' });
+    expect(game.fold()).toEqual({ ok: false, why: 'kept' });
+    expect(storedBalance(browser)).toBe(WELCOME - 10);
+    expect(handStage(game.open())).toBe('deciding');
+    full.on = false;
+    expect(game.play().ok).toBe(true);
+    expect(storedBalance(browser)).toBe(WELCOME - 15);
+
+    // Not written down as paid, not paid: it waits, as storage has it, and is paid once when it can be.
+    full.on = true;
+    expect(game.pay()).toBeNull();
+    expect(storedBalance(browser)).toBe(WELCOME - 15);
+    expect(handStage(game.open())).toBe('unpaid');
+    full.on = false;
+    expect(game.pay()?.settlement.returned).toBe(245);
+    expect(game.pay()).toBeNull();
+    expect(storedBalance(browser)).toBe(WELCOME - 15 + 245);
+  });
+});
+
+describe('signing in and out', () => {
+  const UID = 'test-player-1';
+  const signedOut = { uid: null, settled: true, expected: false };
+
+  it('takes a guest’s hand into the account that the guest’s medals become, and the next guest’s medals can neither play it nor deal over it', async () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    const { page, game } = await seated(browser);
+    const guest = page.bank.getState().ledger?.device ?? '';
+    expect(game.deal({ ante: 5, pairPlus: 5 }, BIG_WIN).ok).toBe(true);
+    // The account has no medals yet: the guest's become the account's, name and all, and so does the hand.
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME - 10 });
+    expect(page.bank.getState().ledger?.device).toBe(guest);
+    expect(game.open()?.player).toEqual(BIG_WIN.player);
+
+    // Signed out before the hand is decided: a new guest's medals, under a new name. They cannot play the hand their
+    // stakes never paid for, and dealing with them leaves it where it is.
+    page.bank.attend(signedOut, accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(page.bank.getState().ledger?.device).not.toBe(guest);
+    expect(game.open()).toBeNull();
+    expect(game.play()).toEqual({ ok: false, why: 'none' });
+    expect(game.pay()).toBeNull();
+    expect(game.deal({ ante: 1, pairPlus: 0 }, RAGS).ok).toBe(true);
+    expect(page.bank.getState().balance).toBe(WELCOME - 1);
+    expect(handStage(parseHand(browser.storage.get(tableKey(guest))))).toBe('deciding');
+
+    // Signed in again: the account's medals and the account's hand, played and paid once.
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME - 10 });
+    expect(game.open()?.player).toEqual(BIG_WIN.player);
+    expect(game.play().ok).toBe(true);
+    expect(game.pay()?.settlement.returned).toBe(245);
+    expect(game.pay()).toBeNull();
+    expect(page.bank.getState().balance).toBe(WELCOME - 15 + 245);
+  });
+
+  it('leaves a guest’s hand to the guest when the account has medals of its own, and plays it again when the guest is back', async () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    accounts.put(UID, serializeLedger(give(createLedger('laptop0001'), 400)), 'm-elsewhere');
+    const { page, game } = await seated(browser);
+    expect(game.deal({ ante: 5, pairPlus: 0 }, BIG_WIN).ok).toBe(true);
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME + 400 });
+    // The account's medals did not pay for the guest's hand: it is not theirs to play.
+    expect(game.open()).toBeNull();
+    expect(game.play()).toEqual({ ok: false, why: 'none' });
+    page.bank.attend(signedOut, accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME - 5 });
+    expect(game.open()?.player).toEqual(BIG_WIN.player);
+    expect(game.play().ok).toBe(true);
+    expect(game.pay()?.settlement.returned).toBe(40);
+    expect(page.bank.getState().balance).toBe(WELCOME - 10 + 40);
   });
 });
 

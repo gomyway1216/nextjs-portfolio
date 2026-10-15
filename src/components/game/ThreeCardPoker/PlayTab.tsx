@@ -5,6 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { DEALER_HANDS, HAND_COUNT, handOdds, qualifyingHands, strategyOdds } from './analysis';
@@ -165,8 +166,10 @@ const browserStore: TableStore = {
 /** The medal center's medals, as this table's seat sees them. */
 const medalsFor = (seat: { current: Seat | null }): TableMedals => ({
   holding: () => seat.current?.holding() ?? false,
-  owner: () => medalBank().owner(),
-  era: () => medalBank().getState().ledger?.era ?? null,
+  ledger: () => {
+    const ledger = medalBank().getState().ledger;
+    return ledger ? { era: ledger.era, device: ledger.device } : null;
+  },
   balance: () => medalBank().balance(),
   take: (medals) => medalBank().take(medals),
   give: (medals) => medalBank().give(medals),
@@ -220,6 +223,8 @@ export const PlayTab = () => {
   const revealing = useRef(false);
   /** The hand this page shows, as text: what it last read from storage or wrote there. */
   const shown = useRef<string | null>(null);
+  /** The medals this page last saw: whose they were, and their era, to tell when they have been reset since. */
+  const seen = useRef<{ owner: string | null; era: number } | null>(null);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -297,8 +302,11 @@ export const PlayTab = () => {
   const payNow = () => {
     clearTimers();
     revealing.current = false;
-    const paid = table.current?.pay();
+    const at = table.current;
+    const paid = at?.pay();
     if (paid) finish(paid.hand, paid.settlement);
+    // Held, and still not paid: the browser would not write it down as paid. It is paid when it can be.
+    else if (at && holding() && handStage(at.open()) === 'unpaid') warn(live.current.t.notKept);
   };
 
   /** Starts the table over after the medal center's reset: no hand, nothing to rebet, a new session. */
@@ -318,10 +326,16 @@ export const PlayTab = () => {
     const at = table.current;
     if (!at) return;
     const purse = medalBank();
+    const { owner, ledger } = purse.getState();
+    // A reset of the medals, heard of or seen in their era, starts this page's table over whoever holds the card: the
+    // session and the bets to repeat are this page's own.
+    const before = seen.current;
+    const reset = heardReset || (before !== null && ledger !== null && before.owner === owner && ledger.era > before.era);
+    if (ledger) seen.current = { owner, era: ledger.era };
+    if (reset) startOver(true, strings);
+    // Storage, and the mark that this device's table has started over, are the business of the page with the card.
     if (holding() && purse.restartDue(TCP_GAME)) {
-      const had = heardReset || shown.current !== null || statsRef.current.hands > 0;
       at.restart();
-      startOver(had, strings);
       purse.restarted(TCP_GAME);
     }
     const stored = at.open();
@@ -368,8 +382,9 @@ export const PlayTab = () => {
     });
     return () => {
       unlisten();
-      if (seat.current === mine) seat.current = null;
+      // The seat is left while this table still holds it: a decided hand still to be paid is paid as the card goes.
       mine.leave();
+      if (seat.current === mine) seat.current = null;
     };
   }, []);
 
@@ -397,6 +412,7 @@ export const PlayTab = () => {
 
   const refused = (why: Refusal, short: string) => {
     if (why === 'short') warn(short);
+    else if (why === 'kept') warn(t.notKept);
     else if (why === 'bets') warn(t.spotFull(SPOT_MAX));
     else if (why === 'busy') {
       sync(t);
@@ -721,7 +737,7 @@ export const PlayTab = () => {
             </button>
           )}
           <p className={styles.notMoney} data-testid="tcp-not-money">
-            {t.notMoney}
+            {NOT_MONEY[language]}
           </p>
           <p className={styles.counterNote}>
             {t.medalsFrom[0]}

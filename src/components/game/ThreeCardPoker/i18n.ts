@@ -23,8 +23,6 @@ export interface ThreeCardPokerStrings {
   medalsUnit: string;
   /** Said of the counter while the medals are still being read. */
   medalsWaiting: string;
-  /** What the medals are, beside the counter: the owner's note that they are not money. */
-  notMoney: string;
   /** Where the medals come from, around the link to the Medal Game Center: the words before it and after it. */
   medalsFrom: readonly [string, string];
   centerLink: string;
@@ -57,6 +55,8 @@ export interface ThreeCardPokerStrings {
   needAnte: string;
   needPlayFunds: (ante: number) => string;
   playShort: string;
+  /** This browser would not save the hand, so the step was not taken and no medal moved. */
+  notKept: string;
   handBusy: string;
   resumed: string;
   placeBets: string;
@@ -194,7 +194,6 @@ const en: ThreeCardPokerStrings = {
   medals: 'Your medals',
   medalsUnit: 'medals',
   medalsWaiting: 'Looking for your medals…',
-  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
   medalsFrom: ['The same medals play every game at the ', ', where the daily bonus and the one reset are.'],
   centerLink: 'Medal Game Center',
   onTable: 'On table',
@@ -230,6 +229,7 @@ const en: ThreeCardPokerStrings = {
   needAnte: 'Bet at least 1 medal on the Ante first.',
   needPlayFunds: (ante) => `Keep ${ante} ${ante === 1 ? 'medal' : 'medals'} for the Play bet — lower the Ante or the Pair Plus bet.`,
   playShort: 'Not enough medals left for the Play bet: you can fold this hand.',
+  notKept: 'This browser would not save the hand, so no medals moved. Free some space in the browser and try again.',
   handBusy: 'There is a hand on the table already.',
   resumed: 'Your hand was kept as it was: play or fold.',
   placeBets: 'Place your Ante, then deal.',
@@ -400,7 +400,6 @@ const ja: ThreeCardPokerStrings = {
   medals: '持ちメダル',
   medalsUnit: '枚',
   medalsWaiting: '持ちメダルを確認しています…',
-  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
   medalsFrom: ['', 'のどのゲームとも共通のメダルです。デイリーボーナスとリセットはセンターにあります。'],
   centerLink: 'メダルゲームセンター',
   onTable: 'ベット中',
@@ -432,6 +431,7 @@ const ja: ThreeCardPokerStrings = {
   needAnte: 'まずアンティに1枚以上ベットしてください。',
   needPlayFunds: (ante) => `プレイベット用に${ante}枚残してください。アンティかペアプラスを減らしましょう。`,
   playShort: 'プレイベットに足りるメダルがありません。このハンドはフォールドできます。',
+  notKept: 'このブラウザにハンドを保存できなかったため、メダルは動いていません。ブラウザの空き容量を確保してから、もう一度お試しください。',
   handBusy: 'テーブルにはまだ途中のハンドがあります。',
   resumed: '途中のハンドをそのまま残してあります。プレイかフォールドを選んでください。',
   placeBets: 'アンティを置いてディールしてください。',

@@ -440,7 +440,8 @@ export function createMedalPlay(env: MedalPlayEnv) {
         if (!current || current.id !== id) return { kind: 'unsaved' };
       }
       if (!current || current.id !== id || current.drawn) return { kind: 'gone', hand: current };
-      const drawn: SavedHand = { ...current, held: isMask(held) ? held : current.held, drawn: true };
+      // Drawn under receipts whichever way it was dealt: a hand dealt before receipts has its win checked for too.
+      const drawn: SavedHand = { ...current, held: isMask(held) ? held : current.held, drawn: true, receipts: true };
       if (from !== null) {
         if (write(drawn, from) === 'failed') return { kind: 'unsaved' };
       } else {

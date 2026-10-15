@@ -375,7 +375,8 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       // Marked paid first, so that nothing that hears of the medals moving (the page looks at the table whenever they
       // do) finds the spin still to finish; then its winnings go in under their receipt. A page that dies between the
       // two leaves a spin marked paid whose winnings the next page that holds the card puts in, once (`leftover`).
-      if (!write(key, serializeSpin({ ...record, paid: true }))) remove(key);
+      // Marked paid under receipts whichever way it was bet: a spin bet before receipts has its winnings checked for too.
+      if (!write(key, serializeSpin({ ...record, paid: true, receipts: true }))) remove(key);
       staked.paid = true;
       if (record.won > 0) move(record, PAY_STEP, record.won);
       return 'paid';

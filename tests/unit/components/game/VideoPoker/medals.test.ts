@@ -698,6 +698,27 @@ describe('a browser that dies between two writes', () => {
     expect(play.draw('oldhand1', ALL)).toMatchObject({ kind: 'gone' });
     expect(storedBalance(browser)).toBe(WELCOME - 5 + 45);
   });
+
+  it('pays a hand dealt before receipts exactly once wherever the browser dies as it is drawn', async () => {
+    await atEveryWrite(
+      async () => {
+        const browser = await setUp();
+        const page = browser.pages[0];
+        page.bank.take(5);
+        const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+        const old: SavedHand = { v: 1, id: 'oldhand1', era: 0, device, hand: FULL_HOUSE.slice(0, 5).map(c), stub: FULL_HOUSE.slice(5).map(c), coins: 5, payId: '9/6', held: 0, drawn: false };
+        browser.storage.set(handKey(null), serializeHand(old));
+        return browser;
+      },
+      (browser) => {
+        machines.get(browser)!.play.draw('oldhand1', ALL);
+      },
+      async (after, reached) => {
+        await playOn(after);
+        expect(storedBalance(after), `died after ${reached} writes`).toBe(WELCOME - 5 + 45);
+      },
+    );
+  });
 });
 
 describe('what is not play', () => {

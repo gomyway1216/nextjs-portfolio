@@ -728,6 +728,28 @@ describe('a browser that dies between two writes', () => {
     expect(stored(browser)).toBe(WELCOME - 12 + 72);
     expect(roulette.table.leftover()).toBeNull();
   });
+
+  it('pays a spin from before receipts exactly once wherever the browser dies while it is finished', async () => {
+    await atEveryWrite(
+      async () => {
+        const browser = await setUp();
+        const page = browser.pages[0];
+        page.bank.take(12);
+        const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+        browser.storage.set(SPIN_KEY, serializeSpin({ v: 1, id: 'oldspin1', owner: null, ledger: device, era: 0, result: HITS_17, bets: [RED, SEVENTEEN], wagered: 12, won: 72, paid: false }));
+        return browser;
+      },
+      (browser) => {
+        const { table } = tables.get(browser)!;
+        const left = table.leftover();
+        if (left) table.settle({ record: left, stored: true, paid: false, void: false });
+      },
+      async (after, reached) => {
+        await reopened(after);
+        expect(stored(after), `died after ${reached} writes`).toBe(WELCOME - 12 + 72);
+      },
+    );
+  });
 });
 
 describe('the demos', () => {

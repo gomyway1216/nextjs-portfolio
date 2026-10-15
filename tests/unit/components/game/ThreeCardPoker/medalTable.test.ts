@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, give, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptOf, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import {
   ANTE_BONUS_PAYS,
   CATEGORIES,
@@ -31,7 +31,7 @@ import {
   type TableMedals,
   type TableStore,
 } from '@/components/game/ThreeCardPoker/medalTable';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 // Three Card Poker at the medal center, against the medal center's real bank (createBank) in a browser of fakes: one
@@ -70,8 +70,9 @@ function table(page: FakePage, onYield: (why: string) => void = () => undefined)
       return ledger ? { era: ledger.era, device: ledger.device } : null;
     },
     balance: () => page.bank.balance(),
-    take: (n) => page.bank.take(n),
-    give: (n) => page.bank.give(n),
+    apply: (move) => page.bank.apply(move),
+    applied: (move) => page.bank.applied(move),
+    forget: (game, keep) => page.bank.forget(game, keep),
   };
   // The browser's storage, which can be made full: then it can be read, and takes no write.
   const store: TableStore = {
@@ -412,12 +413,22 @@ describe('what storage holds', () => {
 
   it('plays on from memory in a browser whose storage throws, without moving a medal twice', () => {
     let balance = 50;
+    // Medals kept in memory, as the bank keeps them where storage throws: each move made once under its receipt.
+    const made = new Set<string>();
     const medals: TableMedals = {
       holding: () => true,
       ledger: () => ({ era: 0, device: 'device0001' }),
       balance: () => balance,
-      take: (n) => (n <= balance ? ((balance -= n), true) : false),
-      give: (n) => ((balance += n), true),
+      apply: ({ game, round, step, medals: n }) => {
+        const receipt = `${game}:${round}:${step}`;
+        if (made.has(receipt)) return 'already';
+        if (balance + n < 0) return null;
+        balance += n;
+        made.add(receipt);
+        return 'applied';
+      },
+      applied: ({ game, round, step }) => made.has(`${game}:${round}:${step}`),
+      forget: () => true,
     };
     const blocked: TableStore = {
       read: () => {
@@ -534,6 +545,91 @@ describe('signing in and out', () => {
     expect(game.play().ok).toBe(true);
     expect(game.pay()?.settlement.returned).toBe(40);
     expect(page.bank.getState().balance).toBe(WELCOME - 10 + 40);
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The hand and the medals are two writes (medalTable.ts): the browser is killed at every moment of a hand, started
+  // again, and the table plays on from what it left. Every hand is played and paid exactly once, or, if its Ante never
+  // went in, never dealt at all.
+  const tables = new Map<FakeBrowser, Awaited<ReturnType<typeof seated>>>();
+  const setUp = async () => {
+    const at = await seated();
+    tables.set(at.browser, at);
+    return at.browser;
+  };
+  const spentIn = (browser: FakeBrowser): number => {
+    const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
+    return ledger.rows[ledger.device]?.spent ?? 0;
+  };
+  /** Opens the table again on what the browser left and plays the hand it finds to its end: `decision` if it is to be decided. */
+  const playOn = async (after: FakeBrowser, decision: 'play' | 'fold') => {
+    const at = await seated(after);
+    const hand = at.game.open();
+    if (handStage(hand) === 'deciding') expect((decision === 'play' ? at.game.play() : at.game.fold()).ok).toBe(true);
+    if (handStage(at.game.open()) === 'unpaid') expect(at.game.pay()).not.toBeNull();
+    return at;
+  };
+
+  for (const [what, cards, decision] of [
+    ['a hand played and won', BIG_WIN, 'play'],
+    ['a hand played and lost, its Pair Plus paid', PAIR_LOSES, 'play'],
+    ['a hand folded', RAGS, 'fold'],
+  ] as const) {
+    it(`takes and pays ${what} exactly once, or never deals it, wherever the browser dies in it`, async () => {
+      const stakes = decision === 'play' ? 15 : 10;
+      const { returned } = settle({ ante: 5, pairPlus: 5 }, decision, cards.player, cards.dealer);
+      const writes = await atEveryWrite(
+        setUp,
+        (browser) => {
+          // Once the browser has died nothing it writes is kept, and what it reads back is what it left: the steps after
+          // that are tried all the same, as the page knows nothing of it, and none of them reaches storage.
+          const { game } = tables.get(browser)!;
+          game.deal({ ante: 5, pairPlus: 5 }, cards);
+          if (decision === 'play') game.play();
+          else game.fold();
+          game.pay();
+        },
+        async (after, reached) => {
+          const dealt = spentIn(after) >= 10;
+          const at = await playOn(after, decision);
+          expect(storedBalance(after), `died after ${reached} writes`).toBe(dealt ? WELCOME - stakes + returned : WELCOME);
+          expect(['none', 'over'], `died after ${reached} writes`).toContain(handStage(at.game.open()));
+          // Played again, nothing more is taken or paid; and the next hand starts with the last one's receipts let go of.
+          expect(at.game.pay()).toBeNull();
+          expect(at.game.deal({ ante: 1, pairPlus: 0 }, RAGS).ok).toBe(true);
+          const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([receiptOf(TCP_GAME, at.game.open()!.id!, 'deal')]);
+        },
+      );
+      expect(writes).toBeGreaterThanOrEqual(decision === 'play' ? 6 : 4);
+    });
+  }
+
+  it('gives a hand dealt before receipts its receipts, and plays it on once, wherever the browser dies', async () => {
+    const setUpOld = async () => {
+      const browser = await setUp();
+      const { page } = tables.get(browser)!;
+      // As the table wrote it before receipts: the Ante and Pair Plus taken, and the hand written down with no name.
+      page.bank.take(10);
+      const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+      const old: SavedHand = { v: 1, era: 0, device, player: BIG_WIN.player, dealer: BIG_WIN.dealer, bets: { ante: 5, pairPlus: 5 }, decision: null, paid: false };
+      browser.storage.set(tableKey(device), serializeHand(old));
+      return browser;
+    };
+    await atEveryWrite(
+      setUpOld,
+      (browser) => {
+        const { game } = tables.get(browser)!;
+        game.open();
+        game.play();
+        game.pay();
+      },
+      async (after, reached) => {
+        await playOn(after, 'play');
+        expect(storedBalance(after), `died after ${reached} writes`).toBe(WELCOME - 15 + 245);
+      },
+    );
   });
 });
 

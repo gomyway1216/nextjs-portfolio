@@ -22,6 +22,18 @@
  * before every step, so a second tab, or the page after a reload, carries on
  * from wherever the hand was left rather than from what it remembers.
  *
+ * The hand and the medals are two writes, and a browser can die between any
+ * two writes. So each of the three moves goes into the medals under a receipt
+ * (`bank.apply`; "A machine's rounds" in bank.ts), named by the hand, and the
+ * table that holds the card next looks at the hand against its receipts: a
+ * hand written down whose Ante never went in was never dealt, and is cleared;
+ * a Play written down whose bet never went in was never made, and the hand
+ * waits for Play or Fold again; a hand written down as paid whose win never
+ * went in is paid now. A move made already is never made again. A hand dealt
+ * before there were receipts is given its receipts the first time the table
+ * holds the card (for what it has had taken, with no medals moved), and goes
+ * on the same way from there.
+ *
  * A browser that can be read but will not take a write (its storage is full)
  * moves no medals at all: a step whose hand could not be written down is not
  * taken, since a reload would otherwise find the hand as it was before the
@@ -53,6 +65,7 @@
  *   hand.
  */
 
+import type { Move } from '../MedalCenter/bank';
 import { isDevice } from '../MedalCenter/ledger';
 import { HAND_SIZE, cardAt, cardIndex, settle, type Bets, type Card, type Decision, type Deal, type Settlement } from './engine';
 
@@ -76,9 +89,19 @@ export const NOTICE_KEY = 'three-card-poker-medals-notice';
 
 export const TABLE_VERSION = 1;
 
+/** The names of a hand's moves of medals at the bank: the Ante and Pair Plus, the Play bet, and the win. */
+export const DEAL_STEP = 'deal';
+export const PLAY_STEP = 'play';
+export const PAY_STEP = 'pay';
+
 /** A hand on the table, as it is kept. */
 export interface SavedHand {
   v: typeof TABLE_VERSION;
+  /**
+   * The hand's name, which its moves of medals go under (`bank.apply`). A hand dealt before there were receipts has
+   * none until the table first holds the card for it (`handId`).
+   */
+  id?: string;
   /** The medals the stakes were taken from: their era (how many times they had been reset), and their device name. */
   era: number;
   device: string;
@@ -97,10 +120,16 @@ const isWhole = (value: unknown, low: number, high: number): value is number =>
 /** Whether bets can be dealt: an Ante of 1 to `SPOT_MAX` medals, and Pair Plus of none up to as many. */
 export const validBets = (bets: Bets): boolean => isWhole(bets.ante, 1, SPOT_MAX) && isWhole(bets.pairPlus, 0, SPOT_MAX);
 
+const ID_SHAPE = /^[a-z0-9]{1,24}$/;
+
+/** The name a hand dealt before there were receipts is given: its six cards, which no other hand on the table has had. */
+export const handId = (hand: Pick<SavedHand, 'player' | 'dealer'>): string => `h${[...hand.player, ...hand.dealer].map((card) => cardIndex(card).toString(36).padStart(2, '0')).join('')}`;
+
 /** The hand as text: its six cards as numbers, the player's three first. */
 export function serializeHand(hand: SavedHand): string {
   return JSON.stringify({
     v: TABLE_VERSION,
+    ...(hand.id === undefined ? {} : { id: hand.id }),
     era: hand.era,
     device: hand.device,
     cards: [...hand.player, ...hand.dealer].map(cardIndex),
@@ -135,9 +164,11 @@ export function parseHand(text: unknown): SavedHand | null {
   const decision = saved.decision;
   if (decision !== null && decision !== 'play' && decision !== 'fold') return null;
   if (typeof saved.paid !== 'boolean' || (saved.paid && decision === null)) return null;
+  if (saved.id !== undefined && (typeof saved.id !== 'string' || !ID_SHAPE.test(saved.id))) return null;
   const dealt = (cards as number[]).map(cardAt);
   return {
     v: TABLE_VERSION,
+    ...(saved.id === undefined ? {} : { id: saved.id as string }),
     era: saved.era,
     device: saved.device,
     player: dealt.slice(0, HAND_SIZE),
@@ -166,10 +197,12 @@ export interface TableMedals {
   ledger: () => MedalsOnTable | null;
   /** The medals that can be bet now. */
   balance: () => number;
-  /** Takes medals out. False when they are not there to take, or the card is not here. */
-  take: (medals: number) => boolean;
-  /** Puts medals won back in. */
-  give: (medals: number) => boolean;
+  /** Moves a hand's medals under a receipt, once (bank.ts): taken below nothing, given above. Null when not made. */
+  apply: (move: Move) => 'applied' | 'already' | null;
+  /** Whether a move of a hand's medals has been made. */
+  applied: (move: Pick<Move, 'game' | 'round' | 'step'>) => boolean;
+  /** Lets go of the receipts of every hand but those in `keep`. */
+  forget: (game: string, keep?: readonly string[]) => boolean;
 }
 
 /** Where hands are kept: this device's storage. Any call may throw, when storage is blocked or full. */
@@ -188,7 +221,17 @@ export type Step = { ok: true; hand: SavedHand } | { ok: false; why: Refusal };
 
 export type Table = ReturnType<typeof createTable>;
 
-export function createTable(medals: TableMedals, store: TableStore) {
+const LETTERS = '0123456789abcdefghijklmnopqrstuvwxyz';
+/** A new hand's name: twelve letters and digits from the browser's random numbers. */
+const randomId = (): string => {
+  try {
+    return Array.from(globalThis.crypto.getRandomValues(new Uint32Array(12)), (n) => LETTERS[n % LETTERS.length]).join('');
+  } catch {
+    return Array.from({ length: 12 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
+  }
+};
+
+export function createTable(medals: TableMedals, store: TableStore, newId: () => string = randomId) {
   // What was last read or written under each name, for a browser whose storage cannot be used at all: there the table
   // plays on from memory, as the medals themselves do.
   const memo = new Map<string, string | null>();
@@ -227,19 +270,60 @@ export function createTable(medals: TableMedals, store: TableStore) {
 
   const refuse = (why: Refusal): Step => ({ ok: false, why });
 
+  /** Writes the hand down under the name of the medals it was dealt from. False when it could not be written. */
+  const keep = (hand: SavedHand): boolean => writeText(tableKey(hand.device), serializeHand(hand));
+
+  /** A move of a hand's medals, under its receipt. */
+  const move = (hand: SavedHand, step: string, amount: number) => medals.apply({ game: TCP_GAME, round: hand.id ?? handId(hand), step, medals: amount, era: hand.era });
+  const moved = (hand: SavedHand, step: string): boolean => medals.applied({ game: TCP_GAME, round: hand.id ?? handId(hand), step });
+
   /**
-   * The hand on the table for the medals on it: the one kept under their name, if it is of their era. A hand from
-   * before the medals' last reset is no hand.
+   * Squares a hand with its receipts, with the card: what the hand says was taken or paid and the medals do not have
+   * was never taken (the browser died between the hand and the medals), or is paid now. A hand from before receipts
+   * is given its receipts first, for what it has had taken. Returns the hand as it stands, or null for none.
+   */
+  const square = (hand: SavedHand): SavedHand | null => {
+    if (!medals.holding()) return hand;
+    let at = hand;
+    if (at.id === undefined && !at.paid) {
+      // Dealt before receipts: its Ante (and its Play bet, if it was played) went in as it was written. They are
+      // written down as moves made, with no medals moved, and the hand is given its name.
+      const named: SavedHand = { ...at, id: handId(at) };
+      if (move(named, DEAL_STEP, 0) === null) return at;
+      if (named.decision === 'play' && move(named, PLAY_STEP, 0) === null) return at;
+      keep(named);
+      at = named;
+    }
+    if (at.id === undefined) return at;
+    if (!moved(at, DEAL_STEP)) {
+      // Never dealt: the browser died before its Ante went in.
+      writeText(tableKey(at.device), null);
+      return null;
+    }
+    if (at.decision === 'play' && !at.paid && !moved(at, PLAY_STEP)) {
+      // Played, and the browser died before the Play bet went in: it was never played.
+      const back: SavedHand = { ...at, decision: null };
+      keep(back);
+      return back;
+    }
+    if (at.paid && at.decision !== null) {
+      // Written down as paid, and the browser died before the win went in: it goes in now, once.
+      const { returned } = settle(at.bets, at.decision, at.player, at.dealer);
+      if (returned > 0 && !moved(at, PAY_STEP)) move(at, PAY_STEP, returned);
+    }
+    return at;
+  };
+
+  /**
+   * The hand on the table for the medals on it: the one kept under their name, if it is of their era, squared with
+   * its receipts when this table holds the card. A hand from before the medals' last reset is no hand.
    */
   const find = (): SavedHand | null => {
     const ledger = medals.ledger();
     if (!ledger) return null;
     const hand = parseHand(readText(tableKey(ledger.device)));
-    return hand && hand.device === ledger.device && hand.era === ledger.era ? hand : null;
+    return hand && hand.device === ledger.device && hand.era === ledger.era ? square(hand) : null;
   };
-
-  /** Writes the hand down under the name of the medals it was dealt from. False when it could not be written. */
-  const keep = (hand: SavedHand): boolean => writeText(tableKey(hand.device), serializeHand(hand));
 
   return {
     /** The hand on the table, as storage has it now. */
@@ -262,6 +346,7 @@ export function createTable(medals: TableMedals, store: TableStore) {
       const was = readText(key);
       const hand: SavedHand = {
         v: TABLE_VERSION,
+        id: newId(),
         era: ledger.era,
         device: ledger.device,
         player: [...cards.player],
@@ -271,10 +356,12 @@ export function createTable(medals: TableMedals, store: TableStore) {
         paid: false,
       };
       if (!keep(hand)) return refuse('kept');
-      if (!medals.take(stake)) {
+      if (move(hand, DEAL_STEP, -stake) !== 'applied') {
         writeText(key, was);
         return refuse('short');
       }
+      // The hand before this one is no longer kept: nothing will look at its receipts again.
+      medals.forget(TCP_GAME, [hand.id!]);
       return { ok: true, hand };
     },
 
@@ -287,7 +374,7 @@ export function createTable(medals: TableMedals, store: TableStore) {
       if (medals.balance() < hand.bets.ante) return refuse('short');
       const next: SavedHand = { ...hand, decision: 'play' };
       if (!keep(next)) return refuse('kept');
-      if (!medals.take(hand.bets.ante)) {
+      if (move(next, PLAY_STEP, -hand.bets.ante) !== 'applied') {
         keep(hand);
         return refuse('short');
       }
@@ -306,7 +393,8 @@ export function createTable(medals: TableMedals, store: TableStore) {
     },
 
     /**
-     * Pays a decided hand: it is written down as paid, and then what it won goes back into the medals, once. Null when
+     * Pays a decided hand: it is written down as paid, and then what it won goes back into the medals under its
+     * receipt, once (a browser that dies between the two has it paid by the next table that holds the card). Null when
      * there is nothing to pay, the card is not here, or the hand could not be written down as paid (it is paid later).
      */
     pay(): { hand: SavedHand; settlement: Settlement } | null {
@@ -316,7 +404,7 @@ export function createTable(medals: TableMedals, store: TableStore) {
       const settlement = settle(hand.bets, hand.decision, hand.player, hand.dealer);
       const next: SavedHand = { ...hand, paid: true };
       if (!keep(next)) return null;
-      if (settlement.returned > 0) medals.give(settlement.returned);
+      if (settlement.returned > 0) move(next, PAY_STEP, settlement.returned);
       return { hand: next, settlement };
     },
 

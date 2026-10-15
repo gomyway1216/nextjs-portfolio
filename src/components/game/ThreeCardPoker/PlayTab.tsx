@@ -171,8 +171,9 @@ const medalsFor = (seat: { current: Seat | null }): TableMedals => ({
     return ledger ? { era: ledger.era, device: ledger.device } : null;
   },
   balance: () => medalBank().balance(),
-  take: (medals) => medalBank().take(medals),
-  give: (medals) => medalBank().give(medals),
+  apply: (move) => medalBank().apply(move),
+  applied: (move) => medalBank().applied(move),
+  forget: (game, keep) => medalBank().forget(game, keep),
 });
 
 /** A medal of the medal center's own, in its silver: copper-nickel with a raised rim and its star. */

@@ -123,7 +123,7 @@ const en: RecordStrings = {
   bonusNewCard: (medals) => `The card is full! A new one starts tomorrow: +${medals}.`,
   bonusLater: (date, medals) => `The card is stamped ahead of today. The next bonus is on ${date}: +${medals}.`,
   bonusNoDay: 'This device’s date is off the calendar, so there is no bonus today.',
-  bonusNotKept: 'No daily bonus here: this browser is not keeping your medal bank.',
+  bonusNotKept: 'No daily bonus here: this browser is not keeping your medals.',
   bonusNotApart: 'No daily bonus in this browser: it has no way to keep two tabs of the game from each being paid for the same day.',
   bonusAsking: 'Asking your account whether today’s bonus has been taken on another device…',
   pipsAria: (stamped, squares) => `${stamped} of ${squares} stamped`,
@@ -138,7 +138,7 @@ const en: RecordStrings = {
   squareToday: (square, medals) => `Day ${square}: ${medals} medals. Ready today.`,
   squareStamped: (square, medals, date) => `Day ${square}: ${medals} medals. Stamped ${date}.`,
   cardNote:
-    'Bonus medals are free. They go straight into your medal bank, for every game at the Medal Center, and are not counted as fed, won or paid, so they change no return on this page: not the machine’s, not the lifetime one below, and not the odds.',
+    'Bonus medals are free. They are added straight to your medals, for every game at the Medal Center, and are not counted as fed, won or paid, so they change no return on this page: not the machine’s, not the lifetime one below, and not the odds.',
   clockNote:
     'A day is a day on this device’s own calendar and changes at its midnight. Each day is stamped once: putting the clock forward takes that day’s stamp early, and then nothing is ready until the day after it really comes.',
 
@@ -255,7 +255,7 @@ const ja: RecordStrings = {
   bonusNewCard: (medals) => `カードがいっぱいになりました！ 明日から新しいカード: +${medals}枚`,
   bonusLater: (date, medals) => `カードには今日より先の日付のスタンプがあります。次のボーナスは${date}: +${medals}枚`,
   bonusNoDay: 'この端末の日付がカレンダーの範囲外のため、今日のボーナスはありません。',
-  bonusNotKept: 'このブラウザではメダルバンクを保存できないため、デイリーボーナスはありません。',
+  bonusNotKept: 'このブラウザではメダルを保存できないため、デイリーボーナスはありません。',
   bonusNotApart: 'このブラウザでは、2つのタブが同じ日のボーナスを重ねて受け取るのを防げないため、デイリーボーナスはありません。',
   bonusAsking: 'ほかの端末で今日のボーナスを受け取っていないか、アカウントに確認しています…',
   pipsAria: (stamped, squares) => `${squares}個中${stamped}個スタンプ済み`,
@@ -270,7 +270,7 @@ const ja: RecordStrings = {
   squareToday: (square, medals) => `${square}日目: ${medals}枚。今日受け取れます。`,
   squareStamped: (square, medals, date) => `${square}日目: ${medals}枚。${date}にスタンプ済み。`,
   cardNote:
-    'ボーナスのメダルは無料です。そのままメダルバンクに入り（メダルゲームセンターのどのゲームでも使えます）、投入・獲得・払い出しのどれにも数えません。このページの還元率（マシンの還元率、下の通算の還元率、確率の表）は変わりません。',
+    'ボーナスのメダルは無料です。そのまま持ちメダルに加わり（メダルゲームセンターのどのゲームでも使えます）、投入・獲得・払い出しのどれにも数えません。このページの還元率（マシンの還元率、下の通算の還元率、確率の表）は変わりません。',
   clockNote:
     '1日は、この端末のカレンダーの1日で、端末の午前0時に変わります。スタンプは1日に1回だけです。時計を進めるとその日のスタンプを先に押せますが、本当にその翌日になるまで次は受け取れません。',
 
@@ -349,18 +349,18 @@ const ja: RecordStrings = {
   keptNote: '記録は、マシンとは別に、この端末に保存しています。',
   notKeptNote: 'このブラウザでは記録を保存できません。ページを閉じると消え、デイリーボーナスもありません。',
   accountKeptNote:
-    '記録は、マシンとは別に、アカウントに預けてあります。ほかの端末でも続きが見られ、それぞれの端末で数えた分は合算されます。スタンプを獲得したときとボーナスを受け取ったとき、それ以外は変更があるあいだ5分ごとに送られます。この端末にも控えが残り、ページを閉じたときにまだ送っていない分は、次にこの端末でゲームを開いたときに送られます。',
+    '記録は、マシンとは別に、アカウントに保存してあります。ほかの端末でも続きが見られ、それぞれの端末で数えた分は合算されます。スタンプを獲得したときとボーナスを受け取ったとき、それ以外は変更があるあいだ5分ごとに送られます。この端末にも控えが残り、ページを閉じたときにまだ送っていない分は、次にこの端末でゲームを開いたときに送られます。',
   accountNotKeptNote:
-    '記録は、マシンとは別に、アカウントに預けてあります。ほかの端末でも続きが見られます。この端末には控えを保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。そのため、この端末ではデイリーボーナスを受け取れず、送る前にページを閉じると、ここで数えた分は失われます。',
+    '記録は、マシンとは別に、アカウントに保存してあります。ほかの端末でも続きが見られます。この端末には控えを保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。そのため、この端末ではデイリーボーナスを受け取れず、送る前にページを閉じると、ここで数えた分は失われます。',
   offlineKeptNote: 'いまアカウントに接続できません。記録はこの端末に保存してあり、接続できしだいアカウントの記録と合わせます。',
   offlineNotKeptNote:
     'いまアカウントに接続できず、この端末にも記録を保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。デイリーボーナスは受け取れず、接続できる前にページを閉じると、ここで数えた分は失われます。',
   unreadableKeptNote:
-    'アカウントに預けてある記録を、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここの記録はこの端末にだけ保存しています。ページを読み込み直すと直ることがあります。',
+    'アカウントに保存してある記録を、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残し、ここの記録はこの端末にだけ保存しています。ページを読み込み直すと直ることがあります。',
   unreadableNotKeptNote:
-    'アカウントに預けてある記録を、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残してあります。ここの記録はどこにも保存されていません。この端末には保存できませんでした（ブラウザが保存を許可していないか、空き容量がありません）。ページを読み込み直すと直ることがあります。',
-  checkingKeptNote: 'アカウントに預けた記録を確認しています… 見つかるまでは、この端末に保存してある記録を表示しています。',
-  checkingNotKeptNote: 'アカウントに預けた記録を確認しています… その間、この端末には記録を保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
+    'アカウントに保存してある記録を、このページでは読み取れません（新しい版のゲームで保存された可能性があります）。アカウント側はそのまま残してあります。ここの記録はどこにも保存されていません。この端末には保存できませんでした（ブラウザが保存を許可していないか、空き容量がありません）。ページを読み込み直すと直ることがあります。',
+  checkingKeptNote: 'アカウントに保存した記録を確認しています… 見つかるまでは、この端末に保存してある記録を表示しています。',
+  checkingNotKeptNote: 'アカウントに保存した記録を確認しています… その間、この端末には記録を保存できませんでした。ブラウザが保存を許可していないか、空き容量がありません。',
   clear: '記録を消去',
   clearConfirm: 'もう一度押すと記録を消去します',
   clearConfirmAccount: 'もう一度押すと、アカウントの記録を消去します',

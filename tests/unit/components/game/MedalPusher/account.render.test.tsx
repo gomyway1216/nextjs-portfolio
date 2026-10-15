@@ -62,7 +62,7 @@ describe('the note that says where the machine is kept', () => {
 
   it('invites in Japanese', () => {
     const html = render(<PlayTab signInHref={SIGN_IN} />, 'ja');
-    expect(html).toContain('サインインすると、アカウントに預けておけます。');
+    expect(html).toContain('サインインすると、アカウントに保存できます。');
   });
 
   it('has words for every place a machine can be kept, in both languages, and none of them the same', () => {
@@ -78,8 +78,8 @@ describe('the note that says where the machine is kept', () => {
     expect(en.offlineNote).toContain('kept on this device');
     expect(en.unreadableNote).toContain('left as it is');
     const ja = getStrings('ja');
-    expect(ja.accountNote).toContain('アカウントに預けてあります');
-    expect(ja.offlineNote).toContain('この端末に預けてあり');
+    expect(ja.accountNote).toContain('アカウントに保存してあります');
+    expect(ja.offlineNote).toContain('この端末に保存してあり');
   });
 });
 

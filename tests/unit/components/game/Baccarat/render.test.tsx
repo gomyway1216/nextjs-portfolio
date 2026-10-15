@@ -13,6 +13,8 @@ import { SimTab } from '@/components/game/Baccarat/SimTab';
 import type { RoadEntry } from '@/components/game/Baccarat/engine';
 import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
+import { getStrings } from '@/components/game/Baccarat/i18n';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -77,6 +79,9 @@ describe('PlayTab', () => {
     );
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}" data-testid="baccarat-center-note-link">Medal Game Center<`);
     expect(markup).not.toMatch(/>Reset</);
+    // The words are the Medal Game Center's own, shared by every game on the floor.
+    expect(getStrings('en').notMoney).toBe(NOT_MONEY.en);
+    expect(getStrings('ja').notMoney).toBe(NOT_MONEY.ja);
   });
 
   it('is localized, in the words of a medal machine', () => {

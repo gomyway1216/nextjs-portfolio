@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { NOTICE_KEY, TABLE_KEY, coupKey, medalsBack, serializeCoup } from '../../src/components/game/Baccarat/medals';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { WELCOME, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, spot } from './baccaratPage';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
@@ -11,8 +12,9 @@ import { arrived } from './streamedPage';
 // (a bet takes them at the deal, a win puts them back, once), the card that one tab at a time holds, the reset, a
 // reload in the middle of a hand, and saved state from before. The table's own rules are in baccarat.spec.ts.
 
-const NOT_MONEY_EN = 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.';
-const NOT_MONEY_JA = 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。';
+// The Medal Game Center's own words, which every game that plays with the medals shows.
+const NOT_MONEY_EN = NOT_MONEY.en;
+const NOT_MONEY_JA = NOT_MONEY.ja;
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
 const shownAtCenter = async (page: Page) => Number(((await page.getByTestId('center-balance').textContent()) ?? '').replace(/,/g, ''));

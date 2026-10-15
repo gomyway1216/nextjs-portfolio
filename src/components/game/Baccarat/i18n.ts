@@ -3,6 +3,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import type { OddsBet } from './analysis';
 import type { BetId, Mode, Outcome, Side, Winner } from './engine';
 import type { PatternId } from './sim';
@@ -26,7 +27,7 @@ export interface BaccaratStrings {
   medalsOnTable: (medals: string) => string;
   medalsWon: (medals: string) => string;
   medalsWaiting: string;
-  /** Shown near the counter, and in the help: medals are not money. */
+  /** Shown near the counter, and in the help: medals are not money (the Medal Game Center's own words, NOT_MONEY). */
   notMoney: string;
   medalsFrom: string;
   centerLink: string;
@@ -190,7 +191,7 @@ const en: BaccaratStrings = {
   medalsOnTable: (n) => `${n} on the table`,
   medalsWon: (n) => `${n} won`,
   medalsWaiting: 'Looking for your medals…',
-  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+  notMoney: NOT_MONEY.en,
   medalsFrom: 'These are your medals from the Medal Game Center: every game there plays with the same ones, and they are reset only there.',
   centerLink: 'Medal Game Center',
   noticeTitle: 'Baccarat now plays with your medals',
@@ -392,7 +393,7 @@ const ja: BaccaratStrings = {
   medalsOnTable: (n) => `テーブルに${n}枚`,
   medalsWon: (n) => `${n}枚獲得`,
   medalsWaiting: 'メダルを確認しています…',
-  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+  notMoney: NOT_MONEY.ja,
   medalsFrom: 'メダルゲームセンターの持ちメダルです。センターのどのゲームでも同じメダルで遊び、リセットはセンターでのみ行えます。',
   centerLink: 'メダルゲームセンター',
   noticeTitle: 'バカラは持ちメダルで遊ぶようになりました',

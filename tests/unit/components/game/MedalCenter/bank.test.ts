@@ -259,6 +259,34 @@ describe('the card: one page at a time writes the bank', () => {
     expect(heard).toHaveLength(1);
   });
 
+  it('gets the card to the hub even when its request reaches the lock manager after the machine has asked for it again', async () => {
+    const browser = new FakeBrowser();
+    const hub = browser.open();
+    const heard = hear(hub);
+    hub.bank.subscribe(() => undefined);
+    const pusher = browser.open();
+    const { seat, told } = machine(pusher);
+    await quiet(browser);
+    expect(seat.holding()).toBe(true);
+    // The hub's request is slow to reach the lock manager: the machine hears that it is wanted, lets the card go and asks
+    // for it again before the hub's request is in. The hub says it again with the next tick, and has the card then.
+    hub.lockLag = 4;
+    hub.bank.claimBonus();
+    await pass(3, [browser], [hub, pusher]);
+    expect(heard).toEqual([{ type: 'bonus', medals: BONUS_CARD[0] }]);
+    expect(storedBalance(browser)).toBe(WELCOME + BONUS_CARD[0]);
+    // And the machine has it back, and plays on.
+    expect(seat.holding()).toBe(true);
+    expect(told[0]).toBe('granted');
+    expect(told.at(-1)).toBe('granted');
+    // The reset gets through the same way.
+    hub.bank.reset();
+    await pass(3, [browser], [hub, pusher]);
+    expect(stored(browser)?.era).toBe(1);
+    expect(storedBalance(browser)).toBe(WELCOME);
+    expect(seat.holding()).toBe(true);
+  });
+
   it('pays a day once when two pages reach for it at the same moment', async () => {
     const browser = new FakeBrowser();
     const [a, b] = [browser.open(), browser.open()];

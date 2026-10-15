@@ -29,9 +29,10 @@
  * between any two writes. So its stake and its winnings each go into the
  * medals under a receipt (`bank.apply`; "A machine's rounds" in bank.ts): a
  * spin on record whose stake never went in never happened, and is thrown
- * away with nothing paid; a spin whose winnings went in and that was not yet
- * marked paid is marked paid, and paid nothing more. A spin written down
- * before there were receipts is taken at its word: its stake was taken.
+ * away with nothing paid; a spin marked paid whose winnings never went in
+ * has them put in, once. A spin's receipts are let go of when the next spin
+ * is bet. A spin written down before there were receipts is taken at its
+ * word: its stake was taken.
  *
  * A spin belongs to the medals it was bet from: the player's ledger on this
  * device (known by the name the ledger keeps for this device, which goes with
@@ -324,6 +325,8 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
         if (stored) remove(key);
         return null;
       }
+      // The spin before this one is no longer on record: nothing will look at its receipts again.
+      bank.forget(ROULETTE_GAME, [record.id]);
       // The bank could not write the stake down: the spin is not left on record either, or a page that dies now would
       // come back to a spin whose medals were never taken. It is played from memory, as the bank's medals are.
       if (stored && !bank.getState().kept) stored = !remove(key);
@@ -369,13 +372,12 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
         if (typeof there === 'string' && parseSpin(there)?.id === record.id) remove(key);
         return 'void';
       }
-      // Paid under its receipt, then marked paid: a page that dies between the two leaves a spin that the next page
-      // finds paid already, and marks paid without paying it again.
-      if (record.won > 0 && !move(record, PAY_STEP, record.won)) return 'later';
+      // Marked paid first, so that nothing that hears of the medals moving (the page looks at the table whenever they
+      // do) finds the spin still to finish; then its winnings go in under their receipt. A page that dies between the
+      // two leaves a spin marked paid whose winnings the next page that holds the card puts in, once (`leftover`).
       if (!write(key, serializeSpin({ ...record, paid: true }))) remove(key);
       staked.paid = true;
-      // Over, and on record as over: nothing will try its moves again.
-      bank.forget(ROULETTE_GAME);
+      if (record.won > 0) move(record, PAY_STEP, record.won);
       return 'paid';
     },
 
@@ -389,6 +391,11 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       const text = read(key);
       // Text that is not a spin this table can read: an unreadable copy, not a stake, and not one to keep.
       if (typeof text === 'string' && !parseSpin(text)) remove(key);
+      // Marked paid, and the page died before its winnings went in: they go in now, once.
+      const kept = typeof text === 'string' ? parseSpin(text) : null;
+      if (kept && kept.paid && kept.receipts && kept.won > 0 && current(kept) && !bank.applied({ game: ROULETTE_GAME, round: kept.id, step: PAY_STEP })) {
+        move(kept, PAY_STEP, kept.won);
+      }
       return unfinished();
     },
 

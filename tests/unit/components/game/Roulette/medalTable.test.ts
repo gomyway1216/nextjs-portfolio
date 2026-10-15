@@ -665,15 +665,18 @@ describe('a browser that dies between two writes', () => {
           expect(roulette.table.leftover(), `died after ${reached} writes`).toBeNull();
           const left = record(after);
           expect(left === null || left.paid, `died after ${reached} writes`).toBe(true);
-          // The next spin bets and pays as ever, and every receipt is let go of once nothing needs it.
-          expect(roulette.spin([RED], HITS_RED)).not.toBeNull();
+          // The next spin bets and pays as ever, and the spins before it let go of their receipts: only its own are kept,
+          // for as long as it is the spin on record.
+          const next = roulette.spin([RED], HITS_RED);
+          expect(next).not.toBeNull();
           expect(roulette.stop()).toBe('paid');
           const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
-          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([]);
+          const id = next!.record.id;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${ROULETTE_GAME}:${id}:pay`, `${ROULETTE_GAME}:${id}:stake`]);
           expect(stored(after)).toBe((staked ? WELCOME - 12 + won : WELCOME) + 10);
         },
       );
-      expect(writes).toBeGreaterThanOrEqual(4);
+      expect(writes).toBeGreaterThanOrEqual(won > 0 ? 4 : 3);
     });
   }
 
@@ -690,6 +693,24 @@ describe('a browser that dies between two writes', () => {
         expect(stored(after), `died after ${reached} writes`).toBe(staked ? WELCOME - 12 + 72 : WELCOME);
       },
     );
+  });
+
+  it('is marked paid before its winnings go in, so a page that looks at the table as the medals move never finds it to finish', async () => {
+    // The page looks at the table whenever the medals change (PlayTab's `sync`), and spins again a spin it finds
+    // unfinished: it must not find the one being paid.
+    const browser = await setUp();
+    const roulette = tables.get(browser)!;
+    const found: string[] = [];
+    let stopping = false;
+    browser.pages[0].bank.subscribe(() => {
+      const left = stopping ? roulette.table.leftover() : null;
+      if (left) found.push(left.id);
+    });
+    roulette.spin([RED, SEVENTEEN], HITS_17);
+    stopping = true;
+    expect(roulette.stop()).toBe('paid');
+    expect(found).toEqual([]);
+    expect(stored(browser)).toBe(WELCOME - 12 + 72);
   });
 
   it('takes a spin from before receipts at its word: its stake was taken, and its winnings are paid once', async () => {

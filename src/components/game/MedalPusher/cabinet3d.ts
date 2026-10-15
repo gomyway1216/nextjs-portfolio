@@ -1,8 +1,8 @@
 /**
  * The cabinet as shapes: the tables, the walls and chutes that never move,
  * the side holes' mouths at the front corners with the tray between them,
- * the housing round the screen, the pusher with the catcher for the START
- * pockets hung on its front, the feed arms and their slots, the bulbs and
+ * the housing round the screen, the pusher with the START plate hung on its
+ * front, the feed arms and their slots, the bulbs and
  * lamps, and the flat touches laid over them —
  * glows, the dark where two surfaces meet, the aim guide, and whatever is
  * seen against the screen. Like the rest of the scene it is only numbers;
@@ -14,12 +14,12 @@
  * corners, where the towers are stacked (`buildWindows`).
  */
 
-import { ARMS, HATCH, SLOT, airSpot, armCollar, legOf, railFrame, slotSpot, type Spot } from './arms';
-import { APRON, CATCHER, SLOPE, START_SLOT, TONGUE, apronSpot, lampSpot, litSlots, mouthSpots, slopeSpot, slotCorners, slotHalf, tongueCorners, wingCorners } from './catcher';
+import { ARMS, BRACKET_REACH, HATCH, SLOT, airSpot, armCollar, legOf, railFrame, slotSpot, type Spot } from './arms';
+import { CATCHER, HOLE_MIDDLE, SIGN, SLOPE, START_SLOT, lampSpot, litSlots, mouthSpots, signSpot, slopeSpot, slotCorners, slotHalf, wingCorners } from './catcher';
 import { FIELD, LANDING, MEDAL_RADIUS, PUSHER, type Arm, type Machine } from './engine';
 import { JEWEL_CUT, JEWEL_LAMPS, LAMP_OUTLINE, jewelGlint, jewelLampX, lampLight } from './jewel';
 import { SHELF_SHARE, TRAY_DROP } from './art3d';
-import { BALL_RADIUS, BURST, GLOW_TIME, LIP_FALL, REST_LIGHT, SPARK_COLORS, TRAY, TRAY_BULBS, goldFlash, type DrawOptions, type Stage } from './render';
+import { BALL_RADIUS, BURST, FOOT_BULBS, GLOW_TIME, HOLE_SHADE, REST_LIGHT, SPARK_COLORS, TRAY, TRAY_BULBS, goldFlash, type DrawOptions, type Stage } from './render';
 import { BEAD, EYE, LANDED, armTipAt, beadRow, type Rows } from './scene3d';
 import { LIP_LAMPS } from './shaders3d';
 import { SIDE_HOLE, acrossAt, holeFloor, railTop } from './sidehole';
@@ -265,8 +265,6 @@ const SOFFIT = light('#0a0624');
 const BED = light('#140a36');
 /** How many facets each strip beside the screen is cut into, and how many panels the hood's face is. */
 const FACETS = { strip: 6, hood: 8 } as const;
-/** How far the bracket a slot hangs from reaches out past the side of the field, to the cabinet's frame. */
-const BRACKET_REACH = 16;
 
 /**
  * The housing the screen sits in. The screen itself is not drawn: the page
@@ -553,19 +551,17 @@ const HATCH_DOOR = 0.84;
 /**
  * The runs of surfaces that change from frame to frame, in the order
  * `buildMoving` writes them: the pusher's top, the rest of the pusher, the
- * rails of the two feed arms, the shades under the rails, the catcher that
- * rides on the pusher's front, which is a well under the lip, three tongues
- * over it and a slide with three START slots in it, their frames and their
- * wings, the fittings whose light changes (the
- * feed slots and the hatch), the strip of the slide with the words on, and
- * the hood over the catcher. The first `MOVING_CAST` of them throw shadows: the pusher; the
+ * rails of the two feed arms, the shades under the rails, the START plate
+ * that rides on the pusher's front, with its three holes, their frames and
+ * their flaps, the fittings whose light changes (the feed slots and the
+ * hatch), and the two START signs on the plate.
+ * The first `MOVING_CAST` of them throw shadows: the pusher; the
  * rails, which cross over the lower table and are seen to be over it by the
- * shadows they lay on it; and the catcher, which hangs over it. A rail is
+ * shadows they lay on it; and the plate, which hangs over it. A rail is
  * thin, and the shadow of a thin thing on a heap of medals is a broken line
  * that reads as a scratch, so under each rail there is a broader shade that
  * is not in the picture and only throws a shadow. The rest are lights, or
- * out past the edge of anything a shadow could fall on. The hood is not in
- * the picture either, and throws nothing: `MOVING_HOOD` is which run it is.
+ * out past the edge of anything a shadow could fall on.
  */
 export const MOVING_PARTS: Part[] = [
   { art: 'pusher', first: 0, count: 0 },
@@ -575,10 +571,8 @@ export const MOVING_PARTS: Part[] = [
   { art: 'plain', first: 0, count: 0 },
   { art: 'plain', first: 0, count: 0 },
   { art: 'sign', first: 0, count: 0 },
-  { art: 'plain', first: 0, count: 0, unseen: true },
 ];
 export const MOVING_CAST = 5;
-export const MOVING_HOOD = 7;
 
 /**
  * A rail's channel, across: how far its floor reaches to either side of the
@@ -644,7 +638,7 @@ function taking(machine: Machine, arm: Arm): boolean {
 function hatchOpen(machine: Machine): boolean {
   for (let i = 0; i < machine.falling.length; i++) {
     const ball = machine.falling[i];
-    if ((ball.ball || ball.jewel) && ball.remaining > ball.duration * 0.35) return true;
+    if ((ball.ball || ball.jewel) && ball.source !== 'slide' && ball.remaining > ball.duration * 0.35) return true;
   }
   return false;
 }
@@ -783,254 +777,165 @@ function buildFittings(solid: Solid, machine: Machine, stage: Stage, options: Dr
   }
 }
 
-// ── The catcher ─────────────────────────────────────────────────────────────
+// ── The START plate ─────────────────────────────────────────────────────────
 
 const DECK_NEAR = light('#d5dcee');
 const DECK_FAR = light('#7f8aad');
 const RIM_GOLD = light('#ffe9a6');
 const RIM_DEEP = light('#b77d12');
-const THROAT_LIT = light('#ffd65c', 1.2);
-/** How far in from the edge of a slot the lit ring inside its frame slopes, and how far under the slide. The throat under it is that much narrower. */
-const RING = { in: 0.4, down: 0.6 } as const;
-/** How brightly the lucky lamp's gold fills the throat of its slot, beside the 1 of a slot a medal has just gone down. */
-export const THROAT_FILL = 0.8;
-/** The far wall of a slot's throat, which the ring above it lights, and its sides, which it barely does. */
-const THROAT_FAR = light('#a58cf5');
-const THROAT_SIDE = light('#3a1a86');
-/** The throat of the slot the lucky lamp is on, which its gold fills: the top of its far wall, the foot of that and the far end of its floor, and the near end of the floor. */
-const THROAT_GOLD = light('#ffe9a6', 1.2);
-const THROAT_AMBER = light('#ffc23d');
-const THROAT_DEEP = light('#c98a14');
-/** A slot's frame while its lamp is not on it: polished brass, from its bright top edge down. */
+/** A hole's frame while its lamp is not on it: polished brass, from its bright upper edge down. */
 const FRAME_TOP = light('#fff0b8');
 const FRAME_FOOT = light('#e8bd4a');
-/** The colour of each slot's own light, from the left: its ring while it waits, and its lamp. */
+/** The colour of each hole's own light, from the left: the inside of it while it waits, and its lamp. */
 const SLOT_LAMPS: readonly Rgb[] = [light('#7df0ff', 1.4), light('#ff9bd0', 1.4), light('#9dff8a', 1.4)];
-/** The lining of the well under the lip, which is the pusher's face inside the catcher's box: dark at the lip, and darker toward the floor. */
-const WELL_TOP = light('#2b2f66');
-const WELL_FOOT = light('#0c0e2a');
-/** How far a tongue's top stands proud of the top of its slot's frame, which it runs on to: a hair, so that the two are not drawn in the same place. */
-const PROUD = 0.02;
-/** How much the well is in the shade, at the lip and at the slide's edge: what is down it is that much darker than it would be in the open. */
-export const WELL_DARK = { lip: 0.62, edge: 0.4 } as const;
+/** How far a hole's lamp stands out of the plate: a lens let into it, no further out than a medal sliding over it is thick. */
+export const LAMP_PROUD = 0.15;
 
 /** A surface between four spots of the cabinet, in order round it: the first two in the first colour and the last two in the second. */
 function span(solid: Solid, a: Spot, b: Spot, c: Spot, d: Spot): void {
   solid.quad(a.x, a.height, a.depth, b.x, b.height, b.depth, c.x, c.height, c.depth, d.x, d.height, d.depth);
 }
 
-/** The colour of the slide `down` it from the lip: darker under the lip, lighter toward its foot. */
+/** The colour of the plate `down` it from the lip: darker under the lip, lighter toward its foot. */
 function slideShade(down: number): Rgb {
   const share = down / SLOPE.long;
   return [DECK_FAR[0] + (DECK_NEAR[0] - DECK_FAR[0]) * share, DECK_FAR[1] + (DECK_NEAR[1] - DECK_FAR[1]) * share, DECK_FAR[2] + (DECK_NEAR[2] - DECK_FAR[2]) * share];
 }
 
 /**
- * The catcher, which rides on the front of the pusher under its lip: a box
- * with a well under the lip and, beyond the well, a slide, a board that
- * leans down toward the player to a foot above the lower table's medals.
- * For each START slot: its stretch of the slide, from the well's edge round
- * the slot's opening, which has square corners, down to where the strip with
- * the words begins; the frame that stands up round the opening, with a ring
- * of light sloping down inside it; the throat under that, dark but for its
- * far wall; the throat's floor; the slot's two wings; and its tongue, the
- * narrow bridge from the lip over the well to the opening: its top, the two
- * sides of its web and its underside. Then what the three share: the lining
- * of the well, which is the pusher's face from the lip down, dark; the edge
- * the slide turns to the well; the catcher's two ends; and its underside,
- * which is the floor of the well and of the throats, and throws the
- * catcher's shadow on the lower table.
+ * The START plate, which rides on the front of the pusher under its lip: a
+ * board as wide as the pusher, leaning down toward the player to a foot above
+ * the lower table's medals, with three holes cut in it side by side. The
+ * board's top, round the holes; the plumb end of its foot; and for each hole,
+ * the frame let in round its opening, its two flaps, and the inside of the
+ * hole, the board's thickness deep. The signs are a part of their own
+ * (`buildSigns`), and the lamps are bulbs (`addCatcherLamps`).
  *
- * The slide is brushed steel, and the frames, the wings and the tongues are
- * brass (`MATERIAL`): bright trim, with no light of their own while a slot
- * waits.
- * A slot's ring is in the slot's own colour then, and its throat is dark but
- * for the far wall. The slot the lucky lamp is on is gold: its frame and its
- * ring are lit, and the gold fills its mouth, the far wall and the sides of
- * its throat and its floor, and its tongue is lit too, so that it is told
- * from the other two at a glance. With `wings`, which is chance time, all
- * three are, the openings and the tongues are wider, and the wings, which
- * otherwise lie along the sides of the
- * frames, have swung out at their upper ends like the cheeks of a funnel. A
- * slot a medal has just dropped through is brighter still for a moment, all
- * the way down its throat.
+ * The board is brushed steel, and the frames and the flaps are brass
+ * (`MATERIAL`): bright trim, with no light of their own while a hole waits.
+ * The inside of a hole is in the hole's own colour then. The hole the lucky
+ * lamp is on is gold: its frame and the inside of it are lit, so that it is
+ * told from the other two at a glance. With `wings`, which is chance time,
+ * all three are, and the flaps, which otherwise lie flush along the sides of
+ * the openings, have swung down to hang under the plate, gold, so that the
+ * openings are wider. A hole a medal has just dropped through is brighter
+ * still for a moment.
  */
 function buildCatcher(solid: Solid, machine: Machine, stage: Stage, front: number, calm: boolean, wings: boolean): void {
-  const { from, to, tile, rim, foot, throat, gap } = CATCHER;
+  const { from, to, rim, foot } = CATCHER;
   const { time } = machine;
   const spots = mouthSpots(time);
-  const half = slotHalf(wings);
   const gold = litSlots(time, wings, calm);
   const upper = CATCHER.back;
   const lower = upper + START_SLOT.long;
-  const words = SLOPE.long - APRON;
-  /** A stretch of the slide: from x0 to x1 across, and from `s0` down it to `s1`. */
+  /** How far to either side of a hole's middle its frame reaches. */
+  const outer = slotHalf(true) + rim.wide;
+  /** A stretch of the board: from x0 to x1 across, and from `s0` down it to `s1`. */
   const board = (x0: number, x1: number, s0: number, s1: number): void => {
     solid.paint(slideShade(s0), slideShade(s1));
     span(solid, slopeSpot(x0, s0, time), slopeSpot(x1, s0, time), slopeSpot(x1, s1, time), slopeSpot(x0, s1, time));
   };
   solid.map();
+  // The board: between the holes the whole way down, and above and below each hole's frame.
+  solid.as(MATERIAL.brushedSteel);
+  let left = from;
+  for (const { x } of spots) {
+    board(left, x - outer, 0, SLOPE.long);
+    board(x - outer, x + outer, 0, upper - rim.wide);
+    board(x - outer, x + outer, lower + rim.wide, SLOPE.long);
+    left = x + outer;
+  }
+  board(left, to, 0, SLOPE.long);
+  // The plumb end of its foot, which faces the player and catches the light.
+  const end = CATCHER.thick / Math.cos(SLOPE.angle);
+  const out = front + foot.out;
+  solid.as(MATERIAL.chrome).paint(CHROME, STEEL_TOP);
+  solid.quad(from, foot.height, out, to, foot.height, out, to, foot.height - end, out, from, foot.height - end, out);
+
   for (let i = 0; i < spots.length; i++) {
-    const { x } = spots[i];
     const lit = stage.gateGlow[i] / GLOW_TIME;
     const pulse = calm ? 0.5 : 0.5 + 0.5 * Math.sin(stage.clock * 3 + i * 2.1);
-    const left = from + tile * i;
-    const right = left + tile;
-    // Its stretch of the slide, round the opening: above it, from the well's edge, below it, and to either side.
-    solid.as(MATERIAL.brushedSteel);
-    board(left, right, gap, upper);
-    board(left, right, lower, words);
-    board(left, x - half, upper, lower);
-    board(x + half, right, upper, lower);
-    // The frame round the opening, standing a little out of the slide: its top, and its outer walls. It is gold
-    // while the lucky lamp is on this slot, and brighter still for a moment after a medal has gone down it.
-    const opening = slotCorners(i, time, wings, 0, rim.high);
-    const outer = slotCorners(i, time, wings, rim.wide, rim.high);
-    const base = slotCorners(i, time, wings, rim.wide);
-    if (lit > 0 || gold[i]) solid.finish(MATERIAL.brass.gloss, Math.max(gold[i] ? 0.85 : 0, 0.2 + 0.8 * lit)).paint(GATE_LIT, RIM_GOLD);
+    const shining = lit > 0 || gold[i];
+    // The frame let in round the opening, as wide as the opening is with its flaps open. It is gold while the
+    // lucky lamp is on this hole, and brighter still for a moment after a medal has gone down it.
+    const inside = slotCorners(i, time, true);
+    const round = slotCorners(i, time, true, rim.wide);
+    if (shining) solid.finish(MATERIAL.brass.gloss, Math.max(gold[i] ? 0.85 : 0, 0.2 + 0.8 * lit)).paint(GATE_LIT, RIM_GOLD);
     else solid.as(MATERIAL.brass).paint(FRAME_TOP, FRAME_FOOT);
     for (let side = 0; side < 4; side++) {
       const next = (side + 1) % 4;
-      span(solid, outer[side], outer[next], opening[next], opening[side]);
-      // The wall under its upper bar faces the lip, and is never seen.
-      if (side > 0) span(solid, outer[side], outer[next], base[next], base[side]);
+      span(solid, round[side], round[next], inside[next], inside[side]);
     }
-    // The ring of light inside it, sloping down into the throat: gold when the slot is, and its own colour when not.
-    const inner = slotCorners(i, time, wings, -RING.in, -RING.down);
-    solid.finish(0, lit > 0 ? 1 + 0.6 * lit : gold[i] ? 1.3 : 0.55 + 0.3 * pulse).paint(lit > 0 || gold[i] ? GATE_LIT : SLOT_LAMPS[i % SLOT_LAMPS.length]);
-    for (let side = 0; side < 4; side++) span(solid, opening[side], opening[(side + 1) % 4], inner[(side + 1) % 4], inner[side]);
-    // The throat, straight down from the ring to its floor: its far wall, which catches the light of the ring,
-    // its two sides and its near wall, and its floor. In a slot that waits it is dark below the top of the far
-    // wall. The lucky lamp's gold fills it, to the floor; and a medal going down it lights it brighter still.
-    const bed = inner.map((corner) => ({ ...corner, height: throat }));
-    const filled = lit > 0 || gold[i];
-    const fill = Math.max(gold[i] ? THROAT_FILL : 0, lit);
-    if (filled) solid.finish(0, 0.35 + 0.65 * fill).paint(lit > 0 ? THROAT_LIT : THROAT_GOLD, THROAT_AMBER);
-    else solid.finish(0.1, 0.8).paint(THROAT_FAR, BLACK);
-    span(solid, inner[0], inner[1], bed[1], bed[0]);
-    if (filled) solid.finish(0, 0.25 + 0.6 * fill).paint(THROAT_AMBER, THROAT_DEEP);
-    else solid.finish(0.1, 0.5).paint(THROAT_SIDE, BLACK);
-    span(solid, inner[1], inner[2], bed[2], bed[1]);
-    span(solid, inner[3], inner[2], bed[2], bed[3]);
-    span(solid, inner[0], inner[3], bed[3], bed[0]);
-    if (filled) solid.finish(0, fill).paint(THROAT_AMBER, THROAT_DEEP);
-    else solid.finish(0, 1).paint(BLACK);
-    span(solid, bed[0], bed[1], bed[2], bed[3]);
-    // Its two wings: low fences on the slide. Folded, each lies along the side of the frame. Open, during chance
-    // time, each has swung out from the slot at its upper end, gold.
-    for (const side of [-1, 1]) {
-      const low = wingCorners(i, side, time, wings);
-      const top = wingCorners(i, side, time, wings, START_SLOT.wing.high);
-      if (wings) solid.finish(MATERIAL.brass.gloss, 0.9).paint(GATE_LIT, RIM_GOLD);
-      else solid.as(MATERIAL.brass).paint(FRAME_TOP, FRAME_FOOT);
-      span(solid, top[0], top[1], top[2], top[3]);
-      if (wings) solid.finish(MATERIAL.brass.gloss, 0.5).paint(RIM_GOLD, RIM_DEEP);
-      else solid.paint(FRAME_FOOT, RIM_DEEP);
-      for (let edge = 1; edge < 4; edge++) {
-        const next = (edge + 1) % 4;
-        span(solid, top[edge], top[next], low[next], low[edge]);
-      }
-    }
-    // Its tongue, over the well from the lip to the upper edge of the opening: its top, the two sides of its web,
-    // and its underside. Brass, and lit while its slot is.
-    const bridge = tongueCorners(i, time, wings, rim.high + PROUD);
-    const web = tongueCorners(i, time, wings, rim.high - TONGUE.deep);
-    if (lit > 0 || gold[i]) solid.finish(MATERIAL.brass.gloss, Math.max(gold[i] ? 0.85 : 0, 0.2 + 0.8 * lit)).paint(RIM_GOLD, GATE_LIT);
-    else solid.as(MATERIAL.brass).paint(FRAME_FOOT, FRAME_TOP);
-    span(solid, bridge[0], bridge[1], bridge[2], bridge[3]);
-    if (lit > 0 || gold[i]) solid.finish(MATERIAL.brass.gloss, 0.4).paint(RIM_GOLD, RIM_DEEP);
+    // Its two flaps: shut, flush along the sides of the opening; open, during chance time, hanging square under
+    // the plate, gold.
+    if (wings) solid.finish(MATERIAL.brass.gloss, 0.9).paint(GATE_LIT, RIM_GOLD);
+    else if (shining) solid.finish(MATERIAL.brass.gloss, 0.5).paint(RIM_GOLD, RIM_DEEP);
     else solid.as(MATERIAL.brass).paint(FRAME_FOOT, RIM_DEEP);
-    span(solid, bridge[0], bridge[3], web[3], web[0]);
-    span(solid, bridge[1], bridge[2], web[2], web[1]);
-    span(solid, web[0], web[1], web[2], web[3]);
+    for (const side of [-1, 1]) {
+      const [a, b, c, d] = wingCorners(i, side, time, wings);
+      span(solid, a, b, c, d);
+    }
+    // The inside of the hole, the board's thickness deep: in the hole's own colour while it waits, gold while it
+    // is lit, and brighter while a medal goes down it.
+    const top = slotCorners(i, time, wings);
+    const sunk = slotCorners(i, time, wings, 0, -CATCHER.thick);
+    solid.finish(0, lit > 0 ? 1 + 0.6 * lit : gold[i] ? 1.3 : 0.55 + 0.3 * pulse).paint(shining ? GATE_LIT : SLOT_LAMPS[i % SLOT_LAMPS.length]);
+    for (let side = 0; side < 4; side++) span(solid, top[side], top[(side + 1) % 4], sunk[(side + 1) % 4], sunk[side]);
   }
-  // The well under the lip: the pusher's face behind it, lined dark from the lip down to the catcher's floor, and
-  // the edge of the slide that stands over it, which is bright.
-  solid.finish(0.1).paint(WELL_TOP, WELL_FOOT);
-  solid.quad(from, CATCHER.deck, front + 0.03, to, CATCHER.deck, front + 0.03, to, foot.height, front + 0.03, from, foot.height, front + 0.03);
-  solid.as(MATERIAL.chrome).paint(CHROME, STEEL_TOP);
-  span(solid, slopeSpot(from, gap, time), slopeSpot(to, gap, time), slopeSpot(to, gap, time, -0.35), slopeSpot(from, gap, time, -0.35));
-  // The two ends: under the slide, down to the level of its foot.
-  solid.as(MATERIAL.brushedSteel).paint(STEEL_TOP, STEEL_FOOT);
-  const out = front + foot.out;
-  for (const x of [from, to]) solid.quad(x, CATCHER.deck, front, x, foot.height, out, x, foot.height, out, x, foot.height, front);
-  // The underside: the floor of the well, and what throws the catcher's shadow.
-  solid.finish(0).paint(BLACK);
-  solid.quad(from, foot.height, front, to, foot.height, front, to, foot.height, out, from, foot.height, out);
 }
 
 /**
- * The strip of the slide with the words on it: one picture, from under the
- * slots' frames down to the foot, in three stretches, one under each slot,
- * so that the stretch under a slot a medal has just dropped through can be
- * lit on its own.
+ * The two START signs let into the plate to either side of the holes: one
+ * picture with both on it, side by side, the left one first. Both light up
+ * for a moment when a medal has just gone down a hole.
  */
-function buildApron(solid: Solid, machine: Machine, stage: Stage): void {
-  const { tile } = CATCHER;
+function buildSigns(solid: Solid, machine: Machine, stage: Stage): void {
   const { time } = machine;
-  const count = stage.gateGlow.length;
-  for (let i = 0; i < count; i++) {
-    const lit = stage.gateGlow[i] / GLOW_TIME;
-    solid.map(i / count, 0, (i + 1) / count, 1).finish(0.2, 1.05 + 0.6 * lit).paint(WHITE);
-    span(solid, apronSpot(tile * i, 0, time), apronSpot(tile * (i + 1), 0, time), apronSpot(tile * (i + 1), APRON, time), apronSpot(tile * i, APRON, time));
-  }
+  const lit = Math.max(0, ...stage.gateGlow) / GLOW_TIME;
+  [-1, 1].forEach((side, i) => {
+    solid.map(i / 2, 0, (i + 1) / 2, 1).finish(0.2, 1.05 + 0.6 * lit).paint(WHITE);
+    span(solid, signSpot(side, 0, 0, time, PROUD), signSpot(side, SIGN.wide, 0, time, PROUD), signSpot(side, SIGN.wide, SIGN.long, time, PROUD), signSpot(side, 0, SIGN.long, time, PROUD));
+  });
   solid.map();
 }
 
-/**
- * The hood: the room over the catcher that a prize ball lying under it would
- * stand up into. It is not in the picture. It is laid over the finished
- * picture as distances only, and the balls that lie under the catcher are
- * drawn after it, so that what of them is under the catcher is hidden and
- * what has come out from under its foot is seen.
- */
-function buildHood(solid: Solid, front: number): void {
-  const { from, to, foot, hood } = CATCHER;
-  const out = front + foot.out;
-  solid.finish(0).paint(BLACK);
-  solid.quad(from, hood, out, to, hood, out, to, foot.height, out, from, foot.height, out);
-  solid.quad(from, hood, front, to, hood, front, to, hood, out, from, hood, out);
-  for (const x of [from, to]) solid.quad(x, hood, front, x, hood, out, x, foot.height, out, x, foot.height, front);
-}
+/** How far the signs stand proud of the plate's top: a hair, so that the two are not drawn in the same place. */
+const PROUD = 0.02;
 
 /**
- * What is only light and shade about the catcher: the shade the well is in,
- * which darkens whatever is down it, below the catcher's top, and leaves the
- * tongues and what rides on them in the light; the steady glow of a slot
- * that is lit gold, over the slot and, a little, on the words under it; and,
- * when a medal has just gone down a slot, the burst of light over the slot,
- * well out over the slide at first, and on the words.
+ * What is only light and shade about the plate: the shade under it, which
+ * darkens whatever is seen down a hole, below the inside of the hole; the
+ * steady glow of a hole that is lit gold; and, when a medal has just gone
+ * down a hole, the burst of light over it, well out over the plate at first.
  */
 function catcherTouches(flat: Flat, machine: Machine, stage: Stage, wings: boolean, calm: boolean): void {
-  const { from, to, rim, tile } = CATCHER;
+  const { rim } = CATCHER;
   const { time } = machine;
-  /** A touch on the slide: from x0 to x1 across and from `s0` down it to `s1`, `lift` clear of it. */
+  /** A touch on the plate: from x0 to x1 across and from `s0` down it to `s1`, `lift` clear of it. */
   const lay = (x0: number, x1: number, s0: number, s1: number, lift: number, shape: number = SHAPE.even): void => {
     const [a, b, c, d] = [slopeSpot(x0, s0, time, lift), slopeSpot(x1, s0, time, lift), slopeSpot(x1, s1, time, lift), slopeSpot(x0, s1, time, lift)];
     flat.quad(a.x, a.height, a.depth, b.x, b.height, b.depth, c.x, c.height, c.depth, d.x, d.height, d.depth, shape);
   };
-  flat.ink(BLACK, WELL_DARK.lip).fade(BLACK, WELL_DARK.edge);
-  lay(from, to, 0, CATCHER.gap, 0);
   const spots = mouthSpots(time);
   const gold = litSlots(time, wings, calm);
-  const middle = CATCHER.back + START_SLOT.long / 2;
-  const words = SLOPE.long - APRON;
-  /** A glow over slot `i`, reaching `wide` to either side of its middle and up and down the slide. */
-  const over = (i: number, wide: number): void => lay(spots[i].x - wide, spots[i].x + wide, middle - wide, middle + wide, rim.high + 0.08, SHAPE.spot);
+  const half = slotHalf(wings);
+  const upper = CATCHER.back;
+  const lower = upper + START_SLOT.long;
+  /** A glow over hole `i`, reaching `wide` to either side of its middle and up and down the plate. */
+  const over = (i: number, wide: number): void => lay(spots[i].x - wide, spots[i].x + wide, HOLE_MIDDLE - wide, HOLE_MIDDLE + wide, 0.08, SHAPE.spot);
   for (let i = 0; i < spots.length; i++) {
-    // The slot the lucky lamp is on glows, steadily, and so do the words under it, a little.
+    // The shade under the plate, seen down the hole.
+    flat.ink(BLACK, HOLE_SHADE);
+    lay(spots[i].x - half, spots[i].x + half, upper, lower, -CATCHER.thick - 0.01);
+    // The hole the lucky lamp is on glows, steadily.
     if (gold[i]) {
       flat.ink(GLOW_LIT, 0, 0.3);
-      over(i, (slotHalf(wings) + rim.wide) * 1.5);
-      flat.ink(GLOW_LIT, 0, 0.16);
-      lay(from + tile * i, from + tile * (i + 1), words, SLOPE.long, 0.05, SHAPE.spot);
+      over(i, (slotHalf(true) + rim.wide) * 1.3);
     }
     const lit = stage.gateGlow[i] / GLOW_TIME;
     if (lit <= 0) continue;
     flat.ink(GLOW_LIT, 0, 0.55 * lit);
-    over(i, (slotHalf(wings) + rim.wide) * (1.2 + BURST.reach * lit));
-    flat.ink(GLOW_LIT, 0, 0.4 * lit);
-    lay(from + tile * i, from + tile * (i + 1), words, SLOPE.long, 0.05, SHAPE.spot);
+    over(i, (slotHalf(true) + rim.wide) * (1.1 + BURST.reach * lit));
   }
 }
 
@@ -1038,14 +943,14 @@ function catcherTouches(flat: Flat, machine: Machine, stage: Stage, wings: boole
 
 /**
  * Everything that changes from frame to frame: the pusher where its stroke
- * has taken it, the rails of the two feed arms where they point, the catcher
- * that rides on the pusher's front, its START slots lit as the lucky lamp
- * steps along them and as medals drop through them and their wings folded or
+ * has taken it, the rails of the two feed arms where they point, the START
+ * plate that rides on the pusher's front, its holes lit as the lucky lamp
+ * steps along them and as medals drop through them and their flaps shut or
  * open, and the feed slots and the hatch as they are lit.
  */
 export function buildMoving(solid: Solid, machine: Machine, front: number, stage: Stage, options: DrawOptions): void {
   solid.clear().map().paint(WHITE);
-  const [top, cast, rails, shades, catcher, fittings, apron, hood] = MOVING_PARTS;
+  const [top, cast, rails, shades, catcher, fittings, apron] = MOVING_PARTS;
 
   // The pusher is a box of clear acrylic. Its top is one picture that rides with its lip.
   top.first = solid.count;
@@ -1076,12 +981,8 @@ export function buildMoving(solid: Solid, machine: Machine, front: number, stage
   fittings.count = solid.count - fittings.first;
 
   apron.first = solid.count;
-  buildApron(solid, machine, stage);
+  buildSigns(solid, machine, stage);
   apron.count = solid.count - apron.first;
-
-  hood.first = solid.count;
-  buildHood(solid, front);
-  hood.count = solid.count - hood.first;
 }
 
 // ── Flat touches ────────────────────────────────────────────────────────────
@@ -1198,7 +1099,7 @@ const STUD = light('#ffd98a');
  * screen, along each rail of the table, under the front edge, across the
  * pusher's face, and the hold's lamps on the shelf.
  */
-export const LAMP_ROWS = { hood: 20, strip: 12, rail: 12, tray: TRAY_BULBS, face: 24, hold: 8 } as const;
+export const LAMP_ROWS = { hood: 20, strip: 12, rail: 12, tray: TRAY_BULBS, foot: FOOT_BULBS, hold: 8 } as const;
 /** Gold studs: at each end of the shelf and of the hood's face. */
 export const STUDS = 4;
 
@@ -1257,14 +1158,16 @@ export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: num
     beadRow(beads, x, -3, D + 0.15, 0.46, colour[0], colour[1], colour[2], BEAD.bulb(glow));
     flat.ink(colour, 0, 0.08 + 0.4 * glow).onPanel(x, -3, D + 0.06, 2.1);
   }
-  // Across the pusher's face, half the row to each side of the catcher, which has the middle of it.
-  const beside = LAMP_ROWS.face / 2;
-  for (let i = 0; i < LAMP_ROWS.face; i++) {
-    const x = i < beside ? 3 + ((i + 0.5) / beside) * (CATCHER.from - 5) : CATCHER.to + 2 + ((i - beside + 0.5) / beside) * (W - 5 - CATCHER.to);
+  // Along the plumb end of the START plate's foot: lights let into it, flush, so that a medal sliding down the end
+  // passes over them. Each is a small hot spot and its glow.
+  const end = CATCHER.thick / Math.cos(SLOPE.angle);
+  const foot = { y: CATCHER.foot.height - end / 2, z: front + CATCHER.foot.out + 0.03 };
+  for (let i = 0; i < LAMP_ROWS.foot; i++) {
+    const x = 3 + ((i + 0.5) / LAMP_ROWS.foot) * (W - 6);
     const colour = FACE_LAMPS[i % 2];
     const glow = 0.5 + 0.5 * Math.sin(wave - (i * TAU) / 3);
-    beadRow(beads, x, P / 2, front + 0.15, 0.44, colour[0], colour[1], colour[2], BEAD.bulb(glow));
-    flat.ink(colour, 0, 0.08 + 0.4 * glow).onPanel(x, P / 2, front + 0.06, 2);
+    flat.ink(colour, 0, 0.5 + 0.5 * glow).onPanel(x, foot.y, foot.z, end * 0.45);
+    flat.ink(colour, 0, 0.08 + 0.35 * glow).onPanel(x, foot.y, foot.z + 0.01, 1.4);
   }
   // The hold: a lamp for each spin the machine is holding, lit from the left.
   const held = options.stock ?? 0;
@@ -1299,14 +1202,14 @@ export function buildLamps(beads: Rows, flat: Flat, machine: Machine, front: num
 }
 
 /**
- * Adds the lamps of the catcher to the bulbs: one on the lower bar of each
- * START slot's frame (`lampSpot` says where, and `START_SLOT.lamp` how big).
- * A lamp is in its slot's own colour while the slot waits, glowing a little
- * more and a little less as the glow of the rows goes by, slowly — `wave` is
- * where that has got to — and steadily when the cabinet is calm. The lamp of
- * the slot the lucky lamp is on is gold, and a little bigger; with `wings`
- * all three are; and so is the lamp of a slot a medal has just dropped
- * through, for as long as the slot shines.
+ * Adds the lamps of the START plate to the bulbs: one let into the lower bar
+ * of each hole's frame (`lampSpot` says where, and `START_SLOT.lamp` how big),
+ * a lens that stands `LAMP_PROUD` out of the plate. A lamp is in its hole's
+ * own colour while the hole waits, glowing a little more and a little less as
+ * the glow of the rows goes by, slowly — `wave` is where that has got to — and
+ * steadily when the cabinet is calm. The lamp of the hole the lucky lamp is on
+ * is gold, and a little bigger; with `wings` all three are; and so is the lamp
+ * of a hole a medal has just dropped through, for as long as the hole shines.
  */
 export function addCatcherLamps(beads: Rows, machine: Machine, stage: Stage, wave: number, wings = false, calm = false): void {
   const gold = litSlots(machine.time, wings, calm);
@@ -1316,8 +1219,11 @@ export function addCatcherLamps(beads: Rows, machine: Machine, stage: Stage, wav
     const lit = gold[i] || stage.gateGlow[i] > 0;
     const colour = lit ? HOLD_LIT : SLOT_LAMPS[i % SLOT_LAMPS.length];
     const glow = lit ? 1 : 0.35 + 0.2 * Math.sin(wave + i * 2.1);
+    const radius = START_SLOT.lamp.radius * (lit ? 1.25 : 1);
     const at = lampSpot(i, machine.time);
-    beadRow(beads, at.x, at.height, at.depth, START_SLOT.lamp.radius * (lit ? 1.25 : 1), colour[0], colour[1], colour[2], BEAD.bulb(glow));
+    const sunk = radius - LAMP_PROUD;
+    const angle = SLOPE.angle;
+    beadRow(beads, at.x, at.height - sunk * Math.cos(angle), at.depth - sunk * Math.sin(angle), radius, colour[0], colour[1], colour[2], BEAD.bulb(glow));
   }
 }
 
@@ -1482,14 +1388,11 @@ export function buildTouches(flat: Flat, machine: Machine, front: number, stage:
 
   // A ball rests in the dark it throws on whatever it stands on.
   flat.ink(BLACK, 0.5);
-  for (const medal of machine.medals) {
-    const dropping = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
-    if (medal.ball && !dropping) flat.onFloor(medal.x, (medal.level === 1 ? P : 0) + HEIGHT.medal + 0.06, medal.y, BALL_RADIUS * 1.3);
-  }
+  for (const medal of machine.medals) if (medal.ball) flat.onFloor(medal.x, (medal.level === 1 ? P : 0) + HEIGHT.medal + 0.06, medal.y, BALL_RADIUS * 1.3);
   // A jewel's shadow has the stone's own colour in it: the light that came through the stone lies beside it,
   // on the side away from the lamps. And a glint stands on its table, which comes and goes as the lamps drift.
   for (const medal of machine.medals) {
-    if (!medal.jewel || (medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL)) continue;
+    if (!medal.jewel) continue;
     const table = medal.level === 1 ? P : 0;
     const ground = table + HEIGHT.medal + 0.07;
     flat.ink(BLACK, 0.3).onFloor(medal.x + 0.3, ground, medal.y + 0.4, JEWEL_CUT.girdle * 1.25);

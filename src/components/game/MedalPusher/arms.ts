@@ -24,7 +24,7 @@
  */
 
 import { ARM_SPEED, ARM_START, FEED, FIELD, MEDAL_RADIUS, ROLL_TIME, armFor, tipOf, type Arm, type FallingMedal } from './engine';
-import { HEIGHT, HOUSING } from './view';
+import { HEIGHT, HOUSING, project } from './view';
 
 // How a tip moves is the engine's business; it is handed on from here so that the arms can be read about in one place.
 export { armGoal, armStart, swing } from './engine';
@@ -120,6 +120,18 @@ export const PAYOUT_SLOT = { height: HOUSING.hood + 2.6, depth: HOUSING.out - 3.
 export function armCollar(arm: Arm): Spot {
   return { x: arm === 0 ? ARMS.collar.inset : FIELD.width - ARMS.collar.inset, height: ARMS.collar.height, depth: ARMS.collar.depth };
 }
+
+/**
+ * How far the bracket each slot hangs from reaches out past the side of the
+ * field, to the cabinet's frame: past the edge of the drawing beside the slot,
+ * with a few units to spare, wherever the camera has that edge. The field is
+ * narrower than the drawing, so the frame is well out beyond its side.
+ */
+export const BRACKET_REACH = (() => {
+  const collar = armCollar(0);
+  const side = project(0, collar.height, collar.depth);
+  return side.x / side.scale + 4;
+})();
 
 /**
  * The far end of an arm's rail when its tip is over `tipX`, which for the

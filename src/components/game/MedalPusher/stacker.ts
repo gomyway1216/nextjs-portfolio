@@ -85,8 +85,12 @@ export const CYCLE = STACK.lowers + STACK.opens + STACK.pushes + STACK.returns;
 export const TUBE_ROOM = 2 * STACK.queue;
 
 export const TUBE = {
-  /** How far across the field each tube stands, the left one's first: in the screen's lower corners. */
-  x: [8.5, 91.5],
+  /**
+   * How far across the field each tube stands, the left one's first: in the
+   * screen's lower corners. This file cannot read the field's width from the
+   * engine, which reads this file first; the tests hold the two to each other.
+   */
+  x: [8.5, 69.5],
   /**
    * Where the arm leaves each tube's towers: how far across, and how far
    * behind the pusher's lip. That is where the first towers stood when they
@@ -97,7 +101,7 @@ export const TUBE = {
    * back wall it takes four or five minutes, and the side holes take four in
    * five of it.
    */
-  site: [43, 57],
+  site: [33.5, 44.5],
   behind: 9,
   /**
    * How far behind the face of the back wall the middle of a tube is: a

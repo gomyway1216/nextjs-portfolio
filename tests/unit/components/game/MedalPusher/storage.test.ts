@@ -12,16 +12,23 @@ import {
   FIELD,
   JEWEL_DROP,
   MEDAL_RADIUS,
+  MEDAL_SLIDE,
+  PLATE,
+  PRIZE_CLEAR,
+  PRIZE_LANDS,
   PUSHER,
   RELEASE,
+  ROLL_DOWN,
   ROLL_TIME,
   SETTLE,
   START_RIDE,
+  TEETER,
   TOWER,
   armGoal,
   armStart,
   ballsOnField,
   buildTowers,
+  clearPlate,
   createMachine,
   dropJewel,
   jewelsOnField,
@@ -30,6 +37,8 @@ import {
   queuePayout,
   seededRng,
   tipOf,
+  underPlate,
+  type FallingMedal,
   type Medal,
 } from '@/components/game/MedalPusher/engine';
 import { POUR, shutHopper } from '@/components/game/MedalPusher/hopper';
@@ -79,6 +88,7 @@ import {
   STORAGE_KEY,
   STORAGE_VERSION,
   VERSION_BEFORE_ARMS,
+  VERSION_BEFORE_PLATE,
   VERSION_BEFORE_CHANCE,
   VERSION_BEFORE_JEWELS,
   VERSION_BEFORE_LAMP,
@@ -103,6 +113,7 @@ import beforeLamp from './fixtures/save-before-the-lucky-lamp.json';
 import dayBeforeLamp from './fixtures/save-before-the-lucky-lamp-with-the-payout-works.json';
 import beforeRide from './fixtures/save-before-the-ride.json';
 import beforeTubes from './fixtures/save-before-the-tubes.json';
+import beforePlate from './fixtures/save-before-the-plate.json';
 import beforeJewels from './fixtures/save-before-jewels.json';
 import threeBowlsBeforeJewels from './fixtures/save-with-the-three-bowls-before-jewels.json';
 import beforeThreeBowls from './fixtures/save-before-the-three-bowls.json';
@@ -422,9 +433,18 @@ interface Save {
  * A field as version 2 wrote it, as versions 7 to 9 wrote theirs: the one slot's wait for both slots, and the one
  * aim as near as each arm points to it. Everything else is as it was, in the order a machine held it.
  */
+/** How far each arm reached on the field a hundred wide, the left one's first, before the START plate. */
+const REACH_THEN = [
+  { min: AIM.min, max: 60 },
+  { min: 40, max: 100 - MEDAL_RADIUS - 1 },
+] as const;
+/** Where an arm's tip went over an aim on that field: as near to it as it reached. */
+const tipThen = (arm: 0 | 1, aim: number): number => Math.min(REACH_THEN[arm].max, Math.max(REACH_THEN[arm].min, aim));
+/** Two arms' places on that field, as they are across today's: as far across, each as near to that as it reaches now. */
+const armsNow = ([left, right]: number[]): number[] => [tipOf(0, (left * FIELD.width) / 100), tipOf(1, (right * FIELD.width) / 100)];
 const asNine = (machine: Row): Row => {
   const { cooldown, aim, tips, nextId, ...tables } = machine;
-  return withWorks({ ...tables, waits: [cooldown, cooldown], aims: [tipOf(0, aim as number), tipOf(1, aim as number)], tips, nextId });
+  return withWorks({ ...tables, waits: [cooldown, cooldown], aims: [tipThen(0, aim as number), tipThen(1, aim as number)], tips, nextId });
 };
 /** The numbers of a save from before there were jewels, as today's game holds them: no lamp lit, and no bonus paid. */
 const withJewels = (session: Row): Row => ({ ...session, jewels: 0, jewelBonuses: 0 });
@@ -480,8 +500,9 @@ const FIELD_THEN = ['time', 'medals', 'rolling', 'falling', 'payoutQueue', 'payo
 
 /**
  * Today's field as versions 7 to 9 wrote theirs: every tower on it built, none going up and no lift at work. What is
- * in the tubes has no place in a field of then, and neither has a tower taller than any of then, or a medal in the
- * air off one: they are left out. So it is the same machine only when there are none of those.
+ * in the tubes has no place in a field of then, and neither has a tower taller than any of then, a medal in the air
+ * off one, or anything on its way down the START plate: they are left out. So it is the same machine only when there
+ * are none of those.
  */
 const fieldThen = (machine: Row): Row => {
   const { time, medals, rolling, falling, payoutQueue, payoutClock, hopper, waits, aims, tips, nextId } = machine;
@@ -489,58 +510,92 @@ const fieldThen = (machine: Row): Row => {
     const { id, x, y, level, tier, sinceDrop, stack, ball, grown: room, ...jewel } = medal;
     return { id, x, y, level, tier, sinceDrop, stack, grow: 0, ball, grown: room, ...jewel };
   });
-  // Nor has a medal in the air off a tower taller than any of then.
-  const fell = (falling as Row[]).filter((medal) => (medal.rank as number) < TOWER_THEN.max);
+  // Nor has a medal in the air off a tower taller than any of then, or one on its way down the START plate.
+  const fell = (falling as Row[]).filter((medal) => (medal.rank as number) < TOWER_THEN.max && medal.source !== 'slide');
   return { time, medals: grown, rolling, falling: fell, payoutQueue, payoutClock, growing: 0, towerClock: 0, hopper, lifts: [], waits, aims, tips, nextId };
 };
 
+/** Where across today's field a place across the field of every version before the START plate is: as far in from the walls, for its share of the width. */
+const narrowed = (x: number): number => (x * FIELD.width) / 100;
+
 /**
- * Checks what a save of a version before 10 comes back as: on a new heap of today's medals, with everything on the
- * old field that was the player's to win carried over to it, as storage.ts has it (`onANewHeap`). `then` is the
- * field as versions 7 to 9 wrote theirs, and `seed` what the save was read with.
+ * Checks what a save of a version before 11 comes back as: on a new heap of today's medals, laid out on today's
+ * narrower field, with everything on the old field that was the player's to win carried over to it, as storage.ts has
+ * it (`onANewHeap`). `then` is the field as versions 7 to 9 wrote theirs, with the tubes of a save of version 10 in
+ * `stacker`, and `seed` what the save was read with.
  */
-function expectANewHeap(then: Row, back: Session, seed: number): void {
+function expectANewHeap(then: Row, back: Session, seed: number, stacker?: Row): void {
   const { machine } = back;
   const medalsThen = then.medals as MedalThen[];
-  // As they were: the clock, what is on the rails and in the air, the doors, the arms.
+  // As they were: the clock, what is on the rails, the doors and the slots; and the arms pointed and their tips as far
+  // across as they were, each as near to that as it reaches now.
   expect(machine.time).toBe(then.time);
   expect(machine.rolling).toEqual(then.rolling);
-  expect(machine.falling).toEqual(then.falling);
   expect(machine.payoutClock).toBe(then.payoutClock);
   expect(machine.hopper).toEqual(then.hopper);
-  expect([machine.waits, machine.aims, machine.tips]).toEqual([then.waits, then.aims, then.tips]);
+  expect(machine.waits).toEqual(then.waits);
+  const across = ([left, right]: number[]): number[] => [tipOf(0, narrowed(left)), tipOf(1, narrowed(right))];
+  expect([machine.aims, machine.tips]).toEqual([across(then.aims as number[]), across(then.tips as number[])]);
+  // What was in the air comes down when it was going to, as far across the narrower field as it was across the old one; a
+  // jewel from the hatch within the patch it throws to now; a medal off a tower past the plate's foot.
+  const airThen = then.falling as FallingMedal[];
+  expect(machine.falling).toHaveLength(airThen.length);
+  airThen.forEach((one, index) => {
+    const now = machine.falling[index];
+    const x = one.jewel ? Math.min(JEWEL_DROP.to, Math.max(JEWEL_DROP.from, narrowed(one.x))) : Math.min(FIELD.width - MEDAL_RADIUS, Math.max(MEDAL_RADIUS, narrowed(one.x)));
+    const past = pusherFront((then.time as number) + one.remaining) + PLATE.reach + MEDAL_RADIUS;
+    expect(now).toEqual({ ...one, x, fromX: one.jewel ? x : narrowed(one.fromX), y: one.source === 'spill' ? Math.max(one.y, past) : one.y });
+  });
   // Every tower going up, and every tower a lift held, is given to the tubes; what they have no room for is poured.
   const held = new Set((then.lifts as Lift[]).filter(holds).map((lift) => lift.id));
-  const tubes = idleStacker();
+  const tubes = stacker ? (structuredClone(stacker) as unknown as ReturnType<typeof idleStacker>) : idleStacker();
   let poured = 0;
   for (const medal of medalsThen) if (medal.grow > 0 || held.has(medal.id)) poured += medal.stack + medal.grow - stackTowers(tubes, medal.stack + medal.grow);
   expect(machine.stacker).toEqual(tubes);
   expect(machine.payoutQueue).toBe((then.payoutQueue as number) + poured);
-  // Every other tower, and every ball and jewel, is where it was: on its table, within a medal of it.
+  // Every other tower, and every ball and jewel, keeps its number and its table, and is where it was across the field
+  // for its share of the width: within a medal of it, or out in front of the plate's foot if it would be under the plate;
+  // or, if an arm is pushing it out of its tube, where the arm has it now.
   const tall = (medal: Medal): boolean => medal.stack > 1 || medal.ball || medal.jewel === true;
   const kept = medalsThen.filter((medal) => tall(medal) && medal.grow === 0 && !held.has(medal.id));
   const now = machine.medals.filter(tall);
   expect(now).toHaveLength(kept.length);
+  const front = pusherFront(machine.time);
   for (const one of kept) {
-    const same = now.filter((medal) => medal.level === one.level && medal.stack === one.stack && medal.ball === one.ball && (medal.jewel === true) === (one.jewel === true));
-    expect(Math.min(...same.map((medal) => Math.hypot(medal.x - one.x, medal.y - one.y)))).toBeLessThan(MEDAL_RADIUS * 2);
+    const medal = find(machine.medals as unknown as Row[], (row) => row.id === one.id) as unknown as Medal;
+    expect({ level: medal.level, tier: medal.tier, stack: medal.stack, ball: medal.ball, jewel: medal.jewel === true }).toEqual({ level: one.level, tier: 0, stack: one.stack, ball: one.ball, jewel: one.jewel === true });
+    const pushing = machine.stacker.tubes.findIndex((tube) => tube.phase === 'pushing' && tube.tower === one.id);
+    if (pushing >= 0) {
+      expect({ x: medal.x, y: medal.y }).toEqual(armSpot(pushing as 0 | 1, machine.stacker.tubes[pushing].clock, front));
+      continue;
+    }
+    expect(Math.abs(medal.x - narrowed(one.x))).toBeLessThan(MEDAL_RADIUS * 2);
+    const out = one.level === 0 && (one.ball || one.jewel === true) && medal.y === front + PLATE.reach + (one.jewel === true ? PRIZE_CLEAR.jewel : PRIZE_CLEAR.ball);
+    // Where the new heap has medals near where it lay, which it has but at the foot of the pusher's face.
+    if (!out && (one.level === 1 || one.y > PUSHER.max + MEDAL_RADIUS)) expect(Math.abs(medal.y - one.y)).toBeLessThan(MEDAL_RADIUS * 2);
   }
   // The rest is the heap a new machine is switched on with, carried as far forward as the pusher had come, numbered
-  // after every id the old machine gave out; less what would have lain on top of a tower, a ball or a jewel.
+  // after every id the old machine gave out; less the medals the prizes took the places of, and what would have lain on
+  // top of a tower, a ball or a jewel.
   const heap = createMachine(seed).medals;
   const first = then.nextId as number;
-  const ahead = pusherFront(machine.time) - pusherFront(0);
+  const ahead = front - pusherFront(0);
   expect(machine.nextId).toBe(first + heap.length);
   expect(machine.medals.length).toBeGreaterThan(heap.length - 6 * (kept.length + 1));
   for (const medal of machine.medals) {
+    if (medal.id < first) continue;
     const fresh = heap[medal.id - first];
     expect({ x: medal.x, y: medal.y, level: medal.level, tier: medal.tier }).toEqual({ x: fresh.x, y: fresh.level === 1 ? fresh.y + ahead : fresh.y, level: fresh.level, tier: fresh.tier });
-    if (!tall(medal)) expect(medal).toMatchObject({ stack: 1, ball: false, sinceDrop: -1, grown: 1 });
+    expect(medal).toMatchObject({ stack: 1, ball: false, sinceDrop: -1, grown: 1 });
   }
   for (const medal of machine.medals.filter((one) => one.tier === 1)) {
     expect(now.every((one) => one.level !== medal.level || Math.hypot(one.x - medal.x, one.y - medal.y) >= MEDAL_RADIUS * 2)).toBe(true);
   }
+  // No prize is under the plate.
+  for (const medal of machine.medals) if (medal.level === 0) expect(underPlate(medal, front)).toBe(false);
+  expect(clearPlate).toBeDefined();
 }
+
 /**
  * A session's numbers as the versions before chance time wrote them, in today's shape: none of the held spins gold,
  * none ever turned gold or held gold through a lit slot, no chance time on, nothing gold on the screen, and no
@@ -1071,11 +1126,11 @@ describe('a save at the very edge of what a machine can be', () => {
     ['nothing in the air', (save) => (save.machine.falling = [])],
     ['arms pointed as far left as they go', (save) => (save.machine.aims = [ARM_REACH[0].min, ARM_REACH[1].min])],
     ['arms pointed as far right as they go', (save) => (save.machine.aims = [ARM_REACH[0].max, ARM_REACH[1].max])],
-    ['both arms pointed at the same spot', (save) => (save.machine.aims = [53, 53])],
+    ['both arms pointed at the same spot', (save) => (save.machine.aims = [43, 43])],
     ['arms pointed as far apart as they go', (save) => (save.machine.aims = [ARM_REACH[0].min, ARM_REACH[1].max])],
     ['the left tip at the far end of its reach', (save) => (save.machine.tips = [ARM_REACH[0].max, 70])],
-    ['the right tip at the near end of its reach', (save) => (save.machine.tips = [36, ARM_REACH[1].min])],
-    ['both tips over the same spot', (save) => (save.machine.tips = [53, 53])],
+    ['the right tip at the near end of its reach', (save) => (save.machine.tips = [ARM_REACH[1].min - 5, ARM_REACH[1].min])],
+    ['both tips over the same spot', (save) => (save.machine.tips = [43, 43])],
     ['the tips as far apart as they go', (save) => (save.machine.tips = [ARM_REACH[0].min, ARM_REACH[1].max])],
     ['an arm in the middle of its swing', (save) => (save.machine.tips = [20.5, 50])],
     ['nothing on the rails', (save) => (save.machine.rolling = [])],
@@ -1188,7 +1243,7 @@ const ARMS_AT: Record<string, () => Session> = {
   },
   'the arms swung away from under a medal': () => {
     const session = createSession(8, { balls: 0 });
-    insertAt(session, 30);
+    insertAt(session, 12);
     for (let i = 0; i < 12; i++) advance(session, DT);
     aimBoth(session.machine, 88);
     for (let i = 0; i < 3; i++) advance(session, DT);
@@ -1244,11 +1299,11 @@ describe('the arms caught at each of their states', () => {
     expect(off.falling[0].fromX).toBe(30);
     const away = saved('the arms swung away from under a medal').machine;
     expect(away.rolling[0]).toMatchObject({ arm: 0 });
-    // Both were pointed as near to 88 as they go.
-    expect(away.aims).toEqual([ARM_REACH[0].max, 88]);
+    // Both were pointed as near to 88 as they go, which is off the field: as far right as each reaches.
+    expect(away.aims).toEqual([ARM_REACH[0].max, ARM_REACH[1].max]);
     // Three steps into their swing: the left arm far short of the end of its reach, the right arm far short of its aim.
     const swinging = away.tips as number[];
-    expect(swinging[0]).toBeCloseTo(30 + 3 * ARM_SPEED * DT, 9);
+    expect(swinging[0]).toBeCloseTo(12 + 3 * ARM_SPEED * DT, 9);
     expect(swinging[1]).toBeCloseTo(armStart(1) + 3 * ARM_SPEED * DT, 9);
     expect(swinging[0]).toBeLessThan(ARM_REACH[0].max - 10);
   });
@@ -1292,7 +1347,7 @@ describe('the arms caught at each of their states', () => {
     ['the arms swung away from under a medal', 'has its right arm further left than it reaches', (save) => ((save.machine.tips as number[])[1] = ARM_REACH[1].min - 1)],
     ['the arms swung away from under a medal', 'has an arm that is nowhere', (save) => ((save.machine.tips as unknown[])[0] = null)],
     ['the arms swung away from under a medal', 'have an arm pointed out of the field', (save) => ((save.machine.aims as number[])[1] = FIELD.width)],
-    ['the arms swung away from under a medal', 'have the right arm pointed to the left of the left one', (save) => ((save.machine.aims as number[])[1] = 50)],
+    ['the arms swung away from under a medal', 'have the right arm pointed to the left of the left one', (save) => ((save.machine.aims as number[])[1] = ARM_REACH[1].min)],
     ['the arms swung away from under a medal', 'point nowhere', (save) => (save.machine.aims = null)],
   ];
 
@@ -1335,6 +1390,9 @@ describe('a save written before the machine had its feed arms', () => {
   const OLD = beforeArms.save;
   const old = (): Save => JSON.parse(OLD);
   const { then } = beforeArms;
+  /** Where a machine of the next version, on the field a hundred wide, had its arms pointed when it was switched on; and where that is across today's field, as near as each arm reaches. */
+  const RESTING_THEN = [43, 57];
+  const resting = [tipOf(0, narrowed(RESTING_THEN[0])), tipOf(1, narrowed(RESTING_THEN[1]))];
   const total = (events: SessionEvent[], type: 'landed' | 'won' | 'lost'): number =>
     events.reduce((sum, event) => sum + (event.type === type ? event.count : 0), 0);
 
@@ -1363,7 +1421,7 @@ describe('a save written before the machine had its feed arms', () => {
     // What was in the air and waiting to be paid is as it was, on a new heap, with what the arms brought added to it.
     // That game had no payout works: the doors are shut, and it was building no tower for the tubes to stack again.
     const { cooldown, nextId, ...tables } = save.machine;
-    const then = withWorks({ ...tables, rolling: [], waits: [cooldown, cooldown], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)], nextId });
+    const then = withWorks({ ...tables, rolling: [], waits: [cooldown, cooldown], aims: RESTING_THEN, tips: RESTING_THEN, nextId });
     expectANewHeap(then, back, 1);
     const { rolling, aims, waits, tips, hopper, stacker } = back.machine;
     expect(hopper).toEqual(shutHopper());
@@ -1371,10 +1429,11 @@ describe('a save written before the machine had its feed arms', () => {
     expect(rolling).toEqual([]);
     // That game had one slot: neither arm's slot is free until it would have been.
     expect(waits).toEqual([cooldown, cooldown]);
-    // The arms are where a new machine's are, and pointed there: nothing swings when it starts up again.
-    expect(aims).toEqual([armStart(0), armStart(1)]);
-    expect(tips).toEqual([armStart(0), armStart(1)]);
-    expect(tips).toEqual(createSession(1).machine.tips);
+    // The arms are where a new machine of the next version had them, as far across, and pointed there: nothing swings
+    // when it starts up again. That is all but where a new machine's are now.
+    expect(aims).toEqual(resting);
+    expect(tips).toEqual(resting);
+    tips.forEach((tip, arm) => expect(Math.abs(tip - armStart(arm as 0 | 1))).toBeLessThan(0.1));
     expect([armGoal(back.machine, 0), armGoal(back.machine, 1)]).toEqual(tips);
     // So are the purse and the counters, and the spin it was in the middle of.
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
@@ -1387,8 +1446,9 @@ describe('a save written before the machine had its feed arms', () => {
     const falling = old().machine.falling;
     const start = back.machine.time;
     // None of them is put back on a rail, and none waits out a roll: each has the landing spot and the
-    // time it was written with, and the last is down within a fall's length.
-    expect(back.machine.falling).toEqual(falling);
+    // time it was written with, as far across today's field as it was across that one, and the last is down
+    // within a fall's length.
+    expect(back.machine.falling).toEqual(falling.map((medal) => ({ ...medal, x: narrowed(medal.x as number), fromX: narrowed(medal.fromX as number) })));
     const downAt = new Map<number, number>();
     for (let i = 0; i < Math.round(FALL_TIME / DT) + 1; i++) {
       const before = new Map(back.machine.falling.map((medal) => [medal.id, medal]));
@@ -1398,7 +1458,7 @@ describe('a save written before the machine had its feed arms', () => {
         const down = lying.get(id);
         if (!down) continue;
         downAt.set(id, back.machine.time - start);
-        // It lies on the pusher at the spot the save gave it, less whatever the pile has nudged it in the step it landed.
+        // It lies on the pusher at the spot it came down to, less whatever the pile has nudged it in the step it landed.
         expect(down.level).toBe(1);
         expect(Math.hypot(down.x - medal.x, down.y - medal.y)).toBeLessThan(MEDAL_RADIUS);
       }
@@ -1418,9 +1478,10 @@ describe('a save written before the machine had its feed arms', () => {
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps; i++) advance(back, DT, events);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // The seven in the air and the eight waiting to be paid come down, as many as came down then. Where they go from
-    // there is the new heap's business: it is not the field that game had.
-    expect(total(events, 'landed')).toBe(then.landed);
+    // The seven in the air and the eight waiting to be paid come down, as many as came down then, and with them now
+    // whatever the pusher has taken over its lip and down the START plate since. Where they go from there is the new
+    // heap's business: it is not the field that game had.
+    expect(total(events, 'landed')).toBeGreaterThanOrEqual(then.landed);
     // What starts a spin is not what it was. Then, one of the medals in the air came down through the centre gate
     // as it swept by. Now landing starts nothing: the medals that count are the ones the pusher takes over its lip
     // through a chucker.
@@ -1447,7 +1508,7 @@ describe('a save written before the machine had its feed arms', () => {
     const text = serialize(back);
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
-    expect(again.machine).toMatchObject({ rolling: [], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)], waits: [old().machine.cooldown, old().machine.cooldown] });
+    expect(again.machine).toMatchObject({ rolling: [], aims: resting, tips: resting, waits: [old().machine.cooldown, old().machine.cooldown] });
     expect(again.machine.falling).toHaveLength(7);
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
@@ -1551,10 +1612,10 @@ describe('a save written while the START gates still swept the back panel', () =
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
     expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
-    // Its arms are where they were, the one with medals on its rail over the aim and the other at the rest it had then.
-    // Each is pointed at that one aim now, so the first stays and the second swings over.
-    expect(back.machine.tips).toEqual(save.machine.tips);
-    expect(back.machine.aims).toEqual([tipOf(0, save.machine.aim as number), tipOf(1, save.machine.aim as number)]);
+    // Its arms are where they were, as far across, the one with medals on its rail over the aim and the other at the rest
+    // it had then. Each is pointed at that one aim now, so the first stays and the second swings over.
+    expect(back.machine.tips).toEqual(armsNow(save.machine.tips as number[]));
+    expect(back.machine.aims).toEqual(armsNow([tipThen(0, save.machine.aim as number), tipThen(1, save.machine.aim as number)]));
     expect(back.machine.rolling.every((medal) => medal.arm === 1)).toBe(true);
   });
 
@@ -1640,8 +1701,8 @@ describe('a save written while both rails shared one slot and one aim', () => {
     // The aim was on the left. Both arms had medals on their rails, so both were following it: the left arm
     // is over it, and the right arm is as near to it as it reaches, which is less than a medal's width away.
     const aim = save.machine.aim as number;
-    expect(aim).toBeLessThan(ARM_REACH[1].min);
-    expect(save.machine.tips).toEqual([aim, ARM_REACH[1].min]);
+    expect(aim).toBeLessThan(REACH_THEN[1].min);
+    expect(save.machine.tips).toEqual([aim, REACH_THEN[1].min]);
     expect(save.machine.rolling.map((medal) => medal.arm)).toEqual([1, 1, 1, 0, 0]);
     // The one slot fed both rails, a wait apart, and was still waiting from the last one.
     const times = save.machine.rolling.map((medal) => medal.remaining as number);
@@ -1658,12 +1719,12 @@ describe('a save written while both rails shared one slot and one aim', () => {
     if (!back) return;
     const save = old();
     const aim = save.machine.aim as number;
-    expect(back.machine.aims).toEqual([aim, ARM_REACH[1].min]);
-    expect(back.machine.aims).toEqual([tipOf(0, aim), tipOf(1, aim)]);
+    expect(back.machine.aims).toEqual(armsNow([aim, REACH_THEN[1].min]));
+    expect(back.machine.aims).toEqual(armsNow([tipThen(0, aim), tipThen(1, aim)]));
     // That game's one slot fed either rail, so neither slot is free until it would have been.
     expect(back.machine.waits).toEqual([save.machine.cooldown, save.machine.cooldown]);
-    // Everything else is what was written, to the last digit: the tips, the medals on the rails and in the air; on a new heap.
-    expect(back.machine.tips).toEqual(save.machine.tips);
+    // Everything else is what was written: the tips as far across, the medals on the rails and in the air; on a new heap.
+    expect(back.machine.tips).toEqual(armsNow(save.machine.tips as number[]));
     expect(back.machine.rolling).toEqual(save.machine.rolling);
     expectANewHeap(asNine(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
@@ -1699,19 +1760,20 @@ describe('a save written while both rails shared one slot and one aim', () => {
       }
     }
     // The three on the right rail left from the end of that arm's reach and the two on the left from over the aim,
-    // each in the step it did then.
-    expect(left).toEqual(then.left);
+    // each in the step it did then, as far across as then.
+    expect(left).toEqual(then.left.map((one) => ({ ...one, fromX: armsNow(one.arm === 0 ? [one.fromX, REACH_THEN[1].min] : [REACH_THEN[0].min, one.fromX])[one.arm] })));
     expect(left.map((one) => one.arm)).toEqual([1, 1, 1, 0, 0]);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
-    // As many came down as came down then: those that left the rails, and those that were in the air and waiting to be
-    // paid. What they do there is the new heap's business: it is not the field that game had.
-    expect(total(events, 'landed')).toBe(then.landed);
-    expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
+    // As many came down as came down then, those that left the rails and those that were in the air and waiting to be
+    // paid, and with them now whatever came over the lip and down the START plate. What they do there is the new heap's
+    // business: it is not the field that game had.
+    expect(total(events, 'landed')).toBeGreaterThanOrEqual(then.landed);
+    expect(back.machine.rolling.length).toBe(then.rolling);
     for (const rest of then.resting) expect(back.machine.medals.find((m) => m.id === rest.id)?.level).toBe(1);
     // One thing is not as it was, and nothing on the tables hangs on it: that game's right arm went back to a
     // resting place once its rail was empty, and this one stays on its aim.
-    expect(then.tips[1]).toBeGreaterThan(ARM_REACH[1].min);
-    expect(back.machine.tips).toEqual([then.tips[0], ARM_REACH[1].min]);
+    expect(then.tips[1]).toBeGreaterThan(REACH_THEN[1].min);
+    expect(back.machine.tips).toEqual(armsNow([then.tips[0], REACH_THEN[1].min]));
   });
 
   it('takes a medal into either rail once the one slot it had would have been free, and into both at once', () => {
@@ -1732,11 +1794,11 @@ describe('a save written while both rails shared one slot and one aim', () => {
     for (let i = 0; i < 300; i++) {
       if (back.credits === 0) refill(back);
       if (i % 11 === 0) for (const arm of [0, 1] as const) insert(back, arm);
-      if (i === 100) back.machine.aims = [20, 80];
+      if (i === 100) back.machine.aims = [20, 70];
       advance(back, DT);
       if (i % 60 === 0) expect(restore(serialize(back), 1)).not.toBeNull();
     }
-    expect(back.machine.tips).toEqual([20, 80]);
+    expect(back.machine.tips).toEqual([20, 70]);
     expect(back.inserted).toBeGreaterThan(before + 40);
     expect(back.credits).toBe(START_CREDITS * (1 + back.refills) - back.inserted + back.won);
     expect(everyPosition(back).every(Number.isFinite)).toBe(true);
@@ -1752,7 +1814,7 @@ describe('a save written while both rails shared one slot and one aim', () => {
     ['given a wait for each slot beside its one', (save) => (save.machine.waits = [0, 0])],
     ['left without its aim', (save) => delete save.machine.aim],
     ['left without its wait', (save) => delete save.machine.cooldown],
-    ['pointed outside the field', (save) => (save.machine.aim = AIM.max + 1)],
+    ['pointed outside the field', (save) => (save.machine.aim = REACH_THEN[1].max + 1)],
     ['with its tips past each other', (save) => (save.machine.tips as number[]).reverse()],
     // Today the two rails keep their own pace. Then one slot fed both, and a save of then is held to that.
     ['with medals on the two rails closer together than its one slot fed them', (save) => (save.machine.rolling[3].remaining = (save.machine.rolling[2].remaining as number) + 0.1)],
@@ -1770,7 +1832,8 @@ describe('a screen that has been damaged', () => {
   // Each of these is written by hand, at a moment the machine does pass through.
   const SPIN = { result: { tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'normal' }, elapsed: 0.5, duration: TIMING.spin + TIMING.reach, done: false };
   const MISS = { tier: 'miss', digits: [5, 5, 6], reach: false, reachKind: 'none' };
-  const SUGOROKU = { kind: 'sugoroku', roll: 3, from: 0, elapsed: 0.4, duration: sugorokuDuration(3), payout: -1 };
+  // Rolled from the square the good save's piece is on.
+  const SUGOROKU = { kind: 'sugoroku', roll: 3, from: good().session.square as number, elapsed: 0.4, duration: sugorokuDuration(3), payout: -1 };
   const CHEST = { kind: 'chest', prizes: [CHESTS[1], CHESTS[0], CHESTS[2]], fallback: 2, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1 };
   const PICKED = { ...CHEST, picked: 0, pickedAt: 0.5, told: true, elapsed: 3, payout: CHESTS[1] };
   const TURN = { pocket: 1, from: 0, elapsed: 0.2, duration: 2.8, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false, bowl: null };
@@ -2903,7 +2966,7 @@ describe('the versions a save can carry', () => {
     };
   };
 
-  it('are ten: the arms, an aim for each, chance time, the three bowls, the jewels, the payout works, the lucky lamp, the ride to the pocket, and today’s medals with the tubes each took one', () => {
+  it('are eleven: the arms, an aim for each, chance time, the three bowls, the jewels, the payout works, the lucky lamp, the ride to the pocket, today’s medals with the tubes, and the narrower field with the START plate each took one', () => {
     expect([
       VERSION_BEFORE_ARMS,
       VERSION_WITH_ONE_AIM,
@@ -2914,9 +2977,10 @@ describe('the versions a save can carry', () => {
       VERSION_BEFORE_LAMP,
       VERSION_BEFORE_RIDE,
       VERSION_BEFORE_TUBES,
+      VERSION_BEFORE_PLATE,
       STORAGE_VERSION,
-    ]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(JSON.parse(serialize(createSession(1))).version).toBe(10);
+    ]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(JSON.parse(serialize(createSession(1))).version).toBe(11);
   });
 
   it('do not take a save of this version for one of the version before it, nor one of that version for this', () => {
@@ -3536,13 +3600,15 @@ describe('a save written when the arms were short and a fed medal went straight 
       advance(back, DT, events);
       for (const medal of back.machine.falling) if (before.has(medal.id)) left.push({ id: medal.id, step: i + 1, fromX: medal.fromX });
     }
-    expect(left).toEqual(then.left);
+    // From where they left then, as far across today's field.
+    const tips = armsNow(asNine(old().machine).tips as number[]);
+    expect(left).toEqual(then.left.map((one) => ({ ...one, fromX: tips.find((tip) => Math.abs(tip - (one.fromX * FIELD.width) / 100) < 1) ?? Number.NaN })));
     expect(left).toHaveLength(3);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     // As many come down as came down then, those that left the rails and those that were in the air, but for the ten
     // of a tower (below), which came down one by one onto its lift then. What they do there is the new heap's
     // business: it is not the field that game had.
-    expect(total(events, 'landed')).toBe(then.landed - 10);
+    expect(total(events, 'landed')).toBeGreaterThanOrEqual(then.landed - 10);
     expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
     expect(then.resting).toHaveLength(5);
     for (const rest of then.resting) expect(back.machine.medals.find((m) => m.id === rest.id)?.level).toBe(1);
@@ -4503,7 +4569,7 @@ describe('a save written before the machine had jewels, chance time or the three
     for (let i = 0; i < then.steps; i++) advance(back, DT, events);
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     // As many come down as came down then. What they do there is the new heap's business: it is not the field that game had.
-    expect(total(events, 'landed')).toBe(then.landed);
+    expect(total(events, 'landed')).toBeGreaterThanOrEqual(then.landed);
     expect(back.machine.rolling).toHaveLength(then.rolling);
     // The spin that was on its screen ends as it did then, and no treasure line has let a jewel go.
     expect(events.find((event): event is Extract<SessionEvent, { type: 'spinEnd' }> => event.type === 'spinEnd')?.result.tier).toBe(then.lines[0]);
@@ -5423,7 +5489,8 @@ describe('a save written before a medal rode to its pocket', () => {
     expect(onTheirWay.map(({ pocket }) => pocket)).toEqual([2, 1, 1]);
     for (const medal of onTheirWay) {
       expect(medal.since).toBeGreaterThanOrEqual(0);
-      expect(medal.since).toBeLessThan(START_RIDE);
+      // A ride was this long then (`RIDE_BEFORE` in storage.ts).
+      expect(medal.since).toBeLessThan(0.8);
       expect(save.machine.medals.find((one) => one.id === medal.id)).toMatchObject({ level: 0, sinceDrop: medal.since, x: medal.x, stack: 1, ball: false });
     }
     // That game had counted all three as they came over: each was held, the last of them through the lit slot.
@@ -5674,5 +5741,151 @@ describe('a save written before the lottery was made richer', () => {
     // Its purse and its counters are what was written, and its field is on a new heap.
     expect([back?.credits, back?.inserted, back?.won, back?.lost, back?.paidOut, back?.spins]).toEqual([save.session.credits, save.session.inserted, save.session.won, save.session.lost, save.session.paidOut, save.session.spins]);
     expectANewHeap(save.machine, back as Session, 1);
+  });
+});
+
+describe('a save written the day before the START plate, on the wide field', () => {
+  // Written by main's own `serialize` the day before the START plate: see the fixture's `about`.
+  const OLD = beforePlate.save;
+  const old = (): Save => JSON.parse(OLD);
+  const { facts } = beforePlate;
+
+  it('is a save of version 10: a field a hundred units wide, with a ball that has just come over the lip lying at the foot of the pusher’s face', () => {
+    const save = old();
+    expect(save.version).toBe(VERSION_BEFORE_PLATE);
+    expect(save.version).toBe(10);
+    expect(Object.keys(save.machine)).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine));
+    expect(save.machine.time).toBe(facts.time);
+    // Medals lie further across than today's field reaches: it was laid out wider.
+    expect(Math.max(...save.machine.medals.map((medal) => medal.x as number))).toBeGreaterThan(FIELD.width + MEDAL_RADIUS * 2);
+    const under = find(save.machine.medals, (medal) => medal.id === facts.ballJustOver.id);
+    expect(under).toMatchObject({ x: facts.ballJustOver.x, y: facts.ballJustOver.y, ball: true, level: 0 });
+    // And nothing on its way down a plate, which it never had.
+    expect(save.machine.falling.filter((medal) => medal.source === 'slide')).toEqual([]);
+  });
+
+  it('comes back on a new heap at today’s measures, with its prizes, its towers, its tubes and what was in the air carried over, and its purse, its numbers and its screen as they were', () => {
+    const back = restore(OLD, 3);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    const save = old();
+    expectANewHeap({ ...save.machine, medals: (save.machine.medals as Row[]).map((medal) => ({ ...medal, grow: 0 })), lifts: [], growing: 0, towerClock: 0 }, back, 3, save.machine.stacker as Row);
+    // No prize on the lower table is under the plate.
+    for (const medal of back.machine.medals) if (medal.level === 0) expect(underPlate(medal, pusherFront(back.machine.time))).toBe(false);
+    // The ball that had just come over the lip is a ball still, out in front of the plate's foot.
+    const ball = back.machine.medals.find((medal) => medal.id === facts.ballJustOver.id);
+    expect(ball).toMatchObject({ ball: true, level: 0 });
+    expect(withoutField(serialize(back))).toEqual({ ...withoutField(OLD), version: STORAGE_VERSION });
+  });
+
+  it('is written back as a save of this version, which reads back the same', () => {
+    const back = restore(OLD, 3) as Session;
+    expect((JSON.parse(serialize(back)) as Save).version).toBe(STORAGE_VERSION);
+    expect(plain(reread(back, 3))).toEqual(plain(back));
+  });
+
+  it('plays on, with no prize ever under the plate', { timeout: LONG }, () => {
+    const back = restore(OLD, 3) as Session;
+    for (let i = 0; i < 60 * 8; i++) {
+      advance(back, DT);
+      const now = pusherFront(back.machine.time);
+      for (const medal of back.machine.medals) if (medal.level === 0) expect(underPlate(medal, now)).toBe(false);
+    }
+  });
+
+  it('keeps a medal on its tongue that had longer to go than a ride takes now, and lets it drop as soon as one would now', () => {
+    const save = old();
+    save.session.riding = [{ gate: 1, lit: false, left: 0.7 }];
+    const back = restore(JSON.stringify(save), 3);
+    expect(back?.riding).toEqual([{ gate: 1, lit: false, left: START_RIDE }]);
+    // Today a ride is never longer than that.
+    const today = JSON.parse(serialize(createSession(1))) as Save;
+    today.session.riding = [{ gate: 1, lit: false, left: START_RIDE }];
+    expect(restore(JSON.stringify(today), 3)).not.toBeNull();
+    today.session.riding = [{ gate: 1, lit: false, left: 0.7 }];
+    expect(restore(JSON.stringify(today), 3)).toBeNull();
+  });
+});
+
+describe('something on its way down the START plate in a save', () => {
+  /** A machine with a medal, a ball or a jewel that has just come over the lip at `x`, saved `after` seconds on. */
+  const over = (x: number, more: Partial<Medal> = {}, after = 0.1): Session => {
+    const session = createSession(9, { balls: 0, jewels: 0 });
+    const { machine } = session;
+    machine.medals = machine.medals.filter((medal) => medal.level === 0);
+    machine.medals.push({ id: machine.nextId++, x, y: pusherFront(machine.time) + 0.4, level: 1, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1, ...more });
+    for (let t = 0; t < after; t += DT) advance(session, DT);
+    return session;
+  };
+  const written = (session: Session): Save => JSON.parse(serialize(session));
+  const sliding = (save: Save): Row => find(save.machine.falling, (medal) => medal.source === 'slide');
+
+  it.each([
+    ['a medal going down a hole', CHECKERS.positions[1] + 0.3, {}],
+    ['a medal sliding past the holes', 20, {}],
+    ['a medal rocking on a hole’s frame', CHECKERS.positions[1] + CHECKERS.halfWidth + 0.5, {}],
+    ['a ball rolling down', CHECKERS.positions[1] + 3, { ball: true }],
+    ['a jewel tumbling down', 30, { jewel: true }],
+  ] as const)('comes back as it was, %s, and comes down where it was going to', (_name, x, more) => {
+    const session = over(x, more);
+    const thing = session.machine.falling.find((medal) => medal.source === 'slide');
+    expect(thing).toBeDefined();
+    const back = reread(session);
+    expect(plain(back)).toEqual(plain(session));
+    // A save does not hold the generator: both are given the same one, for the spin a medal through a hole starts.
+    session.machine.rng = seededRng(77);
+    back.machine.rng = seededRng(77);
+    for (let t = 0; t < 0.8; t += DT) {
+      advance(session, DT);
+      advance(back, DT);
+    }
+    expect(plain(back)).toEqual(plain(session));
+    expect(back.machine.medals.some((medal) => medal.id === thing?.id)).toBe(true);
+  });
+
+  it.each([
+    ['on the pusher', (medal: Row) => (medal.level = 1)],
+    ['off a tower', (medal: Row) => (medal.rank = 3)],
+    ['moving across as it goes', (medal: Row) => (medal.fromX = (medal.x as number) + 1)],
+    ['come over a lip that was further back than the pusher goes', (medal: Row) => (medal.fromY = PUSHER.min - 1)],
+    ['longer on its way than any medal is', (medal: Row) => (medal.duration = MEDAL_SLIDE + TEETER.most + 0.1)],
+    ['coming down under the plate without going down a hole', (medal: Row) => (medal.y = PUSHER.min + PLATE.through)],
+    ['coming down further out than the plate’s foot ever is', (medal: Row) => (medal.y = PUSHER.max + PLATE.reach + MEDAL_RADIUS + 1)],
+  ])('is refused when a medal sliding down it is %s', (_name, spoil) => {
+    const save = written(over(20));
+    expect(restore(JSON.stringify(save), 1)).not.toBeNull();
+    spoil(sliding(save));
+    expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+
+  it.each([
+    ['nowhere near a hole', (medal: Row) => (medal.x = medal.fromX = 20)],
+    ['coming down further out than the foot of the pusher’s face ever is', (medal: Row) => (medal.y = PUSHER.max + PLATE.through + 1)],
+  ])('is refused when a medal going down a hole is %s', (_name, spoil) => {
+    const save = written(over(CHECKERS.positions[1]));
+    expect(restore(JSON.stringify(save), 1)).not.toBeNull();
+    spoil(sliding(save));
+    expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+
+  it.each([
+    ['taking longer than a ball takes', (ball: Row) => (ball.duration = ROLL_DOWN + 0.1)],
+    ['coming down under the plate', (ball: Row) => (ball.y = PUSHER.min + PLATE.reach - 1)],
+    ['coming down further out than against the foot', (ball: Row) => (ball.y = PUSHER.max + PLATE.reach + PRIZE_LANDS.ball + 1)],
+  ])('is refused when a ball rolling down it is %s', (_name, spoil) => {
+    const save = written(over(CHECKERS.positions[1] + 3, { ball: true }));
+    expect(restore(JSON.stringify(save), 1)).not.toBeNull();
+    spoil(sliding(save));
+    expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+
+  it('is refused when a ball or a jewel lies under the plate: no machine of this version leaves one there', () => {
+    for (const more of [{ ball: true }, { jewel: true }] as const) {
+      const save = written(over(30, more, ROLL_DOWN + 0.2));
+      expect(restore(JSON.stringify(save), 1)).not.toBeNull();
+      const prize = find(save.machine.medals, (medal) => (medal.ball === true || medal.jewel === true) && medal.level === 0);
+      prize.y = pusherFront(save.machine.time as number) + MEDAL_RADIUS;
+      expect(restore(JSON.stringify(save), 1)).toBeNull();
+    }
   });
 });

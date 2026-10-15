@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { CATCHER, caught, lampShown, nearness } from './catcher';
+import { RIM_REACHED, lampShown, plateWay } from './catcher';
 import { AutoIcon, MakersPlate, PanelWarning, SpeakerIcon } from './ControlPanel';
 import { AchievementToast, BonusStrip } from './DailyBonus';
 import { AIM, ARM_REACH, CHECKERS, FEED, aimArm, armFor, armStart, type Arm } from './engine';
@@ -126,9 +126,9 @@ const MAX_PIXEL_RATIO = 2;
 /** The longest stretch of time one frame may cover, so a stalled tab does not lurch forward. */
 const MAX_FRAME = 0.1;
 /**
- * How near a medal that hangs on a tongue's edge has to have been to fitting its pocket for its rocking to be heard
- * (`nearness` in catcher.ts): the nearer half of them, which hang a quarter of a second or more. The rest are off the
- * edge almost as they reach it, and nearly half the medals that come over at the catcher are one or the other.
+ * How near a medal that rocks on a START hole's frame has to have been to fitting the hole for its rocking to be
+ * heard (`nearness` in catcher.ts): the nearer half of them, which rock a quarter of a second or more. The rest are
+ * on their way again almost as they reach the frame.
  */
 export const TEETER_FROM = 0.5;
 /** How often the machine is saved while it is showing, in seconds. */
@@ -1065,14 +1065,17 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       if (said.start) playSound('start', soundOn, { gold: said.gold });
       if (said.spark) playSound('spark', soundOn, { seconds: BURST.run });
       if (said.full) playSound('full', soundOn);
-      // A medal that came over the lip with some of a START pocket's tongue under it, and not enough, rides out and
-      // hangs on the tongue's edge. One that all but fitted hangs there long enough to be seen to rock, and is heard
-      // to, from the moment it begins: rocking quicker each time, and over the side into the well. It is the catcher
-      // that says which do, as it does for the picture.
-      for (const medal of session.machine.medals) {
-        if (medal.level !== 0 || medal.sinceDrop < CATCHER.teeter.out || medal.sinceDrop - elapsed >= CATCHER.teeter.out) continue;
-        const held = caught(medal, session.machine.time, calm.matches, session.rush);
-        if (held && held.leg === 'tongue' && nearness(held, session.rush) >= TEETER_FROM) playSound('teeter', soundOn);
+      // A medal that came over the lip with its middle over a START hole's opening, but not in line with it, slides
+      // down to the hole and rocks on its frame on the way. One that all but fitted rocks there long enough to be seen
+      // to, and is heard to, from the moment it begins. It is the plate that says which do, as it does for the
+      // picture; with less motion asked for, nothing rocks.
+      if (!calm.matches) {
+        for (const medal of session.machine.falling) {
+          const gone = medal.duration - medal.remaining;
+          if (gone < RIM_REACHED || gone - elapsed >= RIM_REACHED) continue;
+          const way = plateWay(medal, session.machine.time);
+          if (way?.kind === 'rim' && way.nearness >= TEETER_FROM) playSound('teeter', soundOn);
+        }
       }
       // The tray is told what this frame did to the purse, by what happened: the medals fed, the day's bonus and the
       // medals won. Where it acts that out, the medals that came in are heard as each is seen to land in it

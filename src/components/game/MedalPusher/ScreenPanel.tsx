@@ -28,6 +28,9 @@ import {
   type WheelSpot,
 } from './screen';
 import { MAX_STOCK, type ActiveRoulette } from './session';
+import { TUBE } from './stacker';
+import { SCREEN } from './view';
+import { WINDOW } from './works';
 import styles from './MedalPusher.module.css';
 
 /** The digits the reels show before the first spin. */
@@ -35,6 +38,16 @@ export const IDLE_DIGITS: [number, number, number] = [3, 5, 8];
 
 /** A value the stylesheet works a transform out from. */
 const cssVars = (vars: Record<`--mp-${string}`, string | number>) => vars as CSSProperties;
+
+/**
+ * How far in from either side of the screen what stands low on the stage keeps, in the wall, as a share of the
+ * screen's width: the windows the towers are stacked in are cut in the screen's lower corners (works.ts), and each
+ * reaches in from its side to the outer edge of its frame. The slab of the slot's board and the column beside a wheel
+ * or the bowls may go a little way under a window's frame, by their rounded rims and the room round what is on them,
+ * as they always have; what is on them may not. The windows are as wide as a tower whatever the screen's width, so
+ * the narrower the table, the more of the screen they take.
+ */
+export const STAGE_IN = ((TUBE.x[0] + WINDOW.half + WINDOW.frame - SCREEN.left) / (SCREEN.right - SCREEN.left)) * 100 - 5;
 
 // ── The reels ───────────────────────────────────────────────────────────────
 
@@ -730,7 +743,7 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
       data-mode={state.mode}
       data-banner={state.banner}
       data-monitor={monitor}
-      style={{ ...GOLD_FLASH_STYLE, ...cssVars({ '--mp-glow': MONITOR[monitor].colour }) }}
+      style={{ ...GOLD_FLASH_STYLE, ...cssVars({ '--mp-glow': MONITOR[monitor].colour, '--mp-stage-in': `${STAGE_IN.toFixed(2)}cqw` }) }}
       data-testid="pusher-screen"
     >
       <div className={styles.rays} aria-hidden />

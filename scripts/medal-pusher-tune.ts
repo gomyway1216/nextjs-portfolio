@@ -115,8 +115,8 @@ export interface Play {
   rush?: boolean;
 }
 
-/** About how many seconds the middle one of the medals fed down the middle, two a second, takes to reach the lip. Half of them take between 33 and 66, and one in ten two minutes. */
-const TRANSIT = 47;
+/** About how many seconds the middle one of the medals fed down the middle, two a second, takes to reach the lip. Half of them take between 31 and 60, and one in ten more than a minute and a half. */
+const TRANSIT = 45;
 
 /** What each way of aiming is called in the table. */
 const AIM_NAMES: Record<AimId, string> = { centre: 'middle', anywhere: 'anywhere', beside: 'beside', edges: 'edges' };

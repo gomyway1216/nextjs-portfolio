@@ -35,14 +35,23 @@
  * machine, and a given seed always plays out the same way.
  */
 
-/** Distances are in field units: the field is 100 wide and 100 deep. */
+/** Distances are in field units: the field is 78 wide and 100 deep. */
 import { runHopper, shutHopper, type Hopper } from './hopper';
 import { STACK, holdTowers, idleStacker, medalsInTubes, runStacker, stackTowers, type Stacker } from './stacker';
 
 export { towerSizes } from './stacker';
 
 export const FIELD = {
-  width: 100,
+  /**
+   * How wide the two tables are between the side walls: fifteen medals side
+   * by side, as on a real station (`MEDAL_RADIUS`). It was a hundred, which
+   * put more than nineteen across: a table wider than any real one, with
+   * medals the size of real ones on it. Everything across the field is
+   * reckoned from this, and the camera has not moved: the medals are as big
+   * in the picture as they were, and the cabinet's sides take what the table
+   * gave up.
+   */
+  width: 78,
   /** The front edge. Depth is measured from the back wall. */
   depth: 100,
   /** Beyond this depth the side walls stop, and a medal pushed sideways is lost. */
@@ -58,17 +67,19 @@ export const FIELD = {
    * medals in five that left the field left it by the front, which is far more
    * than a real machine's field returns: there the shop sets the share with
    * the width of the side holes, and about half to six in ten is usual. At
-   * this reach the best aim gets about 58 in 100 back from the field, and the
-   * rest of what the machine returns is the screen's games (lottery.ts). It
-   * was a fifth of the edge, 20, until the medals were made as small as real
-   * ones; with them the same reach gave back nearly a point more.
+   * this reach, a fifth of the edge's length at each side, the best aim gets
+   * about 58 in 100 back from the field, and the rest of what the machine
+   * returns is the screen's games (lottery.ts).
    * It was set here and not by opening the sides further back, because a
    * longer open side takes much less from a field that is fed fast than from
    * one fed slowly, and a hole at the corner takes the same from both:
    * scripts/medal-pusher-tune.ts measures the share for every way of playing.
    */
-  sideReach: 20.3,
+  sideReach: 15.6,
 } as const;
+
+/** The middle of the field, across: where the START holes are, the ball hatch, the towers' tubes either side. */
+export const MIDDLE = FIELD.width / 2;
 
 /**
  * Whether a medal that goes over the front edge at `x` drops into the
@@ -78,14 +89,13 @@ export const FIELD = {
 export const frontPays = (x: number): boolean => x >= FIELD.sideReach && x <= FIELD.width - FIELD.sideReach;
 
 /**
- * How big a medal is: a little more than nineteen lie side by side across the
- * field. A real arcade medal is about 25 mm across, a little bigger than a
- * ten-yen coin, and on a real station's table it looks about that small:
- * many deep, with a prize ball half as wide again as one. Everything on the
- * field that has to be sized for a medal is reckoned from this number: the
- * START pockets and the tongues that carry a medal to them, the catcher's
- * well, the side holes, the slots and the rails, the tray, the windows the
- * towers are stacked in, and how close two medals may lie.
+ * How big a medal is: fifteen lie side by side across the field. A real
+ * arcade medal is about 25 mm across, a little bigger than a ten-yen coin,
+ * and on a real station's table it looks about that small: many deep, with a
+ * prize ball half as wide again as one. Everything on the field that has to
+ * be sized for a medal is reckoned from this number: the START holes, the
+ * side holes, the slots and the rails, the tray, the windows the towers are
+ * stacked in, and how close two medals may lie.
  */
 export const MEDAL_RADIUS = 2.6;
 /**
@@ -93,17 +103,32 @@ export const MEDAL_RADIUS = 2.6;
  * arcade medal's proportion (about 25 mm across and 1.76 mm thick).
  * Everything that has a medal's height in it is reckoned from this number: how
  * high a pile and a tower stand in both pictures, how high a stack in a tube
- * stands, what passes under the catcher's foot, and how far a tower reaches
+ * stands, what passes under the START plate's foot, and how far a tower reaches
  * across the lower table when it goes over the lip (`spill`), which is the one
  * place the field's own sums have it in them.
  */
 export const MEDAL_THICKNESS = 0.37;
 
-/** The pusher's front lip moves between these depths, once per `period` seconds. */
-export const PUSHER = { min: 30, max: 46, period: 3.6 } as const;
+/**
+ * The pusher's front lip moves between these depths, once per `period`
+ * seconds. Its top, where dropped medals land, is `height` above the lower
+ * table, and so is its lip: what hangs under the lip, and what fits under
+ * that, is reckoned from it (`PLATE`).
+ */
+export const PUSHER = { min: 30, max: 46, period: 3.6, height: 6 } as const;
+
+/**
+ * How big a prize ball is: half as wide again as a medal, as the balls on a
+ * real station are beside its medals. The field pushes it about as it pushes
+ * a medal, a medal's width from the next one, since a ball lying on the table
+ * touches the flat medals round it only near its foot, under the bulge of it.
+ * What it does not do is pass under anything a medal passes under: it stands
+ * far taller than the START plate's foot is high (`PLATE`).
+ */
+export const BALL_RADIUS = 3.8;
 
 /** A dropped medal lands in this band of depth, on the pusher, a little off its aim. */
-export const LANDING = { from: 6, to: 13, scatter: 12 } as const;
+export const LANDING = { from: 6, to: 13, scatter: 9.4 } as const;
 /**
  * Where a medal the machine pays out, or a prize ball, is let go: this close
  * to the back wall, and this high above the lower table when the wall was a
@@ -142,48 +167,159 @@ export const ROLL_TIME = 0.9;
 export const FEED = { slot: 0.1, arm: 0.8 } as const;
 
 /**
- * The chuckers: three START pockets in a row on the pusher's lip, at these
- * places across the field. They ride out and back with the lip and do not move
- * along it. A medal that goes over the lip with its middle within `halfWidth`
- * of one drops through it, and starts the slot on the screen, on its way down
- * to the lower table. Any medal does: one the player fed, one the machine paid
- * out, or one off a tower that goes over there. A ball does not fit.
+ * The chuckers: three START holes side by side in the middle of the START
+ * plate on the pusher's front (`PLATE`), at these places across the field.
+ * They ride out and back with the pusher and do not move along it. A medal
+ * that goes over the lip with its middle within `halfWidth` of a hole's
+ * slides down the plate into the hole and drops through it, and starts the
+ * slot on the screen as it drops. Any medal does: one the player fed, one
+ * the machine paid out, or one off a tower that goes over there. A ball and
+ * a jewel do not fit.
  *
- * They stand together in the middle of the lip because that is the only place
- * where aiming still tells. By the time a medal has been pushed the length of
- * the pusher the pile has spread it far to either side, so pockets spaced
- * evenly across the lip take much the same share whatever column is fed. With
- * the three in the middle, about one medal in seven ends up through one when
- * the middle is fed, about one in ten when medals are fed anywhere at all,
- * and about one in thirty-three when they are fed at the edges. The towers
- * the arms set down stand between them (`TUBE.site` in stacker.ts).
+ * They stand together in the middle because that is the only place where
+ * aiming still tells. By the time a medal has been pushed the length of the
+ * pusher the pile has spread it to either side, so holes spaced evenly across
+ * the plate would take much the same share whatever column is fed. With the
+ * three in the middle, about one medal in five ends up through one when the
+ * middle is fed, fewer when medals are fed anywhere at all, and few when they
+ * are fed at the edges. The towers the arms set down stand between them
+ * (`TUBE.site` in stacker.ts).
  *
  * `halfWidth` is how often a medal starts a spin. With what a spin is worth
  * (`SPIN_TABLE` in lottery.ts) and what the field gives back
  * (`FIELD.sideReach`) it sets what slow play gets back: the best a player
  * can do, feeding the middle a medal every two seconds, is about 90% with
- * average luck on the screen, which is what a real machine is run at, and at
- * two medals a second about 88%. `wingWidth` is how wide a pocket takes
- * medals while its wings are open, which is during chance time. Wings as
- * wide as the pockets were before they were narrowed, 1.7, paid a player for
- * filling the hold. At this width five a second get back about six points
- * less than the best, and both buttons held down about 75%: the screen plays
- * a gold spin in about two seconds, a line and its game included, and at
- * eleven medals a second six in ten of the medals through a pocket find the
- * hold full. scripts/medal-pusher-tune.ts measures all of
+ * average luck on the screen, which is what a real machine is run at.
+ * `wingWidth` is how wide a hole takes medals while its flaps are open,
+ * which is during chance time. scripts/medal-pusher-tune.ts measures all of
  * it, and its table is the one to read before any of these numbers is moved.
  */
-export const CHECKERS = { positions: [36, 50, 64], halfWidth: 1.13, wingWidth: 1.25 } as const;
+export const CHECKERS = { positions: [MIDDLE - 11, MIDDLE, MIDDLE + 11], halfWidth: 1.27, wingWidth: 1.42 } as const;
 
 /**
- * Seconds from the lip to the pocket. A medal the lip's rule has counted is
- * not in its pocket yet: it rides its tongue out over the well and drops in
- * this long after it came over, which is what the catcher shows (catcher.ts),
- * and the machine takes it when it drops and not before (session.ts). Which
- * pocket, how wide the pockets were taking medals and where the lucky lamp
- * stood were all settled at the lip.
+ * The START plate (catcher.ts draws it): a board the whole width of the
+ * pusher, hung on its face from just under the lip, `deck` above the lower
+ * table, and leaning down toward the player at `lean` to its foot, `foot`
+ * above the lower table and `reach` out from the face. It rides out and back
+ * with the pusher. Whatever goes over the lip comes down on it, since there
+ * is nowhere else to go, and slides or rolls down it. Three holes are cut in
+ * it side by side, in the middle (`CHECKERS`), `hole.from` down the slope from
+ * the lip and `hole.long` long: a medal the lip's rule counts slides into one
+ * and drops through, out of sight under the plate, and lies at the foot of
+ * the pusher's face; every other medal slides past them and off the foot, on
+ * to the lower table in front of it (`MEDAL_SLIDE`). One that nearly fitted
+ * catches a hole's rim on its way, and hangs there a moment first (`TEETER`).
+ *
+ * It leans at 35 degrees, which is as steep as it can be and still hold a
+ * hole a medal drops through. The height there is to lean through is fixed:
+ * from just under the lip down to a foot that clears the pile on the lower
+ * table, two medals deep with a third coming down on them. Steeper, the plate
+ * is shorter down its slope than a hole a medal fits and the frame round it;
+ * shallower, it reaches further out over the lower table and a medal slides
+ * down it more slowly, which is the slide the START pockets had at 20
+ * degrees, where a near miss could look like an entry.
+ *
+ * What lies on the lower table and is lower than the foot passes under the
+ * plate, as under the pusher's lip. A prize ball and a jewel stand taller than
+ * the foot is high: the foot pushes them as the face pushes a medal
+ * (`clearOfPlate`), and one that comes over the lip rolls down the plate and
+ * off its foot, too big for a hole (`ROLL_DOWN`). A tower never lies on the
+ * lower table: it comes apart as it goes over the lip, and its medals come
+ * down on the plate and slide down it, or down a hole if it went over at one
+ * (`spill`).
  */
-export const START_RIDE = 0.8;
+const PLATE_LEAN = (35 * Math.PI) / 180;
+const PLATE_DECK = PUSHER.height - 0.3;
+const PLATE_FOOT = 1.3;
+const PLATE_THICK = 0.3;
+const HOLE = { from: 0.9, long: 2 * MEDAL_RADIUS + 0.4 } as const;
+export const PLATE = {
+  deck: PLATE_DECK,
+  foot: PLATE_FOOT,
+  lean: PLATE_LEAN,
+  /** How thick the board is, square to its top. Its foot is cut plumb, so the end of it stands straight up from the edge of its top. */
+  thick: PLATE_THICK,
+  reach: (PLATE_DECK - PLATE_FOOT) / Math.tan(PLATE_LEAN),
+  long: (PLATE_DECK - PLATE_FOOT) / Math.sin(PLATE_LEAN),
+  hole: HOLE,
+  /**
+   * How far out from the pusher's face the middle of a medal that went down a
+   * hole lies on the lower table. It drops through the hole lying along the
+   * plate, square to it, until it is clear of the board's underside; then it
+   * falls straight down, comes down on its lower edge and lies down flat with
+   * its middle where it was (catcher.ts shows the way). It lies a hair clear of
+   * the face.
+   */
+  through:
+    (HOLE.from + HOLE.long / 2) * Math.cos(PLATE_LEAN) - (PLATE_THICK + MEDAL_THICKNESS / 2 + 0.05) * Math.sin(PLATE_LEAN),
+} as const;
+
+/** How high the top of the START plate is `out` from the pusher's face, from the lip to its foot. */
+export const plateTop = (out: number): number => PLATE.deck - Math.min(PLATE.reach, Math.max(0, out)) * Math.tan(PLATE.lean);
+
+/**
+ * How far out past the plate's foot the middle of a ball of this `radius`
+ * stands when it stands on the lower table against the foot: the edge of the
+ * foot touches it under its middle, since it is taller than the foot is high.
+ */
+export function clearOfFoot(radius: number): number {
+  const over = radius - PLATE.foot;
+  return over > 0 ? Math.sqrt(radius * radius - over * over) : radius;
+}
+
+/**
+ * The cut of a jewel (jewel.ts draws it): round, a little less across than a
+ * medal, standing on the point of its pavilion with its table up. From the
+ * girdle, its widest, the crown goes up to the table and the pavilion down to
+ * the point. Every measure of it is a medal's.
+ */
+export const JEWEL_CUT = { girdle: MEDAL_RADIUS - 0.12, table: MEDAL_RADIUS * 0.53, crown: MEDAL_RADIUS * 0.27, pavilion: MEDAL_RADIUS * 0.45, sides: 8 } as const;
+
+/**
+ * How close the middle of a prize on the lower table comes to the plate's
+ * foot, out from its edge. A ball is taller than the foot is high, so the
+ * edge of the foot's top touches it under its middle. A jewel stands with its
+ * girdle, its widest, as high as the plumb end of the foot, which is the
+ * board's thickness deep: the girdle touches the end.
+ */
+export const PRIZE_CLEAR = { ball: clearOfFoot(BALL_RADIUS), jewel: JEWEL_CUT.girdle } as const;
+
+/**
+ * Where a prize that comes over the lip comes down, out from the edge of the
+ * plate's foot: a ball rolls over the edge and down against the foot; a
+ * jewel tumbles off it and lands on its point a little clear of it, since it
+ * comes down from above the foot's top and could not get in against it.
+ */
+export const PRIZE_LANDS = { ball: PRIZE_CLEAR.ball, jewel: PRIZE_CLEAR.jewel + 0.4 } as const;
+
+/** Seconds a medal that comes over the lip takes to slide down the plate and off its foot, when nothing stops it on the way. */
+export const MEDAL_SLIDE = 0.32;
+
+/**
+ * A near miss: a medal whose middle came over the lip off a hole's but
+ * within a medal's radius of fitting has some of the hole under it on its
+ * way down. It hangs on the hole's rim for between `least` and `most`
+ * seconds, the longest for the one that was nearest to fitting, and then
+ * slides on down the plate and off its foot.
+ */
+export const TEETER = { least: 0.12, most: 0.6 } as const;
+
+/**
+ * Seconds a medal the lip's rule counted takes from the lip into its hole.
+ * It slides down the plate and drops through this long after it came over,
+ * which is what the plate shows (catcher.ts), and the machine takes it when
+ * it drops and not before (session.ts). Which hole, how wide the holes were
+ * taking medals and where the lucky lamp stood were all settled at the lip.
+ */
+export const START_RIDE = 0.6;
+
+/**
+ * Seconds a prize ball that comes over the lip takes to roll down the plate,
+ * over its holes, and off its foot. It is in the air all that while as far as
+ * the machine knows (a `FallingMedal` from the `slide`), and comes down
+ * against the foot as the foot will be then.
+ */
+export const ROLL_DOWN = 0.5;
 
 /**
  * The lucky lamp. One of the three slots is lit gold at a time, and the light
@@ -205,7 +341,7 @@ export function luckySlot(time: number): number {
  * out of the slot under the hood. When enough of them are waiting they are
  * poured out of the hopper's doors instead, across the same band (hopper.ts).
  */
-export const PAYOUT = { from: 14, to: 86, perSecond: 9 } as const;
+export const PAYOUT = { from: FIELD.width * 0.14, to: FIELD.width * 0.86, perSecond: 9 } as const;
 
 /**
  * Medal towers: a big prize is not thrown onto the field but stacked, in
@@ -228,22 +364,22 @@ export const TOWER = {
  * for a while, so the first medal dropped already pushes another one out. A
  * few that will not fit, or would have nothing to lie on, are left out.
  */
-export const INITIAL = { upper: 112, lower: 200, onTop: { upper: 85, lower: 33 } } as const;
+export const INITIAL = { upper: 87, lower: 156, onTop: { upper: 66, lower: 26 } } as const;
 /** Where the balls a machine starts with lie: the first on the lower table, the second on the pusher. */
 export const BALL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
-  { level: 0, x: 38, y: 70 },
-  { level: 1, x: 64, y: 16 },
-  { level: 0, x: 66, y: 60 },
+  { level: 0, x: MIDDLE - 9.4, y: 70 },
+  { level: 1, x: MIDDLE + 10.9, y: 16 },
+  { level: 0, x: MIDDLE + 12.5, y: 60 },
 ];
 /** Where the jewels a machine starts with lie, both on the lower table: the first near the front, the second where the hatch throws one. */
 export const JEWEL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
-  { level: 0, x: 58, y: 86 },
-  { level: 0, x: 62, y: 67 },
+  { level: 0, x: MIDDLE + 6.2, y: 86 },
+  { level: 0, x: MIDDLE + 9.4, y: 67 },
 ];
 /**
  * Where a jewel from the hatch lands: on the lower table, in the middle of
  * it, between `from` and `to` across and between `near` and `far` out from
- * the back wall, which is in front of the catcher wherever the pusher is. The
+ * the back wall, which is in front of the START plate wherever the pusher is. The
  * hatch throws it clear over the pusher, in an arc that takes `time` seconds.
  *
  * It does not come down on the pusher as a prize ball does. The pile on the
@@ -257,7 +393,7 @@ export const JEWEL_SPOTS: readonly { level: Level; x: number; y: number }[] = [
  * with both rails held: a jewel there is not near a side to be held at it,
  * and it still has a third of the table to go before the front.
  */
-export const JEWEL_DROP = { from: 42, to: 58, near: 66, far: 72, time: 0.7 } as const;
+export const JEWEL_DROP = { from: MIDDLE - 6.2, to: MIDDLE + 6.2, near: 66, far: 72, time: 0.7 } as const;
 
 const R = MEDAL_RADIUS;
 const DIAMETER = R * 2;
@@ -344,8 +480,13 @@ export interface FallingMedal {
   /** Seconds until it lands, out of the seconds the whole fall takes. */
   remaining: number;
   duration: number;
-  /** Whether the player dropped it, the machine paid it out of the slot, the machine poured it out of the hopper's doors, or it came off a falling tower. */
-  source: 'player' | 'payout' | 'pour' | 'spill';
+  /**
+   * Whether the player dropped it, the machine paid it out of the slot, the
+   * machine poured it out of the hopper's doors, it came off a falling tower,
+   * or it is a prize ball rolling down the catcher's slide, which it came on
+   * to over the lip (`ROLL_DOWN`).
+   */
+  source: 'player' | 'payout' | 'pour' | 'spill' | 'slide';
 }
 
 export interface Machine {
@@ -428,22 +569,6 @@ export function pusherFront(time: number): number {
 export function checkerAt(x: number, halfWidth: number = CHECKERS.halfWidth): number {
   return CHECKERS.positions.findIndex((center) => Math.abs(x - center) <= halfWidth);
 }
-
-/**
- * How wide the START slots were taking medals as each thing that has come
- * over the lip came over: the half-width the lip's rule had in that piece of
- * the step. The slots can widen or narrow while a medal is still on its way
- * down, and whoever draws it has to show what was counted, so the rule of
- * its own moment is kept with it for as long as the medal is.
- */
-const widthAtLip = new WeakMap<Medal, number>();
-
-/**
- * The half-width the START slots had when `medal` came over the lip, or
- * undefined for one the machine did not see come over: a medal that has not
- * come over, and one read back from a save.
- */
-export const slotWidthAt = (medal: Medal): number | undefined => widthAtLip.get(medal);
 
 // ── Overlap resolution ──────────────────────────────────────────────────────
 
@@ -723,8 +848,8 @@ export const clampAim = (x: number): number => Math.min(AIM.max, Math.max(AIM.mi
  * the centre chucker.
  */
 export const ARM_REACH: readonly [{ min: number; max: number }, { min: number; max: number }] = [
-  { min: AIM.min, max: FIELD.width / 2 + 10 },
-  { min: FIELD.width / 2 - 10, max: AIM.max },
+  { min: AIM.min, max: MIDDLE + 8 },
+  { min: MIDDLE - 8, max: AIM.max },
 ];
 /** The arm on the side of the field that `x` is on: the left arm for the left half. */
 export const armFor = (x: number): Arm => (x < FIELD.width / 2 ? 0 : 1);
@@ -736,7 +861,7 @@ export const tipOf = (arm: Arm, aim: number): number => Math.min(ARM_REACH[arm].
  * over the lip between the centre chucker and the outer one on that side, which
  * is as good a place to feed as the middle itself.
  */
-export const ARM_START = 7;
+export const ARM_START = 5.5;
 /**
  * How fast a tip swings to where it belongs, in field units a second: fast
  * enough to cross its arm's whole reach in less time than the slot waits
@@ -850,10 +975,29 @@ export function jewelsOnField(machine: Machine): number {
 }
 
 /**
+ * How high the middle of the medal `rank` from the bottom of a tower that has
+ * gone over the lip is, `t` of the way down to the lower table (0 to 1). It
+ * starts where it stood in the tower and comes down faster and faster. Both
+ * pictures draw it at this height, or on the START plate where that is
+ * higher (`spilled` in catcher.ts).
+ */
+export const spillHeight = (rank: number, t: number): number => MEDAL_THICKNESS / 2 + (PUSHER.height + MEDAL_THICKNESS * rank) * (1 - t * t);
+
+/**
  * A tower goes over the lip: its medals come down across the lower table, the
  * bottom ones first and nearest, the top ones last and furthest, fanning out.
+ *
+ * They come down on the START plate on the way, and none of them through it.
+ * If the tower went over at a hole, every one of its medals goes down that
+ * hole, one after another, and lies under the plate at the foot of the
+ * pusher's face, where every medal through a hole lies: the lip's rule has
+ * counted every one of them (`advance`). Otherwise each slides down the plate
+ * or is thrown out over it, and comes down on the lower table clear of its
+ * foot as the foot is when it gets there, the whole of it past the foot's
+ * edge and a little further the higher it fell from; or further out if it
+ * was going further.
  */
-function spill(machine: Machine, tower: Medal, lip: number): void {
+function spill(machine: Machine, tower: Medal, lip: number, throughHole: boolean): void {
   const room = Math.max(DIAMETER, FIELD.depth - R - lip - R);
   const length = Math.min(room, tower.stack * MEDAL_THICKNESS * 1.1);
   for (let rank = 0; rank < tower.stack; rank++) {
@@ -861,10 +1005,21 @@ function spill(machine: Machine, tower: Medal, lip: number): void {
     const reach = R + along * length;
     const sideways = (machine.rng() + machine.rng() - 1) * (R + reach * 0.35);
     const duration = TOWER.fall.first + along * (TOWER.fall.last - TOWER.fall.first);
+    let x = Math.min(FIELD.width - R, Math.max(R, tower.x + sideways));
+    let y = Math.min(FIELD.depth - R, lip + reach + (machine.rng() - 0.5) * 2);
+    // Where the pusher's face and the plate's foot will be when it is down.
+    const face = pusherFront(machine.time + duration);
+    if (throughHole) {
+      x = tower.x;
+      y = face + PLATE.through;
+    } else {
+      const foot = face + PLATE.reach;
+      if (y < foot + DIAMETER) y = foot + DIAMETER + 2 * along;
+    }
     machine.falling.push({
       id: machine.nextId++,
-      x: Math.min(FIELD.width - R, Math.max(R, tower.x + sideways)),
-      y: Math.min(FIELD.depth - R, lip + reach + (machine.rng() - 0.5) * 2),
+      x,
+      y,
       level: 0,
       fromX: tower.x,
       fromY: lip,
@@ -877,7 +1032,77 @@ function spill(machine: Machine, tower: Medal, lip: number): void {
   }
 }
 
-/** Keeps every medal clear of the walls and the pusher's front face, but a tower on an arm, which is where its arm has it. */
+/**
+ * Where `medal`, which has come over the lip, slides or rolls down the START
+ * plate to, and how long it takes: something in the air as far as the
+ * machine knows, from the `slide`, until it comes down. A ball or a jewel
+ * rolls down and off the foot, and comes down against it. A medal the lip's
+ * rule counted (`hole`, one of `CHECKERS`) slides into its hole and lies under
+ * the plate at the foot of the pusher's face. Any other slides off the foot
+ * and comes down just past it, after hanging on a hole's rim for a moment if
+ * it nearly fitted one (`TEETER`): how long is the one thing about it that
+ * says it was a near miss, and how near.
+ */
+function downThePlate(machine: Machine, medal: Medal, front: number, halfWidth: number, hole: number): FallingMedal {
+  /** On its way down for `seconds`, to come down `out` from where the pusher's face will be then; in the order a machine holds what is in the air, which is the order it is written in. */
+  const way = (seconds: number, out: number): FallingMedal => ({
+    id: medal.id,
+    x: medal.x,
+    y: pusherFront(machine.time + seconds) + out,
+    level: 0,
+    fromX: medal.x,
+    fromY: front,
+    rank: 0,
+    ball: medal.ball,
+    remaining: seconds,
+    duration: seconds,
+    source: 'slide',
+    ...(medal.jewel ? { jewel: true } : {}),
+  });
+  if (isPrize(medal)) return way(ROLL_DOWN, PLATE.reach + (medal.jewel ? PRIZE_LANDS.jewel : PRIZE_LANDS.ball));
+  if (hole >= 0) return way(START_RIDE, PLATE.through);
+  const off = Math.min(...CHECKERS.positions.map((x) => Math.abs(medal.x - x))) - halfWidth;
+  const hang = off < R ? TEETER.least + (TEETER.most - TEETER.least) * (1 - off / R) ** 2 : 0;
+  return way(MEDAL_SLIDE + hang, PLATE.reach + R);
+}
+
+/** How close a prize may come to the START plate's foot (`PRIZE_CLEAR`): a ball, a jewel, or nothing for a medal, which passes under it. */
+const clearOf = (medal: Pick<Medal, 'ball' | 'jewel'>): number => (medal.jewel ? PRIZE_CLEAR.jewel : medal.ball ? PRIZE_CLEAR.ball : 0);
+
+/**
+ * Keeps a prize on the lower table out from under the START plate: as far
+ * out from the edge of its foot as the prize's own shape lets the foot come
+ * (`PRIZE_CLEAR`). The plate is as wide as the pusher, so its foot pushes a
+ * prize ahead of it as the face pushes a medal. Returns whether it was moved.
+ */
+function clearOfPlate(prize: Pick<Medal, 'y' | 'ball' | 'jewel'>, front: number): boolean {
+  const least = front + PLATE.reach + clearOf(prize);
+  if (prize.y >= least) return false;
+  prize.y = least;
+  return true;
+}
+
+/**
+ * Whether a prize lying on the lower table at `y` is under the START plate,
+ * or so near its foot that the plate would move it, by more than `slack`,
+ * with the pusher's face at `front`. A machine never leaves one so.
+ */
+export function underPlate(prize: Pick<Medal, 'y' | 'ball' | 'jewel'>, front: number, slack = 1e-6): boolean {
+  return (prize.ball || prize.jewel === true) && prize.y < front + PLATE.reach + clearOf(prize) - slack;
+}
+
+/**
+ * Takes every prize on the lower table out from under the START plate, for a
+ * machine read back from a save of another field: each is put in front of the
+ * plate's foot, and comes down among the medals there as a prize does that
+ * has just landed, making its room little by little.
+ */
+export function clearPlate(machine: Pick<Machine, 'time' | 'medals'>): void {
+  const front = pusherFront(machine.time);
+  for (const medal of machine.medals) if (medal.level === 0 && isPrize(medal) && clearOfPlate(medal, front)) medal.grown = SETTLE.from;
+}
+
+/** Keeps every medal clear of the walls, the pusher's front face and, for a prize, the START plate on it; but a tower on an arm, which is where its arm has it. */
 function constrain(medals: Medal[], front: number): void {
   for (const medal of medals) {
     if (held.size > 0 && held.has(medal.id)) continue;
@@ -887,6 +1112,8 @@ function constrain(medals: Medal[], front: number): void {
       else if (medal.x > FIELD.width - R) medal.x = FIELD.width - R;
     } else {
       if (medal.y < front + R) medal.y = front + R;
+      // The plate's foot is as solid as the pusher's face for a ball or a jewel, which is too tall to pass under it.
+      if (isPrize(medal)) clearOfPlate(medal, front);
       // The open sides are a slot a medal high: a ball does not fit through, and neither does a jewel.
       if (isPrize(medal) || medal.y < FIELD.sideOpenFrom) {
         if (medal.x < R) medal.x = R;
@@ -929,7 +1156,8 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
     const stillFalling: FallingMedal[] = [];
     for (const medal of machine.falling) {
       medal.remaining -= dt;
-      if (medal.remaining > 0) {
+      // Within a billionth of a second of the step's end it comes down with the step, as a medal through a hole is taken (session.ts).
+      if (medal.remaining > 1e-9) {
         stillFalling.push(medal);
         continue;
       }
@@ -937,6 +1165,10 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
       const tier: Tier = isPrize(medal) || roomBelow(machine.medals, medal.level, medal.x, medal.y) ? 0 : 1;
       const landed: Medal = { id: medal.id, x: medal.x, y: medal.y, level: medal.level, tier, sinceDrop: -1, stack: 1, ball: medal.ball, grown: SETTLE.from };
       if (medal.jewel) landed.jewel = true;
+      // Down the START plate it comes down where the plate has it as it is now, since the step it lands in can end a
+      // hair after the moment it was reckoned to, and the plate does not wait: under it, at the foot of the face, if it
+      // went down a hole; otherwise just past its foot, or against it for a prize.
+      if (medal.source === 'slide') landed.y = isPrize(medal) ? front + PLATE.reach + (medal.jewel ? PRIZE_LANDS.jewel : PRIZE_LANDS.ball) : medal.y < front + PLATE.reach ? front + PLATE.through : front + PLATE.reach + R;
       machine.medals.push(landed);
       events.landed++;
     }
@@ -990,22 +1222,23 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
   constrain(machine.medals, front);
 
   // Over the lip, over the front edge, or out of an open side. A medal that goes over the front edge is won
-  // over the middle of it and lost within the side holes' reach of a corner. A medal that goes over the lip where
-  // a chucker is drops through it. A tower that goes over there sends every one of its medals
-  // through, one after another; a ball is too big for one, and a jewel stands too tall.
+  // over the middle of it and lost within the side holes' reach of a corner. Whatever goes over the lip comes
+  // down on the START plate: a medal that went over in line with a hole drops through it, and a tower that went
+  // over there sends every one of its medals through, one after another; a ball is too big for one, and a jewel
+  // stands too tall. Medals that go over together come down in the order they lay, whatever order the list holds
+  // them in: the one that lay on the table first, then the one that lay on top of the others.
   const kept: Medal[] = [];
-  const crossing: Medal[] = [];
+  const onTop: FallingMedal[] = [];
   for (const medal of machine.medals) {
     if (medal.level === 1) {
       if (medal.y > front) {
-        const checker = isPrize(medal) ? -1 : checkerAt(medal.x, halfWidth);
-        for (let n = 0; checker >= 0 && n < medal.stack; n++) events.checkers.push(checker);
+        const hole = isPrize(medal) ? -1 : checkerAt(medal.x, halfWidth);
+        for (let n = 0; hole >= 0 && n < medal.stack; n++) events.checkers.push(hole);
         if (medal.stack > 1) {
-          spill(machine, medal, front);
+          spill(machine, medal, front, hole >= 0);
           events.toppled++;
         } else {
-          crossing.push(medal);
-          widthAtLip.set(medal, halfWidth);
+          (medal.tier === 1 ? onTop : machine.falling).push(downThePlate(machine, medal, front, halfWidth, hole));
         }
         continue;
       }
@@ -1024,17 +1257,7 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
       kept.push(medal);
     }
   }
-  // Whatever has gone over the lip comes down on the lower table: onto the table where there is
-  // room, onto the pile where there is not. The medals that were underneath land first, so one
-  // that was riding on another comes down on top of it again, whatever order the list holds them in.
-  crossing.sort((a, b) => a.tier - b.tier || a.id - b.id);
-  for (const medal of crossing) {
-    medal.tier = isPrize(medal) || roomBelow(kept, 0, medal.x, medal.y) ? 0 : 1;
-    medal.level = 0;
-    medal.sinceDrop = 0;
-    medal.grown = SETTLE.from;
-    kept.push(medal);
-  }
+  machine.falling.push(...onTop);
   machine.medals = kept;
 }
 

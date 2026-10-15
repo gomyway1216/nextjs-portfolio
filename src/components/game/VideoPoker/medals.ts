@@ -104,6 +104,13 @@ export interface HandStore {
   remove: (key: string) => void;
 }
 
+/** This browser's own storage. Only ever called in the browser, never on the server. */
+export const deviceStore: HandStore = {
+  read: (key) => window.localStorage.getItem(key),
+  write: (key, text) => window.localStorage.setItem(key, text),
+  remove: (key) => window.localStorage.removeItem(key),
+};
+
 /** What of the medal center's bank the machine uses. */
 export type MedalBank = Pick<Bank, 'owner' | 'balance' | 'take' | 'give' | 'getState' | 'restartDue' | 'restarted'>;
 

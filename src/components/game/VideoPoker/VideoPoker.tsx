@@ -7,7 +7,7 @@ import { bank as medalBank } from '../MedalCenter/bank';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import type { AccountStore, Player } from '../MedalPusher/account';
 import { getStrings } from './i18n';
-import { markNoticeSeen, noticeSeen, type HandStore } from './medals';
+import { deviceStore, markNoticeSeen, noticeSeen } from './medals';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
@@ -23,12 +23,6 @@ export interface VideoPokerProps {
   /** The Medal Pusher's machine and record book on the account, which the medals look at once (MedalCenter/bank.ts). */
   legacy?: { machines?: AccountStore | null; books?: AccountStore | null };
 }
-
-const deviceStore: HandStore = {
-  read: (key) => window.localStorage.getItem(key),
-  write: (key, text) => window.localStorage.setItem(key, text),
-  remove: (key) => window.localStorage.removeItem(key),
-};
 
 export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPokerProps = {}) => {
   const [tab, setTab] = useState<Tab>('play');

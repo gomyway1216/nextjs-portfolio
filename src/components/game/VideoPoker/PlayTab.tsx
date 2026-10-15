@@ -24,7 +24,7 @@ import {
 } from './engine';
 import { CardBack, MiniCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
-import { cardsOf, createMedalPlay, serializeHand, wonBy, GAME, type HandStore, type MedalPlay, type SavedHand } from './medals';
+import { cardsOf, createMedalPlay, deviceStore, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
 import { PRECOMPUTED } from './precomputed';
 import styles from './VideoPoker.module.css';
 
@@ -74,13 +74,6 @@ const GUEST_SEAT: SeatedFor = { uid: null, settled: true };
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-
-/** This device's storage, where the hand in play is kept. */
-const deviceStore: HandStore = {
-  read: (key) => window.localStorage.getItem(key),
-  write: (key, text) => window.localStorage.setItem(key, text),
-  remove: (key) => window.localStorage.removeItem(key),
-};
 
 /** The pay table as it applies to a bet: below five medals the royal wins 250 per medal. */
 export const effectivePays = (pays: PayTable, coins: number): PayTable =>

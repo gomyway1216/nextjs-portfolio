@@ -189,6 +189,34 @@ test('old saved state: what the table cannot read is put aside, and the medals a
   expect(errors).toEqual([]);
 });
 
+test('a browser with no room left for the table bets nothing, and says why', async ({ page }) => {
+  // As a browser whose storage for the site is full would: the table cannot be written down while `__full` is set.
+  await page.addInitScript((tableKey) => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key === tableKey && (window as unknown as { __full?: boolean }).__full) throw new DOMException('full', 'QuotaExceededError');
+      return setItem.call(this, key, value);
+    };
+  }, TABLE_KEY);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openBlackjack(page);
+  const before = await medalsShown(page);
+  await page.evaluate(() => {
+    (window as unknown as { __full?: boolean }).__full = true;
+  });
+  await dealButton(page).click();
+  await expect(page.getByTestId('bj-message')).toHaveText('This browser could not save the table, so no medals were bet. Its storage for this site may be full.');
+  await expect(page.locator('[data-hand]')).toHaveCount(0);
+  expect(await medalsShown(page)).toBe(before);
+  expect(await bankBalance(page)).toBe(before);
+  // With room again, the same bet is made.
+  await page.evaluate(() => {
+    (window as unknown as { __full?: boolean }).__full = false;
+  });
+  await dealButton(page).click();
+  await expect.poll(() => bankBalance(page)).toBe(before - 2);
+});
+
 test('at a phone’s width, in both languages: the counter, the note that medals are not money, the note shown once, and no sideways scroll', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];

@@ -17,6 +17,7 @@ import {
   tableKey,
   unsettled,
   type MedalTable,
+  type Shelf,
   type TableSave,
 } from '@/components/game/Blackjack/medalTable';
 import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
@@ -54,16 +55,14 @@ interface Seated {
   seat: ReturnType<FakePage['bank']['sit']>;
 }
 
+/** This browser's storage as the table is given it. The medal center's own writes go through the page (bankFakes.ts). */
+const shelfOf = (browser: FakeBrowser): Shelf => ({ read: (key) => browser.storage.get(key) ?? null, write: (key, text) => browser.storage.set(key, text) });
+
 /** A page with the table on it: seated at the medal center, the card asked for, and the guest's table opened once the card is here. */
-async function seated(browser: FakeBrowser): Promise<Seated> {
+async function seated(browser: FakeBrowser, shelf: Shelf = shelfOf(browser)): Promise<Seated> {
   const page = browser.open();
   const seat = page.bank.sit(GAME, { granted: () => undefined, yielding: () => undefined });
-  const table = createMedalTable({
-    bank: page.bank,
-    shelf: { read: (key) => browser.storage.get(key) ?? null, write: (key, text) => browser.storage.set(key, text) },
-    holding: () => seat.holding(),
-    random: seeded(7),
-  });
+  const table = createMedalTable({ bank: page.bank, shelf, holding: () => seat.holding(), random: seeded(7) });
   await quiet(browser);
   table.open(null);
   return { page, table, seat };
@@ -364,6 +363,119 @@ describe('the medal center’s reset', () => {
     expect(second.table.current()).toMatchObject({ round: null, shoe: null, era: 1 });
     expect(second.table.act('stand')).toMatchObject({ ok: false, why: 'not-now' });
     expect(medals(browser)).toBe(WELCOME);
+  });
+});
+
+describe('a browser that will not keep something: no medal is lost, and none comes back twice', () => {
+  /** This browser's storage, with the table's place full when `full` is set, as a browser out of space for the site would be. */
+  const fullable = (browser: FakeBrowser) => {
+    const state = { full: false };
+    const shelf: Shelf = {
+      read: (key) => browser.storage.get(key) ?? null,
+      write: (key, text) => {
+        if (state.full && key.startsWith(TABLE_KEY)) throw new Error('QuotaExceededError');
+        browser.storage.set(key, text);
+      },
+    };
+    return { state, shelf };
+  };
+
+  it('moves no medal for a step it cannot write down: not the bet, not a double, and not a hand’s return, until it can; then once', async () => {
+    const browser = new FakeBrowser();
+    // 6 and 5 against 6 and a ten; the double draws a ten for 21 and the dealer draws a king and busts.
+    shoeOnTable(browser, stacked('6', '6', '5', 'T', 'T', 'K'));
+    const { state, shelf } = fullable(browser);
+    const first = await seated(browser, shelf);
+    const kept = browser.storage.get(TABLE_KEY);
+
+    state.full = true;
+    expect(first.table.deal(2)).toMatchObject({ ok: false, why: 'unsaved' });
+    expect(medals(browser)).toBe(WELCOME);
+    expect(browser.storage.get(TABLE_KEY)).toBe(kept);
+    expect(first.table.current().round).toBeNull();
+
+    state.full = false;
+    expect(first.table.deal(2).ok).toBe(true);
+    state.full = true;
+    expect(first.table.act('double')).toMatchObject({ ok: false, why: 'unsaved' });
+    expect(medals(browser)).toBe(WELCOME - 2);
+    expect(first.table.current().round?.phase).toBe('player');
+    state.full = false;
+    expect(first.table.act('double').ok).toBe(true);
+    expect(medals(browser)).toBe(WELCOME - 4);
+
+    // Played out; its 8 medals cannot come back while the table cannot be written down as settled.
+    state.full = true;
+    expect(first.table.settle()).toMatchObject({ ok: false, why: 'unsaved' });
+    expect(medals(browser)).toBe(WELCOME - 4);
+    expect(stored(browser)?.paid).toBe(false);
+    first.page.close();
+
+    // Reopened, still full: still nothing back. Then there is room, and they come back once.
+    const second = await seated(browser, shelf);
+    expect(second.table.settle()).toMatchObject({ ok: false, why: 'unsaved' });
+    expect(medals(browser)).toBe(WELCOME - 4);
+    state.full = false;
+    expect(second.table.settle().ok).toBe(true);
+    expect(medals(browser)).toBe(WELCOME + 4);
+    second.page.close();
+    const third = await seated(browser, shelf);
+    expect(third.table.settle()).toMatchObject({ ok: false, why: 'not-now' });
+    expect(medals(browser)).toBe(WELCOME + 4);
+  });
+
+  it('writes the table back as it was when the medal center cannot keep the medals a step moved, so a reload finds both as they were', async () => {
+    const browser = new FakeBrowser();
+    shoeOnTable(browser, stacked('6', '6', '5', 'T', 'T', 'K'));
+    const first = await seated(browser);
+    first.table.deal(2);
+    const dealt = browser.storage.get(TABLE_KEY);
+    expect(medals(browser)).toBe(WELCOME - 2);
+
+    // The medal center's storage stops taking writes (the table's still does): the double and the return happen on
+    // this page only, and neither is kept.
+    browser.blocked = true;
+    expect(first.table.act('double').ok).toBe(true);
+    expect(first.page.bank.getState().kept).toBe(false);
+    expect(first.page.bank.balance()).toBe(WELCOME - 4);
+    expect(first.table.settle().ok).toBe(true);
+    expect(first.page.bank.balance()).toBe(WELCOME + 4);
+    // What is kept is the hand as it was dealt, and the medals as they were then.
+    expect(browser.storage.get(TABLE_KEY)).toBe(dealt);
+    expect(medals(browser)).toBe(WELCOME - 2);
+
+    // Reloaded: the same hand, played again from where the kept medals are, and settled once.
+    browser.blocked = false;
+    first.page.close();
+    const second = await seated(browser);
+    expect(second.table.current()).toMatchObject({ paid: false, round: { phase: 'player' } });
+    expect(second.table.act('double').ok).toBe(true);
+    expect(second.table.settle().ok).toBe(true);
+    expect(medals(browser)).toBe(WELCOME + 4);
+  });
+
+  it('goes back to the kept table when the card comes back and the medal center reads its kept medals again', async () => {
+    const browser = new FakeBrowser();
+    shoeOnTable(browser, stacked('6', '6', '5', 'T', 'T', 'K'));
+    const { page, table } = await seated(browser);
+    table.deal(2);
+    browser.blocked = true;
+    table.act('double');
+    // A double the medal center could not keep: the hand is played out on this page, and kept as it was dealt.
+    browser.blocked = false;
+    const kept = browser.storage.get(TABLE_KEY);
+    expect(table.current().round?.phase).toBe('done');
+    // The page is hidden and shown: the card goes and comes back, and the medal center reads its kept medals again.
+    page.hide();
+    page.show();
+    await quiet(browser);
+    expect(page.bank.balance()).toBe(WELCOME - 2);
+    expect(table.refresh(true)).toBe(true);
+    expect(serializeTable(table.current())).toBe(kept);
+    expect(table.current().round?.phase).toBe('player');
+    expect(table.act('double').ok).toBe(true);
+    expect(table.settle().ok).toBe(true);
+    expect(medals(browser)).toBe(WELCOME + 4);
   });
 });
 

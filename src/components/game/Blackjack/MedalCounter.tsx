@@ -32,6 +32,8 @@ export interface MedalCounterProps {
   t: BlackjackStrings;
   /** Whether the player's medals have been read: until then nothing is shown on the digits. */
   loaded: boolean;
+  /** Whether this browser keeps the medals at all: when it does not, they start again on a reload, and the counter says so. */
+  kept: boolean;
   medals: number;
   /** Medals on the table: the bet before a hand, every stake during one. Null until the player's medals are found. */
   onTable: number | null;
@@ -48,7 +50,7 @@ export interface MedalCounterProps {
  * reader and for anything else that reads the page. Under it, always, the
  * note that medals are not money.
  */
-export const MedalCounter = ({ t, loaded, medals, onTable, won, format, children }: MedalCounterProps) => (
+export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, children }: MedalCounterProps) => (
   <section className={styles.cabinet} aria-labelledby="bj-medals-label" data-testid="bj-counter" data-loaded={loaded}>
     <div className={styles.cabinetHead}>
       <h2 id="bj-medals-label" className={styles.cabinetLabel}>
@@ -88,6 +90,11 @@ export const MedalCounter = ({ t, loaded, medals, onTable, won, format, children
       </div>
     </div>
     {children}
+    {loaded && !kept && (
+      <p className={styles.notKept} data-testid="bj-not-kept">
+        {t.notKept}
+      </p>
+    )}
     <p className={styles.notMoney} data-testid="bj-not-money">
       {t.notMoney}
     </p>

@@ -41,6 +41,9 @@ export const TIMING = { deal: 800, dealStep: 170, flip: 450, draw: 520, settle: 
  */
 export const CARD_WAIT = 1.5;
 
+/** How long the table waits before it tries again to put back a hand's medals that this browser would not save, in ms. */
+export const RETRY_SAVE = 3000;
+
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
@@ -156,6 +159,7 @@ export const PlayTab = () => {
 
   const refused = (step: Extract<Step, { ok: false }>) => {
     if (step.why === 'short') say(t.noMedals);
+    else if (step.why === 'unsaved') say(t.unsavedBet);
     else if (step.why === 'moved') adopt(step.save);
   };
 
@@ -165,20 +169,27 @@ export const PlayTab = () => {
     if (step.ok) {
       commitSave(step.save);
       setWon(wonBy(step.save));
+      setMessage((was) => (was?.text === t.unsavedReturn ? null : was));
       return;
     }
     if (step.why === 'moved') adopt(step.save);
+    else if (step.why === 'unsaved') {
+      // Nothing was put back, so that nothing can come back twice: tried again in a moment.
+      say(t.unsavedReturn);
+      later(RETRY_SAVE, () => live.current.reconcile());
+    }
     // Otherwise this page does not hold the card just now, and the medals are put back as soon as it does (`reconcile`).
   };
 
   /**
    * With the card: the table as another tab, or the medal center's reset, has left it; and a hand that was played
-   * out while the card was elsewhere has its medals put back.
+   * out while the card was elsewhere has its medals put back. `regranted`: the card has just come back to this page
+   * (medalTable.ts `refresh`).
    */
-  const reconcile = () => {
+  const reconcile = (regranted = false) => {
     const tbl = table();
     if (tbl.owner() === undefined || !(seat.current?.holding() ?? false)) return;
-    if (tbl.refresh()) adopt(tbl.current());
+    if (tbl.refresh(regranted)) adopt(tbl.current());
     const now = tbl.current();
     if (!revealing.current && now.round?.phase === 'done' && !now.paid) payOut();
   };
@@ -234,7 +245,7 @@ export const PlayTab = () => {
       // Looked at once the medal center has finished handing the card over and says so.
       granted: () =>
         queueMicrotask(() => {
-          if (seat.current === mine) live.current.reconcile();
+          if (seat.current === mine) live.current.reconcile(true);
         }),
       yielding: () => undefined,
     });
@@ -601,7 +612,7 @@ export const PlayTab = () => {
         </div>
 
         <div className={styles.panel}>
-          <MedalCounter t={t} loaded={open} medals={medals} onTable={open ? onTable : null} won={won} format={fmt}>
+          <MedalCounter t={t} loaded={open} kept={bankState.kept} medals={medals} onTable={open ? onTable : null} won={won} format={fmt}>
             {open && holdingCard && medals === 0 && !inRound && (
               <button type="button" className={styles.refill} data-testid="bj-refill" onClick={() => medalBank().refill()}>
                 {t.refill(REFILL)}

@@ -338,6 +338,13 @@
   line-height: 1.5;
   color: #ddd6ff;
 }
+.notKept {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #ffd65c;
+}
 .refill {
   appearance: none;
   min-height: 44px;

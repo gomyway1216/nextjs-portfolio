@@ -40,6 +40,11 @@ export interface BlackjackStrings {
   noticeDismiss: string;
   resumed: string;
   sayReset: string;
+  /** This browser would not keep the table, so a step was not made, or a hand's medals have not come back yet. */
+  unsavedBet: string;
+  unsavedReturn: string;
+  /** This browser keeps nothing: the medals start again on a reload (the medal center's own words). */
+  notKept: string;
   // Play
   bet: string;
   betAria: (amount: string) => string;
@@ -193,6 +198,9 @@ const en: BlackjackStrings = {
   noticeDismiss: 'Got it',
   resumed: 'The hand you were playing is back on the table.',
   sayReset: 'The Medal Game Center was reset: the table starts over with a new shoe.',
+  unsavedBet: 'This browser could not save the table, so no medals were bet. Its storage for this site may be full.',
+  unsavedReturn: 'This browser could not save the table, so this hand’s medals have not come back yet. They will as soon as it can.',
+  notKept: 'This browser is not keeping anything: your medals start again when the page is reloaded.',
   bet: 'Bet',
   betAria: (amount) => `Betting circle: ${amount} bet. Adds one medal`,
   oneBet: '1 BET',
@@ -373,6 +381,9 @@ const ja: BlackjackStrings = {
   noticeDismiss: '閉じる',
   resumed: '遊んでいたハンドがそのままテーブルに残っています。',
   sayReset: 'メダルゲームセンターがリセットされました。テーブルは新しいシューで最初からです。',
+  unsavedBet: 'このブラウザにテーブルを保存できなかったため、メダルはベットしていません。このサイトの保存容量がいっぱいかもしれません。',
+  unsavedReturn: 'このブラウザにテーブルを保存できなかったため、このハンドのメダルはまだ戻っていません。保存できしだい戻ります。',
+  notKept: 'このブラウザには保存できません。ページを読み込み直すと、メダルは最初からになります。',
   bet: 'ベット',
   betAria: (amount) => `ベッティングサークル（${amount}ベット中）。1枚追加します`,
   oneBet: '1枚ベット',

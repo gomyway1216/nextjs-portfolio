@@ -141,6 +141,32 @@
  * and not the player's, and the new one is as full. Each older version is
  * still held to its own shape before any of that, towers no taller than they
  * could be then.
+ *
+ * Version 11 has a narrower field and the START plate. The field is
+ * fifteen medals across at the pusher instead of nineteen, and everything
+ * placed across it moved in with its walls: the tubes and where their towers
+ * are set down, the arms' reach, the hatch and where it throws a jewel. And
+ * the START pockets are three holes in a plate that leans down from the
+ * pusher's lip: whatever goes over the lip comes down on the plate and is in
+ * the air while it slides or rolls down it (a medal in the air from the
+ * `slide`), a medal through a hole lies under the plate, and a ball or a
+ * jewel, which no hole takes, is never under it: the plate's foot pushes
+ * one as the pusher's face pushes a medal.
+ *
+ * A save of any version before it holds a field laid out a hundred units
+ * wide, which today's is not. It is read in its own measures (`WIDE`), held
+ * to its own shape as ever, and then comes back on a new heap, as a field of
+ * the old medals did at version 10, with what was the player's to win carried
+ * over to it: a tower, a ball or a jewel in the place of the medal of the new
+ * heap nearest to where it lay, across the narrower field as far in from its
+ * walls as it lay from the old one's, and out in front of the plate's foot if
+ * that is where it would be; whatever was in the air, coming down as it was
+ * going to, as far across; a tower being pushed out, where its arm has it now;
+ * the arms pointed and their tips as far across, as near to it as each reaches
+ * now; and the tubes, the rails, the doors, what is waiting to be paid, the
+ * purse, the counters, the lottery and the screen as they were. A save of
+ * version 11 that has a ball or a jewel under the plate is not a save of any
+ * version.
  */
 
 import {
@@ -151,24 +177,31 @@ import {
   FIELD,
   JEWEL_DROP,
   MEDAL_RADIUS,
+  MEDAL_SLIDE,
+  PLATE,
+  PRIZE_LANDS,
   PUSHER,
   RELEASE,
+  ROLL_DOWN,
   ROLL_TIME,
   SETTLE,
   START_RIDE,
+  TEETER,
   TOWER,
-  armStart,
+  checkerAt,
+  clearPlate,
   createMachine,
   pusherFront,
   seededRng,
   tipOf,
+  underPlate,
   type FallingMedal,
   type Machine,
   type Medal,
   type RollingMedal,
 } from './engine';
 import { POUR, shutHopper, type Hopper } from './hopper';
-import { PHASE_TIME, STACK, TUBE_PHASES, armSpot, idleStacker, lastTower, stackTowers, towersIn, type Stacker, type Tube } from './stacker';
+import { PHASE_TIME, STACK, TUBE, TUBE_PHASES, armSpot, idleStacker, lastTower, stackTowers, towersIn, type Stacker, type Tube } from './stacker';
 import {
   BOARD,
   BOWL,
@@ -223,7 +256,14 @@ const JACKPOT_STEPS = Math.max(JACKPOT_STEP, PAID_BEFORE.jackpotStep);
 /** The tallest tower there was before the tubes, and how many places on the pusher a tower could come up in. */
 const TOWERS_BEFORE = { max: 25, places: 18 } as const;
 /** The version every save is written with. */
-export const STORAGE_VERSION = 10;
+export const STORAGE_VERSION = 11;
+/**
+ * The version the game wrote while the field was a hundred units wide and the
+ * START pockets were at the pusher's lip, with a catcher drawn under it that
+ * nothing came down on. Its numbers and its screen are today's; its field is
+ * laid out as wide (`WIDE`), and nothing in it is on its way down the plate.
+ */
+export const VERSION_BEFORE_PLATE = 10;
 /**
  * The version the game wrote while a tower came up through a hatch in the
  * pusher's deck on a lift, and gained its medals standing there. Its numbers
@@ -273,7 +313,7 @@ export const VERSION_WITH_ONE_BOWL = 4;
 export const VERSION_BEFORE_CHANCE = 3;
 /** The version the game wrote while its two arms shared one slot and one aim. */
 export const VERSION_WITH_ONE_AIM = 2;
-/** The version the game wrote before it had its feed arms. A save carrying any number but these ten is refused. */
+/** The version the game wrote before it had its feed arms. A save carrying any number but these eleven is refused. */
 export const VERSION_BEFORE_ARMS = 1;
 
 /**
@@ -386,6 +426,32 @@ const lasting = real(0.01, LIMITS.timer);
 /** A place on the field, or just beside it: across, and from the back wall to the front. */
 const across = real(-LIMITS.margin, FIELD.width + LIMITS.margin);
 const along = real(-LIMITS.margin, FIELD.depth + LIMITS.margin);
+
+/**
+ * The field every version before the START plate was laid out on: a hundred
+ * units across, with the arms each pointing `armStart` to its own side of the
+ * middle and reaching ten past it, the tubes at `tubes` across and setting
+ * their towers down at `sites`, and the hatch throwing a jewel to between
+ * `jewelDrop.from` and `jewelDrop.to`. Its depth was today's. What a save of
+ * one of those versions holds is read in these measures.
+ */
+const WIDE = { width: 100, armStart: 7, reach: 10, tubes: [8.5, 91.5], sites: [43, 57], jewelDrop: { from: 42, to: 58 } } as const;
+const acrossWide = real(-LIMITS.margin, WIDE.width + LIMITS.margin);
+/** How far each arm reached on the wide field, the left one's first. */
+const REACH_WIDE = [
+  { min: AIM.min, max: WIDE.width / 2 + WIDE.reach },
+  { min: WIDE.width / 2 - WIDE.reach, max: WIDE.width - MEDAL_RADIUS - 1 },
+] as const;
+const tipOfWide = (arm: 0 | 1, aim: number): number => Math.min(REACH_WIDE[arm].max, Math.max(REACH_WIDE[arm].min, aim));
+const armStartWide = (arm: 0 | 1): number => WIDE.width / 2 + (arm === 0 ? -WIDE.armStart : WIDE.armStart);
+/** Where the arm of tube `index` had a tower on the wide field, `clock` seconds into its push: as it has one today, as far along its way. */
+function armSpotWide(index: 0 | 1, clock: number, front: number): { x: number; y: number } {
+  const at = armSpot(index, clock, front);
+  const along = (at.x - TUBE.x[index]) / (TUBE.site[index] - TUBE.x[index]);
+  return { x: WIDE.tubes[index] + (WIDE.sites[index] - WIDE.tubes[index]) * along, y: at.y };
+}
+/** Where across today's field a place `x` across the wide one is: as far in from the walls, for its share of the width. */
+const narrowed = (x: number): number => (x * FIELD.width) / WIDE.width;
 const level = oneOf([0, 1]);
 
 // ── The field ───────────────────────────────────────────────────────────────
@@ -393,10 +459,10 @@ const level = oneOf([0, 1]);
 /** Only `true` will do: what is not a jewel is stored without the field. */
 const set: Check<true> = (value) => (value === true ? true : undefined);
 
-/** What a medal, a ball or a tower is stored as. Every tower is built before it is on the field. */
-const lying = {
+/** What a medal, a ball or a tower is stored as, on a field whose width says how far across it may be. Every tower is built before it is on the field. */
+const lyingOn = (x: Check<number>) => ({
   id: whole(1, LIMITS.count),
-  x: across,
+  x,
   y: along,
   level,
   tier: oneOf([0, 1]),
@@ -404,10 +470,13 @@ const lying = {
   stack: whole(1, TOWER.max),
   ball: flag,
   grown: real(SETTLE.from, 1),
-};
+});
+const lying = lyingOn(across);
+const lyingWide = lyingOn(acrossWide);
 
 /** A medal, a ball or a tower: the only things that lay on the field before there were jewels. A ball is not a tower. */
 const plainMedal = shape<Omit<Medal, 'jewel'>>(lying, (m) => !m.ball || m.stack === 1);
+const plainMedalWide = shape<Omit<Medal, 'jewel'>>(lyingWide, (m) => !m.ball || m.stack === 1);
 
 /**
  * A jewel is stored as a medal that says it is one. It is held to everything
@@ -419,9 +488,13 @@ const plainMedal = shape<Omit<Medal, 'jewel'>>(lying, (m) => !m.ball || m.stack 
  * jewel is stored without the field, exactly as it was before there were
  * jewels.
  */
-const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, (m) => !m.ball && m.stack === 1 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1);
+const isJewel = (m: Medal): boolean => !m.ball && m.stack === 1 && m.tier === 0 && m.level === 0 && m.sinceDrop === -1;
+const jewelMedal = shape<Required<Medal>>({ ...lying, jewel: set }, isJewel);
+const jewelMedalWide = shape<Required<Medal>>({ ...lyingWide, jewel: set }, isJewel);
 
 const medal: Check<Medal> = (value) => (isRecord(value) && 'jewel' in value ? jewelMedal(value) : plainMedal(value));
+/** A medal of version 10, on the wide field. */
+const medalWide: Check<Medal> = (value) => (isRecord(value) && 'jewel' in value ? jewelMedalWide(value) : plainMedalWide(value));
 
 /**
  * A medal as versions 1 to 9 stored it. Then a tower stood on the field from
@@ -431,7 +504,7 @@ const medal: Check<Medal> = (value) => (isRecord(value) && 'jewel' in value ? je
  */
 type GrowingMedal = Medal & { grow: number };
 
-const lyingBefore = { ...lying, stack: whole(1, TOWERS_BEFORE.max), grow: whole(0, TOWERS_BEFORE.max - 1) };
+const lyingBefore = { ...lyingWide, stack: whole(1, TOWERS_BEFORE.max), grow: whole(0, TOWERS_BEFORE.max - 1) };
 
 const plainMedalBefore = shape<Omit<GrowingMedal, 'jewel'>>(
   lyingBefore,
@@ -458,13 +531,13 @@ const rollingMedal = shape<RollingMedal>({
 /** The ways a medal was let go before the payout works, when nothing was poured. */
 const THROWN = ['player', 'payout', 'spill'] as const;
 
-/** What something in the air is stored as, in every version, let go in one of the ways listed, off a tower no taller than `tallest`. */
-const inAir = <const S extends readonly FallingMedal['source'][]>(sources: S, tallest: number) => ({
+/** What something in the air is stored as, in every version, let go in one of the ways listed, off a tower no taller than `tallest`, over a field whose width says how far across it may be. */
+const inAir = <const S extends readonly FallingMedal['source'][]>(sources: S, tallest: number, x: Check<number> = across) => ({
   id: whole(1, LIMITS.count),
-  x: across,
+  x,
   y: along,
   level,
-  fromX: across,
+  fromX: x,
   fromY: along,
   rank: whole(0, tallest - 1),
   ball: flag,
@@ -473,42 +546,82 @@ const inAir = <const S extends readonly FallingMedal['source'][]>(sources: S, ta
   source: oneOf(sources),
 });
 
-const plainFalling = shape<Omit<FallingMedal, 'jewel'>>(inAir(THROWN, TOWERS_BEFORE.max), (m) => m.remaining <= m.duration);
+const plainFalling = shape<Omit<FallingMedal, 'jewel'>>(inAir(THROWN, TOWERS_BEFORE.max, acrossWide), (m) => m.remaining <= m.duration);
 
-/** With the payout works a medal may have been poured. What the hopper pours is medals, on their way to the pusher. */
+/** With the payout works a medal may have been poured. What the hopper pours is medals, on their way to the pusher. Every field that had them before the START plate was the wide one. */
 const pouredToo = (tallest: number) =>
-  shape<Omit<FallingMedal, 'jewel'>>(inAir(['player', 'payout', 'pour', 'spill'], tallest), (m) => m.remaining <= m.duration && (m.source !== 'pour' || (!m.ball && m.level === 1)));
+  shape<Omit<FallingMedal, 'jewel'>>(inAir(['player', 'payout', 'pour', 'spill'], tallest, acrossWide), (m) => m.remaining <= m.duration && (m.source !== 'pour' || (!m.ball && m.level === 1)));
 const thrownOrPouredBefore = pouredToo(TOWERS_BEFORE.max);
-const thrownOrPoured = pouredToo(TOWER.max);
+const thrownOrPouredWide = pouredToo(TOWER.max);
+
+/**
+ * Whether something on its way down the START plate (from the `slide`) is
+ * as the plate has it. It came over the lip while the lip was within the
+ * pusher's stroke, onto the lower table's side; it keeps its place across the
+ * field; it takes as long as the plate takes; and it comes down where the
+ * plate has it come down, the plate being somewhere within the stroke then
+ * too. A medal through a hole is in line with one, as wide as a hole takes
+ * medals with its flaps open at the most, and comes down under the plate at
+ * the foot of the pusher's face; any other medal comes down just past the
+ * plate's foot, having rocked on a hole's frame on the way for no longer than
+ * a near miss rocks; a ball comes down against the foot, and a jewel a little
+ * clear of it.
+ */
+function slid(m: FallingMedal): boolean {
+  if (m.level !== 0 || m.rank !== 0 || m.fromX !== m.x || m.fromY < PUSHER.min - LIMITS.held || m.fromY > PUSHER.max + LIMITS.held) return false;
+  const lands = (out: number): boolean => m.y >= PUSHER.min + out - LIMITS.held && m.y <= PUSHER.max + out + LIMITS.held;
+  if (m.jewel) return !m.ball && m.duration === ROLL_DOWN && lands(PLATE.reach + PRIZE_LANDS.jewel);
+  if (m.ball) return m.duration === ROLL_DOWN && lands(PLATE.reach + PRIZE_LANDS.ball);
+  if (m.duration === START_RIDE) return lands(PLATE.through) && checkerAt(m.x, Math.max(CHECKERS.halfWidth, CHECKERS.wingWidth)) >= 0;
+  return m.duration >= MEDAL_SLIDE && m.duration <= MEDAL_SLIDE + TEETER.most && lands(PLATE.reach + MEDAL_RADIUS);
+}
+
+/**
+ * What is in the air today: what is let go as in version 10, or something
+ * that came over the lip and is on its way down the START plate, which is the
+ * only way a ball is on its way to the lower table.
+ */
+const thrownPouredOrSlid = shape<Omit<FallingMedal, 'jewel'>>(inAir(['player', 'payout', 'pour', 'spill', 'slide'], TOWER.max), (m) => {
+  if (m.remaining > m.duration) return false;
+  if (m.source === 'slide') return slid(m);
+  if (m.source === 'pour') return !m.ball && m.level === 1;
+  return !m.ball || m.level === 1;
+});
 
 /**
  * A jewel in the air is one the hatch has thrown, and the hatch throws one
  * way only (`dropJewel`): not a ball and not off a tower, straight out from
  * the hatch, in the time its throw takes, to come down on the lower table
- * within the patch in the middle of it that the hatch throws to. The hopper
- * pours none.
+ * within the patch in the middle of it that the hatch throws to, which on the
+ * wide field was wider (`WIDE`). The hopper pours none.
  */
-const jewelFalling = shape<Required<FallingMedal>>(
-  { ...inAir(THROWN, 1), jewel: set },
-  (m) =>
-    m.remaining <= m.duration &&
-    !m.ball &&
-    m.source === 'payout' &&
-    m.level === 0 &&
-    m.rank === 0 &&
-    m.duration === JEWEL_DROP.time &&
-    m.fromX === m.x &&
-    m.fromY === RELEASE.depth &&
-    m.x >= JEWEL_DROP.from &&
-    m.x <= JEWEL_DROP.to &&
-    m.y >= JEWEL_DROP.near &&
-    m.y <= JEWEL_DROP.far,
-);
+const jewelThrown = (x: Check<number>, drop: { from: number; to: number }) =>
+  shape<Required<FallingMedal>>(
+    { ...inAir(THROWN, 1, x), jewel: set },
+    (m) =>
+      m.remaining <= m.duration &&
+      !m.ball &&
+      m.source === 'payout' &&
+      m.level === 0 &&
+      m.rank === 0 &&
+      m.duration === JEWEL_DROP.time &&
+      m.fromX === m.x &&
+      m.fromY === RELEASE.depth &&
+      m.x >= drop.from &&
+      m.x <= drop.to &&
+      m.y >= JEWEL_DROP.near &&
+      m.y <= JEWEL_DROP.far,
+  );
+const jewelFalling = jewelThrown(acrossWide, WIDE.jewelDrop);
+/** And today a jewel may also be tumbling down the START plate, having come over the lip (`slid`). */
+const jewelFallingNow: Check<Required<FallingMedal>> = (value) =>
+  jewelThrown(across, JEWEL_DROP)(value) ?? shape<Required<FallingMedal>>({ ...inAir(['slide'], 1), jewel: set }, (m) => m.remaining <= m.duration && slid(m))(value);
 
 /** Something in the air in version 6, which had jewels and no hopper; in versions 7 to 9, which had the hopper; and in today's field. */
 const fallingBeforeWorks: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : plainFalling(value));
 const fallingBeforeTubes: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : thrownOrPouredBefore(value));
-const fallingMedal: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : thrownOrPoured(value));
+const fallingBeforePlate: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFalling(value) : thrownOrPouredWide(value));
+const fallingMedal: Check<FallingMedal> = (value) => (isRecord(value) && 'jewel' in value ? jewelFallingNow(value) : thrownPouredOrSlid(value));
 
 /** The hopper's doors. Only what they are doing is checked here; that it fits what is waiting to be paid is checked with the field. */
 const hopper = shape<Hopper>({
@@ -580,12 +693,17 @@ const stacker = shape<Stacker>(
  * do not cross, and so for where their tips are: both swing at one speed
  * and neither overshoots, so they cannot pass each other on the way.
  */
-const acrossArms: Check<[number, number]> = (value) => {
-  if (!Array.isArray(value) || value.length !== 2) return undefined;
-  const left = real(ARM_REACH[0].min, ARM_REACH[0].max)(value[0]);
-  const right = real(ARM_REACH[1].min, ARM_REACH[1].max)(value[1]);
-  return left === undefined || right === undefined || left > right ? undefined : [left, right];
-};
+const acrossArmsIn =
+  (reach: readonly [{ min: number; max: number }, { min: number; max: number }]): Check<[number, number]> =>
+  (value) => {
+    if (!Array.isArray(value) || value.length !== 2) return undefined;
+    const left = real(reach[0].min, reach[0].max)(value[0]);
+    const right = real(reach[1].min, reach[1].max)(value[1]);
+    return left === undefined || right === undefined || left > right ? undefined : [left, right];
+  };
+const acrossArms = acrossArmsIn(ARM_REACH);
+/** The same on the wide field. */
+const acrossArmsWide = acrossArmsIn(REACH_WIDE);
 
 /** How long each arm's slot still has to wait, the left arm's first. */
 const waits: Check<[number, number]> = (value) => {
@@ -632,7 +750,7 @@ const liftBefore = shape<LiftBefore>(
   {
     id: whole(1, LIMITS.count),
     // Its hatch is in the pusher's deck, between the side walls where a medal can lie.
-    x: real(MEDAL_RADIUS, FIELD.width - MEDAL_RADIUS),
+    x: real(MEDAL_RADIUS, WIDE.width - MEDAL_RADIUS),
     behind: real(0, PUSHER.max),
     size: whole(1, TOWERS_BEFORE.max),
     wait: real(0, LIFT_BEFORE.opens),
@@ -671,7 +789,7 @@ const tablesBefore = {
 const rolling = list(rollingMedal, LIMITS.rolling);
 /** The one wait and the one aim of the versions before each arm had its own. */
 const oneSlot = { cooldown: real(0, DROP_INTERVAL) };
-const oneAim = { aim: real(AIM.min, AIM.max) };
+const oneAim = { aim: real(REACH_WIDE[0].min, REACH_WIDE[1].max) };
 
 /** What has to agree in any field, whatever feeds it: every medal has an id of its own, lower than the next one to be given out. */
 function tablesAgree(machine: Pick<StoredMachine, 'medals' | 'falling' | 'nextId'>, onRails: RollingMedal[]): boolean {
@@ -737,15 +855,16 @@ function doorsAgree(doors: Hopper, payoutQueue: number): boolean {
  * moment of the push, with the pusher's lip where the machine's clock has it.
  * A tower let through anywhere else would be moved by the machine's first
  * step, and the save written after that step would not pass this check.
+ * `spot` says where an arm has its tower: on today's field, or on the wide one.
  */
-function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueue' | 'hopper' | 'stacker'>): boolean {
+function worksAgree(machine: Pick<StoredMachine, 'time' | 'medals' | 'payoutQueue' | 'hopper' | 'stacker'>, spot = armSpot): boolean {
   if (!doorsAgree(machine.hopper, machine.payoutQueue)) return false;
   const front = pusherFront(machine.time);
   return machine.stacker.tubes.every((one, index) => {
     if (one.phase !== 'pushing') return true;
     const tower = machine.medals.find((m) => m.id === one.tower);
     if (!tower || tower.ball || tower.jewel || tower.level !== 1 || tower.tier !== 0) return false;
-    const at = armSpot(index as 0 | 1, one.clock, front);
+    const at = spot(index as 0 | 1, one.clock, front);
     return Math.abs(tower.x - at.x) <= LIMITS.held && Math.abs(tower.y - at.y) <= LIMITS.held;
   });
 }
@@ -785,6 +904,11 @@ function worksAgreeBefore(machine: Pick<MachineWithLifts, 'time' | 'medals' | 'p
   return medals.every((m) => m.grow === 0 || lifted.has(m.id));
 }
 
+/**
+ * Today's field. A ball or a jewel on the lower table is never under the
+ * START plate, nor so near its foot that the foot would move it: the foot
+ * pushes it as the pusher's face pushes a medal.
+ */
 const storedMachine = shape<StoredMachine>(
   // In the order a machine holds them, which is the order they are written in: a machine read back and
   // written again is the same text.
@@ -802,7 +926,30 @@ const storedMachine = shape<StoredMachine>(
     tips: acrossArms,
     nextId: always.nextId,
   },
-  (machine) => tablesAgree(machine, machine.rolling) && railsKeepPace(machine) && worksAgree(machine),
+  (machine) =>
+    tablesAgree(machine, machine.rolling) &&
+    railsKeepPace(machine) &&
+    worksAgree(machine) &&
+    machine.medals.every((m) => m.level !== 0 || !underPlate(m, pusherFront(machine.time), LIMITS.held)),
+);
+
+/** The field of version 10, on the wide field: today's in every part, but for nothing being on its way down the plate. */
+const machineBeforePlate = shape<StoredMachine>(
+  {
+    time: always.time,
+    medals: list(medalWide, LIMITS.medals),
+    rolling,
+    falling: list(fallingBeforePlate, LIMITS.falling),
+    payoutQueue: always.payoutQueue,
+    payoutClock: always.payoutClock,
+    hopper,
+    stacker,
+    waits,
+    aims: acrossArmsWide,
+    tips: acrossArmsWide,
+    nextId: always.nextId,
+  },
+  (machine) => tablesAgree(machine, machine.rolling) && railsKeepPace(machine) && worksAgree(machine, armSpotWide),
 );
 
 /** The field of versions 7 to 9, as they wrote it. */
@@ -819,8 +966,8 @@ const machineWithLifts = shape<MachineWithLifts>(
     hopper,
     lifts: list(liftBefore, LIMITS.liftsBefore),
     waits,
-    aims: acrossArms,
-    tips: acrossArms,
+    aims: acrossArmsWide,
+    tips: acrossArmsWide,
     nextId: tablesBefore.nextId,
   },
   (machine) => tablesAgreeBefore(machine, machine.rolling) && railsKeepPace(machine) && worksAgreeBefore(machine),
@@ -841,33 +988,58 @@ function newHeap(seed: number): Pick<Machine, 'time' | 'medals'> {
 }
 
 /**
- * Today's field from a field of versions 7 to 9, and so from every version
- * before the tubes, which were all of medals of the old size: on a new heap,
- * with what was the player's to win on the old field carried over to it, as
- * the heading of this file says. The heap is the one `createMachine` throws
- * on from `seed`, carried as far forward as the pusher had come at the
- * moment the save was written, so that it rests behind the lip as a new
- * machine's does; and its medals are numbered after every one the old machine
- * gave out, so that no id is given twice. No medal that was the player's is
- * lost or paid twice.
- *
- * Then a tower came up on a lift in the pusher's deck where it was to stand,
- * and stood there gaining its medals. There are no lifts now, so a tower that
- * a lift still held, still coming up or standing built in its guard, goes
- * back to be stacked: all of its medals are given to the tubes, as a tower of
- * its own, and it comes out of a window as every tower does now. Whatever the
- * tubes have no room for is poured by the hopper, as a prize too big to stack
- * is. A tower whose guard was already sinking had been let go, and it stands
- * where it stood, as a ball or a jewel lies where it lay: in the place of the
- * medal of the new heap nearest to it on its table, which is on the table
- * itself. Nothing of the new heap lies on top of it.
+ * A field of any version before the START plate, as `onANewHeap` takes it:
+ * the field of versions 7 to 9, which every version before the tubes is read
+ * as, or the field of version 10 with no lifts and no tower still to gain its
+ * medals, and its tubes.
  */
-function onANewHeap(field: MachineWithLifts, seed: number): StoredMachine | undefined {
+type WideField = MachineWithLifts & { stacker?: Stacker };
+
+/** The field of version 10 as `onANewHeap` takes it. */
+const fieldBeforePlate: Check<WideField> = (value) => {
+  const field = machineBeforePlate(value);
+  return field && { ...field, medals: field.medals.map((one) => ({ ...one, grow: 0 })), growing: 0, towerClock: 0, lifts: [] };
+};
+
+/**
+ * Today's field from a field of any version before the START plate, which
+ * were all laid out on the wide field (`WIDE`): on a new heap, with what was
+ * the player's to win on the old field carried over to it, as the heading of
+ * this file says. The heap is the one `createMachine` throws on from `seed`,
+ * carried as far forward as the pusher had come at the moment the save was
+ * written, so that it rests behind the lip as a new machine's does; and its
+ * medals are numbered after every one the old machine gave out, so that no id
+ * is given twice. No medal that was the player's is lost or paid twice.
+ *
+ * Before the tubes a tower came up on a lift in the pusher's deck where it
+ * was to stand, and stood there gaining its medals. There are no lifts now,
+ * so a tower that a lift still held, still coming up or standing built in its
+ * guard, goes back to be stacked: all of its medals are given to the tubes,
+ * as a tower of its own, and it comes out of a window as every tower does
+ * now. Whatever the tubes have no room for is poured by the hopper, as a prize
+ * too big to stack is. A tower whose guard was already sinking had been let
+ * go, and it stands where it stood, as a ball or a jewel lies where it lay:
+ * across the narrower field as far in from its walls as it was, in the place
+ * of the medal of the new heap nearest to it on its table, which is on the
+ * table itself, and keeping its own number. Nothing of the new heap lies on
+ * top of it. One that would be under the START plate is put in front of its
+ * foot, as the foot would push it. A tower an arm was pushing out of its tube
+ * is where the arm has it now.
+ *
+ * Whatever was in the air comes down where and when it was going to, as far
+ * across; a jewel the hatch threw comes down within the patch it throws to
+ * now, and a medal off a tower that was coming down where the plate is now
+ * comes down past its foot, as one off a tower does now. The arms are pointed
+ * as far across as they were, and their tips are as far across, each as near
+ * to that as it reaches now.
+ */
+function onANewHeap(field: WideField, seed: number): StoredMachine | undefined {
   const heap = newHeap(seed);
-  const ahead = pusherFront(field.time) - pusherFront(heap.time);
+  const front = pusherFront(field.time);
+  const ahead = front - pusherFront(heap.time);
   let { nextId, payoutQueue } = field;
   const medals: Medal[] = heap.medals.map((one) => ({ ...one, id: nextId++, y: one.level === 1 ? one.y + ahead : one.y }));
-  const tubes = idleStacker();
+  const tubes = field.stacker ?? idleStacker();
   const held = new Set(field.lifts.filter(holdsBefore).map((one) => one.id));
   const standing: Medal[] = [];
   for (const { grow, ...one } of field.medals) {
@@ -877,21 +1049,40 @@ function onANewHeap(field: MachineWithLifts, seed: number): StoredMachine | unde
       continue;
     }
     if (one.stack === 1 && !one.ball && !one.jewel) continue;
+    const x = narrowed(one.x);
     let nearest: Medal | undefined;
     for (const medal of medals) {
       if (medal.level !== one.level || medal.tier !== 0 || medal.stack > 1 || medal.ball || medal.jewel) continue;
-      if (!nearest || Math.hypot(medal.x - one.x, medal.y - one.y) < Math.hypot(nearest.x - one.x, nearest.y - one.y)) nearest = medal;
+      if (!nearest || Math.hypot(medal.x - x, medal.y - one.y) < Math.hypot(nearest.x - x, nearest.y - one.y)) nearest = medal;
     }
     // A new heap has medals on both tables, so there is always one; were there none, it lies where it lay.
-    const place = nearest ?? medals[medals.push({ ...one, tier: 0, id: nextId++ }) - 1];
+    const place = nearest ?? medals[medals.push({ ...one, x, tier: 0 }) - 1];
+    place.id = one.id;
     place.stack = one.stack;
     place.ball = one.ball;
     if (one.jewel) place.jewel = true;
     standing.push(place);
   }
+  // A tower an arm is pushing out is where the arm has it now.
+  tubes.tubes.forEach((tube, index) => {
+    const tower = tube.phase === 'pushing' ? standing.find((one) => one.id === tube.tower) : undefined;
+    if (!tower) return;
+    const at = armSpot(index as 0 | 1, tube.clock, front);
+    tower.x = at.x;
+    tower.y = at.y;
+  });
   const clear = medals.filter((medal) => medal.tier === 0 || !standing.some((tall) => tall.level === medal.level && Math.hypot(tall.x - medal.x, tall.y - medal.y) < MEDAL_RADIUS * 2));
-  const { time, rolling: onRails, falling, payoutClock, hopper: doors, waits: slots, aims, tips } = field;
-  return storedMachine({ time, medals: clear, rolling: onRails, falling, payoutQueue, payoutClock, hopper: doors, stacker: tubes, waits: slots, aims, tips, nextId });
+  const falling = field.falling.map((one): FallingMedal => {
+    const x = one.jewel ? Math.min(JEWEL_DROP.to, Math.max(JEWEL_DROP.from, narrowed(one.x))) : Math.min(FIELD.width - MEDAL_RADIUS, Math.max(MEDAL_RADIUS, narrowed(one.x)));
+    const past = pusherFront(field.time + one.remaining) + PLATE.reach + MEDAL_RADIUS;
+    return { ...one, x, fromX: one.jewel ? x : narrowed(one.fromX), y: one.source === 'spill' ? Math.max(one.y, past) : one.y };
+  });
+  const { time, rolling: onRails, payoutClock, hopper: doors, waits: slots } = field;
+  /** Each arm's aim and tip, as far across as it was, as near to that as the arm reaches now. */
+  const arms = ([left, right]: [number, number]): [number, number] => [tipOf(0, narrowed(left)), tipOf(1, narrowed(right))];
+  const heaped = { time, medals: clear, rolling: onRails, falling, payoutQueue, payoutClock, hopper: doors, stacker: tubes, waits: slots, aims: arms(field.aims), tips: arms(field.tips), nextId };
+  clearPlate(heaped);
+  return storedMachine(heaped);
 }
 
 /**
@@ -912,7 +1103,7 @@ const withLifts = (field: Pick<MachineBeforeWorks, keyof typeof tablesBefore>, r
 };
 
 /** Where the arms are and what is on their rails, as every version since each arm had its own has stored it. */
-const arms = { rolling, waits, aims: acrossArms, tips: acrossArms };
+const arms = { rolling, waits, aims: acrossArmsWide, tips: acrossArmsWide };
 
 /**
  * The field of a version-6 save, as versions 7 to 9 had it. That game's field
@@ -936,7 +1127,7 @@ const fieldBeforeJewels: Check<MachineWithLifts> = (value) => {
 
 // In version 2 one slot fed both rails, so the medals on the two rails together keep one slot's pace.
 const machineWithOneAim = shape<MachineWithOneAim>(
-  { ...tablesBefore, rolling, ...oneSlot, ...oneAim, tips: acrossArms },
+  { ...tablesBefore, rolling, ...oneSlot, ...oneAim, tips: acrossArmsWide },
   (machine) => tablesAgreeBefore(machine, machine.rolling) && keepsPace(machine.rolling, machine.cooldown),
 );
 
@@ -952,7 +1143,7 @@ const machineWithOneAim = shape<MachineWithOneAim>(
  */
 const fieldWithOneAim: Check<MachineWithLifts> = (value) => {
   const field = machineWithOneAim(value);
-  return field && withLifts(field, { rolling: field.rolling, waits: [field.cooldown, field.cooldown], aims: [tipOf(0, field.aim), tipOf(1, field.aim)], tips: field.tips });
+  return field && withLifts(field, { rolling: field.rolling, waits: [field.cooldown, field.cooldown], aims: [tipOfWide(0, field.aim), tipOfWide(1, field.aim)], tips: field.tips });
 };
 
 const machineBeforeArms = shape<MachineBeforeArms>({ ...tablesBefore, ...oneSlot }, (machine) => tablesAgreeBefore(machine, []));
@@ -968,7 +1159,7 @@ const machineBeforeArms = shape<MachineBeforeArms>({ ...tablesBefore, ...oneSlot
  */
 const fieldBeforeArms: Check<MachineWithLifts> = (value) => {
   const field = machineBeforeArms(value);
-  return field && withLifts(field, { rolling: [], waits: [field.cooldown, field.cooldown], aims: [armStart(0), armStart(1)], tips: [armStart(0), armStart(1)] });
+  return field && withLifts(field, { rolling: [], waits: [field.cooldown, field.cooldown], aims: [armStartWide(0), armStartWide(1)], tips: [armStartWide(0), armStartWide(1)] });
 };
 
 // ── The purse and the counters ──────────────────────────────────────────────
@@ -1035,13 +1226,21 @@ const lamps = { jewels: whole(0, JEWEL.lamps - 1), jewelBonuses: count };
  * whole of it. One whose ride was up has dropped: the machine took it in the
  * step it was up in, and it is not written down.
  */
-const rider = shape<Rider>({ gate: whole(0, CHECKERS.positions.length - 1), lit: flag, left: real(0, START_RIDE) }, (riding) => riding.left > 0);
+const riderUpTo = (longest: number) => shape<Rider>({ gate: whole(0, CHECKERS.positions.length - 1), lit: flag, left: real(0, longest) }, (riding) => riding.left > 0);
 
-/** The medals on their tongues, in the order they came over: every ride is as long as every other, so none has less to go than the one before it. */
-const riders: Check<Rider[]> = (value) => {
-  const riding = list(rider, LIMITS.riding)(value);
-  return riding && riding.every((one, index) => index === 0 || one.left >= riding[index - 1].left) ? riding : undefined;
-};
+/**
+ * The medals on their way to a pocket, in the order they came over, none with
+ * more to go than a whole ride of `longest` seconds: every ride is as long as
+ * every other, so none has less to go than the one before it.
+ */
+const ridersUpTo =
+  (longest: number): Check<Rider[]> =>
+  (value) => {
+    const riding = list(riderUpTo(longest), LIMITS.riding)(value);
+    return riding && riding.every((one, index) => index === 0 || one.left >= riding[index - 1].left) ? riding : undefined;
+  };
+/** How long a medal rode its tongue to its pocket in versions 9 and 10, before the START plate: longer than one takes to drop through its hole now. */
+const RIDE_BEFORE = 0.8;
 
 /** The session's numbers as they were written before a medal rode to its pocket: everything but the riders. */
 type NumbersBeforeRide = Omit<StoredNumbers, 'riding'>;
@@ -1063,7 +1262,19 @@ const lampAddsUp = (numbers: NumbersBeforeRide): boolean =>
   numbers.gold + (numbers.chance ? 1 : 0) <= numbers.gilded + numbers.lucky &&
   (numbers.rush ? numbers.gilded >= 1 && numbers.gold + (numbers.chance ? 1 : 0) >= 1 : numbers.gold + (numbers.chance ? 1 : 0) <= numbers.lucky);
 
-const storedNumbers = shape<StoredNumbers>({ ...lampNumbers, riding: riders }, lampAddsUp);
+const storedNumbers = shape<StoredNumbers>({ ...lampNumbers, riding: ridersUpTo(START_RIDE) }, lampAddsUp);
+
+/**
+ * The numbers of versions 9 and 10: today's, but for the medals on their
+ * tongues, which rode for longer than a medal now takes to drop through its
+ * hole. One that had more than that still to go drops as soon as one that
+ * came over now would; the rest drop when they were going to, in the order
+ * they came over.
+ */
+const numbersBeforePlate: Check<StoredNumbers> = (value) => {
+  const numbers = shape<StoredNumbers>({ ...lampNumbers, riding: ridersUpTo(RIDE_BEFORE) }, lampAddsUp)(value);
+  return numbers && { ...numbers, riding: numbers.riding.map((one) => ({ ...one, left: Math.min(one.left, START_RIDE) })) };
+};
 
 const numbersWithoutRide = shape<NumbersBeforeRide>(lampNumbers, lampAddsUp);
 
@@ -1465,11 +1676,13 @@ export function restore(text: string | null, seed: number): Session | null {
     const save: unknown = JSON.parse(text);
     // Four parts and no others: the version, the field, the numbers and the screen.
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
-    // The field changed shape at versions 2 and 3, took jewels at version 6, the payout works at version 7 and the
-    // tubes and today's medals at version 10; the numbers changed at versions 4, 6, 8 and 9; and the ball in the bowls
-    // at version 5. Every field before version 10 is read as versions 7 to 9 wrote theirs, and comes back on a new heap.
+    // The field changed shape at versions 2 and 3, took jewels at version 6, the payout works at version 7, the tubes
+    // and today's medals at version 10 and the narrower field with the START plate at version 11; the numbers changed
+    // at versions 4, 6, 8 and 9; and the ball in the bowls at version 5. Every field before version 10 is read as
+    // versions 7 to 9 wrote theirs, and every field before version 11 comes back on a new heap.
     const { version } = save;
-    const withTubes = version === STORAGE_VERSION;
+    const withPlate = version === STORAGE_VERSION;
+    const withTubes = withPlate || version === VERSION_BEFORE_PLATE;
     const withRide = withTubes || version === VERSION_BEFORE_TUBES;
     const withLamp = withRide || version === VERSION_BEFORE_RIDE;
     const withWorks = withLamp || version === VERSION_BEFORE_LAMP;
@@ -1486,10 +1699,12 @@ export function restore(text: string | null, seed: number): Session | null {
             : version === VERSION_BEFORE_ARMS
               ? fieldBeforeArms
               : null;
-    const before = withTubes ? undefined : readBefore?.(save.machine);
-    const counted = withRide
+    const before = withPlate ? undefined : withTubes ? fieldBeforePlate(save.machine) : readBefore?.(save.machine);
+    const counted = withPlate
       ? storedNumbers(save.session)
-      : withLamp
+      : withRide
+        ? numbersBeforePlate(save.session)
+        : withLamp
         ? numbersBeforeRide(save.session)
         : withJewels
           ? numbersBeforeLamp(save.session)
@@ -1499,7 +1714,7 @@ export function restore(text: string | null, seed: number): Session | null {
     const { screen } = save;
     if (!counted || !isRecord(screen)) return null;
     // An older field is put on a new heap only once everything else has been read, since that is the dearest part.
-    const field = withTubes ? storedMachine(save.machine) : before && onANewHeap(before, seed);
+    const field = withPlate ? storedMachine(save.machine) : before && onANewHeap(before, seed);
     if (!field) return null;
     // The jackpot as today's machine keeps it, whichever table the save was written by.
     const numbers = settleJackpot(counted);

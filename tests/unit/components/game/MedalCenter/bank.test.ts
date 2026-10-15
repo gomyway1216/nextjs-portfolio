@@ -24,6 +24,7 @@ import beforeLampWithWorks from '../MedalPusher/fixtures/save-before-the-lucky-l
 import beforeWorks from '../MedalPusher/fixtures/save-before-the-payout-works.json';
 import beforeThreeBowls from '../MedalPusher/fixtures/save-before-the-three-bowls.json';
 import beforeTheTubes from '../MedalPusher/fixtures/save-before-the-tubes.json';
+import beforeThePlate from '../MedalPusher/fixtures/save-before-the-plate.json';
 import chanceAndOneBowl from '../MedalPusher/fixtures/save-with-chance-time-and-one-bowl.json';
 import jewelsBeforeWorks from '../MedalPusher/fixtures/save-with-jewels-before-the-payout-works.json';
 import threeBowlsBeforeJewels from '../MedalPusher/fixtures/save-with-the-three-bowls-before-jewels.json';
@@ -47,6 +48,7 @@ const OLD_SAVES: { save: string }[] = [
   beforeLampWithWorks,
   beforeTheRide,
   beforeTheTubes,
+  beforeThePlate,
 ];
 
 const UID = 'test-player-1';

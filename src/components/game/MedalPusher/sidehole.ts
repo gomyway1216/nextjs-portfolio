@@ -56,7 +56,7 @@ export const SIDE_HOLE = {
    * and its point is, and how far it is from the end of one barb to the end of
    * the other.
    */
-  marks: [5, 12.5] as readonly number[],
+  marks: [4, 10.5] as readonly number[],
   near: 0.9,
   far: 3,
   span: 5,

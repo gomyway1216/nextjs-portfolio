@@ -6,11 +6,11 @@
  */
 
 import { ARMS, SLOT, airSpot, fedSpot, leftHeld } from './arms';
-import { CATCHER, caught, rolling, underCatcher, type Caught } from './catcher';
-import { FIELD, MEDAL_RADIUS, SETTLE, pusherFront, type Arm, type FallingMedal, type Machine, type Medal } from './engine';
-import { JEWEL_FACETS, collectedJewel, fallingJewel, lyingJewel, type JewelSpot } from './jewel';
+import { rolledDown, slidDown, spilled, type Caught } from './catcher';
+import { FIELD, MEDAL_RADIUS, SETTLE, pusherFront, type Arm, type FallingMedal, type Machine } from './engine';
+import { JEWEL_FACETS, collectedJewel, fallingJewel, lyingJewel, slidJewel, type JewelSpot } from './jewel';
 import { attitude, cross, dot, fromRows, meet, normalize, type Mat4, type Vec3 } from './mat4';
-import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, LIP_FALL, RIDE, liftOf, railedJewel, turnOf, type ExitingMedal } from './render';
+import { BALL_RADIUS, CHUTE_LEAN, EXIT, EXIT_TIME, RIDE, liftOf, railedJewel, turnOf, type ExitingMedal } from './render';
 import { railed, sinking } from './sidehole';
 import { HEIGHT, VIEW, chuteHeight, project } from './view';
 import { pourPose } from './works';
@@ -107,7 +107,7 @@ export function lightMatrix(out: Mat4): Mat4 {
  * attitude, as a quaternion; the height of whatever it lies on, how dark the
  * contact shadow under it is, how much light it still gets as it falls into
  * the dark, and how much nearer the eye than it is it takes its place in
- * depth, which is nothing for every medal but one on a tongue (`RIDER_LEAD`).
+ * depth, which is nothing for every medal but one coming off the lip (`RIDER_LEAD`).
  */
 export const MEDAL_STRIDE = 12;
 /** Numbers per ball, stud or bulb: where its middle is and how big it is; its colour; and what it is. */
@@ -150,10 +150,6 @@ export function chance(id: number, salt: number): number {
  */
 export const LEAN = { table: { least: 0.012, most: 0.05 }, pile: { least: 0.05, most: 0.13 } } as const;
 
-/** How far a medal that has just come over the pusher's lip still is above the lower table. */
-const lipDrop = (medal: Medal): number =>
-  medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL ? P * (1 - (medal.sinceDrop / LIP_FALL) ** 2) : 0;
-
 export function medalRow(rows: Rows, id: number, x: number, y: number, z: number, turn: number, tilt: number, heading: number, ground: number, contact: number, light: number, lead = 0): void {
   const at = next(rows);
   const { data } = rows;
@@ -169,37 +165,31 @@ export function medalRow(rows: Rows, id: number, x: number, y: number, z: number
 }
 
 /**
- * A medal on a START slot's tongue is seen, all of it, from the lip to the
- * slot. It comes off the lip from among the medals that lie there, and the
- * ones behind it hang over the lip's edge, above it, by as much as half a
- * medal: square to the camera they would cover the back of it for the first
- * quarter of its ride, and most rides would begin half hidden. The canvas
- * draws a rider after everything on the pusher. Here it is drawn where it is
- * and takes its place in depth as if it were `most` field units nearer the
- * eye, which is further than anything hanging over the lip is above it; so
- * nothing on the pusher covers it, and everything nearer the eye than that
- * still does. The lead is all there while its middle is less than `from`
- * out from the lip, and none by `to`, where it starts to go over the
- * tongue's end: it goes into its slot, and under the slide, with no lead at
- * all. A medal that hangs on a tongue's
- * edge has `hanging` of it while it hangs, and loses it as it tips over,
- * between a lean of `level` and of `over` radians: it goes down into the
- * well behind the slide, which covers it. It has less than a rider has, so
- * that a medal riding down the tongue another hangs on is seen to pass over
- * it and not through it.
+ * A medal coming off the lip on to the START plate is seen, all of it. It
+ * comes off the lip from among the medals that lie there, and the ones
+ * behind it hang over the lip's edge, above it, by as much as half a medal:
+ * square to the camera they would cover the back of it as it tips over the
+ * edge. The canvas draws it after everything on the pusher. Here it is drawn
+ * where it is and takes its place in depth as if it were `most` field units
+ * nearer the eye, which is further than anything hanging over the lip is
+ * above it; so nothing on the pusher covers it, and everything nearer the eye
+ * than that still does. The lead is all there while its middle is less than
+ * `from` out from the lip, and none by `to`, by when its tail has left the
+ * lip and it lies on the plate, clear of anything that hangs over the lip. A
+ * medal going down a hole, or past the plate's foot, has none.
  */
-export const RIDER_LEAD = { most: 4, hanging: 0.8, from: CATCHER.back - 0.4, to: CATCHER.back + 0.4, level: 0.3, over: 1 } as const;
+export const RIDER_LEAD = { most: 5, from: R * 0.6, to: R * 1.6 } as const;
 
 const smooth = (from: number, to: number, value: number): number => {
   const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
   return t * t * (3 - 2 * t);
 };
 
-/** How much nearer the eye a medal the catcher has takes its place in depth, in field units, with the lip `front` out from the back wall: see `RIDER_LEAD`. */
-export function leadOf(held: Pick<Caught, 'leg' | 'depth' | 'tilt' | 'chucker'>, front: number): number {
-  if (held.leg !== 'tongue') return 0;
-  const { most, hanging, from, to, level, over } = RIDER_LEAD;
-  return most * (held.chucker >= 0 ? 1 : hanging) * (1 - smooth(from, to, held.depth - front)) * (1 - smooth(level, over, held.tilt));
+/** How much nearer the eye a medal on the plate takes its place in depth, in field units, with the lip `front` out from the back wall: see `RIDER_LEAD`. */
+export function leadOf(held: Pick<Caught, 'leg' | 'depth'>, front: number): number {
+  if (held.leg !== 'plate') return 0;
+  const { most, from, to } = RIDER_LEAD;
+  return most * (1 - smooth(from, to, held.depth - front));
 }
 
 /**
@@ -217,13 +207,15 @@ export const LANDED = P + T * 1.5 + RIDE * 0.5;
  * it rolled, leaning on its edge, falls over onto its back on the way down
  * and lands flat. One the machine pays drops out of the slot under the hood
  * on its edge, and turns over one and a quarter times in front of the screen
- * before it lands. Off a falling tower it slides out, and the ones from high
- * up turn right over. One the hopper pours comes down a door's channel,
+ * before it lands. Off a tower that went over the lip it comes down on the
+ * START plate, as the plate shows (`spilled`), and one that came over the lip
+ * on its own slides down the plate (`slidDown`). One the hopper pours comes down a door's channel,
  * turns over once in the air and lands with a hop (works.ts). `arm` is the
  * arm a fed one left, if that is known; with `calm` a poured one neither
- * turns over nor hops.
+ * turns over nor hops, and one on the plate does not rock on a hole's frame.
+ * `wings` says the holes' flaps are open.
  */
-function fallingRow(rows: Rows, medal: FallingMedal, arm: Arm | undefined, calm: boolean): void {
+function fallingRow(rows: Rows, medal: FallingMedal, arm: Arm | undefined, calm: boolean, wings: boolean, time: number): void {
   if (medal.source === 'pour') {
     // It comes out of the dark behind its door.
     const pose = pourPose(medal, LANDED, calm);
@@ -231,13 +223,16 @@ function fallingRow(rows: Rows, medal: FallingMedal, arm: Arm | undefined, calm:
     return;
   }
   const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
-  if (medal.source === 'spill') {
-    const x = medal.fromX + (medal.x - medal.fromX) * t;
-    const z = medal.fromY + (medal.y - medal.fromY) * t;
-    const from = P + T * (medal.rank + 1);
-    const wobble = (0.5 + chance(medal.id, 3)) * 4 * t * (1 - t);
-    const tilt = medal.rank > 9 ? Math.PI * t * t * (3 - 2 * t) + wobble * 0.4 : wobble;
-    medalRow(rows, medal.id, x, T / 2 + (from - T) * (1 - t * t), z, turnOf(medal.id) + t * 5, tilt, (chance(medal.id, 4) - 0.5) * 1.2, 0, 0, 1);
+  // Off a tower that went over the lip, it comes down on the plate: thrown out over it, or down a hole.
+  const thrown = spilled(medal, time);
+  if (thrown) {
+    medalRow(rows, medal.id, thrown.x, thrown.height, thrown.depth, turnOf(medal.id) + t * 5, thrown.tilt, thrown.heading, 0, 0, thrown.light);
+    return;
+  }
+  // Over the lip on its own, it slides down the plate: off its foot, rocking on a hole's frame on the way, or down a hole.
+  const held = slidDown(medal, time, calm, wings);
+  if (held) {
+    medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id), held.tilt, held.heading, 0, 0, held.light, leadOf(held, pusherFront(time)));
     return;
   }
   // It comes down to where it will lie once it has landed, on top of the pile.
@@ -261,45 +256,28 @@ const lightLeft = (exit: ExitingMedal): number => (exit.kind === 'won' ? 1 : Mat
  * the air and the ones that have just gone over an edge. Balls and jewels are
  * not among them. `fed` says which arm each medal that has been seen on a
  * rail was on, so that one in the air leaves the rail it rolled down. `calm`
- * leaves the flourish out of how a poured medal comes down, and shows a
- * medal that goes into a START slot lying still in its mouth, and one that
- * has some of a tongue under it going straight down into the well; `wings`
- * says the slots' wings are open, as they are during chance time.
+ * leaves the flourish out of how a poured medal comes down, shows a medal
+ * that goes down a START hole lying where it will lie under the plate from
+ * the moment it comes over, and keeps a near miss from rocking on the hole's
+ * frame; `wings` says the holes' flaps are open, as they are during chance
+ * time.
  */
 export function writeMedals(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], fed?: ReadonlyMap<number, Arm>, calm = false, wings = false): void {
   rows.count = 0;
   for (const medal of machine.medals) {
     if (medal.ball || medal.jewel) continue;
-    // One that has just come over the lip at the catcher is on its way down it: along its tongue and into its slot,
-    // hanging on a tongue's edge, or going down into the well under the lip. Once it is down it is the engine's.
-    const held = caught(medal, machine.time, calm, wings);
     const base = medal.level === 1 ? P : 0;
     const { id } = medal;
     // It leans its own way and its own amount. A tower stands straight, and a medal that has just come
     // down is level and leans over as it settles, so nothing jumps as it lands.
     const lean = medal.tier === 1 ? LEAN.pile : LEAN.table;
     const settled = medal.grown < 1 ? (medal.grown - SETTLE.from) / (1 - SETTLE.from) : 1;
-    let tilt = medal.stack > 1 ? 0 : (lean.least + (lean.most - lean.least) * chance(id, 1)) * settled;
-    let heading = TAU * chance(id, 2);
+    const tilt = medal.stack > 1 ? 0 : (lean.least + (lean.most - lean.least) * chance(id, 1)) * settled;
+    const heading = TAU * chance(id, 2);
     // One lying on others is held up by the edge it leans on, so its low side rests on them instead of sinking in.
     const propped = medal.tier === 1 ? R * Math.sin(tilt) : 0;
-    if (held) {
-      // One on a tongue lies as the catcher has it, and one hanging on a tongue's edge is rocked over it; one going over the lip's edge into the well tips forward a little its own way.
-      const own = held.leg === 'gap' && held.heading === 0 ? (chance(id, 2) - 0.5) * 0.5 : held.heading;
-      medalRow(rows, id, held.x, held.height, held.depth, turnOf(id), held.tilt, own, 0, 0, held.light, leadOf(held, pusherFront(machine.time)));
-      continue;
-    }
-    const x = medal.x;
-    const z = medal.y;
-    const drop = lipDrop(medal);
-    const lift = liftOf(medal);
-    // Coming over the lip beside the catcher it tips forward, and is level again as it lands.
-    if (drop > 0) {
-      tilt = 0.75 * Math.sin((Math.PI * medal.sinceDrop) / LIP_FALL);
-      heading = (chance(id, 2) - 0.5) * 0.8;
-    }
     const ground = base + (medal.tier === 1 ? T : 0);
-    medalRow(rows, id, x, base + drop + lift + propped + T / 2, z, turnOf(id), tilt, heading, ground, drop > 0 ? 0 : 1, 1);
+    medalRow(rows, id, medal.x, base + liftOf(medal) + propped + T / 2, medal.y, turnOf(id), tilt, heading, ground, 1, 1);
     // A tower: the rest of its medals, each a hair out of line with the one below.
     for (let i = 1; i < medal.stack; i++) {
       const dx = (chance(id, i * 2 + 5) - 0.5) * 0.2;
@@ -314,7 +292,7 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
     const held = fedSpot(medal.arm, armTipAt(machine, medal.arm), medal.remaining);
     medalRow(rows, medal.id, held.x, held.height, held.depth, turnOf(medal.id) + held.turn, held.tilt, held.heading, 0, 0, 1);
   }
-  for (const medal of machine.falling) if (!medal.ball && !medal.jewel) fallingRow(rows, medal, fed?.get(medal.id), calm);
+  for (const medal of machine.falling) if (!medal.ball && !medal.jewel) fallingRow(rows, medal, fed?.get(medal.id), calm, wings, machine.time);
   for (const exit of exits) {
     if (exit.ball || exit.jewel) continue;
     const a = exit.age;
@@ -341,8 +319,8 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
 }
 
 /**
- * The jewels: lying among the medals, thrown from the hatch, or going over
- * the front: into the tray, or at a corner along the bars across a side
+ * The jewels: lying among the medals, thrown from the hatch, tumbling down
+ * the START plate, or going over the front: into the tray, or at a corner along the bars across a side
  * hole's mouth and then into it. A row is a medal's row, since a stone is
  * held the way a medal is: a place and an attitude. `calm` leaves the roll
  * along the bars out.
@@ -350,8 +328,8 @@ export function writeMedals(rows: Rows, machine: Machine, exits: readonly Exitin
 export function writeJewels(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], calm = false): void {
   rows.count = 0;
   const row = (spot: JewelSpot) => medalRow(rows, spot.id, spot.x, spot.height, spot.depth, spot.turn, spot.tilt, spot.heading, 0, 0, spot.light);
-  for (const medal of machine.medals) if (medal.jewel) row(lyingJewel(medal, machine.time));
-  for (const medal of machine.falling) if (medal.jewel) row(fallingJewel(medal));
+  for (const medal of machine.medals) if (medal.jewel) row(lyingJewel(medal));
+  for (const medal of machine.falling) if (medal.jewel) row(slidJewel(medal, machine.time) ?? fallingJewel(medal));
   for (const exit of exits) if (exit.jewel) row(exit.corner ? railedJewel(exit, calm) : collectedJewel(exit.id, exit.x, exit.y, exit.age));
 }
 
@@ -373,39 +351,27 @@ export function beadRow(rows: Rows, x: number, y: number, z: number, radius: num
 
 /**
  * The prize balls: lying among the medals, on their way down from the hatch,
- * or going over the front. A ball that lies on the lower table under the
- * catcher, wholly or in part, goes into `under` instead, if that is given:
- * it is taller than the catcher, and whoever draws it has to hide what of it
- * is under there. One that has just come over the lip at the catcher is on
- * its slide, rolling down it and off its foot, where the catcher has it;
- * and one that has come down in front of the foot stands there, where the
- * catcher has it, until the engine has it there too: under the catcher's
- * hood too, when the catcher comes over it. One that went over the front at
- * a corner is on the bars across the side hole's mouth, rolling along them to
- * the tray; with `calm` it crosses them the way it was going.
+ * rolling down the START plate, or going over the front. One that has come
+ * over the lip rolls over the lip's edge, down the plate over its holes and
+ * over the edge of its foot, as the plate has it, and comes down against the
+ * foot; from then on it is where the machine has it, which is never under
+ * the plate. One that went over the front at a corner is on the
+ * bars across the side hole's mouth, rolling along them to the tray; with
+ * `calm` it crosses them the way it was going.
  */
-export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], under?: Rows, calm = false): void {
+export function writeBalls(rows: Rows, machine: Machine, exits: readonly ExitingMedal[], calm = false): void {
   rows.count = 0;
-  if (under) under.count = 0;
   for (const medal of machine.medals) {
     if (!medal.ball) continue;
-    const rolled = rolling(medal, BALL_RADIUS, machine.time);
-    if (rolled && rolled.leg !== 'table') {
-      beadRow(rows, rolled.x, rolled.height, rolled.depth, BALL_RADIUS, 1, 1, 1, BEAD.ball);
-      continue;
-    }
-    // Where it stands: where the catcher has it, if the catcher has it on the lower table, and where the engine has it if not.
-    const x = rolled ? rolled.x : medal.x;
-    const z = rolled ? rolled.depth : medal.y;
-    const dropping = !rolled && medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
-    if (medal.level === 0 && !dropping && underCatcher(x, z, BALL_RADIUS, machine.time)) {
-      beadRow(under ?? rows, x, BALL_RADIUS, z, BALL_RADIUS, 1, 1, 1, BEAD.ball);
-      continue;
-    }
-    beadRow(rows, x, (medal.level === 1 ? P : 0) + (rolled ? 0 : lipDrop(medal)) + BALL_RADIUS, z, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+    beadRow(rows, medal.x, (medal.level === 1 ? P : 0) + BALL_RADIUS, medal.y, BALL_RADIUS, 1, 1, 1, BEAD.ball);
   }
   for (const medal of machine.falling) {
     if (!medal.ball) continue;
+    const rolled = rolledDown(medal, BALL_RADIUS, machine.time);
+    if (rolled) {
+      beadRow(rows, rolled.x, rolled.height, rolled.depth, BALL_RADIUS, 1, 1, 1, BEAD.ball);
+      continue;
+    }
     const at = airSpot(medal, P + BALL_RADIUS);
     beadRow(rows, at.x, at.height, at.depth, BALL_RADIUS, 1, 1, 1, BEAD.ball);
   }

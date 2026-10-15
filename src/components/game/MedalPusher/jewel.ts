@@ -12,16 +12,13 @@
  */
 
 import { airSpot } from './arms';
-import { caught } from './catcher';
-import { CHUCKERS } from './chuckers';
-import { FIELD, MEDAL_RADIUS, MEDAL_THICKNESS, type FallingMedal, type Medal } from './engine';
+import { FIELD, JEWEL_CUT, MEDAL_RADIUS, PLATE, pusherFront, type FallingMedal, type Medal } from './engine';
 import { JEWEL } from './lottery';
 import { attitude, rotate, type Vec3 } from './mat4';
 import { HEIGHT } from './view';
 
 const TAU = Math.PI * 2;
 const P = HEIGHT.pusher;
-const T = MEDAL_THICKNESS;
 
 /**
  * The cut. A stone is round, a little less across than a medal, and stands
@@ -30,10 +27,12 @@ const T = MEDAL_THICKNESS;
  * point. It has `sides` corners round the girdle and as many round the
  * table, half a side on, so the crown is cut in twice that many triangles:
  * no two of them face the same way, and that is what makes it flash. Every
- * measure of it is a medal's, so it keeps its shape beside them.
+ * measure of it is a medal's, so it keeps its shape beside them. The engine
+ * holds it (`JEWEL_CUT` in engine.ts), since how far its foot keeps a jewel
+ * off the START plate is reckoned from it.
  */
-export const JEWEL_CUT = { girdle: MEDAL_RADIUS - 0.12, table: MEDAL_RADIUS * 0.53, crown: MEDAL_RADIUS * 0.27, pavilion: MEDAL_RADIUS * 0.45, sides: 8 } as const;
-/** How tall a stone stands. It is taller than two medals lying one on the other, and passes under the catcher on the pusher's front. */
+export { JEWEL_CUT };
+/** How tall a stone stands. It is taller than two medals lying one on the other, and a little taller than the START plate's foot is high, which pushes it as a ball (`PRIZE_CLEAR` in engine.ts). */
 export const JEWEL_HEIGHT = JEWEL_CUT.crown + JEWEL_CUT.pavilion;
 
 /** One flat face of the stone: its corners, from the middle of the girdle (across, up, toward the player), anticlockwise seen from outside, and the way it faces. */
@@ -100,29 +99,128 @@ const own = (id: number, salt: number): number => {
   return x - Math.floor(x);
 };
 
-/** How long a stone that comes over the pusher's lip takes to drop to the lower table: as long as a medal does. */
-const LIP_FALL = CHUCKERS.drop;
+/** A stone lying on a table: on its point, leaning a little its own way. */
+export function lyingJewel(medal: Medal): JewelSpot {
+  const { id } = medal;
+  return { id, x: medal.x, height: (medal.level === 1 ? P : 0) + JEWEL_CUT.pavilion, depth: medal.y, turn: own(id, 1) * TAU, tilt: 0.05 + 0.09 * own(id, 2), heading: own(id, 3) * TAU, light: 1 };
+}
+
+type Point = readonly [number, number];
 
 /**
- * A stone lying on a table, or on its way down from the pusher's lip. It
- * lies on its point, leaning a little its own way. Over the lip beside the
- * catcher it tips forward as a medal does and comes down level; at the
- * catcher it goes over the lip's edge and down into the well, out of the
- * light, as a medal that fits no START slot does.
+ * The stone cut square to the field through its middle, tipped forward by
+ * `tilt`: its point, the front ends of its girdle and its table, and their
+ * back ends, as (out, up) from the middle of its girdle. Nothing of the stone
+ * reaches further out of that cut than this outline does, and the solids it
+ * passes run the width of the field, so the outline is what has to keep
+ * clear of them.
  */
-export function lyingJewel(medal: Medal, time: number): JewelSpot {
-  const { id } = medal;
-  const turn = own(id, 1) * TAU;
-  const lean = 0.05 + 0.09 * own(id, 2);
-  const heading = own(id, 3) * TAU;
-  const behind = caught(medal, time);
-  if (behind) return { id, x: behind.x, height: behind.height - T / 2 + JEWEL_CUT.pavilion, depth: behind.depth, turn, tilt: behind.tilt, heading: 0, light: behind.light };
-  const dropping = medal.level === 0 && medal.sinceDrop >= 0 && medal.sinceDrop < LIP_FALL;
-  if (dropping) {
-    const fallen = medal.sinceDrop / LIP_FALL;
-    return { id, x: medal.x, height: P * (1 - fallen * fallen) + JEWEL_CUT.pavilion, depth: medal.y, turn, tilt: lean + 0.75 * Math.sin(Math.PI * fallen), heading: 0, light: 1 };
+function outline(tilt: number): Point[] {
+  const { girdle, table, crown, pavilion } = JEWEL_CUT;
+  const at = (along: number, across: number): Point => [Math.sin(tilt) * along + Math.cos(tilt) * across, Math.cos(tilt) * along - Math.sin(tilt) * across];
+  return [at(-pavilion, 0), at(0, girdle), at(crown, table), at(crown, -table), at(0, -girdle)];
+}
+
+/** The pusher, the START plate and the lower table cut the same way, as (out, up) from the pusher's face: what a stone coming over the lip may touch and not go into. */
+const SOLIDS: readonly (readonly Point[])[] = (() => {
+  const under = PLATE.thick / Math.cos(PLATE.lean);
+  return [
+    [
+      [-60, 0],
+      [0, 0],
+      [0, P],
+      [-60, P],
+    ],
+    [
+      [0, PLATE.deck],
+      [0, PLATE.deck - under],
+      [PLATE.reach, PLATE.foot - under],
+      [PLATE.reach, PLATE.foot],
+    ],
+    [
+      [-60, -5],
+      [60, -5],
+      [60, 0],
+      [-60, 0],
+    ],
+  ];
+})();
+
+/** Whether two outlines, each going round without a dent, overlap: there is no line between them, along any of their sides, that they only touch at most. */
+function overlap(a: readonly Point[], b: readonly Point[]): boolean {
+  for (const shape of [a, b]) {
+    for (let i = 0; i < shape.length; i++) {
+      const [x0, y0] = shape[i];
+      const [x1, y1] = shape[(i + 1) % shape.length];
+      const nx = y1 - y0;
+      const ny = x0 - x1;
+      let aMin = Infinity;
+      let aMax = -Infinity;
+      let bMin = Infinity;
+      let bMax = -Infinity;
+      for (const [x, y] of a) {
+        const d = x * nx + y * ny;
+        aMin = Math.min(aMin, d);
+        aMax = Math.max(aMax, d);
+      }
+      for (const [x, y] of b) {
+        const d = x * nx + y * ny;
+        bMin = Math.min(bMin, d);
+        bMax = Math.max(bMax, d);
+      }
+      const scale = Math.hypot(nx, ny);
+      if (aMax <= bMin + 1e-9 * scale || bMax <= aMin + 1e-9 * scale) return false;
+    }
   }
-  return { id, x: medal.x, height: (medal.level === 1 ? P : 0) + JEWEL_CUT.pavilion, depth: medal.y, turn, tilt: lean, heading, light: 1 };
+  return true;
+}
+
+/** Whether a stone tipped by `tilt` with the middle of its girdle at (out, up) from the pusher's face is clear of everything solid. */
+export function jewelClear(out: number, up: number, tilt: number): boolean {
+  const shape = outline(tilt).map(([x, y]): Point => [out + x, up + y]);
+  return SOLIDS.every((solid) => !overlap(shape, solid));
+}
+
+/** How low the middle of a stone's girdle can be at `out` from the pusher's face, tipped by `tilt`: as low as it goes resting on whatever is under it, found from above. */
+function restingHeight(out: number, tilt: number): number {
+  let clear = P + MEDAL_RADIUS * 2;
+  let low = clear - 0.25;
+  while (low > -3 && jewelClear(out, low, tilt)) {
+    clear = low;
+    low -= 0.25;
+  }
+  for (let i = 0; i < 24; i++) {
+    const mid = (low + clear) / 2;
+    if (jewelClear(out, mid, tilt)) clear = mid;
+    else low = mid;
+  }
+  return clear;
+}
+
+/**
+ * A stone that came over the pusher's lip, on its way down the START plate,
+ * or null for anything else. It is too big for a hole: it tumbles over the
+ * lip's edge and down the plate end over end, once right over, over the
+ * holes, and comes down on its point on the lower table against the plumb end
+ * of the plate's foot, where the machine has it come down (`ROLL_DOWN` and
+ * `PRIZE_CLEAR` in engine.ts). All the way it rests on whatever is under it,
+ * so it never goes into the pusher, the plate or the table; and as it lands it
+ * leans its own way, as it will lie.
+ */
+export function slidJewel(medal: FallingMedal, time: number): JewelSpot | null {
+  if (medal.source !== 'slide' || !medal.jewel) return null;
+  const { id } = medal;
+  const t = Math.min(1, Math.max(0, 1 - medal.remaining / medal.duration));
+  const front = pusherFront(time);
+  const end = medal.y - pusherFront(time + medal.remaining);
+  const eased = t * t * (3 - 2 * t);
+  const out = end * eased;
+  const turned = TAU * eased;
+  const settling = Math.min(1, Math.max(0, (t - 0.93) / 0.07));
+  const tilt = turned + (0.05 + 0.09 * own(id, 2)) * settling;
+  // As it settles it leans its own way, which is not straight forward: it rests as the larger of the two leans has it.
+  const height = Math.max(restingHeight(out, turned), restingHeight(out, tilt));
+  return { id, x: medal.x, height, depth: front + out, turn: own(id, 1) * TAU, tilt, heading: own(id, 3) * TAU * settling, light: 1 };
 }
 
 /** A stone the hatch has thrown, on its way to the table it will land on: it tumbles as it comes, and lands on its point. */
@@ -183,7 +281,7 @@ export function facetInCabinet(spot: JewelSpot, face: Facet): { corners: Vec3[];
  * (so a negative height), and the plate reaches `margin` beyond the lamps
  * each way.
  */
-export const JEWEL_LAMPS = { count: JEWEL.lamps, step: 6.4, radius: 2.3, height: -7.5, margin: { across: 2.6, up: 3.3 } } as const;
+export const JEWEL_LAMPS = { count: JEWEL.lamps, step: 5.9, radius: 2.3, height: -7.5, margin: { across: 2.6, up: 3.3 } } as const;
 
 /** Where the middle of a lamp is across the field: the row is centred on the middle of the front. */
 export const jewelLampX = (lamp: number): number => FIELD.width / 2 + (lamp - (JEWEL_LAMPS.count - 1) / 2) * JEWEL_LAMPS.step;

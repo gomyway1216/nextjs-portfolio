@@ -7,7 +7,7 @@
  * camera as everything in front of it.
  */
 
-import { FIELD, MEDAL_THICKNESS } from './engine';
+import { FIELD, MEDAL_THICKNESS, PUSHER } from './engine';
 
 /**
  * How much of the drawing is above what it showed when the back wall was a
@@ -23,7 +23,7 @@ export const VIEW = { width: 640, height: 540 + UPPER } as const;
 /** Heights above the lower table, in field units. */
 export const HEIGHT = {
   /** The top of the pusher, where dropped medals land. */
-  pusher: 6,
+  pusher: PUSHER.height,
   /** How thick a medal is. */
   medal: MEDAL_THICKNESS,
   sideWall: 13,
@@ -140,7 +140,7 @@ export const HOUSING = {
  * can hold: where the first one is across the field, how far it is from one
  * to the next, how big each is, and where the word that names them is.
  */
-export const HOLD_LAMPS = { first: 41.5, step: 4.2, radius: 1.3, label: 33.5 } as const;
+export const HOLD_LAMPS = { first: FIELD.width / 2 - 8.5, step: 4.2, radius: 1.3, label: FIELD.width / 2 - 16.5 } as const;
 
 /**
  * The screen itself: the part of the back wall the page's screen is stood

@@ -9,9 +9,7 @@
  * records how far its light gets (the shadow map). The second draws the
  * picture: every medal in one call, the jewels in another when there are any,
  * the balls and bulbs in two, the cabinet in a handful, and last the flat
- * touches that are laid over them. A prize
- * ball that lies under the catcher on the pusher's front comes after even
- * those, behind the catcher's hood.
+ * touches that are laid over them.
  *
  * The picture has a hole in it. The screen in the back wall is the page's
  * own, stood behind the canvas, so the canvas is cleared to nothing and
@@ -22,7 +20,7 @@
 
 import { pusherFront, type Machine } from './engine';
 import { paintFoot, paintLip, paintPlain, paintPusher, paintSign, paintTable, paintWall, reliefMap } from './art3d';
-import { FLAT_STRIDE, Flat, MOVING_CAST, MOVING_HOOD, MOVING_PARTS, SOLID_STRIDE, Solid, addCatcherLamps, buildCabinet, buildLamps, buildMoving, buildTouches, type Art, type Part } from './cabinet3d';
+import { FLAT_STRIDE, Flat, MOVING_CAST, MOVING_PARTS, SOLID_STRIDE, Solid, addCatcherLamps, buildCabinet, buildLamps, buildMoving, buildTouches, type Art, type Part } from './cabinet3d';
 import { Gpu, type Program } from './gl';
 import { PARTY_TIME, SCREEN_GLOW, type DrawOptions, type Stage } from './render';
 import { BEAD_STRIDE, EYE, KEY_LIGHT, MEDAL_EDGE, MEDAL_STRIDE, ballShape, cameraMatrix, createRows, jewelShape, lightMatrix, medalShape, writeBalls, writeJewels, writeMedals, type Rows, type Shape } from './scene3d';
@@ -120,7 +118,6 @@ function build(gpu: Gpu, now: () => number): Scene3d {
   // The rows that change every frame, and the buffers they are sent to.
   const medals = createRows(MEDAL_STRIDE, 1024);
   const balls = createRows(BEAD_STRIDE, 8);
-  const lowBalls = createRows(BEAD_STRIDE, 4);
   const jewels = createRows(MEDAL_STRIDE, 8);
   const beads = createRows(BEAD_STRIDE, 256);
   // The catcher's round mouths and the slots' funnels are most of what moves: some four thousand corners.
@@ -128,7 +125,6 @@ function build(gpu: Gpu, now: () => number): Scene3d {
   const flat = new Flat(1200);
   const medalBuffer = gpu.buffer(gl.ARRAY_BUFFER, medals.data.byteLength, gl.DYNAMIC_DRAW);
   const ballBuffer = gpu.buffer(gl.ARRAY_BUFFER, balls.data.byteLength, gl.DYNAMIC_DRAW);
-  const lowBallBuffer = gpu.buffer(gl.ARRAY_BUFFER, lowBalls.data.byteLength, gl.DYNAMIC_DRAW);
   const jewelBuffer = gpu.buffer(gl.ARRAY_BUFFER, jewels.data.byteLength, gl.DYNAMIC_DRAW);
   const beadBuffer = gpu.buffer(gl.ARRAY_BUFFER, beads.data.byteLength, gl.DYNAMIC_DRAW);
   const movingBuffer = gpu.buffer(gl.ARRAY_BUFFER, moving.data.byteLength, gl.DYNAMIC_DRAW);
@@ -158,7 +154,6 @@ function build(gpu: Gpu, now: () => number): Scene3d {
   const medalMesh = copies(medalShape(32, MEDAL_EDGE), medalBuffer, MEDAL_STRIDE, medalRows);
   const medalShade = copies(medalShape(16, 0), medalBuffer, MEDAL_STRIDE, medalRows);
   const ballMesh = copies(ballShape(28, 18), ballBuffer, BEAD_STRIDE, beadRows);
-  const lowBallMesh = copies(ballShape(28, 18), lowBallBuffer, BEAD_STRIDE, beadRows);
   const jewelMesh = copies(jewelShape(), jewelBuffer, MEDAL_STRIDE, medalRows);
   const beadMesh = copies(ballShape(10, 7), beadBuffer, BEAD_STRIDE, beadRows);
 
@@ -264,7 +259,7 @@ function build(gpu: Gpu, now: () => number): Scene3d {
 
     // This frame's numbers, and each list sent to the graphics card once.
     writeMedals(medals, machine, stage.exits, stage.fed, calm, options.wings ?? false);
-    writeBalls(balls, machine, stage.exits, lowBalls, calm);
+    writeBalls(balls, machine, stage.exits, calm);
     writeJewels(jewels, machine, stage.exits, calm);
     buildMoving(moving, machine, front, stage, options);
     flat.clear();
@@ -279,14 +274,13 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     drift = calm ? 0 : LAMP_DRIFT.reach * Math.sin((stage.clock * Math.PI * 2 * (partying ? 3 : 1)) / LAMP_DRIFT.period);
     sendRows(medalBuffer, medals);
     sendRows(ballBuffer, balls);
-    // There is seldom a ball under the catcher, and not always a jewel on the field: nothing is sent for none.
-    if (lowBalls.count > 0) sendRows(lowBallBuffer, lowBalls);
+    // There is not always a jewel on the field: nothing is sent for none.
     if (jewels.count > 0) sendRows(jewelBuffer, jewels);
     sendRows(beadBuffer, beads);
     send(movingBuffer, moving.data, moving.count * SOLID_STRIDE);
     send(flatBuffer, flat.data, flat.count * FLAT_STRIDE);
     last.medals = medals.count;
-    last.balls = balls.count + lowBalls.count;
+    last.balls = balls.count;
     last.jewels = jewels.count;
     last.calls = 0;
     last.plain = plain;
@@ -306,7 +300,6 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     drawCopies(jewelMesh, jewels);
     switchTo(beadShadow);
     drawCopies(ballMesh, balls);
-    drawCopies(lowBallMesh, lowBalls);
     gl.disable(gl.CULL_FACE);
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(2, 4);
@@ -361,23 +354,6 @@ function build(gpu: Gpu, now: () => number): Scene3d {
     gl.depthMask(true);
     gl.disable(gl.BLEND);
 
-    // A prize ball lying on the lower table is taller than the catcher that hangs over it. So the hood over the
-    // catcher is laid on the finished picture as distances only, with nothing of it shown, and the balls that lie
-    // under the catcher are drawn after it: what of a ball is under there stays hidden, and what has come out is seen.
-    if (lowBalls.count > 0) {
-      const hood = MOVING_PARTS[MOVING_HOOD];
-      gl.colorMask(false, false, false, false);
-      switchTo(solidProgram);
-      gl.bindTexture(gl.TEXTURE_2D, art.plain);
-      gl.bindVertexArray(movingArray);
-      gl.drawArrays(gl.TRIANGLES, hood.first, hood.count);
-      last.calls++;
-      gl.colorMask(true, true, true, true);
-      gl.enable(gl.CULL_FACE);
-      switchTo(beadProgram);
-      drawCopies(lowBallMesh, lowBalls);
-      gl.disable(gl.CULL_FACE);
-    }
     gl.bindVertexArray(null);
   };
 

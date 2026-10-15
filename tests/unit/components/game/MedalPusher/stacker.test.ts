@@ -47,7 +47,9 @@ describe('the tower tubes', () => {
   it('leave a tower in the middle of the field, between two START pockets, a little behind the lip', () => {
     for (const site of TUBE.site) {
       expect(checkerAt(site)).toBe(-1);
-      expect(Math.min(...CHECKERS.positions.map((x) => Math.abs(site - x)))).toBeGreaterThanOrEqual(7);
+      // Halfway between two of them: a tower there, a medal wide, is well clear of either hole's rule.
+      expect(Math.min(...CHECKERS.positions.map((x) => Math.abs(site - x)))).toBe((CHECKERS.positions[1] - CHECKERS.positions[0]) / 2);
+      expect((CHECKERS.positions[1] - CHECKERS.positions[0]) / 2).toBeGreaterThan(R + CHECKERS.wingWidth);
     }
     expect(TUBE.site[0] + TUBE.site[1]).toBe(FIELD.width);
     expect(TUBE.behind).toBeGreaterThan(R);

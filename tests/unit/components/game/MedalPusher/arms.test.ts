@@ -250,11 +250,11 @@ describe('where an arm’s tip belongs', () => {
     dropAt(machine, 30);
     step(machine, 0.1);
     // The left arm's aim is moved past the middle, and then further than the arm reaches.
-    aimArm(machine, 1, 80);
-    aimArm(machine, 0, 56);
-    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([56, 80]);
+    aimArm(machine, 1, 70);
+    aimArm(machine, 0, 44);
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([44, 70]);
     aimArm(machine, 0, 80);
-    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([ARM_REACH[0].max, 80]);
+    expect([armGoal(machine, 0), armGoal(machine, 1)]).toEqual([ARM_REACH[0].max, 70]);
     // That is where the medal is let go, and where the arm stays.
     step(machine, ROLL_TIME);
     expect(machine.falling[0].fromX).toBe(ARM_REACH[0].max);
@@ -355,10 +355,10 @@ describe('a medal on a rail', () => {
   it('rides with its arm when the arm swings', () => {
     // The same share of the way along, wherever the tip is.
     const near = rollingSpot(0, 20, 0.2);
-    const far = rollingSpot(0, 55, 0.2);
+    const far = rollingSpot(0, 44, 0.2);
     const share = rolled(0.2);
     expect((near.x - armCollar(0).x) / (20 - armCollar(0).x)).toBeCloseTo(share, 9);
-    expect((far.x - armCollar(0).x) / (55 - armCollar(0).x)).toBeCloseTo(share, 9);
+    expect((far.x - armCollar(0).x) / (44 - armCollar(0).x)).toBeCloseTo(share, 9);
     expect(far.height).toBeCloseTo(near.height, 9);
     expect(far.depth).toBeCloseTo(near.depth, 9);
   });

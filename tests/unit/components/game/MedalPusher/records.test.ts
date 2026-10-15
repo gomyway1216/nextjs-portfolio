@@ -1030,7 +1030,7 @@ describe('the hold filling', () => {
    */
   const STILL = true;
 
-  it('hears nothing of a medal that is only on its tongue: the book counts it when it has dropped into its pocket', () => {
+  it('hears nothing of a medal that is only on its way down the plate: the book counts it when it has dropped into its hole', () => {
     const session = emptied();
     throughPocket(session);
     const events: SessionEvent[] = [];
@@ -1038,7 +1038,8 @@ describe('the hold filling', () => {
     expect(events.map((event) => event.type)).toEqual(['riding']);
     expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ hits: 0, wasted: 0, golds: 0, luckies: 0 });
     for (let i = 0; i < 60 && session.riding.length > 0; i++) advance(session, DT, events);
-    expect(events.map((event) => event.type)).toEqual(['riding', 'checker', 'spinStart']);
+    // It comes down under the plate as the machine takes it.
+    expect(events.map((event) => event.type)).toEqual(['riding', 'landed', 'checker', 'spinStart']);
     expect(totals(record(createBook('device0001'), events, MONDAY))).toMatchObject({ hits: 1, wasted: 0 });
     expect(session.hits).toBe(1);
   });

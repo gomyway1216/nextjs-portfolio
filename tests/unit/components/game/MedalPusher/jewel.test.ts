@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { HATCH } from '@/components/game/MedalPusher/arms';
-import { CATCHER, caught } from '@/components/game/MedalPusher/catcher';
-import { CHUCKERS } from '@/components/game/MedalPusher/chuckers';
-import { FALL_TIME, FIELD, JEWEL_DROP, MEDAL_RADIUS, MEDAL_THICKNESS, PUSHER, RELEASE, pusherFront, type FallingMedal, type Medal } from '@/components/game/MedalPusher/engine';
+import { CATCHER } from '@/components/game/MedalPusher/catcher';
+import { FALL_TIME, FIELD, JEWEL_DROP, MEDAL_RADIUS, MEDAL_THICKNESS, PLATE, PRIZE_LANDS, PUSHER, RELEASE, ROLL_DOWN, pusherFront, type FallingMedal, type Medal } from '@/components/game/MedalPusher/engine';
 import {
   CROWN_FACETS,
   JEWEL_CUT,
@@ -22,6 +21,7 @@ import {
   lampLight,
   lyingJewel,
   pointInCabinet,
+  slidJewel,
   type JewelSpot,
 } from '@/components/game/MedalPusher/jewel';
 import { JEWEL } from '@/components/game/MedalPusher/lottery';
@@ -42,14 +42,14 @@ const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0
 const lowest = (spot: JewelSpot): number => Math.min(...JEWEL_FACETS.flatMap((face) => face.corners.map((corner) => pointInCabinet(spot, corner)[1])));
 
 describe('the cut of a jewel', () => {
-  it('is a round stone about a medal across, taller than two medals and low enough to go under the catcher', () => {
+  it('is a round stone about a medal across, taller than two medals and than the START plate’s foot is high', () => {
     expect(JEWEL_CUT.girdle).toBeLessThan(MEDAL_RADIUS);
     expect(JEWEL_CUT.girdle).toBeGreaterThan(MEDAL_RADIUS * 0.9);
     expect(JEWEL_CUT.table).toBeLessThan(JEWEL_CUT.girdle);
     expect(JEWEL_HEIGHT).toBe(JEWEL_CUT.crown + JEWEL_CUT.pavilion);
     expect(JEWEL_HEIGHT).toBeGreaterThan(T * 2);
-    // The catcher's foot is this far above the lower table, and a stone that came over the lip behind it comes out under it.
-    expect(JEWEL_HEIGHT).toBeLessThan(CATCHER.foot.height);
+    // The plate's foot is this far above the lower table: the foot pushes a stone as the face pushes a medal, and no stone is ever under the plate.
+    expect(JEWEL_HEIGHT).toBeGreaterThan(CATCHER.foot.height);
     // The pavilion is the deeper half, as on a cut stone.
     expect(JEWEL_CUT.pavilion).toBeGreaterThan(JEWEL_CUT.crown);
   });
@@ -119,7 +119,7 @@ describe('a jewel in the cabinet', () => {
       [0, 0],
       [1, P],
     ] as const) {
-      const spot = lyingJewel(jewel(7, 40, level === 1 ? 20 : 70, level), 3);
+      const spot = lyingJewel(jewel(7, 40, level === 1 ? 20 : 70, level));
       expect([spot.id, spot.x, spot.depth]).toEqual([7, 40, level === 1 ? 20 : 70]);
       expect(spot.height).toBe(floor + JEWEL_CUT.pavilion);
       expect(spot.tilt).toBeGreaterThanOrEqual(0.05);
@@ -134,10 +134,10 @@ describe('a jewel in the cabinet', () => {
   });
 
   it('is turned and leant by its id alone: the same every frame, and no two alike', () => {
-    const one = lyingJewel(jewel(11, 30, 60, 0), 1);
-    expect(lyingJewel(jewel(11, 30, 60, 0), 9)).toEqual(one);
-    expect(lyingJewel(jewel(11, 55, 80, 0), 1)).toMatchObject({ turn: one.turn, tilt: one.tilt, heading: one.heading });
-    const others = [12, 13, 14, 15, 16].map((id) => lyingJewel(jewel(id, 30, 60, 0), 1));
+    const one = lyingJewel(jewel(11, 30, 60, 0));
+    expect(lyingJewel(jewel(11, 30, 60, 0))).toEqual(one);
+    expect(lyingJewel(jewel(11, 55, 80, 0))).toMatchObject({ turn: one.turn, tilt: one.tilt, heading: one.heading });
+    const others = [12, 13, 14, 15, 16].map((id) => lyingJewel(jewel(id, 30, 60, 0)));
     expect(new Set([one, ...others].map((spot) => spot.turn.toFixed(3))).size).toBe(6);
     expect(new Set([one, ...others].map((spot) => spot.tilt.toFixed(4))).size).toBe(6);
     for (const spot of others) {
@@ -146,53 +146,37 @@ describe('a jewel in the cabinet', () => {
     }
   });
 
-  it('comes over the lip beside the catcher tipping forward, and down to the lower table as long as a medal takes', () => {
+  it('is shown tumbling down the START plate only while the machine has it on its way down, and lies as any jewel does once it is down', () => {
     const time = 2;
     const front = pusherFront(time);
-    const beside = (sinceDrop: number) => lyingJewel(jewel(21, 12, front + MEDAL_RADIUS, 0, { sinceDrop }), time);
-    expect(caught(jewel(21, 12, front + MEDAL_RADIUS, 0, { sinceDrop: 0.05 }), time)).toBeNull();
-    expect(beside(0).height).toBeCloseTo(P + JEWEL_CUT.pavilion, 9);
-    const heights = [0, 0.25, 0.5, 0.75, 0.99].map((share) => beside(CHUCKERS.drop * share).height);
-    for (let i = 1; i < heights.length; i++) expect(heights[i]).toBeLessThan(heights[i - 1]);
-    expect(beside(CHUCKERS.drop * 0.5).tilt).toBeGreaterThan(beside(0).tilt + 0.5);
-    // Once it is down it lies as any jewel on the lower table does.
-    expect(beside(CHUCKERS.drop)).toEqual(lyingJewel(jewel(21, 12, front + MEDAL_RADIUS, 0), time));
-    expect(beside(CHUCKERS.drop).height).toBe(JEWEL_CUT.pavilion);
-  });
-
-  it('goes over the lip’s edge and down into the catcher’s well when it comes over the lip there, out of the light: it fits no START slot, and no tongue carries it', () => {
-    const time = 2;
-    const front = pusherFront(time);
-    // Over the lip in line with a slot, and between two of them: neither takes it, and it is on neither's tongue.
-    for (const x of [50, 43]) {
-      const medal = jewel(22, x, front + MEDAL_RADIUS, 0, { sinceDrop: CHUCKERS.drop * 0.5 });
-      const behind = caught(medal, time);
-      expect([behind?.chucker, behind?.near, behind?.leg]).toEqual([-1, -1, 'gap']);
-      const spot = lyingJewel(medal, time);
-      expect(spot.x).toBe(x);
-      // It is where a medal that fits no slot is on its way down the well, tipped as the catcher has that, with its point where that medal's lower face would be; and it is as dark as that medal is.
-      expect(spot.depth).toBe(behind?.depth);
-      expect(spot.depth).toBeGreaterThan(front);
-      expect(spot.tilt).toBe(behind?.tilt);
-      expect(spot.height).toBeCloseTo((behind?.height ?? 0) - T / 2 + JEWEL_CUT.pavilion, 9);
-      expect(spot.height).toBeLessThan(P + JEWEL_CUT.pavilion);
-      expect(spot.light).toBe(behind?.light);
-      expect(spot.light).toBeLessThan(1);
-      // Once it is down it is under the catcher, where the engine has it, lying as any jewel on the lower table does, in the light it has there.
-      const down = jewel(22, x, front + MEDAL_RADIUS, 0, { sinceDrop: 0.5 });
-      expect(caught(down, time)).toBeNull();
-      expect(lyingJewel(down, time)).toEqual(lyingJewel(jewel(22, x, front + MEDAL_RADIUS, 0), time));
-      expect(lyingJewel(down, time).light).toBe(1);
+    // On the plate: from the lip, where it stood on its point on the pusher.
+    const sliding = (remaining: number): FallingMedal => ({ id: 23, x: 30, y: pusherFront(time + remaining) + PLATE.reach + PRIZE_LANDS.jewel, level: 0, fromX: 30, fromY: front, rank: 0, ball: false, remaining, duration: ROLL_DOWN, source: 'slide', jewel: true });
+    const start = slidJewel(sliding(ROLL_DOWN), time);
+    expect(start?.height).toBeCloseTo(P + JEWEL_CUT.pavilion, 6);
+    expect(start?.depth).toBeCloseTo(front, 6);
+    // Down, every corner of it is where the jewel lying there has it: nothing jumps as it lands.
+    const end = slidJewel(sliding(0), time);
+    expect(end).not.toBeNull();
+    if (!end) return;
+    const lying = lyingJewel(jewel(23, 30, end.depth, 0));
+    for (const face of JEWEL_FACETS) {
+      for (const corner of face.corners) {
+        const [a, b] = [pointInCabinet(end, corner), pointInCabinet(lying, corner)];
+        for (let axis = 0; axis < 3; axis++) expect(a[axis]).toBeCloseTo(b[axis], 6);
+      }
     }
+    // Anything else is not on the plate.
+    expect(slidJewel({ ...sliding(0.2), source: 'payout' }, time)).toBeNull();
+    expect(slidJewel({ ...sliding(0.2), jewel: undefined }, time)).toBeNull();
   });
 
-  it('lands on the lower table, where the hatch throws it, in front of the catcher wherever the pusher is', () => {
+  it('lands on the lower table, where the hatch throws it, in front of the START plate wherever the pusher is', () => {
     const thrown = (remaining: number): FallingMedal => ({ id: 32, x: 52, y: JEWEL_DROP.near, level: 0, fromX: 52, fromY: RELEASE.depth, rank: 0, ball: false, remaining, duration: JEWEL_DROP.time, source: 'payout', jewel: true });
-    // The nearest it can land to the pusher is clear of the catcher's foot at the front of the stroke, by more than its own girdle.
+    // The nearest it can land to the pusher is clear of the plate's foot at the front of the stroke, by more than its own girdle.
     expect(JEWEL_DROP.near - JEWEL_CUT.girdle).toBeGreaterThan(PUSHER.max + CATCHER.foot.out);
     expect(fallingJewel(thrown(JEWEL_DROP.time)).height).toBeCloseTo(HATCH.height, 6);
     // It ends as the stone that lies there from then on, on the lower table: nothing jumps when it lands.
-    expect(fallingJewel(thrown(0))).toEqual(lyingJewel(jewel(32, 52, JEWEL_DROP.near, 0), 0));
+    expect(fallingJewel(thrown(0))).toEqual(lyingJewel(jewel(32, 52, JEWEL_DROP.near, 0)));
     expect(fallingJewel(thrown(0)).height).toBe(JEWEL_CUT.pavilion);
     // Half way through its throw it is already out over the pusher, and high above it.
     const midway = fallingJewel(thrown(JEWEL_DROP.time / 2));
@@ -215,7 +199,7 @@ describe('a jewel in the cabinet', () => {
     expect(midway.turn).not.toBeCloseTo(start.turn, 1);
     const end = fallingJewel(falling(0));
     // Down, it is exactly the stone that lies there from then on: nothing jumps when it lands.
-    expect(end).toEqual(lyingJewel(jewel(31, 48, 9, 1), 0));
+    expect(end).toEqual(lyingJewel(jewel(31, 48, 9, 1)));
   });
 
   it('tips forward and drops into the tray when it has gone over the front', () => {
@@ -231,7 +215,7 @@ describe('a jewel in the cabinet', () => {
     expect(at(2).tilt).toBe(Math.PI);
     expect(at(0.3).height).toBeLessThan(0);
     // The turn about its own axis is the one it had on the table: it does not snap round as it goes.
-    expect(at(0.2).turn).toBe(lyingJewel(jewel(41, 60, 99, 0), 0).turn);
+    expect(at(0.2).turn).toBe(lyingJewel(jewel(41, 60, 99, 0)).turn);
   });
 
   it('has a glint on its table that comes and goes, each stone in its own time, and is steady with reduced motion', () => {

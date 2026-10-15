@@ -10,7 +10,8 @@ const DT = 1 / 60;
 
 /**
  * Runs the machine a step at a time until `done`, and gives back every medal the machine itself let go on the way
- * (not what was in the air already), the medals that left the field, and the seconds it took.
+ * (not what was in the air already, and not what the pusher took over its lip and down the START plate, or a tower
+ * that went over), the medals that left the field, and the seconds it took.
  */
 function run(machine: Machine, done: (machine: Machine) => boolean, most = 20) {
   const before = new Set(machine.falling.map((medal) => medal.id));
@@ -21,7 +22,7 @@ function run(machine: Machine, done: (machine: Machine) => boolean, most = 20) {
     const events = step(machine, DT);
     gone += events.won + events.lost;
     seconds += DT;
-    for (const medal of machine.falling) if (!before.has(medal.id) && !seen.has(medal.id) && medal.source !== 'spill') seen.set(medal.id, { ...medal });
+    for (const medal of machine.falling) if (!before.has(medal.id) && !seen.has(medal.id) && medal.source !== 'spill' && medal.source !== 'slide') seen.set(medal.id, { ...medal });
   }
   return { let: [...seen.values()], gone, seconds };
 }
@@ -124,8 +125,8 @@ describe('a prize big enough to pour', () => {
     // Evenly across the band, as the slot throws them: the middle of it, and as wide.
     const mean = poured.reduce((sum, medal) => sum + medal.x, 0) / poured.length;
     const spread = Math.sqrt(poured.reduce((sum, medal) => sum + (medal.x - mean) ** 2, 0) / poured.length);
-    expect(mean).toBeGreaterThan(48.5);
-    expect(mean).toBeLessThan(51.5);
+    expect(mean).toBeGreaterThan(FIELD.width / 2 - 1.5);
+    expect(mean).toBeLessThan(FIELD.width / 2 + 1.5);
     expect(spread).toBeCloseTo((PAYOUT.to - PAYOUT.from) / Math.sqrt(12), 0);
   });
 
@@ -140,8 +141,8 @@ describe('a prize big enough to pour', () => {
     const spread = Math.sqrt(xs.reduce((sum, x) => sum + (x - mean) ** 2, 0) / xs.length);
     expect(xs.length).toBeGreaterThan(300);
     expect(xs.every((x) => x >= POUR.from && x <= POUR.to)).toBe(true);
-    expect(mean).toBeGreaterThan(47);
-    expect(mean).toBeLessThan(53);
+    expect(mean).toBeGreaterThan(FIELD.width / 2 - 3);
+    expect(mean).toBeLessThan(FIELD.width / 2 + 3);
     expect(Math.abs(spread - (POUR.to - POUR.from) / Math.sqrt(12))).toBeLessThan(2.5);
   });
 

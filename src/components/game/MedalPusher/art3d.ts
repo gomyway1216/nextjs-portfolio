@@ -2,16 +2,15 @@
  * What is printed on the cabinet, painted flat with a canvas and handed to
  * the 3D renderer as textures: the lower table with its lanes and lettering,
  * the panel under the screen, the side walls, the top of the pusher, the
- * front of the table, and the apron of the catcher with the word START under
- * each pocket. And one thing that is not paint: the relief struck into a
- * medal's face.
+ * front of the table, and the two START signs on the START plate. And one
+ * thing that is not paint: the relief struck into a medal's face.
  */
 
-import { APRON, CATCHER } from './catcher';
+import { SIGN } from './catcher';
 import { FIELD, PUSHER } from './engine';
 import { JEWEL_LAMPS, JEWEL_PLATE, LAMP_OUTLINE, jewelLampX } from './jewel';
 import { FACE_STAR } from './medalLook';
-import { TABLE_WORDS, TRAY, paintApron, starPath } from './render';
+import { TABLE_WORDS, TRAY, paintStartSign, starPath } from './render';
 import { SIDE_HOLE, acrossAt } from './sidehole';
 import { HEIGHT, HOLD_LAMPS, HOUSING, SCREEN } from './view';
 
@@ -22,7 +21,7 @@ const P = HEIGHT.pusher;
 
 /** How far down the front of the table goes. */
 export const TRAY_DROP = 18;
-/** How many pixels of the catcher's apron are painted to a field unit: its words are read at the nearest the camera gets to anything printed. */
+/** How many pixels of the START signs are painted to a field unit: their words are read at the nearest the camera gets to anything printed. */
 export const SIGN_SHARPNESS = 28;
 
 /** A canvas `width` by `height` field units, drawn on in those units. */
@@ -362,12 +361,13 @@ export function paintLip(): HTMLCanvasElement {
   g.lineWidth = 0.45;
   g.lineJoin = 'round';
   g.lineCap = 'round';
-  for (let x = 14; x < W; x += 12) {
-    if (x - 3.2 < TRAY.from || x + 3.2 > TRAY.to || (x + 3.2 > JEWEL_PLATE.from && x - 3.2 < JEWEL_PLATE.to)) continue;
+  // One arrow to either side of the jewel lamps' plate, as the canvas has them.
+  const halfArrow = Math.min(3.2, (JEWEL_PLATE.from - TRAY.from) / 2 - 0.4);
+  for (const x of [(TRAY.from + JEWEL_PLATE.from) / 2, (JEWEL_PLATE.to + TRAY.to) / 2]) {
     g.beginPath();
-    g.moveTo(x - 3.2, 7.5);
+    g.moveTo(x - halfArrow, 7.5);
     g.lineTo(x, 13);
-    g.lineTo(x + 3.2, 7.5);
+    g.lineTo(x + halfArrow, 7.5);
     g.stroke();
   }
   // The picture runs down from the table's edge, so a height under the edge is that far down it.
@@ -395,12 +395,17 @@ export function paintLip(): HTMLCanvasElement {
 }
 
 /**
- * The apron of the catcher, from its rail down to its foot: a plate with the
- * word START under each pocket. The top of the picture is the rail.
+ * The two START signs on the START plate, side by side, the left one first:
+ * each with the word START and chevrons pointing to the holes. The top of the
+ * picture is the edge of the sign nearest the lip.
  */
 export function paintSign(): HTMLCanvasElement {
-  const { canvas, g } = sheet(CATCHER.to - CATCHER.from, APRON, SIGN_SHARPNESS);
-  if (g) paintApron(g);
+  const { canvas, g } = sheet(SIGN.wide * 2, SIGN.long, SIGN_SHARPNESS);
+  if (g) {
+    paintStartSign(g, -1);
+    g.translate(SIGN.wide, 0);
+    paintStartSign(g, 1);
+  }
   return canvas;
 }
 

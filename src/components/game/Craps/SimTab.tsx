@@ -105,6 +105,9 @@ export const SimTab = () => {
 
   return (
     <div className={styles.oddsLayout}>
+      <p className={styles.intro} data-testid="craps-sim-own-medals">
+        {t.simOwnMedals}
+      </p>
       <section className={styles.panel} aria-labelledby="craps-sim-edge-title">
         <h3 id="craps-sim-edge-title" className={styles.blockTitle}>
           {t.simEdgeTitle}
@@ -248,7 +251,7 @@ export const SimTab = () => {
               </div>
             </div>
             <h4 className={styles.subTitle}>{t.finalDist}</h4>
-            <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.bankroll} />
+            <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.simMedalsAxis} />
             <h4 className={styles.subTitle}>{t.sampleSession}</h4>
             <TrajectoryChart trajectory={summary.sampleTrajectory} start={summaryConfig.bankroll} xLabel={t.survivalAxis} />
           </div>

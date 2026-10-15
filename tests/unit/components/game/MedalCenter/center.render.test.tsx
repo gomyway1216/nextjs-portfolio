@@ -28,13 +28,21 @@ describe('the medal center’s front, as the server sends it', () => {
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
-    expect(soon).toEqual(['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
+    expect(soon).toEqual(['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'three-card-poker']);
     for (const id of soon) {
       expect(html).toContain(`data-machine="${id}"`);
       expect(html).not.toContain(`center-play-${id}`);
     }
     // Every machine on the floor is a game the site has.
     for (const { id } of FLOOR) expect(games.some((game) => game.id === id)).toBe(true);
+  });
+
+  it('has Craps open on the floor, with a Play link to its table', () => {
+    const html = render();
+    const play = html.match(/<a[^>]*data-testid="center-play-craps"[^>]*>/)?.[0] ?? '';
+    expect(play).toContain('href="/games/craps"');
+    expect(html).toMatch(/<li[^>]*data-open="true" data-machine="craps"/);
+    expect(FLOOR.find(({ id }) => id === 'craps')?.path).toBe(games.find((game) => game.id === 'craps')?.path);
   });
 
   it('reads in Japanese, in the words of a medal counter', () => {

@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useLayoutEffect, useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { bank as medalBank } from '../MedalCenter/bank';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import type { AccountStore, Player } from '../MedalPusher/account';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
@@ -11,11 +15,29 @@ import styles from './Craps.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
-export const Craps = () => {
+export interface CrapsProps {
+  /** Who is playing. Without one, a guest on this device. */
+  player?: Player;
+  /** The account's store for the medals of the Medal Game Center. Without one, the medals are this device's alone. */
+  bankStore?: AccountStore | null;
+  /** Where the account keeps what the Medal Pusher kept before the medals were shared, read once by the medals (bank.ts). */
+  legacy?: { machines?: AccountStore | null; books?: AccountStore | null };
+}
+
+export const Craps = ({ player, bankStore = null, legacy }: CrapsProps = {}) => {
   const [tab, setTab] = useState<Tab>('play');
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);
+
+  // The medals follow the player. They are told who is playing before anything on the page listens to them (a layout
+  // effect runs before the effects that listen), so the first medals the table opens are the player's.
+  const { uid = null, settled = true, expected = false } = player ?? {};
+  const machines = legacy?.machines ?? null;
+  const books = legacy?.books ?? null;
+  useLayoutEffect(() => {
+    medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? { machines, books } : {});
+  }, [uid, settled, expected, bankStore, machines, books]);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play', label: t.tabPlay },
@@ -28,6 +50,11 @@ export const Craps = () => {
       <div className={styles.shell}>
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
+            {/* The table stands on the floor of the Medal Game Center, whose front has the medals, the daily bonus and the reset. */}
+            <Link className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="craps-center">
+              <span aria-hidden>← </span>
+              {t.centerLink}
+            </Link>
             <h1 className={styles.title}>
               <span aria-hidden>🎲</span> {t.title}
             </h1>
@@ -56,9 +83,9 @@ export const Craps = () => {
         </div>
 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
-            never drops the bankroll or a roll that is still tumbling. */}
+            never drops the table or a roll that is still tumbling. */}
         <div role="tabpanel" id="craps-panel-play" aria-labelledby="craps-tab-play" hidden={tab !== 'play'}>
-          <PlayTab />
+          <PlayTab settled={settled} />
         </div>
         <div role="tabpanel" id="craps-panel-odds" aria-labelledby="craps-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

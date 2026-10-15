@@ -11,12 +11,15 @@ import {
 } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
+import { SPOT_MAX } from './medalTable';
 import styles from './Roulette.module.css';
 
+// A statistical demo with pretend medals: nothing here touches the player's own medals (the medal center's bank).
+// The spot limit is the play table's own, so the run is the one the player would face at it.
 const defaults: MartingaleConfig = {
   initialBankroll: 1000,
   baseBet: 1,
-  tableMax: 500,
+  tableMax: SPOT_MAX,
   maxSpins: 1000,
   side: 'red',
 };
@@ -187,8 +190,9 @@ const Results = ({ state }: { state: SimState }) => {
         <BankrollChart
           trajectory={sample.trajectory}
           initialBankroll={config.initialBankroll}
-          yLabel={t.balance}
+          yLabel={t.medalsAxis}
           xLabel={t.spinsAxis}
+          outLabel={t.outMark}
         />
       </div>
     </div>

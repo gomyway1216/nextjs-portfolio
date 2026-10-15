@@ -3,6 +3,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { NOT_MONEY } from '../MedalCenter/strings';
 import type { OddsBet } from './analysis';
 import type { BetId, Mode, Outcome, Side, Winner } from './engine';
 import type { PatternId } from './sim';
@@ -18,22 +19,42 @@ export interface BaccaratStrings {
   betName: Record<BetId, string>;
   side: Record<Side, string>;
   // Play
-  bankroll: string;
-  onTable: string;
-  net: string;
-  chip: string;
+  /** The medal counter: its LED windows, and the counts in type beside them. */
+  medalsLed: string;
+  betLed: string;
+  winLed: string;
+  medalsHeld: (medals: string) => string;
+  medalsOnTable: (medals: string) => string;
+  medalsWon: (medals: string) => string;
+  medalsWaiting: string;
+  /** Shown near the counter, and in the help: medals are not money (the Medal Game Center's own words, NOT_MONEY). */
+  notMoney: string;
+  medalsFrom: string;
+  centerLink: string;
+  noticeTitle: string;
+  noticeBody: string;
+  noticeOk: string;
+  cardAway: string;
+  playHere: string;
+  refill: (medals: number) => string;
+  sayRestart: string;
+  sayResumed: (medals: number) => string;
+  betButtons: string;
+  betButtonAria: (medals: number) => string;
   deal: string;
   dealing: string;
   undo: string;
   clear: string;
   rebet: string;
-  reset: string;
   tableMode: string;
   modeName: Record<Mode, string>;
   modeLocked: string;
   bankerPays: (mode: Mode) => string;
   betAria: (name: string, pays: string) => string;
-  noFunds: string;
+  noMedals: string;
+  notKept: string;
+  spotMax: (name: string, most: number) => string;
+  bankerStep: (step: number) => string;
   placeBets: string;
   natural: string;
   result: (winner: Winner, playerTotal: number, bankerTotal: number, natural: boolean) => string;
@@ -147,10 +168,11 @@ const en: BaccaratStrings = {
   tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: [
-    'Place chips on Player, Banker, Tie or the side bets, then press DEAL. Two hands of two cards are dealt; the hand closer to 9 wins.',
+    'Put medals on Player, Banker, Tie or the side bets with the BET buttons, then press DEAL. The medals on the felt are taken from your medals when the cards are dealt, and what a bet wins comes back to them when the hand is over. Two hands of two cards are dealt; the hand closer to 9 wins.',
     'Cards are worth their face value, aces 1, tens and faces 0, and only the last digit counts: 7 + 8 = 15 counts as 5.',
     'Nobody makes decisions — a fixed chart decides third cards. An 8 or 9 on the first two cards is a “natural” and ends the hand. Otherwise the Player draws on 0–5, and the Banker draws according to its total and the Player’s third card (see the Odds tab).',
-    'Player pays 1:1. Banker pays 1:1 minus a 5% commission; on the no-commission (EZ) table it pays 1:1 but pushes when it wins with a three-card 7. Both push on a tie. Tie pays 8:1, pairs 11:1, Dragon 7 40:1 and Panda 8 25:1.',
+    'Player pays 1:1. On the no-commission (EZ) table, where you sit down, Banker pays 1:1 but pushes when it wins with a three-card 7. On the 5% commission table Banker pays 0.95:1, and is bet in 20s so that the 5% is always a whole medal: 20 medals on Banker win 19. Both push on a tie. Tie pays 8:1, pairs 11:1, Dragon 7 40:1 and Panda 8 25:1.',
+    'Each press of a BET button puts that many medals on a spot. Player and Banker take up to 100 medals each; the Tie and the side bets up to 20 each.',
     'The shoe holds eight decks. The first card is turned over and that many cards are burned; the cut card near the end marks the last hand before a new shoe.',
   ],
   betName: {
@@ -163,22 +185,41 @@ const en: BaccaratStrings = {
     panda8: 'Panda 8',
   },
   side: { player: 'Player', banker: 'Banker' },
-  bankroll: 'Bankroll',
-  onTable: 'On table',
-  net: 'Net',
-  chip: 'Chip',
+  medalsLed: 'MEDALS',
+  betLed: 'BET',
+  winLed: 'WIN',
+  medalsHeld: (n) => `${n} medals`,
+  medalsOnTable: (n) => `${n} on the table`,
+  medalsWon: (n) => `${n} won`,
+  medalsWaiting: 'Looking for your medals…',
+  notMoney: NOT_MONEY.en,
+  medalsFrom: 'These are your medals from the Medal Game Center: every game there plays with the same ones, and they are reset only there.',
+  centerLink: 'Medal Game Center',
+  noticeTitle: 'Baccarat now plays with your medals',
+  noticeBody:
+    'This table now takes its bets from your medals at the Medal Game Center, the same medals every game there plays with. The old practice chips are gone: they were never medals, and they are not turned into medals.',
+  noticeOk: 'Got it',
+  cardAway: 'Your medals are being played in another tab. This table waits here.',
+  playHere: 'Play here',
+  refill: (n) => `Out of medals — take ${n} more`,
+  sayRestart: 'Your medals were reset at the Medal Game Center, so this table starts over with a new shoe.',
+  sayResumed: (n) => `The hand dealt before this page closed has been finished: ${n} medals came back.`,
+  betButtons: 'BET',
+  betButtonAria: (n) => `Bet ${n} ${n === 1 ? 'medal' : 'medals'} a press`,
   deal: 'DEAL',
   dealing: 'Dealing…',
   undo: 'Undo',
   clear: 'Clear',
   rebet: 'Rebet',
-  reset: 'Reset',
   tableMode: 'Table',
   modeName: { commission: '5% commission', ez: 'No commission (EZ)' },
   modeLocked: 'Take your bets down to switch tables.',
-  bankerPays: (mode) => (mode === 'ez' ? '1:1 · 3-card 7 pushes' : '0.95:1'),
+  bankerPays: (mode) => (mode === 'ez' ? '1:1 · 3-card 7 pushes' : '0.95:1 · in 20s'),
   betAria: (name, pays) => `${name} (${pays})`,
-  noFunds: 'Not enough bankroll for that chip.',
+  noMedals: 'Not enough medals for that bet.',
+  notKept: 'This browser is not saving anything just now, so no hand can be dealt with your medals.',
+  spotMax: (name, most) => `${name} takes up to ${most} medals.`,
+  bankerStep: (step) => `On the 5% table the Banker is bet in ${step}s, so its 5% is a whole medal.`,
   placeBets: 'Place your bets, then deal.',
   natural: 'Natural',
   result: (winner, p, b, natural) => {
@@ -204,7 +245,7 @@ const en: BaccaratStrings = {
   roadAria: (name, b, p, t) => `${name}: Banker ${b}, Player ${p}, Tie ${t}`,
   roadNote:
     'Casinos post these boards so players can chase streaks and patterns. Every hand is still a fresh draw from the shoe — the patterns predict nothing.',
-  statsTitle: 'This session',
+  statsTitle: 'This table',
   hands: 'Hands',
   observedVsExact: 'observed · exact',
   pairs: 'Pairs (P / B)',
@@ -218,7 +259,7 @@ const en: BaccaratStrings = {
   colEdge: 'Edge',
   playerEdge: 'in your favor',
   hint: [
-    'Banker wins a little more often (45.86% vs 44.62%) because it acts after seeing the Player’s third card; the 5% commission is what keeps it a house game.',
+    'Banker wins a little more often (45.86% vs 44.62%) because it acts after seeing the Player’s third card; the 5% commission, or on the EZ table the push on a three-card 7, is what keeps it a house game.',
     'Every bet settles each hand. Player and Banker push on a tie.',
     'A pair means the first two cards share a rank (K-K, not K-Q).',
   ],
@@ -249,7 +290,7 @@ const en: BaccaratStrings = {
   colPush: 'Push',
   colHouseEdge: 'House edge',
   edgeNote:
-    'Edge per hand dealt, counting a push as a bet returned. The commission turns the Banker’s head start into a 1.06% house edge; the EZ table waives it but pushes the 2.25% of hands the Banker wins with a three-card 7 — slightly cheaper at 1.02%. Some casinos pay 9:1 on the Tie, which cuts its edge from 14.4% to 4.8%.',
+    'Edge per hand dealt, counting a push as a bet returned. The commission turns the Banker’s head start into a 1.06% house edge; the EZ table waives it but pushes the 2.25% of hands the Banker wins with a three-card 7 — slightly cheaper at 1.02%. Some casinos pay 9:1 on the Tie, which cuts its edge from 14.4% to 4.8%. At this table every bet wins whole medals and these edges are exact: every EZ bet wins whole medals already, and on the 5% table the Banker is bet in 20s, so 0.95:1 always comes to whole medals (20 win 19).',
   tableauTitle: 'The drawing rules',
   tableauIntro:
     'A natural (8 or 9 on two cards) on either side ends the hand. Otherwise the Player draws on 0–5 and stands on 6–7, then the Banker follows this chart:',
@@ -330,10 +371,11 @@ const ja: BaccaratStrings = {
   tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: [
-    'プレイヤー・バンカー・タイやサイドベットにチップを置いて「ディール」を押します。2枚ずつ配られ、合計が9に近い方の勝ちです。',
+    '「ベット」ボタンでプレイヤー・バンカー・タイやサイドベットにメダルを置き、「ディール」を押します。置いたメダルはカードが配られるときに持ちメダルから使われ、勝った分は回が終わると持ちメダルに戻ります。2枚ずつ配られ、合計が9に近い方の勝ちです。',
     'カードは数字どおり、Aは1、10と絵札は0と数え、下1桁だけを使います（7＋8＝15は5）。',
     '判断は一切ありません。3枚目は決まった表で決まります。最初の2枚で8か9なら「ナチュラル」で即決着。そうでなければプレイヤーは0〜5で引き、バンカーは自分の合計とプレイヤーの3枚目で引くかどうかが決まります（確率タブ参照）。',
-    'プレイヤーは1:1。バンカーは1:1から5%のコミッションを引いた額で、ノーコミッション（EZ）テーブルでは1:1ですが3枚の7で勝ったときは引き分けです。タイのときはどちらも引き分け。タイは8:1、ペアは11:1、ドラゴン7は40:1、パンダ8は25:1です。',
+    'プレイヤーは1:1。最初に座るノーコミッション（EZ）テーブルでは、バンカーは1:1ですが3枚の7で勝ったときは引き分けです。コミッション5%のテーブルでは、バンカーは0.95:1で、5%がいつもメダル1枚単位になるよう20枚単位でベットします（20枚で勝つと19枚）。タイのときはどちらも引き分け。タイは8:1、ペアは11:1、ドラゴン7は40:1、パンダ8は25:1です。',
+    '「ベット」ボタンを1回押すと、その枚数がスポットに置かれます。プレイヤーとバンカーはそれぞれ最大100枚、タイとサイドベットはそれぞれ最大20枚までです。',
     'シューには8デッキ入っています。最初の1枚をめくり、その数だけカードを捨て札（バーン）にします。終盤のカットカードが出たら、その回でシューは終わりです。',
   ],
   betName: {
@@ -346,22 +388,41 @@ const ja: BaccaratStrings = {
     panda8: 'パンダ8',
   },
   side: { player: 'プレイヤー', banker: 'バンカー' },
-  bankroll: '所持金',
-  onTable: 'ベット中',
-  net: '収支',
-  chip: 'チップ',
+  medalsLed: '持ちメダル',
+  betLed: 'ベット',
+  winLed: '獲得',
+  medalsHeld: (n) => `${n}枚`,
+  medalsOnTable: (n) => `テーブルに${n}枚`,
+  medalsWon: (n) => `${n}枚獲得`,
+  medalsWaiting: 'メダルを確認しています…',
+  notMoney: NOT_MONEY.ja,
+  medalsFrom: 'メダルゲームセンターの持ちメダルです。センターのどのゲームでも同じメダルで遊び、リセットはセンターでのみ行えます。',
+  centerLink: 'メダルゲームセンター',
+  noticeTitle: 'バカラは持ちメダルで遊ぶようになりました',
+  noticeBody:
+    'このテーブルのベットは、メダルゲームセンターの持ちメダルから使います。センターのどのゲームとも同じメダルです。以前の練習用チップはなくなりました。チップはメダルではなかったので、メダルには替わりません。',
+  noticeOk: 'わかりました',
+  cardAway: 'メダルは別のタブで遊ばれています。このテーブルはここで待っています。',
+  playHere: 'ここで遊ぶ',
+  refill: (n) => `メダルがなくなりました — ${n}枚もらう`,
+  sayRestart: 'メダルゲームセンターでメダルがリセットされたので、このテーブルも新しいシューで最初からになります。',
+  sayResumed: (n) => `ページを閉じる前に配った回を最後まで進めました。${n}枚獲得です。`,
+  betButtons: 'ベット',
+  betButtonAria: (n) => `1回${n}枚ベット`,
   deal: 'ディール',
   dealing: 'ディール中…',
   undo: '取り消し',
   clear: 'クリア',
   rebet: '同じベット',
-  reset: 'リセット',
   tableMode: 'テーブル',
   modeName: { commission: 'コミッション5%', ez: 'ノーコミッション（EZ）' },
   modeLocked: 'テーブルを切り替えるにはベットを外してください。',
-  bankerPays: (mode) => (mode === 'ez' ? '1:1・3枚の7は引き分け' : '0.95:1'),
+  bankerPays: (mode) => (mode === 'ez' ? '1:1・3枚の7は引き分け' : '0.95:1・20枚単位'),
   betAria: (name, pays) => `${name}（${pays}）`,
-  noFunds: '所持金が足りません。',
+  noMedals: 'メダルが足りません。',
+  notKept: 'このブラウザにはいま保存できないため、持ちメダルで配ることができません。',
+  spotMax: (name, most) => `${name}は最大${most}枚までです。`,
+  bankerStep: (step) => `コミッション5%のテーブルでは、5%がメダル1枚単位になるよう、バンカーは${step}枚単位でベットします。`,
   placeBets: 'ベットしてからディールしてください。',
   natural: 'ナチュラル',
   result: (winner, p, b, natural) => {
@@ -387,7 +448,7 @@ const ja: BaccaratStrings = {
   roadAria: (name, b, p, t) => `${name}：バンカー${b}、プレイヤー${p}、タイ${t}`,
   roadNote:
     'カジノはこうした罫線を掲示して、流れやパターンを追わせます。でも毎回シューから新しく引いているだけで、パターンは何も予言しません。',
-  statsTitle: 'このセッション',
+  statsTitle: 'このテーブル',
   hands: 'ハンド数',
   observedVsExact: '実測・理論値',
   pairs: 'ペア（P / B）',
@@ -401,7 +462,7 @@ const ja: BaccaratStrings = {
   colEdge: 'エッジ',
   playerEdge: 'プレイヤー有利',
   hint: [
-    'バンカーはプレイヤーの3枚目を見てから動けるので少しだけ勝ちやすく（45.86%対44.62%）、その分を5%のコミッションで回収しています。',
+    'バンカーはプレイヤーの3枚目を見てから動けるので少しだけ勝ちやすく（45.86%対44.62%）、その分を5%のコミッション（EZテーブルでは3枚の7での引き分け）で回収しています。',
     'ベットは毎回すべて精算されます。タイのときプレイヤーとバンカーは引き分けです。',
     'ペアは最初の2枚が同じランク（K-KはペアでK-Qは違う）のときです。',
   ],
@@ -432,7 +493,7 @@ const ja: BaccaratStrings = {
   colPush: '引き分け',
   colHouseEdge: 'ハウスエッジ',
   edgeNote:
-    '配られた1回あたりのエッジで、引き分けは賭け金が戻るものとして数えています。バンカーの有利さはコミッションで1.06%のハウスエッジに変わります。EZテーブルはコミッションなしの代わりに、バンカーが3枚の7で勝つ2.25%の回を引き分けにしていて、1.02%とわずかに安くなります。タイを9:1で払うカジノでは、エッジは14.4%から4.8%に下がります。',
+    '配られた1回あたりのエッジで、引き分けは賭け金が戻るものとして数えています。バンカーの有利さはコミッションで1.06%のハウスエッジに変わります。EZテーブルはコミッションなしの代わりに、バンカーが3枚の7で勝つ2.25%の回を引き分けにしていて、1.02%とわずかに安くなります。タイを9:1で払うカジノでは、エッジは14.4%から4.8%に下がります。このテーブルではどのベットもメダル1枚単位で払われ、エッジはここに示した値のままです。EZテーブルの配当はもともと1枚単位で、コミッション5%のテーブルではバンカーを20枚単位でベットするので、0.95:1がいつも1枚単位になります（20枚で勝つと19枚）。',
   tableauTitle: 'ドローのルール',
   tableauIntro:
     'どちらかがナチュラル（最初の2枚で8か9）ならその場で終わり。そうでなければプレイヤーは0〜5で引き、6〜7で止まります。バンカーはこの表に従います：',

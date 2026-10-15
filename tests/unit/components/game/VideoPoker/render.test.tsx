@@ -5,11 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { VideoPoker } from '@/components/game/VideoPoker';
 import { MiniCard, PlayingCard } from '@/components/game/VideoPoker/Cards';
 import { OddsTab } from '@/components/game/VideoPoker/OddsTab';
-import { EMPTY_STATS, INITIAL_CREDITS, PlayTab, effectivePays, judgePlay } from '@/components/game/VideoPoker/PlayTab';
+import { EMPTY_STATS, MEDAL_PLACES, PlayTab, effectivePays, judgePlay } from '@/components/game/VideoPoker/PlayTab';
 import { SimTab } from '@/components/game/VideoPoker/SimTab';
 import { analyzeHand } from '@/components/game/VideoPoker/analysis';
 import { NetHistogram, histogramBins } from '@/components/game/VideoPoker/charts';
 import { PAY_TABLES } from '@/components/game/VideoPoker/engine';
+import { getStrings } from '@/components/game/VideoPoker/i18n';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { createI18nInstance } from '@/lib/i18n';
 
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
@@ -27,10 +29,22 @@ describe('cards', () => {
 });
 
 describe('PlayTab', () => {
-  it('opens on five face-down cards with the 9/6 pay table and a five-coin bet', () => {
+  it('opens on five face-down cards with the 9/6 pay table and a five-medal bet, and no medals shown until they are found', () => {
     const markup = render(<PlayTab />);
-    expect(markup).toContain(`data-testid="vp-credits">${INITIAL_CREDITS.toLocaleString('en-US')}<`);
+    // The medals are the medal center's: on the server, and until they have been read, nothing is shown and nothing can be bet.
+    expect(markup).toContain('data-testid="vp-medals" data-loaded="false">—<');
+    expect(markup).not.toContain('vp-credits');
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>DEAL</);
+    expect(markup).toContain('Looking for your medals…');
     expect(markup).toContain('data-testid="vp-bet">5<');
+    // The medal counter is LED digits, every one dark until the medals are read.
+    const counter = markup.match(/data-testid="vp-medal-counter"[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(counter.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(MEDAL_PLACES * 7);
+    expect(counter).not.toContain('data-on="true"');
+    // What the medals are, by the counter.
+    expect(markup).toContain('data-testid="vp-not-money">Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.<');
+    // There is no reset on the machine: the one reset is at the medal center.
+    expect(markup).not.toContain('>Reset<');
     expect(markup.match(/aria-label="Face-down card"/g)).toHaveLength(10); // 5 slots + 5 card backs
     expect(markup).not.toContain('data-card=');
     // Royal row: 250 per coin, 4,000 at five coins; full house 9, flush 6.
@@ -38,24 +52,25 @@ describe('PlayTab', () => {
     expect(markup).toMatch(/data-hand="fullHouse"><th[^>]*>Full House<\/th><td[^>]*>9</);
     expect(markup).toMatch(/data-hand="flush"><th[^>]*>Flush<\/th><td[^>]*>6</);
     expect(markup).toContain('>DEAL<');
-    expect(markup).toContain('Press DEAL to start.');
     expect(markup).toContain('9/6 · 99.54%');
   });
 
   it('is localized', () => {
     const markup = render(<PlayTab />, 'ja');
-    expect(markup).toContain('クレジット');
+    expect(markup).toContain('>メダル<');
+    expect(markup).not.toContain('クレジット');
     expect(markup).toContain('>ディール<');
     expect(markup).toContain('ロイヤルフラッシュ');
+    expect(markup).toContain('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。');
   });
 
   it('names the bet each pay column is for, and the current one, for screen readers', () => {
     const markup = render(<PlayTab />);
     expect(markup).toMatch(/<caption[^>]*>Pay table<\/caption>/);
-    expect(markup).toMatch(/<th scope="col"><span[^>]*>1 coin<\/span><\/th>/);
-    expect(markup).toMatch(/<th scope="col"><span[^>]*>4 coins<\/span><\/th>/);
-    expect(markup).toMatch(/<th scope="col" aria-current="true"><span[^>]*>5 coins \(current bet\)<\/span><\/th>/);
-    expect(render(<PlayTab />, 'ja')).toContain('5コイン（現在のベット）');
+    expect(markup).toMatch(/<th scope="col"><span[^>]*>1 medal<\/span><\/th>/);
+    expect(markup).toMatch(/<th scope="col"><span[^>]*>4 medals<\/span><\/th>/);
+    expect(markup).toMatch(/<th scope="col" aria-current="true"><span[^>]*>5 medals \(current bet\)<\/span><\/th>/);
+    expect(render(<PlayTab />, 'ja')).toContain('5枚（現在のベット）');
   });
 
   it('judges a finished hold against the best play under the rules it was dealt with', () => {
@@ -66,7 +81,7 @@ describe('PlayTab', () => {
     expect(values[0].mask).toBe(0b01111);
     const kept = judgePlay(EMPTY_STATS, { hand, mask: 0b01111, pays, coins: 5 });
     expect(kept).toMatchObject({ judged: 1, best: 1, givenUp: 0 });
-    // Keeping the flush gives up the difference, in coins.
+    // Keeping the flush gives up the difference, in medals.
     const flush = values.find((h) => h.mask === 0b11111)!;
     const both = judgePlay(kept, { hand, mask: 0b11111, pays, coins: 5 });
     expect(both.judged).toBe(2);
@@ -75,7 +90,7 @@ describe('PlayTab', () => {
     expect(both.givenUp).toBeCloseTo((18.4255 - 6) * 5, 2);
     // At one coin the royal pays 250, and the same hand is worth less: the snapshot matters.
     expect(analyzeHand(hand, effectivePays(PAY_TABLES['9/6'], 1))[0].ev).toBeLessThan(values[0].ev);
-    // Hands and money are counted at the draw, not here.
+    // Hands and medals are counted at the draw, not here.
     expect(both).toMatchObject({ hands: 0, wagered: 0, paid: 0 });
   });
 
@@ -167,10 +182,10 @@ describe('SimTab', () => {
     expect(markup).toContain('One evening at the machine');
     expect(markup).toContain('Common-sense rules');
     expect(markup.match(/>Run</g)).toHaveLength(2);
-    // The comparison is per coin at a five-coin bet (royal 800), not one-coin play.
-    expect(markup).toContain('betting five coins a hand');
-    expect(markup).toContain('a royal flush counts as 800 per coin');
-    expect(markup).not.toContain('one coin a hand');
+    // The comparison is per medal at a five-medal bet (royal 800), not one-medal play.
+    expect(markup).toContain('betting five medals a hand');
+    expect(markup).toContain('a royal flush counts as 800 per medal');
+    expect(markup).not.toContain('one medal a hand');
     expect(markup).not.toContain('data-testid="vp-sim-strategies"');
   });
 
@@ -178,7 +193,7 @@ describe('SimTab', () => {
     const markup = render(<SimTab />, 'ja');
     expect(markup).toContain('マシンで過ごす一晩');
     expect(markup).toContain('>実行<');
-    expect(markup).toContain('1ハンド5コイン賭けたときの還元率');
+    expect(markup).toContain('1ハンド5枚ベットしたときの還元率');
   });
 });
 
@@ -192,5 +207,45 @@ describe('VideoPoker shell', () => {
       ['sim', true],
     ]);
     expect(markup).toContain('ビデオポーカー');
+  });
+
+  it('stands on the medal center’s floor, with the way back to its front', () => {
+    const markup = render(<VideoPoker />);
+    expect(markup).toMatch(/<a[^>]*href="\/games\/medal-center"[^>]*data-testid="vp-center"/);
+    expect(markup).toContain('Medal Game Center');
+    // The notice that the machine plays with the medals now is the browser's to show, once: not on the server.
+    expect(markup).not.toContain('vp-notice');
+  });
+});
+
+describe('the words', () => {
+  /** Every string a player can be shown, both languages, with the function ones called. */
+  const shown = (lang: 'en' | 'ja'): string[] => {
+    const out: string[] = [];
+    const walk = (value: unknown) => {
+      if (typeof value === 'string') out.push(value);
+      else if (typeof value === 'function') {
+        const fn = value as (...args: unknown[]) => unknown;
+        for (const args of [[1, true, '1'], [5, false, '5'], ['A', 2, '2,000'], ['10', '20']]) walk(fn(...args));
+      } else if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === 'object') Object.values(value).forEach(walk);
+    };
+    walk(getStrings(lang));
+    return out;
+  };
+  // The note on what medals are is the one place that names money, to say that they are not.
+  const NOTE = NOT_MONEY;
+
+  it('says nothing that could be taken for real money, in English', () => {
+    const words = /\b(bank|banked|deposit|withdraw|cash|money|dollars?|balance|credits?|pay ?in|pay ?out|payback|paid back)\b|\$/i;
+    expect(shown('en').length).toBeGreaterThan(150);
+    expect('Credits').toMatch(words);
+    for (const text of shown('en')) expect(text.replaceAll(NOTE.en, ''), text).not.toMatch(words);
+  });
+
+  it('says nothing that could be taken for real money, in Japanese', () => {
+    const words = /預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|クレジット|コイン/;
+    expect(shown('ja').length).toBeGreaterThan(150);
+    for (const text of shown('ja')) expect(text.replaceAll(NOTE.ja, ''), text).not.toMatch(words);
   });
 });

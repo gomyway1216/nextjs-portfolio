@@ -3,7 +3,9 @@
 import { useCallback, useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { PlayTab } from './PlayTab';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { putNoticeAway, useNoticeShown } from './notice';
+import { PlayTab, type PlayTabProps } from './PlayTab';
 import { SimTab } from './SimTab';
 import { EdgeTab } from './EdgeTab';
 import { getStrings, betName } from './i18n';
@@ -12,13 +14,18 @@ import styles from './Roulette.module.css';
 
 type Tab = 'play' | 'sim' | 'edge';
 
-export const Roulette = () => {
+export type RouletteProps = PlayTabProps;
+
+/** The game. Who is playing is passed straight on to the table, which plays with that player's medals. */
+export const Roulette = ({ player }: RouletteProps = {}) => {
   const [tab, setTab] = useState<Tab>('play');
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);
 
   const openInfo = useCallback(() => setInfoOpen(true), []);
+  // Once: the table plays with the medal center's medals now, and its old chips are retired.
+  const noticeShown = useNoticeShown();
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play', label: t.tabPlay },
@@ -31,15 +38,34 @@ export const Roulette = () => {
       <div className={styles.shell}>
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
+            {/* The table stands on the medal center's floor, whose front has the medals, the daily bonus and the reset. */}
+            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="roulette-center">
+              <span aria-hidden>← </span>
+              {t.centerLink}
+            </a>
             <h1 className={styles.title}>
               <span aria-hidden>🎡</span> {t.title}
             </h1>
             <p className={styles.subtitle}>{t.subtitle}</p>
           </div>
-          <button type="button" className={styles.btn} onClick={openInfo}>
+          <button type="button" className={styles.btn} aria-haspopup="dialog" onClick={openInfo}>
             {t.howToPlay}
           </button>
         </div>
+
+        {noticeShown && (
+          <div className={styles.notice} role="note" data-testid="roulette-notice">
+            <p>
+              {t.notice}{' '}
+              <a className={styles.meterLink} href={MEDAL_CENTER_PATH}>
+                {t.noticeLink}
+              </a>
+            </p>
+            <button type="button" className={styles.btn} onClick={putNoticeAway} data-testid="roulette-notice-ok">
+              {t.noticeOk}
+            </button>
+          </div>
+        )}
 
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
@@ -58,10 +84,10 @@ export const Roulette = () => {
         </div>
 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
-            never resets the bankroll or drops a spin that is still rolling (its
-            bet is already on the table and it pays on settle). */}
+            never clears the felt or drops a spin that is still rolling (its
+            medals are already taken and it pays on settle). */}
         <div role="tabpanel" id="rl-panel-play" aria-labelledby="rl-tab-play" hidden={tab !== 'play'}>
-          <PlayTab />
+          <PlayTab player={player} />
         </div>
         <div role="tabpanel" id="rl-panel-sim" aria-labelledby="rl-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

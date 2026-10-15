@@ -8,6 +8,7 @@ import {
   VALUES,
   dealerOutcome,
   gameValue,
+  medalBetEdge,
   optimalChart,
   policyValue,
   type Action,
@@ -15,8 +16,9 @@ import {
   type Rules,
   type Value,
 } from './analysis';
-import { HARD_CHART, PAIR_CHART, SOFT_CHART } from './engine';
+import { HARD_CHART, PAIR_CHART, SOFT_CHART, naturalWin } from './engine';
 import { getStrings } from './i18n';
+import { MAX_BET, MIN_BET } from './medalTable';
 import styles from './Blackjack.module.css';
 
 const RULE_VARIANTS: { id: 'table' | 'h17' | 'sixFive' | 'noDas' | 'splitOnce' | 'surrender'; rules: Rules }[] = [
@@ -56,6 +58,17 @@ export const OddsTab = () => {
     ],
     [value],
   );
+  // Each bet the medal table takes, with what a blackjack wins on it in whole medals and the exact edge that gives.
+  const medalBets = useMemo(
+    () =>
+      Array.from({ length: MAX_BET - MIN_BET + 1 }, (_, i) => {
+        const bet = MIN_BET + i;
+        return { bet, wins: naturalWin(bet, true), edge: medalBetEdge(bet) };
+      }),
+    [],
+  );
+  // A blackjack the dealer does not match: what an odd bet's rounded-down half medal is lost on.
+  const unmatched = value.playerBlackjack * (1 - value.dealerBlackjack);
   const [picked, setPicked] = useState<Picked | null>({ section: 'hard', row: 16, up: 8 });
 
   const handName = (section: Section, row: number) =>
@@ -151,6 +164,38 @@ export const OddsTab = () => {
             </span>
           </div>
         </div>
+      </section>
+
+      <section className={styles.panel} aria-labelledby="bj-medal-title">
+        <h3 id="bj-medal-title" className={styles.blockTitle}>
+          {t.medalTitle}
+        </h3>
+        <p className={styles.note} style={{ marginTop: 0 }}>
+          {t.medalIntro(MIN_BET, MAX_BET)}
+        </p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="bj-medal-table">
+            <thead>
+              <tr>
+                <th>{t.colBet}</th>
+                <th className={styles.num}>{t.colNaturalWins}</th>
+                <th className={styles.num}>{t.colEdge}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {medalBets.map(({ bet, wins, edge }) => (
+                <tr key={bet} data-bet={bet}>
+                  <td>{t.medals(String(bet))}</td>
+                  <td className={styles.num}>{t.medals(String(wins))}</td>
+                  <td className={styles.num} data-testid={`medal-edge-${bet}`}>
+                    {pct(edge)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.medalNote(pct(unmatched, 2))}</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-dealer-title">

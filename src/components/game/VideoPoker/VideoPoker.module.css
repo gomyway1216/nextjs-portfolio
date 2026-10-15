@@ -47,6 +47,61 @@
   align-items: center;
   gap: 0.5rem;
 }
+/* The way back to the medal center's front, over the machine's name. The arrow and the words are flex items, so the
+   space between them is a gap: a space at the end of the arrow would be dropped. */
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.centerLink:focus-visible,
+.noticeLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+/* Said once: the machine plays with the medal center's medals now. */
+.notice {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--games-route-border);
+  border-left: 5px solid var(--vp-gold);
+  background: var(--games-route-surface);
+  box-shadow: var(--games-route-shadow);
+}
+.noticeTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.noticeBody {
+  margin: 0.35rem 0 0;
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+.noticeActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+.noticeLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .subtitle {
   margin: 0.4rem 0 0;
   color: var(--games-route-muted);
@@ -105,9 +160,6 @@
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-.spacerLeft {
-  margin-left: auto;
 }
 
 /* ---------- Layout ---------- */
@@ -388,6 +440,7 @@
   color: #fff;
 }
 .screen {
+  position: relative;
   border-radius: 14px;
   padding: 0.7rem 0.7rem 0.9rem;
   background: radial-gradient(120% 100% at 50% 0%, #17349a, var(--vp-screen) 55%, var(--vp-screen-2));
@@ -548,32 +601,142 @@
 }
 .meters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 0.6fr) minmax(0, 1.1fr);
   gap: 0.5rem;
   margin-top: 0.7rem;
 }
+/* The medals get a row of their own on a phone: seven LED digits need the width. */
+@media (max-width: 520px) {
+  .meters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .meterMedals {
+    grid-column: 1 / -1;
+  }
+}
 .meter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
   border-radius: 9px;
-  padding: 0.3rem 0.6rem;
+  padding: 0.35rem 0.5rem 0.45rem;
   background: #0b0b0f;
   border: 1px solid #2b2b33;
   text-align: center;
 }
 .meterLabel {
-  display: block;
-  font-size: 0.62rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #9ca3af;
+  color: #c7cbd1;
 }
-.meterValue {
+/* The medal by the counter: one of the silver medals every machine at the medal center plays with. */
+.counterMedal {
+  flex: none;
+  width: 1.8em;
+  height: 1.8em;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+/* The LED digits: the medal pusher's own display (MedalPusher/SegmentDisplay.tsx), sized for these meters. */
+.meterLed {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
+.meterLed > span {
+  height: 26px;
+  max-width: 100%;
+}
+.meterMedals .meterLed > span {
+  height: 32px;
+  padding: 4px 6px;
+  gap: 2px;
+}
+/* Where the page's own colours are overridden (a high-contrast mode), the LED digits are put away and the numbers in
+   type, which are otherwise for screen readers alone, are shown in their place. */
+@media (forced-colors: active) {
+  .meterLed {
+    display: none;
+  }
+  .meter > .meterNumber {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+    font-size: 1.2rem;
+  }
+}
+/* What the medals are, and are not, under the counter. */
+.notMoney {
+  margin: 0.55rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #d1d5db;
+  text-align: center;
+}
+.refill {
+  appearance: none;
   display: block;
-  font-size: 1.25rem;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  color: #f87171;
-  text-shadow: 0 0 8px rgba(248, 113, 113, 0.6);
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.7rem;
+  border-radius: 11px;
+  border: 2px solid #05060a;
+  background: linear-gradient(180deg, #fde047, #eab308);
+  color: #111827;
+  font-weight: 850;
+  cursor: pointer;
+}
+.refill:focus-visible {
+  outline: 3px solid var(--vp-gold);
+  outline-offset: 2px;
+}
+/* The member's card is in a machine in another tab: a plate over the screen, and a button to play this one again. */
+.cardAway {
+  position: absolute;
+  inset: auto 5% 18% 5%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: rgba(10, 6, 26, 0.94);
+  color: #fff6d6;
+  line-height: 1.45;
+  text-align: center;
+  font-size: 0.92rem;
+}
+.cardAway p {
+  margin: 0;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1238;
+  font-weight: 800;
+  cursor: pointer;
+}
+.cardAwayButton:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
 }
 .controls {
   display: flex;

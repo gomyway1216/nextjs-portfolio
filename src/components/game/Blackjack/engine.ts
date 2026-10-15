@@ -9,6 +9,12 @@
  * - Dealer stands on all 17s (S17) and peeks for blackjack under an ace or a
  *   ten, so doubles and splits only ever meet a dealer without a natural.
  * - Blackjack pays 3:2; insurance pays 2:1.
+ * - Played with whole medals (`startRound(…, { whole: true })`), as at the
+ *   medal floor: a blackjack's 3:2 is rounded down to whole medals, so a
+ *   3-medal bet wins 4, and insurance is half the bet rounded down, so a
+ *   1-medal bet is offered none. Every other stake (a double, a split hand)
+ *   and every other win is whole already. The Odds tab states the exact edge
+ *   this gives at each bet (`medalBetEdge` in analysis.ts).
  * - Double on any first two cards, double after split, split to four hands;
  *   split aces get one card each and can't be resplit. No surrender.
  *
@@ -126,7 +132,7 @@ export interface RoundResult {
   dealerTotal: number;
   dealerBlackjack: boolean;
   dealerBust: boolean;
-  /** Money back to the bankroll: every stake that wasn't lost, plus winnings. */
+  /** What comes back to the player: every stake that wasn't lost, plus winnings. */
   returned: number;
   /** Net for the round across hands and insurance. */
   net: number;
@@ -142,7 +148,15 @@ export interface Round {
   /** Insurance stake (0 = declined or not offered). */
   insurance: number;
   result: RoundResult | null;
+  /** Whole medals: a blackjack's half medal and an odd bet's half insurance are rounded down (see the top). */
+  whole?: boolean;
 }
+
+/** What a natural wins on a stake: 3:2, rounded down to whole medals at a medal table. */
+export const naturalWin = (stake: number, whole = false) => (whole ? Math.floor(stake * BLACKJACK_PAYS) : stake * BLACKJACK_PAYS);
+
+/** What insurance costs on this round: half the bet, rounded down to whole medals at a medal table. */
+export const insuranceCost = (round: Pick<Round, 'bet' | 'whole'>) => (round.whole ? Math.floor(round.bet / 2) : round.bet / 2);
 
 interface Draw {
   card: Card;
@@ -155,8 +169,9 @@ function drawFrom(shoe: Shoe): Draw {
 }
 
 /** Deals player, dealer, player, dealer (the second dealer card is the hole card). */
-export function startRound(shoe: Shoe, bet: number): Round {
+export function startRound(shoe: Shoe, bet: number, { whole = false }: { whole?: boolean } = {}): Round {
   if (!(bet > 0)) throw new Error('bet must be positive');
+  if (whole && !Number.isSafeInteger(bet)) throw new Error('a medal bet is a whole number of medals');
   let s = shoe;
   const take = () => {
     const d = drawFrom(s);
@@ -176,16 +191,17 @@ export function startRound(shoe: Shoe, bet: number): Round {
     phase: 'player',
     insurance: 0,
     result: null,
+    ...(whole ? { whole } : {}),
   };
-  // Insurance is offered whenever the dealer shows an ace.
-  if (d1.rank === 'A') return { ...round, phase: 'insurance' };
+  // Insurance is offered whenever the dealer shows an ace (and costs something: a 1-medal bet has no half medal to insure with).
+  if (d1.rank === 'A' && insuranceCost(round) > 0) return { ...round, phase: 'insurance' };
   return afterPeek(round);
 }
 
 /** Answers the insurance offer (half the bet, pays 2:1 if the dealer has blackjack). */
 export function answerInsurance(round: Round, take: boolean): Round {
   if (round.phase !== 'insurance') throw new Error('insurance is not on offer');
-  return afterPeek({ ...round, insurance: take ? round.bet / 2 : 0, phase: 'player' });
+  return afterPeek({ ...round, insurance: take ? insuranceCost(round) : 0, phase: 'player' });
 }
 
 /** The dealer checks for blackjack; naturals end the round at once. */
@@ -303,7 +319,12 @@ function dealerTurn(round: Round): Round {
   return settle({ ...round, shoe, dealer });
 }
 
-function settle(round: Round): Round {
+/**
+ * Scores a round whose cards are all out: every hand against the dealer, and
+ * the insurance. A round read back from storage is scored again with this,
+ * so what it returns is always what its cards say.
+ */
+export function settle(round: Round): Round {
   const dealerBj = isBlackjack(round.dealer);
   const dealer = handValue(round.dealer).total;
   const dealerBust = dealer > 21;
@@ -311,7 +332,7 @@ function settle(round: Round): Round {
     const stake = h.bet;
     const natural = !h.split && isBlackjack(h.cards);
     if (dealerBj) return natural ? { outcome: 'push', stake, profit: 0 } : { outcome: 'lose', stake, profit: -stake };
-    if (natural) return { outcome: 'blackjack', stake, profit: stake * BLACKJACK_PAYS };
+    if (natural) return { outcome: 'blackjack', stake, profit: naturalWin(stake, round.whole) };
     const total = handValue(h.cards).total;
     if (total > 21) return { outcome: 'bust', stake, profit: -stake };
     if (dealerBust || total > dealer) return { outcome: 'win', stake, profit: stake };

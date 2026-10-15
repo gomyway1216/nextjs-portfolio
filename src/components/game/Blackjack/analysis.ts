@@ -315,6 +315,21 @@ export function gameValue(rules: Rules = TABLE_RULES): GameValue {
 }
 
 /**
+ * The house edge of a bet of `bet` whole medals at the medal table, where a
+ * blackjack's 3:2 is rounded down to whole medals (engine.ts, `naturalWin`):
+ * exactly the game above with a natural winning ⌊1.5·bet⌋ / bet per medal
+ * bet. Nothing else depends on the bet: a double or a split stakes whole
+ * medals and wins them 1:1, and insurance (rounded down too) is a bet of its
+ * own, never taken by perfect play. So an even bet has the table's edge, and
+ * an odd one that edge plus (1.5 − ⌊1.5·bet⌋ / bet) times the chance of a
+ * blackjack the dealer does not match.
+ */
+export function medalBetEdge(bet: number, rules: Rules = TABLE_RULES): number {
+  if (!Number.isSafeInteger(bet) || bet <= 0) throw new Error('a medal bet is a whole number of medals');
+  return gameValue({ ...rules, blackjackPays: Math.floor(bet * rules.blackjackPays) / bet }).houseEdge;
+}
+
+/**
  * The expectation of a fixed hit/stand policy that never doubles or splits
  * (and never takes insurance) — e.g. "play like the dealer".
  */

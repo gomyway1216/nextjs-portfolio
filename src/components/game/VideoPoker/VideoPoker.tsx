@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { bank as medalBank } from '../MedalCenter/bank';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import type { AccountStore, Player } from '../MedalPusher/account';
 import { getStrings } from './i18n';
+import { deviceStore, markNoticeSeen, noticeSeen } from './medals';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
@@ -11,11 +15,39 @@ import styles from './VideoPoker.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
-export const VideoPoker = () => {
+export interface VideoPokerProps {
+  /** Who is playing, as far as the site knows. Without one, a guest. */
+  player?: Player;
+  /** The account's store for the medals, which every machine at the medal center plays from. Without one the medals are this device's alone. */
+  bankStore?: AccountStore | null;
+  /** The Medal Pusher's machine and record book on the account, which the medals look at once (MedalCenter/bank.ts). */
+  legacy?: { machines?: AccountStore | null; books?: AccountStore | null };
+}
+
+export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPokerProps = {}) => {
   const [tab, setTab] = useState<Tab>('play');
   const [infoOpen, setInfoOpen] = useState(false);
+  const [notice, setNotice] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);
+
+  // The medals follow the player, as at the medal center. They are told whose they are before anything on the page
+  // listens to them (a layout effect runs before the effects that listen), so the first medals opened are theirs.
+  const { uid = null, settled = true, expected = false } = player ?? {};
+  const { machines = null, books = null } = legacy;
+  useLayoutEffect(() => {
+    medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? { machines, books } : {});
+  }, [uid, settled, expected, bankStore, machines, books]);
+
+  // Told once, on the first visit since the machine came onto the medal center's floor.
+  useEffect(() => {
+    if (noticeSeen(deviceStore)) return;
+    const timer = setTimeout(() => {
+      setNotice(true);
+      markNoticeSeen(deviceStore);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play', label: t.tabPlay },
@@ -28,6 +60,11 @@ export const VideoPoker = () => {
       <div className={styles.shell}>
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
+            {/* The machine stands on the medal center's floor, whose front has the medals, the daily bonus and the reset. */}
+            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="vp-center">
+              <span aria-hidden>←</span>
+              {t.centerLink}
+            </a>
             <h1 className={styles.title}>
               <span aria-hidden>♣️</span> {t.title}
             </h1>
@@ -37,6 +74,23 @@ export const VideoPoker = () => {
             {t.howToPlay}
           </button>
         </div>
+
+        {notice && (
+          <section className={styles.notice} aria-labelledby="vp-notice-title" data-testid="vp-notice">
+            <h2 id="vp-notice-title" className={styles.noticeTitle}>
+              {t.noticeTitle}
+            </h2>
+            <p className={styles.noticeBody}>{t.noticeBody}</p>
+            <div className={styles.noticeActions}>
+              <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="vp-notice-center">
+                {t.noticeLink}
+              </a>
+              <button type="button" className={styles.btn} data-testid="vp-notice-dismiss" onClick={() => setNotice(false)}>
+                {t.noticeDismiss}
+              </button>
+            </div>
+          </section>
+        )}
 
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
@@ -56,9 +110,9 @@ export const VideoPoker = () => {
         </div>
 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
-            never drops the credits or a hand in progress. */}
+            never drops a hand in progress. */}
         <div role="tabpanel" id="vp-panel-play" aria-labelledby="vp-tab-play" hidden={tab !== 'play'}>
-          <PlayTab />
+          <PlayTab seatedFor={{ uid: bankStore ? uid : null, settled: bankStore ? settled : true }} />
         </div>
         <div role="tabpanel" id="vp-panel-odds" aria-labelledby="vp-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

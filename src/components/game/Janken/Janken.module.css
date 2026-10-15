@@ -1,0 +1,1114 @@
+/* Calico Janken. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette of its
+   own — teal body, cream trim, coral sign, a navy face for the lamps to glow on — that reads on both. */
+
+.root {
+  --jk-teal: #11666f;
+  --jk-teal-deep: #0a4249;
+  --jk-cream: #f6ead0;
+  --jk-coral: #c22f35;
+  --jk-ink: #1c140c;
+  --jk-focus: #ffcf5a;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --jk-accent-text: #0b5560;
+  --jk-ahead: #15803d;
+  --jk-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --jk-accent-text: #6fd6df;
+  --jk-ahead: #4ade80;
+  --jk-behind: #f87171;
+}
+
+.shell {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.titleCat {
+  width: 1.5em;
+  height: 1.5em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: var(--jk-teal);
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The cabinet, and the plate beside it ---------- */
+.stage {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 500px);
+}
+@media (min-width: 900px) {
+  .stage {
+    grid-template-columns: minmax(0, 480px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+.cabinetWrap {
+  min-width: 0;
+}
+.plate {
+  padding: 1rem 1.1rem 1.1rem;
+  border-radius: 14px;
+  border: 3px solid #b58b45;
+  background: linear-gradient(180deg, #fff8e6 0%, #f6e7c4 100%);
+  color: var(--jk-ink);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.7),
+    0 10px 24px rgba(0, 0, 0, 0.18);
+}
+.plateTitle {
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px dashed #c79e58;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #8d1d22;
+}
+.plateSteps {
+  margin: 0 0 0.9rem;
+  padding-left: 1.3rem;
+  list-style: decimal;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.plateSub {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #6b4a14;
+}
+.plateLamps {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+}
+.plateLamps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.plateReturn {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #4a3a22;
+}
+.cabinet {
+  position: relative;
+  padding: 10px 10px 14px;
+  border-radius: 30px 30px 16px 16px;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, var(--jk-teal) 0%, var(--jk-teal-deep) 100%);
+  border: 3px solid #062a2f;
+  box-shadow:
+    inset 0 0 0 3px var(--jk-cream),
+    inset 0 0 0 6px #0b4b52,
+    0 18px 44px rgba(0, 0, 0, 0.32);
+  color: #fdf6e6;
+}
+
+/* The sign: coral, with a row of bulbs above and below the name. */
+.marquee {
+  margin: 4px 4px 0;
+  padding: 6px 10px 7px;
+  border-radius: 20px 20px 10px 10px;
+  border: 3px solid var(--jk-cream);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 12px, rgba(255, 255, 255, 0) 12px 24px),
+    var(--jk-coral);
+  text-align: center;
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.18);
+}
+.bulbs {
+  display: block;
+  height: 10px;
+  background: radial-gradient(circle, #fff3b0 0 3px, rgba(255, 243, 176, 0) 4px) 4px 0 / 18px 10px repeat-x;
+  animation: bulbs 1.2s steps(2) infinite;
+}
+@keyframes bulbs {
+  50% {
+    background-position: 13px 0;
+  }
+}
+.signMain {
+  margin: 2px 0 0;
+  font-size: clamp(1.7rem, 8.6vw, 2.4rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  color: #fffaf0;
+  text-shadow:
+    0 2px 0 #7a1418,
+    0 0 10px rgba(255, 220, 160, 0.45);
+}
+.signSub {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  color: #fff3e0;
+}
+
+/* The face: the cat in its ring of lamps. */
+.face {
+  margin: 8px auto 6px;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.faceArt {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ringBezel {
+  fill: #0b1528;
+  stroke: var(--jk-cream);
+  stroke-width: 4;
+}
+.lamp circle {
+  fill: var(--lamp-dim);
+  stroke: #050b16;
+  stroke-width: 2;
+  transition: fill 60ms linear;
+}
+.lamp text {
+  fill: #f8efdc;
+  font: 800 15px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  pointer-events: none;
+}
+.lamp[data-tone='one'] {
+  --lamp: #fff2cf;
+  --lamp-dim: #574e40;
+}
+.lamp[data-tone='two'] {
+  --lamp: #ffd23f;
+  --lamp-dim: #66541a;
+}
+.lamp[data-tone='three'] {
+  --lamp: #74e891;
+  --lamp-dim: #22573a;
+}
+.lamp[data-tone='five'] {
+  --lamp: #73c8ff;
+  --lamp-dim: #1d4b6e;
+}
+.lamp[data-tone='ten'] {
+  --lamp: #ff6f96;
+  --lamp-dim: #7a1f3c;
+}
+.lamp[data-tone='ten'] text {
+  font-size: 16px;
+}
+.lamp[data-on='true'] circle {
+  fill: var(--lamp);
+  filter: drop-shadow(0 0 7px var(--lamp));
+}
+.lamp[data-on='true'] text {
+  fill: var(--jk-ink);
+}
+.lamp[data-stopped='true'] circle {
+  animation: stopped 0.5s steps(2) infinite;
+}
+@keyframes stopped {
+  50% {
+    fill: var(--lamp-dim);
+    filter: none;
+  }
+}
+/* While the machine waits for a medal, the lamps run round slowly, as a real one's do. */
+.faceArt[data-attract='true'] .lamp[data-on='false'] circle {
+  animation: attract 3s linear infinite;
+  animation-delay: calc(var(--i) * 0.1s - 3s);
+}
+@keyframes attract {
+  0%,
+  6% {
+    fill: var(--lamp);
+  }
+  12%,
+  100% {
+    fill: var(--lamp-dim);
+  }
+}
+
+/* The paw: it beckons while the machine waits, shakes while the cat calls, and pops up to show its hand. */
+.paw {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.paw[data-motion='beckon'] {
+  animation: beckon 1.5s ease-in-out infinite;
+}
+.paw[data-motion='shake'] {
+  animation: shake 0.32s ease-in-out infinite alternate;
+}
+.paw[data-motion='still'] {
+  animation: pop 0.3s cubic-bezier(0.3, 1.6, 0.6, 1);
+}
+@keyframes beckon {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(9deg) translateY(-3px);
+  }
+}
+@keyframes shake {
+  from {
+    transform: translateY(4px);
+  }
+  to {
+    transform: translateY(-9px);
+  }
+}
+@keyframes pop {
+  from {
+    transform: scale(0.8);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* The message board under the face. */
+.board {
+  margin: 0 4px 8px;
+  min-height: 2.5em;
+  display: grid;
+  place-items: center;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  border: 2px solid var(--jk-cream);
+  background:
+    radial-gradient(circle, rgba(255, 190, 70, 0.08) 0 1px, transparent 1.5px) 0 0 / 5px 5px,
+    #1a0f04;
+  color: #ffd166;
+  font-weight: 800;
+  font-size: clamp(0.95rem, 4.3vw, 1.15rem);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(255, 190, 70, 0.6);
+}
+
+/* The two hands and the outcome lamps between them. */
+.versus {
+  margin: 0 4px 8px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  gap: 6px;
+  align-items: stretch;
+}
+.handWindow {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 1px;
+  padding: 3px 2px 4px;
+  border-radius: 10px;
+  background: #0b1528;
+  border: 2px solid #31507e;
+}
+.handWindow[data-on='true'] {
+  border-color: var(--jk-cream);
+  box-shadow: 0 0 10px rgba(255, 220, 160, 0.35);
+}
+.handWho {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #c9d6ee;
+}
+.handWindowIcon {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+.handName {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fdf6e6;
+  white-space: nowrap;
+}
+.resultLamps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.resultLamp {
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  font-weight: 900;
+  font-size: clamp(0.78rem, 3.6vw, 0.95rem);
+  letter-spacing: 0.04em;
+  color: #d8d2c4;
+  background: #2a2f38;
+  padding: 0 2px;
+  text-align: center;
+}
+.resultLamp[data-outcome='win'][data-on='true'] {
+  background: #ffcf40;
+  color: var(--jk-ink);
+  box-shadow: 0 0 14px rgba(255, 207, 64, 0.8);
+}
+.resultLamp[data-outcome='draw'][data-on='true'] {
+  background: #7fd0ff;
+  color: var(--jk-ink);
+  box-shadow: 0 0 14px rgba(127, 208, 255, 0.8);
+}
+.resultLamp[data-outcome='lose'][data-on='true'] {
+  background: #ff7d7d;
+  color: var(--jk-ink);
+  box-shadow: 0 0 14px rgba(255, 125, 125, 0.8);
+}
+
+/* The counters. */
+.counters {
+  margin: 0 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.counter {
+  display: grid;
+  gap: 3px;
+  justify-items: stretch;
+  min-width: 0;
+}
+.counterLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffe7c2;
+}
+.led,
+.ledSmall {
+  display: flex;
+  justify-content: flex-end;
+}
+.led > span,
+.ledSmall > span {
+  height: 34px;
+  padding: 4px 6px;
+  gap: 2px;
+}
+.led > span {
+  width: 100%;
+}
+.counterText {
+  font-size: 0.78rem;
+  color: #e9f4f2;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.notMoney {
+  margin: 6px 6px 8px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #e9f4f2;
+}
+
+/* The control panel: cream, with the coin slot, the three big hand buttons and the double-up buttons. */
+.panel {
+  margin: 0 4px;
+  padding: 10px 8px 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbf3e2 0%, var(--jk-cream) 100%);
+  color: var(--jk-ink);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.12);
+}
+.slotRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.slot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 56px;
+  flex: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #d9dde3, #9aa3ae);
+  border: 2px solid #59616c;
+  box-shadow: inset 0 1px 0 #fff;
+}
+.slotMouth {
+  width: 6px;
+  height: 34px;
+  border-radius: 3px;
+  background: #11151b;
+  box-shadow: inset 0 0 3px #000;
+}
+.medalIn,
+.doubleButton,
+.collectButton,
+.handButton,
+.soundButton,
+.refill,
+.cardAwayButton,
+.simButton {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+.medalIn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 2px solid #4d5560;
+  background: linear-gradient(180deg, #fafbfc 0%, #c3cad3 100%);
+  color: var(--jk-ink);
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  box-shadow: 0 3px 0 #59616c;
+}
+.medalIn:not(:disabled) {
+  animation: invite 1.4s ease-in-out infinite;
+}
+@keyframes invite {
+  50% {
+    box-shadow:
+      0 3px 0 #59616c,
+      0 0 0 4px rgba(255, 207, 64, 0.7);
+  }
+}
+.medalInIcon {
+  width: 26px;
+  height: 26px;
+}
+.kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--jk-ink);
+  font: 700 0.7rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+.hands {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.handButton {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 2px 8px;
+  border-radius: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--jk-ink);
+  min-height: 44px;
+}
+.handFace {
+  display: grid;
+  place-items: center;
+  width: clamp(64px, 21vw, 86px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--hand);
+  border: 3px solid rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 -6px 0 rgba(0, 0, 0, 0.18),
+    inset 0 4px 0 rgba(255, 255, 255, 0.45),
+    0 4px 0 rgba(0, 0, 0, 0.25);
+}
+.handButton[data-hand='gu'] {
+  --hand: #ff6b5a;
+  --hand-glow: rgba(255, 107, 90, 0.85);
+}
+.handButton[data-hand='choki'] {
+  --hand: #ffc53d;
+  --hand-glow: rgba(255, 197, 61, 0.85);
+}
+.handButton[data-hand='pa'] {
+  --hand: #4cb3ff;
+  --hand-glow: rgba(76, 179, 255, 0.85);
+}
+.handButton[data-ready='true'] .handFace {
+  animation: lit 0.9s ease-in-out infinite alternate;
+}
+@keyframes lit {
+  to {
+    box-shadow:
+      inset 0 -6px 0 rgba(0, 0, 0, 0.18),
+      inset 0 4px 0 rgba(255, 255, 255, 0.45),
+      0 4px 0 rgba(0, 0, 0, 0.25),
+      0 0 18px 4px var(--hand-glow);
+  }
+}
+.handButton:active:not(:disabled) .handFace {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(0, 0, 0, 0.25);
+}
+.handIcon {
+  width: 72%;
+  height: 72%;
+}
+.handLabel {
+  font-weight: 900;
+  font-size: 1rem;
+}
+.handSub {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #4b3f33;
+  letter-spacing: 0.06em;
+}
+.handButton .kbd {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+}
+.handButton:disabled .handFace {
+  filter: saturate(0.35) brightness(0.92);
+}
+.offerRow {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.doubleButton,
+.collectButton {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 10px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: clamp(0.85rem, 3.9vw, 0.98rem);
+  letter-spacing: 0.02em;
+  color: var(--jk-ink);
+}
+.doubleButton {
+  border: 2px solid #8a2a2e;
+  background: linear-gradient(180deg, #ffd0c6, #ff8a7a);
+  box-shadow: 0 3px 0 #8a2a2e;
+}
+.collectButton {
+  border: 2px solid #1d5f3a;
+  background: linear-gradient(180deg, #d6f7df, #79dc98);
+  box-shadow: 0 3px 0 #1d5f3a;
+}
+.offerRow[data-on='true'] .doubleButton:not(:disabled),
+.offerRow[data-on='true'] .collectButton:not(:disabled) {
+  animation: invite 1.2s ease-in-out infinite;
+}
+.medalIn:disabled,
+.doubleButton:disabled,
+.collectButton:disabled,
+.handButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  animation: none;
+}
+.medalIn:focus-visible,
+.doubleButton:focus-visible,
+.collectButton:focus-visible,
+.handButton:focus-visible,
+.soundButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.simButton:focus-visible {
+  outline: 3px solid var(--jk-focus);
+  outline-offset: 2px;
+}
+
+/* The tray the medals come down into. */
+.tray {
+  position: relative;
+  margin: 12px 4px 0;
+  height: 70px;
+  border-radius: 10px 10px 18px 18px;
+  background: linear-gradient(180deg, #2a2e33 0%, #5e666f 70%, #8f98a2 100%);
+  border: 2px solid #1b1e22;
+  box-shadow: inset 0 8px 14px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.trayMouth {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 40%;
+  height: 10px;
+  transform: translateX(-50%);
+  border-radius: 0 0 10px 10px;
+  background: #0b0c0e;
+}
+.trayMedals {
+  position: absolute;
+  inset: 0;
+}
+.trayMedal {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  animation: drop 0.36s cubic-bezier(0.4, 0, 0.9, 0.6) both;
+}
+.trayMedal svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.6));
+}
+@keyframes drop {
+  from {
+    transform: translateY(-46px) scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.trayMore {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+/* The card is in another tab's machine. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: inherit;
+  background: rgba(6, 14, 24, 0.86);
+  color: #fff;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAway p {
+  margin: 0;
+  max-width: 30ch;
+}
+.cardAwayButton {
+  min-height: 48px;
+  padding: 0 1.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--jk-cream);
+  background: var(--jk-coral);
+  color: #fff;
+  font-weight: 900;
+}
+
+/* Under the cabinet. */
+.below {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+  justify-items: start;
+}
+.soundButton,
+.refill {
+  min-height: 44px;
+  padding: 0 1rem;
+  border-radius: 11px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-weight: 700;
+}
+.soundButton[aria-pressed='true'] {
+  border-color: var(--jk-teal);
+}
+.refill {
+  border-color: var(--jk-teal);
+}
+.keysHint,
+.centerNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
+.link {
+  color: var(--games-route-fg);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulbs,
+  .medalIn:not(:disabled),
+  .handButton[data-ready='true'] .handFace,
+  .offerRow[data-on='true'] .doubleButton:not(:disabled),
+  .offerRow[data-on='true'] .collectButton:not(:disabled),
+  .paw,
+  .paw[data-motion],
+  .lamp[data-stopped='true'] circle,
+  .faceArt[data-attract='true'] .lamp[data-on='false'] circle,
+  .trayMedal {
+    animation: none;
+  }
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+  max-width: 72ch;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface);
+}
+.statLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.6rem;
+  font-weight: 850;
+  color: var(--jk-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--games-route-muted);
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+.note {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+  color: var(--games-route-fg);
+  max-width: 72ch;
+}
+.tableWrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.oddsTable {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable th {
+  font-size: 0.78rem;
+  color: var(--games-route-muted);
+  font-weight: 700;
+}
+.oddsTable tfoot td {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+.fraction {
+  display: block;
+  font-weight: 700;
+}
+.percent {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--games-route-muted);
+}
+.oddsTable th.num {
+  white-space: normal;
+}
+.lampChip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2em;
+  height: 2em;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.45);
+  background: var(--lamp);
+  color: var(--jk-ink);
+  font-weight: 900;
+}
+.lampChip[data-tone='one'] {
+  --lamp: #fff2cf;
+}
+.lampChip[data-tone='two'] {
+  --lamp: #ffd23f;
+}
+.lampChip[data-tone='three'] {
+  --lamp: #74e891;
+}
+.lampChip[data-tone='five'] {
+  --lamp: #73c8ff;
+}
+.lampChip[data-tone='ten'] {
+  --lamp: #ff6f96;
+}
+.ringFigure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+.ringFigure > .tableWrap {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.ringMini {
+  width: 190px;
+  height: 190px;
+  flex: none;
+}
+.sim {
+  padding: 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface);
+}
+.simControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: flex-end;
+  margin-bottom: 0.6rem;
+}
+.simControls label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.simControls select {
+  min-height: 40px;
+  min-width: 6.5rem;
+  padding: 0 0.5rem;
+  border-radius: 9px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-solid);
+  color: var(--games-route-fg);
+  font: inherit;
+}
+.simButton {
+  min-height: 44px;
+  padding: 0 1.2rem;
+  border-radius: 11px;
+  border: 2px solid #062a2f;
+  background: var(--jk-teal);
+  color: #fff;
+  font-weight: 800;
+}
+.simButton:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.simResult {
+  margin: 0 0 0.6rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.chart {
+  margin: 0;
+}
+.chart figcaption {
+  font-size: 0.82rem;
+  color: var(--games-route-muted);
+  margin-bottom: 0.3rem;
+}
+.chartSvg {
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  display: block;
+}
+.barBehind {
+  fill: var(--jk-behind);
+}
+.barAhead {
+  fill: var(--jk-ahead);
+}
+.barEven {
+  fill: var(--games-route-muted);
+}
+.chartAxis {
+  stroke: var(--games-route-muted);
+  stroke-width: 1;
+}
+.chartText {
+  fill: var(--games-route-fg);
+  font-size: 8px;
+}

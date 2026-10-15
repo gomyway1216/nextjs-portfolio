@@ -1319,6 +1319,10 @@
       "title": "Medal Pusher",
       "description": "Drop medals into a Japanese-style arcade pusher: spin the slot, roll the sugoroku die, pick a treasure chest, topple medal towers and push prize balls over the edge — then measure how much the open sides keep."
     },
+    "janken": {
+      "title": "Calico Janken",
+      "description": "A candy-shop janken machine at the Medal Center: beat the calico cat at rock, paper, scissors with your medals, let the ring of lamps decide your win, double up if you dare — and see why exactly 90 of every 100 medals come back."
+    },
     "monty-hall": {
       "title": "Monty Hall",
       "description": "Pick a door, decide whether to switch, and compare the odds with simulation."

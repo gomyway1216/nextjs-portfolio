@@ -33,7 +33,7 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(FLOOR.find(({ id }) => id === 'slot-machine')?.path).toBe('/games/slot-machine');
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
     expect(soon).not.toContain('slot-machine');
-    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
+    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
     for (const id of soon) {
       expect(html).toContain(`data-machine="${id}"`);
       expect(html).not.toContain(`center-play-${id}`);

@@ -291,6 +291,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'janken',
+    title: 'Calico Janken',
+    description: 'A candy-shop janken machine at the Medal Center: beat the calico cat at rock, paper, scissors with your medals, let the ring of lamps decide your win, double up if you dare — and see why exactly 90 of every 100 medals come back.',
+    thumbnail: '🐱',
+    path: '/games/janken',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'monty-hall',
     title: 'Monty Hall',
     description: 'Pick a door, decide whether to switch, and compare the odds with simulation.',

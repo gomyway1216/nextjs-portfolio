@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { LAMPS, MAX_DOUBLES, analyzeMachine, seeded, simulateSessions, spreadOf, valueOf, type Fraction, type SessionSummary } from './engine';
+import { CatFace } from './art';
 import { lampAt } from './Cabinet';
 import { getStrings } from './i18n';
 import styles from './Janken.module.css';
@@ -127,13 +128,17 @@ export const OddsTab = () => {
         <p className={styles.note}>{t.ringIntro}</p>
         <div className={styles.ringFigure}>
           <svg viewBox="0 0 220 220" className={styles.ringMini} aria-hidden focusable="false">
-            <circle cx="110" cy="110" r="104" className={styles.ringBezel} />
+            <circle cx="110" cy="110" r="106" className={styles.ringBezel} />
+            <circle cx="110" cy="110" r="80" fill="#1a2d52" />
+            <g transform="translate(58 52) scale(0.52)">
+              <CatFace mood="idle" clipId="janken-odds-cat" />
+            </g>
             {LAMPS.map((value, i) => {
-              const { x, y } = lampAt(i, 110, 90);
+              const { x, y } = lampAt(i, 110, 93);
               return (
                 <g key={i} className={styles.lamp} data-tone={LAMP_TONE[value]} data-on="true">
-                  <circle cx={x} cy={y} r={value === 10 ? 10 : 8.5} />
-                  <text x={x} y={y} dy="0.36em" textAnchor="middle" fontSize="9.5">
+                  <circle cx={x} cy={y} r={value === 10 ? 9 : 7.6} />
+                  <text x={x} y={y} dy="0.36em" textAnchor="middle" fontSize="8.5">
                     {value}
                   </text>
                 </g>

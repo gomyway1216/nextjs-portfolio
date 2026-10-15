@@ -159,7 +159,7 @@
     inset 0 0 0 2px rgba(255, 255, 255, 0.7),
     0 10px 24px rgba(0, 0, 0, 0.18);
 }
-.plateTitle {
+.plate .plateTitle {
   margin: 0 0 0.6rem;
   padding-bottom: 0.4rem;
   border-bottom: 2px dashed #c79e58;
@@ -177,7 +177,7 @@
   font-size: 0.9rem;
   line-height: 1.5;
 }
-.plateSub {
+.plate .plateSub {
   margin: 0 0 0.45rem;
   font-size: 0.82rem;
   font-weight: 900;

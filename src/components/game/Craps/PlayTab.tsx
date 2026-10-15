@@ -226,7 +226,8 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
     [table],
   );
   // This page's own throw while it is the table's last; any other (another tab's, or the one before a reload) at rest.
-  const onFelt = thrown && thrown.seed === table.last?.seed ? thrown : resting;
+  // A throw in the air is always played to its end, whatever another tab writes meanwhile.
+  const onFelt = thrown && (rolling || thrown.seed === table.last?.seed) ? thrown : resting;
 
   const errorText = (error: TableError, id?: BetId): string => {
     const max = id ? spotLimit(id, table.point, table.bets) : undefined;

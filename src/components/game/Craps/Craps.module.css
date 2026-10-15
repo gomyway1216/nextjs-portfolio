@@ -210,6 +210,11 @@
   cursor: pointer;
   transition: background 0.12s;
 }
+/* On a long area (the Pass Line, the Field) the medals lie at its end, clear of its words. */
+.areaWide {
+  align-items: flex-end;
+  padding-right: 2.5%;
+}
 .area:hover:not(:disabled) {
   background: rgba(255, 214, 92, 0.16);
 }

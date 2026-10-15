@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import { MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { DieFace } from './Dice';
 import { HARD_PAYS, LAY_ODDS, ONE_ROLL_PAYS, PLACE_PAYS, TRUE_ODDS, hardNumber, maxOdds, placeNumber, type BetId, type Bets, type PointNumber, type Ratio } from './engine';
@@ -105,13 +105,6 @@ const LINE = 'rgba(255, 255, 255, 0.86)';
 const GOLD = '#ffd65c';
 const RED = '#ff5a4f';
 
-interface ArtProps {
-  layout: Felt;
-  t: CrapsStrings;
-  language: 'en' | 'ja';
-  stroke: number;
-}
-
 /** Words on the felt: English as a real felt has them, and Japanese help under them for a Japanese reader. */
 function Words({ box, main, help, language, size, color = '#ffffff', at = 0.5, helpSize }: { box: Box; main: string; help?: string; language: 'en' | 'ja'; size: number; color?: string; at?: number; helpSize: number }) {
   const showHelp = language === 'ja' && help;
@@ -141,7 +134,15 @@ function AreaArt({ area, layout, t, language, stroke, muted = false }: { area: L
     return (
       <g opacity={muted ? 0.55 : 1}>
         {outline}
-        <text x={box.x + box.w / 2} y={box.y + box.h * 0.4} fontSize={place === 6 || place === 9 ? number * 0.78 : number} fill="#ffffff" fontWeight={900} textAnchor="middle" dominantBaseline="middle">
+        <text
+          x={box.x + box.w / 2}
+          y={box.y + box.h * 0.4}
+          fontSize={place === 6 || place === 9 ? Math.min(number, box.w * 0.34) : Math.min(number, box.w * 0.62)}
+          fill="#ffffff"
+          fontWeight={900}
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
           {place === 6 ? 'SIX' : place === 9 ? 'NINE' : place}
         </text>
         {!muted && (
@@ -329,7 +330,7 @@ const Rubber = ({ box, id }: { box: Box; id: string }) => {
 };
 
 /** The tub: rail, felt, the far wall's rubber, and every area's art. */
-function TubArt({ layout, t, language }: { layout: TableLayout; t: CrapsStrings; language: 'en' | 'ja' }) {
+const TubArt = memo(function TubArt({ layout, t, language }: { layout: TableLayout; t: CrapsStrings; language: 'en' | 'ja' }) {
   const stroke = layout.kind === 'full' ? 2.4 : 1.4;
   const { width, height, rail } = layout;
   const gradient = `craps-felt-${layout.kind}`;
@@ -393,10 +394,10 @@ function TubArt({ layout, t, language }: { layout: TableLayout; t: CrapsStrings;
       )}
     </svg>
   );
-}
+});
 
 /** The stickman's box under a half table: the proposition bets on a felt of their own. */
-function CenterArt({ felt, t, language }: { felt: Felt; t: CrapsStrings; language: 'en' | 'ja' }) {
+const CenterArt = memo(function CenterArt({ felt, t, language }: { felt: Felt; t: CrapsStrings; language: 'en' | 'ja' }) {
   const { width, height, rail } = felt;
   return (
     <svg className={styles.tableArt} viewBox={`0 0 ${width} ${height}`} aria-hidden focusable="false">
@@ -407,7 +408,7 @@ function CenterArt({ felt, t, language }: { felt: Felt; t: CrapsStrings; languag
       ))}
     </svg>
   );
-}
+});
 
 // ── Medals on the layout ───────────────────────────────────────────────────
 
@@ -453,7 +454,7 @@ function Areas({ felt, areas, props }: AreasProps) {
           <div key={area.id} className={styles.areaGroup}>
             <button
               type="button"
-              className={`${styles.area} ${unavailable ? styles.areaUnavailable : ''}`}
+              className={`${styles.area} ${area.box.w > area.box.h * 2.4 ? styles.areaWide : ''} ${unavailable ? styles.areaUnavailable : ''}`}
               style={share(felt, area.box)}
               onClick={() => onPress(area.id)}
               disabled={!canPlay}
@@ -503,8 +504,8 @@ interface DiceRefs {
 const inHand = (layout: TableLayout): readonly [DieState, DieState] => {
   const { hand, die } = layout.throw;
   return [
-    { x: hand.x - 0.35 * die, y: hand.y - 0.62 * die, z: 0, angle: -12, face: 5 },
-    { x: hand.x + 0.35 * die, y: hand.y + 0.62 * die, z: 0, angle: 9, face: 2 },
+    { x: hand.x - 0.35 * die, y: hand.y - 0.75 * die, z: 0, angle: -12, face: 5 },
+    { x: hand.x + 0.35 * die, y: hand.y + 0.75 * die, z: 0, angle: 9, face: 2 },
   ];
 };
 
@@ -576,7 +577,9 @@ function TableView({ layout, props, refs, label }: { layout: TableLayout; props:
             </div>
           ))}
         </div>
-        <span className={styles.srOnly}>{label}</span>
+        <span className={styles.srOnly} data-testid="craps-dice">
+          {label}
+        </span>
       </div>
       {layout.center && (
         <div className={styles.centerBox} style={{ aspectRatio: `${layout.center.width} / ${layout.center.height}` }}>
@@ -652,6 +655,12 @@ export function CrapsFelt(props: CrapsFeltProps) {
       return;
     }
     root?.setAttribute('data-rolling', mode === 'animate' || mode === 'calm' ? 'true' : 'false');
+    /** The throw is at rest: the table says so, and so does the page that threw it. */
+    const finish = () => {
+      root?.setAttribute('data-rolling', 'false');
+      root?.setAttribute('data-settled', String(id));
+      settledRef.current(id);
+    };
     if (mode !== 'animate') {
       pose.current = { plans, t: Infinity };
       draw();
@@ -663,16 +672,14 @@ export function CrapsFelt(props: CrapsFeltProps) {
         root?.classList.add(styles.diceCalm);
         const timer = window.setTimeout(() => {
           root?.classList.remove(styles.diceCalm);
-          root?.setAttribute('data-rolling', 'false');
-          settledRef.current(id);
+          finish();
         }, CALM_MS);
         return () => {
           window.clearTimeout(timer);
           root?.classList.remove(styles.diceCalm);
         };
       }
-      root?.setAttribute('data-rolling', 'false');
-      settledRef.current(id);
+      finish();
       return;
     }
     // Thrown: the dice are moved on every frame, and the throw's sounds are made as the dice reach them.
@@ -699,8 +706,7 @@ export function CrapsFelt(props: CrapsFeltProps) {
       if (t >= Math.max(plans.half.duration, plans.full.duration)) {
         pose.current = { plans, t: Infinity };
         draw();
-        root?.setAttribute('data-rolling', 'false');
-        settledRef.current(id);
+        finish();
         return;
       }
       frame = window.requestAnimationFrame(tick);

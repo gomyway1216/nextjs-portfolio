@@ -98,6 +98,9 @@ export function seeded(seed: number): () => number {
 }
 
 const between = (rng: () => number, low: number, high: number) => low + (high - low) * rng();
+const inside = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
+/** How far the dice are shaken in the hand, in edges of a die. */
+const HAND_JIGGLE = 0.12;
 
 /** The faces next to `face` on a die: every face but itself and the one opposite (they add up to 7). */
 export const nextTo = (face: number): number[] => [1, 2, 3, 4, 5, 6].filter((other) => other !== face && other !== 7 - face);
@@ -150,8 +153,9 @@ function simulate(geometry: ThrowGeometry, rng: () => number): Run {
   const aimY = between(rng, felt.top + 2.5 * die, felt.bottom - 2.5 * die);
   const pace = between(rng, 2.0, 2.3) * length;
   const bodies = [0, 1].map((i): Body => {
-    const x = hand.x + (i === 0 ? -0.35 : 0.35) * die;
-    const y = hand.y + (i === 0 ? -0.62 : 0.62) * die;
+    // Held side by side, and never through a rail, however near it the hand is.
+    const x = inside(hand.x + (i === 0 ? -0.35 : 0.35) * die, felt.left + r, felt.right - r - HAND_JIGGLE * die);
+    const y = inside(hand.y + (i === 0 ? -0.75 : 0.75) * die, felt.top + r + HAND_JIGGLE * die, felt.bottom - r - HAND_JIGGLE * die);
     const targetY = aimY + (i === 0 ? -1 : 1) * between(rng, 0.7, 1.3) * die;
     const heading = Math.atan2(targetY - y, felt.left - x);
     const speed = pace * between(rng, 0.94, 1.06);
@@ -252,7 +256,7 @@ function simulate(geometry: ThrowGeometry, rng: () => number): Run {
         b.x = felt.left + r;
         if (b.vx < 0) {
           const pace = -b.vx;
-          b.vx = pace * between(rng, 0.5, 0.68);
+          b.vx = pace * between(rng, 0.66, 0.82);
           b.vy += between(rng, -0.45, 0.45) * pace;
           b.vz = Math.max(b.vz, 0) + pace * between(rng, 0.07, 0.13);
           b.z = Math.max(b.z, 0.05 * die);
@@ -383,7 +387,15 @@ export function planThrow(faces: readonly [number, number], geometry: ThrowGeome
   }
   const done = run!;
   const pick = seeded(used ^ 0x5bd1e995);
-  const sequences = [facesBackFrom(faces[0], done.bodies[0].flips.length, pick), facesBackFrom(faces[1], done.bodies[1].flips.length, pick)];
+  // A die is shown turning over at most once a frame: a second turn in the same frame is shown in the next. Then the
+  // faces are chosen backwards from the drawn one over the turns that are shown, so that every new face is one next to
+  // the face before it, and the last is the drawn one.
+  const shown = [0, 1].map((i) => {
+    const counts: number[] = [];
+    done.flipCounts.forEach((pair, k) => counts.push(k === 0 ? 0 : Math.min(pair[i], counts[k - 1] + 1)));
+    return counts;
+  });
+  const sequences = [0, 1].map((i) => facesBackFrom(faces[i], shown[i][shown[i].length - 1], pick));
 
   // The hand: the dice held together, rattled, before they go.
   const handFrames = Math.round(HAND_TIME * FRAME_RATE);
@@ -393,8 +405,8 @@ export function planThrow(faces: readonly [number, number], geometry: ThrowGeome
   for (let k = 0; k < handFrames; k++) {
     frames.push(
       [0, 1].map((i) => ({
-        x: start[i].x + between(jiggle, -0.12, 0.12) * geometry.die,
-        y: start[i].y + between(jiggle, -0.12, 0.12) * geometry.die,
+        x: start[i].x + between(jiggle, -HAND_JIGGLE, HAND_JIGGLE) * geometry.die,
+        y: start[i].y + between(jiggle, -HAND_JIGGLE, HAND_JIGGLE) * geometry.die,
         z: start[i].z,
         angle: start[i].angle + between(jiggle, -12, 12),
         face: sequences[i][0],
@@ -408,7 +420,7 @@ export function planThrow(faces: readonly [number, number], geometry: ThrowGeome
         y: pair[i].y,
         z: Math.max(0, pair[i].z),
         angle: ((pair[i].angle % 360) + 360) % 360,
-        face: sequences[i][done.flipCounts[k][i]],
+        face: sequences[i][shown[i][k]],
       })) as unknown as readonly [DieState, DieState],
     );
   });

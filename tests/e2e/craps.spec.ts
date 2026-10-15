@@ -34,11 +34,20 @@ async function firstBet(page: Page) {
   }).toPass({ timeout: 20_000 });
 }
 
+/** The table, which says when a throw is in the air and which throw last came to rest. */
+const felt = (page: Page) => page.getByTestId('craps-table');
+/** The table that is shown: the full one on a desk, the half one on a phone. */
+const shownTable = (page: Page) => page.locator('[data-table-kind]:visible');
+const diceShown = (page: Page) => shownTable(page).locator('[data-die]');
+const puck = (page: Page) => shownTable(page).getByTestId('craps-puck');
+
+/** Throws, and waits for this throw to come to rest on the table. */
 async function rollAndSettle(page: Page): Promise<Dice> {
+  const before = await felt(page).getAttribute('data-settled');
   await page.getByRole('button', { name: 'ROLL', exact: true }).click();
-  const tray = page.locator('[data-rolling]');
-  await expect(tray).toHaveAttribute('data-rolling', 'false', { timeout: 10_000 });
-  const label = (await tray.getAttribute('aria-label')) ?? '';
+  await expect.poll(() => felt(page).getAttribute('data-settled'), { timeout: 10_000 }).not.toBe(before);
+  await expect(felt(page)).toHaveAttribute('data-rolling', 'false');
+  const label = (await shownTable(page).getByTestId('craps-dice').textContent()) ?? '';
   const m = label.match(/Dice: (\d) and (\d)/);
   expect(m, label).not.toBeNull();
   return [Number(m![1]), Number(m![2])];
@@ -68,7 +77,7 @@ test('the dice land on what the table announces, and bets settle by the rules, i
 
   const dice = await rollAndSettle(page);
   // The dice on the felt show the drawn faces.
-  const faces = await page.locator('[data-die]').evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.face)));
+  const faces = await diceShown(page).evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.face)));
   expect(faces).toEqual([...dice]);
 
   const expected = resolveRoll(null, { pass: 5, field: 5 }, dice);
@@ -94,8 +103,7 @@ test('a scripted hand in medals: point, odds, point made, then a seven-out', asy
   // Come-out 2+4 = 6: the point is 6.
   await forceNextRoll(page, [2, 4]);
   await rollAndSettle(page);
-  await expect(page.getByTestId('craps-puck')).toBeVisible();
-  await expect(betSpot(page, /^Place 6/)).toContainText('ON');
+  await expect(puck(page)).toHaveText('ON');
   await expect(page.getByTestId('craps-message')).toHaveText('The point is 6');
   // Line bets are closed once the point is on.
   await betSpot(page, /^Don't Pass/).click();
@@ -166,9 +174,9 @@ test('a bet takes medals, a win adds them, and the Medal Game Center shows the s
   await expect(medalsShown(page)).toHaveText(String(WELCOME + 5));
   // The roll is still on the record after the reload, and the dice in the tray show it.
   await expect(page.getByRole('list', { name: 'Recent rolls' }).locator('li[data-event]')).toHaveCount(1);
-  await expect(page.locator('[data-die]').first()).toHaveAttribute('data-face', '5');
-  await expect(page.locator('[data-die]').nth(1)).toHaveAttribute('data-face', '6');
-  await expect(page.locator('[data-rolling]')).toHaveAttribute('aria-label', /^Dice: 5 and 6/);
+  await expect(diceShown(page).first()).toHaveAttribute('data-face', '5');
+  await expect(diceShown(page).nth(1)).toHaveAttribute('data-face', '6');
+  await expect(shownTable(page).getByTestId('craps-dice')).toHaveText(/^Dice: 5 and 6/);
 
   await openCenter(page);
   await expect(page.getByTestId('center-balance')).toHaveText(String(WELCOME + 5));
@@ -194,7 +202,7 @@ test('the bets on the table stay there through a reload, with the medals they ho
   await expect(page.getByTestId('craps-counter')).toHaveAttribute('data-loaded', 'true');
   await expect(medalsShown(page)).toHaveText(String(WELCOME - 11));
   await expect(onTable(page)).toHaveText('11');
-  await expect(page.getByTestId('craps-puck')).toBeVisible();
+  await expect(puck(page)).toBeVisible();
   await expect(betSpot(page, /^Place 8/)).toHaveAccessibleName(/6 medals on it/);
   expect((await storedTable(page))?.bets).toEqual({ pass: 5, place8: 6 });
   expect(await bankBalance(page)).toBe(WELCOME - 11);
@@ -314,10 +322,10 @@ test('switching to the odds tab mid-throw keeps the roll', async ({ page }) => {
   await openCraps(page);
   await firstBet(page);
   await page.getByRole('button', { name: 'ROLL', exact: true }).click();
-  await expect(page.locator('[data-rolling]')).toHaveAttribute('data-rolling', 'true');
+  await expect(felt(page)).toHaveAttribute('data-rolling', 'true');
   await page.getByRole('tab', { name: 'Exact odds' }).click();
   await expect(page.getByTestId('edge-pass')).toHaveText('1.414%');
-  await expect(page.locator('[data-rolling]')).toHaveAttribute('data-rolling', 'false', { timeout: 10_000 });
+  await expect(felt(page)).toHaveAttribute('data-rolling', 'false', { timeout: 10_000 });
   await page.getByRole('tab', { name: 'Play' }).click();
   await expect(page.getByRole('list', { name: 'Recent rolls' }).locator('li[data-event]')).toHaveCount(1);
 });
@@ -369,4 +377,109 @@ test('craps is localized', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^パスライン（1:1）/ })).toBeVisible();
   await expect(page.getByRole('radio', { name: '5枚ベット' })).toBeVisible();
   await expect(page.getByTestId('craps-center')).toContainText('メダルゲームセンター');
+});
+
+test('a bet tapped on the layout takes medals, and the throw flies to the far wall and lands on the drawn roll, which pays it', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openCraps(page);
+  await expect(shownTable(page)).toHaveAttribute('data-table-kind', 'full');
+  await firstBet(page);
+  await expect(medalsShown(page)).toHaveText(String(WELCOME - 5));
+  await expect(shownTable(page).locator('[data-bet="pass"] [data-amount="5"]')).toBeVisible();
+  // Where the first die is on every frame of the throw, read in the page as it moves.
+  await page.evaluate(() => {
+    const w = window as unknown as { __path?: number[] };
+    w.__path = [];
+    const sample = () => {
+      const die = document.querySelector<HTMLElement>('[data-table-kind="full"] [data-die="0"]');
+      const match = die?.style.transform.match(/translate3d\(([-\d.]+)px/);
+      if (match) w.__path!.push(Number(match[1]));
+      if (w.__path!.length < 400) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await forceNextRoll(page, [5, 6]);
+  expect(await rollAndSettle(page)).toEqual([5, 6]);
+  expect(await diceShown(page).evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.face)))).toEqual([5, 6]);
+  const path = await page.evaluate(() => (window as unknown as { __path: number[] }).__path);
+  const width = (await shownTable(page).getByTestId('craps-tub-full').boundingBox())!.width;
+  // Thrown from the shooter's end, it reaches the far wall, and comes back off it a little.
+  expect(path[0]).toBeGreaterThan(width * 0.8);
+  expect(Math.min(...path)).toBeLessThan(width * 0.08);
+  expect(path.at(-1)!).toBeGreaterThan(Math.min(...path));
+  await expect(page.getByTestId('craps-won')).toHaveText('Won 10 medals');
+  await expect(medalsShown(page)).toHaveText(String(WELCOME + 5));
+});
+
+test('the layout is played with the keyboard too', async ({ page }) => {
+  await openCraps(page);
+  const field = betSpot(page, /^Field/);
+  await expect(async () => {
+    await field.focus({ timeout: 1_000 });
+    await page.keyboard.press('Enter');
+    await expect(onTable(page)).toHaveText('5', { timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(field).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(onTable(page)).toHaveText('10');
+  await expect(field).toHaveAccessibleName(/10 medals on it/);
+});
+
+test('the throw is heard with the sound switched on, and the switch is kept', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await openCraps(page);
+  await firstBet(page);
+  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('craps-sound').click();
+  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('craps-sound')).toHaveText('Sound: on');
+  await forceNextRoll(page, [6, 5]);
+  expect(await rollAndSettle(page)).toEqual([6, 5]);
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'true');
+  expect(errors).toEqual([]);
+});
+
+test('Quick roll skips the throw, and a reduced-motion player sees the dice appear where they rest', async ({ page }) => {
+  await openCraps(page);
+  await firstBet(page);
+  await page.getByTestId('craps-quick').click();
+  await expect(page.getByTestId('craps-quick')).toHaveAttribute('aria-pressed', 'true');
+  await forceNextRoll(page, [2, 2]);
+  const started = Date.now();
+  expect(await rollAndSettle(page)).toEqual([2, 2]);
+  expect(Date.now() - started).toBeLessThan(1_000);
+  // The choice is kept on this device.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('craps-counter')).toHaveAttribute('data-loaded', 'true');
+  await expect(page.getByTestId('craps-quick')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByTestId('craps-quick').click();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await forceNextRoll(page, [6, 6]);
+  const calm = Date.now();
+  expect(await rollAndSettle(page)).toEqual([6, 6]);
+  expect(Date.now() - calm).toBeLessThan(1_500);
+});
+
+test('a half table on a phone and the full table on a desk, with no sideways scroll, in both languages', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openCraps(page);
+  await expect(shownTable(page)).toHaveAttribute('data-table-kind', 'half');
+  await expect(shownTable(page)).toHaveCount(1);
+  // Every bet the game takes is on the half table or the stickman's box under it, big enough to tap.
+  for (const id of ['pass', 'dontPass', 'passOdds', 'dontPassOdds', 'field', 'place4', 'place10', 'any7', 'hard8', 'anyCraps']) {
+    const box = (await shownTable(page).locator(`[data-bet="${id}"]`).boundingBox())!;
+    expect(box.width, id).toBeGreaterThanOrEqual(24);
+    expect(box.height, id).toBeGreaterThanOrEqual(24);
+  }
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+  await openCraps(page, 'ja');
+  await expect(shownTable(page)).toContainText('パスライン');
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(shownTable(page)).toHaveAttribute('data-table-kind', 'full');
+  await expect(shownTable(page).getByTestId('craps-other-end')).toBeAttached();
 });

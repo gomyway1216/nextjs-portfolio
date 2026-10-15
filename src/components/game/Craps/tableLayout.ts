@@ -136,7 +136,7 @@ function half(): TableLayout {
     puckOff: { x: 60, y: 24 },
     puck: 22,
     type: { number: 24, label: 13, small: 9 },
-    throw: { felt: { left: rail + 8, right: width - rail, top: rail, bottom: height - rail }, die: 26, hand: { x: 322, y: 214 } },
+    throw: { felt: { left: rail + 8, right: width - rail, top: rail, bottom: height - rail }, die: 26, hand: { x: 306, y: 206 } },
     center: {
       width,
       height: 186,
@@ -179,7 +179,7 @@ function full(): TableLayout {
     puckOff: { x: 52, y: 40 },
     puck: 34,
     type: { number: 40, label: 18, small: 12 },
-    throw: { felt: { left: rail + 10, right: width - rail - 10, top: rail, bottom: height - rail }, die: 30, hand: { x: 944, y: 392 } },
+    throw: { felt: { left: rail + 10, right: width - rail - 10, top: rail, bottom: height - rail }, die: 30, hand: { x: 912, y: 370 } },
     center: null,
   };
 }

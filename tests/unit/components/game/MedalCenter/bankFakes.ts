@@ -62,6 +62,11 @@ export class FakeBrowser {
 export class FakePage {
   visible = true;
   closed = false;
+  /**
+   * How many of the browser's tasks a lock request of this page takes to reach the lock manager. A real browser
+   * handles a request in parallel, so it can arrive after a message the page posted after making it.
+   */
+  lockLag = 0;
   watchers: Watchers | null = null;
   readonly name: string;
   readonly bank: Bank;
@@ -107,16 +112,26 @@ export class FakePage {
             return () => undefined;
           }
           const request = { page: this as FakePage, granted };
-          if (browser.holder === null && browser.queue.length === 0) {
-            browser.holder = this;
-            browser.tasks.push(() => {
-              browser.holder = null;
-              browser.give2(request);
-            });
-          } else {
-            browser.queue.push(request);
-          }
+          let withdrawn = false;
+          const arrive = () => {
+            if (withdrawn || this.closed) return;
+            if (browser.holder === null && browser.queue.length === 0) {
+              browser.holder = this;
+              browser.tasks.push(() => {
+                browser.holder = null;
+                browser.give2(request);
+              });
+            } else {
+              browser.queue.push(request);
+            }
+          };
+          const after = (lag: number): void => {
+            if (lag <= 0) arrive();
+            else browser.tasks.push(() => after(lag - 1));
+          };
+          after(this.lockLag);
           return () => {
+            withdrawn = true;
             const at = browser.queue.indexOf(request);
             if (at >= 0) browser.queue.splice(at, 1);
           };

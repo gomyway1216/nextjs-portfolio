@@ -23,7 +23,7 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
-  it('has the Medal Pusher, the Slot Machine and Three Card Poker open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
+  it('has the Medal Pusher, the Slot Machine, Roulette and Three Card Poker open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
@@ -31,10 +31,15 @@ describe('the medal center’s front, as the server sends it', () => {
     const slot = html.match(/<a[^>]*data-testid="center-play-slot-machine"[^>]*>/)?.[0] ?? '';
     expect(slot).toContain(`href="${games.find((game) => game.id === 'slot-machine')?.path}"`);
     expect(FLOOR.find(({ id }) => id === 'slot-machine')?.path).toBe('/games/slot-machine');
+    // Roulette is open on the floor too, and plays with the same medals.
+    const roulette = html.match(/<a[^>]*data-testid="center-play-roulette"[^>]*>/)?.[0] ?? '';
+    expect(roulette).toContain(`href="${games.find((game) => game.id === 'roulette')?.path}"`);
+    expect(FLOOR.find(({ id }) => id === 'roulette')?.path).toBe('/games/roulette');
     // So does Three Card Poker.
     expect(FLOOR.find(({ id }) => id === 'three-card-poker')?.path).toBe(games.find((game) => game.id === 'three-card-poker')?.path);
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
     expect(soon).not.toContain('slot-machine');
+    expect(soon).not.toContain('roulette');
     expect(soon).not.toContain('three-card-poker');
     expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
     // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.

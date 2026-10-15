@@ -212,6 +212,14 @@
   font-size: 0.88rem;
   line-height: 1.5;
 }
+
+/* That the medals are not money: said under the counter, plainly and a little smaller. */
+.notMoney {
+  margin: 0;
+  color: var(--mc-ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
 .where[data-kept='false'],
 .where[data-where='offline'],
 .where[data-where='unreadable'] {

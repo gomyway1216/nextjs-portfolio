@@ -192,6 +192,9 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
               {t.refill(WELCOME)}
             </button>
           )}
+          <p className={styles.notMoney} data-testid="center-not-money">
+            {t.notMoney}
+          </p>
         </section>
 
         {/* The daily bonus is the bank's, for every machine: the same stamp card the machines show. */}

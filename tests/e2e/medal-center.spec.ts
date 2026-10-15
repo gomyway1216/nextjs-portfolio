@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { BANKED_KEY, BANK_KEY, PUSHER } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { BONUS_CARD } from '../../src/components/game/MedalPusher/records';
 import { START_CREDITS, createSession } from '../../src/components/game/MedalPusher/session';
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
@@ -67,6 +68,8 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-balance')).toHaveText(String(WELCOME));
   await expect(page.getByTestId('center-member')).toHaveText('Guest');
   await expect(page.getByTestId('center-where')).toHaveAttribute('data-where', 'device');
+  // It says, under the counter, that the medals are not money.
+  await expect(page.getByTestId('center-not-money')).toHaveText(NOT_MONEY.en);
   // The bank is written down at once, as a new member's.
   await expect.poll(() => bankBalance(page)).toBe(WELCOME);
   // The floor: the Medal Pusher and Roulette open and linked, the other casino games shown as not open yet.
@@ -82,7 +85,8 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
 
   await openCenter(page, 'ja');
   await expect(page.getByTestId('center-reset')).toHaveText('メダルをリセット');
-  await expect(page.locator('#center-counter-label')).toHaveText('預かりメダル');
+  await expect(page.locator('#center-counter-label')).toHaveText('持ちメダル');
+  await expect(page.getByTestId('center-not-money')).toHaveText(NOT_MONEY.ja);
   await expect(page.getByTestId('center-soon')).toContainText('スロットマシン');
   expect(await sideways(page)).toBeLessThanOrEqual(375);
   expect(errors).toEqual([]);
@@ -139,7 +143,7 @@ test('the reset asks first, then empties the bank to a new member’s medals and
   const dialog = page.getByTestId('center-reset-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute('role', 'alertdialog');
-  await expect(dialog).toContainText(`The ${before.toLocaleString('en-US')} medals in your bank are thrown away`);
+  await expect(dialog).toContainText(`Your ${before.toLocaleString('en-US')} medals are thrown away`);
   await expect(page.getByTestId('center-reset-cancel')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);

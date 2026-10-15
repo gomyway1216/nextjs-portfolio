@@ -375,18 +375,20 @@ test('on a phone the START pockets are three holes side by side in the START pla
   const waiting = (seen: Plate) => seen.holes.filter((hole) => hole.shade >= 60 && hole.warm <= hole.shade / 4 && hole.lamp >= 2);
   /** The holes of a reading that are lit: gold where the others are dark, and none of the shade to speak of. */
   const lit = (seen: Plate) => seen.holes.filter((hole) => hole.warm >= 40 && hole.shade <= 8);
-  // Two that wait and one that is lit, whichever the lucky lamp is on. A medal on its way down the plate or into a hole
-  // covers some of one for a moment, so the picture is looked at until none does, and that look is the one judged.
+  // Two that wait and one that is lit, whichever the lucky lamp is on, and the plate's band seen whole. A medal on its way
+  // down the plate or into a hole covers some of a hole, or of the left sign whose rows the band is read from, for a
+  // moment; so the picture is looked at until nothing does, and that look is the one judged. (Judged on the first look
+  // instead, the band once read 5 rows on production while a medal slid over the sign.)
   let seen: Plate | null = null;
   await expect
     .poll(
       async () => {
         seen = await plate();
-        return seen ? [waiting(seen).length, lit(seen).length] : [];
+        return seen ? [waiting(seen).length, lit(seen).length, seen.rows >= 6] : [];
       },
       { timeout: 10_000 },
     )
-    .toEqual([2, 1]);
+    .toEqual([2, 1, true]);
   const look = seen as Plate | null;
   if (!look) throw new Error('no START plate was found in the picture');
   // A waiting hole is where the plate has it: the middle of the shade seen down it within a couple of pixels.

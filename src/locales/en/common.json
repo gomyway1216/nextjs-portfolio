@@ -1313,11 +1313,15 @@
     },
     "medal-center": {
       "title": "Medal Game Center",
-      "description": "A Japanese arcade’s medal counter: one medal bank for every machine on the floor, kept on your account, with a daily bonus, a free refill when you run out, and the one reset."
+      "description": "A Japanese arcade’s medal counter: your medals for every machine on the floor, kept on your account, with a daily bonus, a free refill when you run out, and the one reset. Medals are for play only, not money."
     },
     "medal-pusher": {
       "title": "Medal Pusher",
       "description": "Drop medals into a Japanese-style arcade pusher: spin the slot, roll the sugoroku die, pick a treasure chest, topple medal towers and push prize balls over the edge — then measure how much the open sides keep."
+    },
+    "janken": {
+      "title": "Calico Janken",
+      "description": "A candy-shop janken machine at the Medal Center: beat the calico cat at rock, paper, scissors with your medals, let the ring of lamps decide your win, double up if you dare — and see why exactly 90 of every 100 medals come back."
     },
     "monty-hall": {
       "title": "Monty Hall",

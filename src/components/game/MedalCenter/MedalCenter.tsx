@@ -26,6 +26,7 @@ export const COUNTER_PLACES = 7;
 export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'medal-pusher', path: MEDAL_PUSHER_PATH },
   { id: 'slot-machine', path: '/games/slot-machine' },
+  { id: 'janken', path: '/games/janken' },
   { id: 'roulette', path: '/games/roulette' },
   { id: 'blackjack', path: '/games/blackjack' },
   { id: 'video-poker', path: '/games/video-poker' },

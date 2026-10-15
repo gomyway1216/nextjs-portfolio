@@ -3,15 +3,21 @@
 import { useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
-import { PlayTab } from './PlayTab';
+import { GUEST_PLAYER, PlayTab, type TablePlayer } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './Baccarat.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
-export const Baccarat = () => {
+export interface BaccaratProps {
+  /** Who is playing, as the site knows it: the table plays with their medals once it is sure. A guest without one. */
+  player?: TablePlayer;
+}
+
+export const Baccarat = ({ player = GUEST_PLAYER }: BaccaratProps = {}) => {
   const [tab, setTab] = useState<Tab>('play');
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
@@ -28,6 +34,11 @@ export const Baccarat = () => {
       <div className={styles.shell}>
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
+            {/* The table stands on the medal floor, whose front has the player's medals, the daily bonus and the reset. */}
+            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="baccarat-center">
+              <span aria-hidden>← </span>
+              {t.centerLink}
+            </a>
             <h1 className={styles.title}>
               <span aria-hidden>♦️</span> {t.title}
             </h1>
@@ -56,9 +67,9 @@ export const Baccarat = () => {
         </div>
 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
-            never drops the bankroll or a hand that is still being dealt. */}
+            never drops a hand that is still being dealt. */}
         <div role="tabpanel" id="baccarat-panel-play" aria-labelledby="baccarat-tab-play" hidden={tab !== 'play'}>
-          <PlayTab />
+          <PlayTab player={player} />
         </div>
         <div role="tabpanel" id="baccarat-panel-odds" aria-labelledby="baccarat-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
@@ -74,6 +85,9 @@ export const Baccarat = () => {
             {p}
           </p>
         ))}
+        <p className={styles.infoP} data-testid="baccarat-help-not-money">
+          {t.notMoney}
+        </p>
       </InfoModal>
     </div>
   );

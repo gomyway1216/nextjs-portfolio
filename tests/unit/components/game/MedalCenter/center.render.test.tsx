@@ -23,28 +23,25 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
-  it('has the Medal Pusher, the Slot Machine and Blackjack open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
+  it('has the Medal Pusher and the casino games already on the medals open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
-    // The Slot Machine and Blackjack play with the medals: open, and each Play link goes to its own page in the catalog.
-    for (const id of ['slot-machine', 'blackjack']) {
+    // The casino games on the medals so far: open, and each Play link goes to its own page in the catalog.
+    const open = ['slot-machine', 'roulette', 'blackjack', 'baccarat', 'three-card-poker'];
+    for (const id of open) {
+      expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
       const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
       expect(link).toContain(`href="${games.find((game) => game.id === id)?.path}"`);
     }
-    expect(FLOOR.find(({ id }) => id === 'slot-machine')?.path).toBe('/games/slot-machine');
-    expect(FLOOR.find(({ id }) => id === 'blackjack')?.path).toBe('/games/blackjack');
-    // Every machine on the floor is open with a way in, or shown as coming with none.
-    for (const { id, path } of FLOOR) {
-      if (path !== null) expect(html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0]).toContain(`href="${path}"`);
-    }
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
-    expect(soon).not.toContain('slot-machine');
-    expect(soon).not.toContain('blackjack');
+    for (const id of open) expect(soon).not.toContain(id);
     expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
-    for (const id of soon) {
+    // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
+    for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
-      expect(html).not.toContain(`center-play-${id}`);
+      if (path === null) expect(html).not.toContain(`center-play-${id}`);
+      else expect(html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '').toContain(`href="${path}"`);
     }
     // Every machine on the floor is a game the site has.
     for (const { id } of FLOOR) expect(games.some((game) => game.id === id)).toBe(true);

@@ -2,10 +2,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
+import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
+import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
+import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { ThreeCardPoker } from '@/components/game/ThreeCardPoker';
 import { HoleCard, PlayingCard, cardLabel } from '@/components/game/ThreeCardPoker/Cards';
 import { OddsTab, THRESHOLD_HANDS } from '@/components/game/ThreeCardPoker/OddsTab';
-import { INITIAL_BANKROLL, PlayTab, TIMING, dealSchedule, revealSchedule } from '@/components/game/ThreeCardPoker/PlayTab';
+import { COUNTER_PLACES, PlayTab, TIMING, dealSchedule, revealSchedule } from '@/components/game/ThreeCardPoker/PlayTab';
 import { HAND_OPTIONS, SimTab } from '@/components/game/ThreeCardPoker/SimTab';
 import { EdgeChart, EvCurve } from '@/components/game/ThreeCardPoker/charts';
 import { getStrings } from '@/components/game/ThreeCardPoker/i18n';
@@ -34,14 +37,26 @@ describe('cards', () => {
 });
 
 describe('PlayTab', () => {
-  it('opens with a full bankroll, the three spots and nothing dealt', () => {
+  it('opens with the medal counter waiting for the medals, the three spots and nothing dealt', () => {
     const markup = render(<PlayTab />);
-    expect(markup).toContain(`data-testid="tcp-bankroll">${INITIAL_BANKROLL}<`);
+    // The medals are read in the browser: the server sends the counter with every LED dark and nothing to bet yet.
+    expect(markup).toMatch(/data-testid="tcp-counter" data-loaded="false"/);
+    expect(markup).toContain('data-testid="tcp-medals">—<');
+    expect(markup.match(/data-on="true"/g)).toBeNull();
+    expect(markup.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
+    expect(markup).toContain('Your medals');
+    expect(markup).toContain(`data-testid="tcp-not-money">${NOT_MONEY.en}<`);
+    expect(markup).toContain(`href="${MEDAL_CENTER_PATH}" data-testid="tcp-counter-center">Medal Game Center<`);
+    expect(markup).not.toContain('tcp-refill');
+    expect(markup).not.toContain('tcp-card-away');
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>DEAL<\/button>/);
+    // A press bets 1, 5 or 10 medals, 1 to begin with, as a cabinet's 1BET button.
+    expect([...markup.matchAll(/data-step="(\d+)"/g)].map((m) => Number(m[1]))).toEqual([1, 5, 10]);
+    expect(markup).toMatch(/aria-checked="true" aria-label="Bet 1 medal per press"/);
     expect(markup).toContain('data-testid="tcp-on-table">0<');
     expect([...markup.matchAll(/data-bet="(\w+)"/g)].map((m) => m[1])).toEqual(['pairPlus', 'ante', 'play']);
     expect(markup).toContain('aria-label="Ante (1:1)"');
     expect(markup).toContain('aria-label="Pair Plus (up to 40:1)"');
-    expect(markup).toContain('>DEAL<');
     expect(markup).toContain('Place your Ante, then deal.');
     // PLAY and FOLD are there but locked until a hand is dealt.
     expect(markup).toMatch(/<button[^>]*data-action="play"[^>]*disabled=""[^>]*>PLAY<\/button>/);
@@ -59,9 +74,11 @@ describe('PlayTab', () => {
     expect(markup).toContain('Dealer plays with Queen-high or better');
   });
 
-  it('is localized, felt included', () => {
+  it('is localized, felt and medals included', () => {
     const markup = render(<PlayTab />, 'ja');
-    expect(markup).toContain('所持金');
+    expect(markup).toContain('持ちメダル');
+    expect(markup).toContain(`data-testid="tcp-not-money">${NOT_MONEY.ja}<`);
+    expect(markup).toContain('aria-label="1回5枚ベット"');
     expect(markup).toContain('>ディール<');
     expect(markup).toContain('>プレイ</button>');
     expect(markup).toContain('>フォールド</button>');
@@ -93,15 +110,87 @@ describe('PlayTab', () => {
     expect(ja.handName('threeOfAKind', '8')).toBe('スリーカード');
     expect(en.hintSays('play')).toBe('Strategy: play Q-6-4 or better → play this hand');
     expect(en.hintSays('fold')).toContain('fold this hand');
-    expect(en.result('notQualified', '+10')).toContain('Ante pays, Play pushes · +10');
-    expect(en.result('fold', '−15')).toBe('You folded · −15');
-    expect(ja.result('win', '+20')).toBe('あなたの勝ち・+20');
+    expect(en.result('notQualified', 10)).toBe('Dealer doesn’t qualify — Ante pays, Play pushes · won 10 medals');
+    expect(en.result('fold', -15)).toBe('You folded · lost 15 medals');
+    expect(en.result('win', 1)).toBe('You beat the dealer · won 1 medal');
+    expect(en.result('tie', 0)).toBe('Tie — Ante and Play push · no medals won or lost');
+    expect(ja.result('win', 20)).toBe('あなたの勝ち・20枚獲得');
+    expect(ja.result('fold', -15)).toBe('フォールド・15枚の負け');
+    expect(en.needPlayFunds(5)).toBe('Keep 5 medals for the Play bet — lower the Ante or the Pair Plus bet.');
+    expect(ja.needPlayFunds(5)).toBe('プレイベット用に5枚残してください。アンティかペアプラスを減らしましょう。');
     // The rules in the info modal spell out every payout.
     const rules = en.infoBody.join(' ');
     for (const text of ['Queen-high or better', 'straight pays 1:1', 'three of a kind 4:1', 'straight flush 5:1', 'pair 1:1, flush 3:1, straight 6:1, three of a kind 30:1, straight flush 40:1', 'Q-6-4']) {
       expect(rules, text).toContain(text);
     }
     expect(ja.infoBody).toHaveLength(en.infoBody.length);
+  });
+});
+
+/** Every word a player can be shown, in one language: each string, and what each function says for a few likely arguments. */
+function everyWord(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) for (const item of value) everyWord(item, out);
+  else if (typeof value === 'function') {
+    for (const args of [['win', 5], ['fold', -5], ['notQualified', 0], ['5', '7', '3', '2'], [10, '16.74', '0.34', '0.73']]) {
+      try {
+        everyWord((value as (...a: unknown[]) => unknown)(...args), out);
+      } catch {
+        // A function that wants other arguments says nothing here.
+      }
+    }
+  } else if (value && typeof value === 'object') for (const item of Object.values(value)) everyWord(item, out);
+  return out;
+}
+
+/** The words of rendered markup a player meets: its text, and what its labels say to a screen reader. */
+const wordsOf = (markup: string): string =>
+  [...markup.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1]).join(' ') + ' ' + markup.replace(/<[^>]+>/g, ' ');
+
+// The owner's rule: 「本当のお金と誤解される書き方はしないでほしい。」 Only the note that says medals are not money may name it.
+const MONEY_EN = /\b(bank|bankroll|banks|deposits?|withdraw\w*|cash\w*|money|dollars?|balance|credits?)\b|\$|\bpay(s|ing)? (in|out)\b|\bpayouts?\b/i;
+const MONEY_JA = /預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|所持金/;
+
+describe('the words', () => {
+  it('never say anything that could be mistaken for money, in either language, except the note that says medals are not money', () => {
+    for (const [language, money] of [
+      ['en', MONEY_EN],
+      ['ja', MONEY_JA],
+    ] as const) {
+      const notMoney = NOT_MONEY[language];
+      expect(notMoney).toMatch(money);
+      for (const word of everyWord(getStrings(language))) expect(word, `${language}: ${word}`).not.toMatch(money);
+      const page = wordsOf(render(<ThreeCardPoker />, language)).replace(notMoney, '');
+      expect(page).not.toMatch(money);
+      expect(page.length).toBeGreaterThan(500);
+    }
+  });
+
+  it('puts the medal counter, its note and the way back to the Medal Game Center on the page', () => {
+    const markup = render(<ThreeCardPoker />);
+    expect(markup).toMatch(new RegExp(`<a[^>]*href="${MEDAL_CENTER_PATH}"[^>]*data-testid="tcp-center"[^>]*>`));
+    expect(markup).toContain('data-testid="tcp-not-money"');
+    // The notice that the table plays with medals now is shown in the browser, once it is known that it has not been read.
+    expect(markup).not.toContain('tcp-medals-notice');
+    const ja = render(<ThreeCardPoker />, 'ja');
+    expect(ja).toContain('メダルゲームセンター');
+    for (const language of ['en', 'ja'] as const) {
+      const t = getStrings(language);
+      expect(t.noticeBody).toContain('1,000');
+      expect(t.infoBody.join(' ')).toContain(language === 'en' ? 'medals from the Medal Game Center' : 'メダルゲームセンターの持ちメダル');
+    }
+  });
+
+  it('stands open on the Medal Game Center’s floor, with a way in', () => {
+    expect(FLOOR.find(({ id }) => id === 'three-card-poker')?.path).toBe('/games/three-card-poker');
+    const hub = renderToStaticMarkup(
+      <I18nextProvider i18n={createI18nInstance('en')}>
+        <MedalCenter />
+      </I18nextProvider>,
+    );
+    expect(hub).toMatch(/<li[^>]*data-open="true" data-machine="three-card-poker"/);
+    const play = hub.match(/<a[^>]*data-testid="center-play-three-card-poker"[^>]*>/)?.[0] ?? '';
+    expect(play).toContain('href="/games/three-card-poker"');
   });
 });
 
@@ -162,6 +251,15 @@ describe('OddsTab', () => {
     expect(markup).toContain('the 480 Queen-high hands weaker than Q-6-4');
     expect(markup).toContain('plays 7,200 hands the best strategy folds — 6,720 of them');
     expect(markup).toContain('Without it the house edge would be 8.66%.');
+  });
+
+  it('says what the edges come to in medals, at the table’s limit of 10 on each spot', () => {
+    const markup = render(<OddsTab />);
+    expect(markup).toContain(
+      'with the best strategy a hand puts 16.74 medals on the Ante and Play bets on average and loses 0.34 of them, and 10 medals on Pair Plus lose another 0.73 a hand.',
+    );
+    expect(markup).toContain('what the side bet gives back per medal bet');
+    expect(render(<OddsTab />, 'ja')).toContain('平均16.74枚を賭け、そのうち0.34枚を失います。ペアプラスに10枚賭けると、さらに1回0.73枚です。');
   });
 
   it('is localized', () => {

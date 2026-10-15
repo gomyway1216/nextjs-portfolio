@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { bank as medalBank, useBank } from '../MedalCenter/bank';
+import { REFILL } from '../MedalCenter/ledger';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
 import {
   BET_IDS,
@@ -16,9 +19,7 @@ import {
   handTotal,
   isDragon7,
   isPanda8,
-  roadEntry,
   settleBet,
-  settleBets,
   shoeFinished,
   totalOnTable,
   unseenCounts,
@@ -29,22 +30,45 @@ import {
   type Hand,
   type Mode,
   type RoadEntry,
-  type Shoe,
   type Side,
 } from './engine';
+import {
+  BET_STEPS,
+  NEW_TABLE,
+  NOTICE_KEY,
+  SPOT_MAX,
+  TABLE_KEY,
+  afterCoup,
+  browserStore,
+  createMedalTable,
+  medalsBack,
+  parseTable,
+  pressAmount,
+  refusal,
+  serializeTable,
+  stepFor,
+  tableTakes,
+  type MedalTable,
+  type Refusal,
+  type Stats,
+  type TableState,
+} from './medals';
+import { MedalCounter, MedalIcon } from './MedalCounter';
 import { PlayingCard, cardLabel } from './Cards';
 import { BeadPlate, BigRoad } from './Roads';
 import { getStrings } from './i18n';
 import styles from './Baccarat.module.css';
 
-export const INITIAL_BANKROLL = 1000;
-export const CHIP_VALUES = [1, 5, 25, 100, 500] as const;
-const CHIP_COLORS: Record<number, string> = { 1: '#e2e8f0', 5: '#ef4444', 25: '#22c55e', 100: '#1a1a1f', 500: '#a855f7' };
-
 /** Deal pacing: a card every CARD_MS, an extra beat before each third card, then settle. */
 const CARD_MS = 340;
 const THIRD_CARD_PAUSE_MS = 360;
 const SETTLE_MS = 420;
+
+/**
+ * How long the table waits for the card before it says that it is in another tab, in seconds. The card is away for
+ * a moment whenever another page takes the day's bonus or the like; nothing is said of that. (As the Medal Pusher.)
+ */
+export const CARD_WAIT = 1.5;
 
 export function revealSchedule(cards: number): { reveal: number[]; settle: number } {
   const reveal = Array.from({ length: cards }, (_, k) => k * CARD_MS + Math.max(0, k - 3) * THIRD_CARD_PAUSE_MS);
@@ -54,6 +78,13 @@ export function revealSchedule(cards: number): { reveal: number[]; settle: numbe
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
+/** Who is playing: an account's id, or null for a guest; and whether the site has finished finding out. */
+export interface TablePlayer {
+  uid: string | null;
+  settled: boolean;
+}
+export const GUEST_PLAYER: TablePlayer = { uid: null, settled: true };
+
 interface Round {
   id: number;
   hand: Hand;
@@ -62,6 +93,10 @@ interface Round {
   settled: boolean;
   results: BetResult[];
   mode: Mode;
+  /** Medals the hand gives back. */
+  returned: number;
+  /** Whether they went back before the cards were all turned over (the card was leaving the page). */
+  paidEarly: boolean;
 }
 
 interface ShoeView {
@@ -75,52 +110,72 @@ interface ShoeView {
 
 const NO_SHOE: ShoeView = { number: 0, hand: 0, cardsLeft: 0, burnCard: null, burned: 0, finished: false };
 
-interface Stats {
-  hands: number;
-  banker: number;
-  player: number;
-  tie: number;
-  playerPairs: number;
-  bankerPairs: number;
-  naturals: number;
-}
+const shoeViewOf = (table: TableState): ShoeView =>
+  table.shoe
+    ? {
+        number: table.shoeNumber,
+        hand: table.hand,
+        cardsLeft: table.shoe.cards.length - table.shoe.next,
+        burnCard: table.shoe.burnCard,
+        burned: table.shoe.burned,
+        finished: shoeFinished(table.shoe),
+      }
+    : NO_SHOE;
 
-const EMPTY_STATS: Stats = { hands: 0, banker: 0, player: 0, tie: 0, playerPairs: 0, bankerPairs: 0, naturals: 0 };
+/** The cards nobody at the table has seen: after the cut card, the next hand comes from a new, unseen shoe. */
+const unseenOf = (table: TableState): number[] =>
+  table.shoe && !shoeFinished(table.shoe) ? unseenCounts(table.shoe) : fullShoeCounts(table.shoe?.decks ?? DEFAULT_DECKS);
 
-/** Amounts stay exact internally (a 5 Banker win pays 4.75); round only for display. */
-const money = (n: number) => {
-  const r = Math.round(n * 100) / 100;
-  return Number.isInteger(r) ? String(r) : r.toFixed(2);
-};
 const pct = (p: number, digits = 2) => `${(p * 100).toFixed(digits)}%`;
 const paysText = (id: BetId) => `${PAYS[id][0]}:${PAYS[id][1]}`;
 
-export const PlayTab = () => {
+export interface PlayTabProps {
+  player?: TablePlayer;
+}
+
+export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
+  const locale = language === 'ja' ? 'ja-JP' : 'en-US';
+  const fmt = (n: number) => n.toLocaleString(locale);
 
-  const [bankroll, setBankroll] = useState(INITIAL_BANKROLL);
-  const [chip, setChip] = useState<number>(CHIP_VALUES[1]);
+  // The medals are the player's, from the Medal Game Center (MedalCenter/bank.ts); so is the card that lets this
+  // table take and give them.
+  const bankState = useBank();
+  const [chip, setChip] = useState<number>(NEW_TABLE.chip);
   const [bets, setBets] = useState<Bets>({});
-  const [mode, setMode] = useState<Mode>('commission');
+  const [mode, setMode] = useState<Mode>(NEW_TABLE.mode);
   const [dealing, setDealing] = useState(false);
   const [round, setRound] = useState<Round | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [roads, setRoads] = useState<RoadEntry[]>([]);
-  const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  const [stats, setStats] = useState<Stats>(NEW_TABLE.stats);
   const [shoeView, setShoeView] = useState<ShoeView>(NO_SHOE);
   const [unseen, setUnseen] = useState<number[]>(() => fullShoeCounts(DEFAULT_DECKS));
+  const [notice, setNotice] = useState(false);
 
-  // Refs mirror state that click handlers and timers must read synchronously.
-  const bankrollRef = useRef(INITIAL_BANKROLL);
+  // Refs mirror state that click handlers, timers and the bank's calls must read synchronously.
   const betsRef = useRef<Bets>({});
+  const modeRef = useRef<Mode>(NEW_TABLE.mode);
+  const chipRef = useRef<number>(NEW_TABLE.chip);
   const dealingRef = useRef(false);
-  const shoeRef = useRef<Shoe | null>(null);
-  const shoeNumber = useRef(0);
+  // The table as this device keeps it: as it will stand once the hand being dealt has settled.
+  const tableRef = useRef<TableState>(NEW_TABLE);
+  // What this page last read or wrote under TABLE_KEY. When the card comes back and storage holds something else, a
+  // table in another tab has played since, and its table is the one to carry on with.
+  const seenTable = useRef<string | null>(null);
   const undoStack = useRef<{ id: BetId; amount: number }[]>([]);
-  const lastBets = useRef<Bets>({});
   const roundId = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const medalTable = useRef<MedalTable | null>(null);
+  // The felt, which takes the keyboard when the player comes back from another tab (the button they pressed goes).
+  const feltRef = useRef<HTMLDivElement | null>(null);
+  const store = useMemo(() => (typeof window === 'undefined' ? null : browserStore()), []);
+  const live = useRef({ t });
+
+  useEffect(() => {
+    live.current = { t };
+  });
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -128,18 +183,170 @@ export const PlayTab = () => {
     betsRef.current = next;
     setBets(next);
   };
-  const commitBankroll = (next: number) => {
-    bankrollRef.current = next;
-    setBankroll(next);
+  const commitMode = (next: Mode) => {
+    modeRef.current = next;
+    setMode(next);
+  };
+  const commitChip = (next: number) => {
+    chipRef.current = next;
+    setChip(next);
   };
 
-  const place = (id: BetId, amount: number = chip): boolean => {
-    if (dealingRef.current || !betAvailable(id, mode)) return false;
-    if (amount > bankrollRef.current) {
-      setMessage(t.noFunds);
+  /** Writes the table down. Only the page that holds the card does: another tab's table is never written over. */
+  const keepTable = (table: TableState) => {
+    tableRef.current = table;
+    if (!store || !medalTable.current?.holding()) return;
+    const text = serializeTable(table);
+    if (store.write(TABLE_KEY, text)) seenTable.current = text;
+  };
+
+  const stopReveal = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    dealingRef.current = false;
+    setDealing(false);
+  };
+
+  /** Shows a table as it stands: its shoe, its scoreboards and its last hand, settled. */
+  const showTable = (table: TableState) => {
+    tableRef.current = table;
+    commitMode(table.mode);
+    commitChip(table.chip);
+    setRoads(table.roads);
+    setStats(table.stats);
+    setShoeView(shoeViewOf(table));
+    setUnseen(unseenOf(table));
+    if (table.last) {
+      const { results, returned } = medalsBack(table.last.bets, table.last.hand, table.last.mode);
+      const id = ++roundId.current;
+      setRound({ id, hand: table.last.hand, shown: cardsInHand(table.last.hand), settled: true, results, mode: table.last.mode, returned, paidEarly: false });
+    } else {
+      setRound(null);
+    }
+  };
+
+  /** The table starts over (after the Medal Game Center's reset): a new shoe, empty scoreboards, nothing on the felt. */
+  const startOver = () => {
+    stopReveal();
+    commitBets({});
+    undoStack.current = [];
+    showTable({ ...NEW_TABLE, mode: modeRef.current, chip: chipRef.current });
+    keepTable(tableRef.current);
+  };
+
+  // The table this device keeps is put out before the card arrives, so the scoreboards are there at once. Nothing is
+  // written until the card is here. A table that cannot be read (a newer version's, or damaged) gives a new one.
+  useEffect(() => {
+    if (!store) return;
+    const text = store.read(TABLE_KEY);
+    seenTable.current = text;
+    const table = parseTable(text);
+    // Storage is read only in the browser, after the first drawing matches the server's.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (table) showTable(table);
+    // Told once that the table plays with the player's medals now.
+    if (store.read(NOTICE_KEY) === null) {
+      setNotice(true);
+      store.write(NOTICE_KEY, '1');
+    }
+    // Once, on opening: the functions it calls only set state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store]);
+
+  // The table's place at the medal bank. It asks for the card as it opens, and takes and gives medals only while it
+  // holds it. As the card goes, a hand in flight is paid first (its cards are decided already).
+  useEffect(() => {
+    if (!store) return;
+    const purse = medalBank();
+    const table = createMedalTable(purse, store, {
+      granted: (moved) => {
+        const { t: strings } = live.current;
+        // The Medal Game Center has been reset since this table last started over: it starts over now.
+        if (table.restartIfDue()) {
+          startOver();
+          setMessage(strings.sayRestart);
+          return;
+        }
+        // Another tab's table has played since: its table is the one to carry on with.
+        const text = store.read(TABLE_KEY);
+        if (moved || text !== seenTable.current) {
+          seenTable.current = text;
+          stopReveal();
+          commitBets({});
+          undoStack.current = [];
+          showTable(parseTable(text) ?? { ...NEW_TABLE, mode: modeRef.current, chip: chipRef.current });
+        }
+      },
+      yielding: () => {
+        // The hand in flight was paid as the card went (medals.ts); its cards go on being turned over here.
+      },
+      paid: (coup, early) => {
+        if (early) setRound((r) => (r && !r.settled ? { ...r, paidEarly: true } : r));
+      },
+      resumed: (coup, paid) => {
+        if (paid) setMessage(live.current.t.sayResumed(coup.returned));
+      },
+    });
+    medalTable.current = table;
+    table.sit();
+    // A reset at the Medal Game Center, here or in another tab: the table starts over. It is written down as such
+    // when this page next holds the card (`restartIfDue` above).
+    const unlisten = purse.listen((event) => {
+      if (event.type !== 'reset') return;
+      startOver();
+      setMessage(live.current.t.sayRestart);
+    });
+    return () => {
+      unlisten();
+      table.leave();
+      if (medalTable.current === table) medalTable.current = null;
+    };
+    // Once, on opening: the functions it calls read what they need from refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store]);
+
+  // The medals on the table are the player's only once the site knows who is playing, and the bank on the table is
+  // theirs. When that changes under a page that holds the card (signing in or out), a hand left unpaid for them is
+  // paid, and a reset is caught up with.
+  const playable = bankState.loaded && bankState.card === 'here' && player.settled && bankState.owner === player.uid;
+  useEffect(() => {
+    const table = medalTable.current;
+    if (!playable || !table) return;
+    table.resume();
+    if (table.restartIfDue()) {
+      startOver();
+      setMessage(live.current.t.sayRestart);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playable, bankState.owner]);
+
+  // While the card is in another tab's table, this one says so, a moment after (it is away for a moment whenever the
+  // Medal Game Center takes it for the daily bonus or the like, and nothing need be said of that).
+  const [longWait, setLongWait] = useState(false);
+  useEffect(() => {
+    if (bankState.card !== 'asking') return;
+    const timer = window.setTimeout(() => setLongWait(true), CARD_WAIT * 1000);
+    return () => {
+      window.clearTimeout(timer);
+      setLongWait(false);
+    };
+  }, [bankState.card]);
+  const cardAway = bankState.card === 'away' || (bankState.card === 'asking' && longWait);
+
+  const say = (why: Refusal, id: BetId) => {
+    if (why === 'medals') setMessage(t.noMedals);
+    else if (why === 'max') setMessage(t.spotMax(t.betName[id], SPOT_MAX[id]));
+    else if (why === 'step') setMessage(t.bankerStep(stepFor(id, modeRef.current)));
+  };
+
+  /** Puts medals on a spot. They stay the player's until DEAL: the counter shows them on the felt. */
+  const place = (id: BetId, amount: number = pressAmount(id, modeRef.current, chipRef.current)): boolean => {
+    if (dealingRef.current || !playable) return false;
+    const why = refusal(betsRef.current, id, amount, modeRef.current, medalBank().balance());
+    if (why) {
+      say(why, id);
       return false;
     }
-    commitBankroll(bankrollRef.current - amount);
     commitBets({ ...betsRef.current, [id]: (betsRef.current[id] ?? 0) + amount });
     undoStack.current.push({ id, amount });
     setMessage(null);
@@ -155,132 +362,128 @@ export const PlayTab = () => {
     if (remaining > 0) next[last.id] = remaining;
     else delete next[last.id];
     commitBets(next);
-    commitBankroll(bankrollRef.current + last.amount);
   };
 
   const clear = () => {
-    while (undoStack.current.length > 0) undo();
+    if (dealingRef.current) return;
+    undoStack.current = [];
+    commitBets({});
+    setMessage(null);
   };
 
   const rebet = () => {
-    for (const [id, amount] of Object.entries(lastBets.current) as [BetId, number][]) {
+    for (const [id, amount] of Object.entries(tableRef.current.lastBets) as [BetId, number][]) {
       const missing = amount - (betsRef.current[id] ?? 0);
-      if (missing > 0 && betAvailable(id, mode)) place(id, missing);
+      if (missing > 0 && betAvailable(id, modeRef.current) && !place(id, missing)) break;
     }
   };
 
   const switchMode = (next: Mode) => {
-    if (next === mode || dealingRef.current) return;
+    if (next === modeRef.current || dealingRef.current) return;
     if (totalOnTable(betsRef.current) > 0) {
       setMessage(t.modeLocked);
       return;
     }
-    setMode(next);
+    commitMode(next);
+    keepTable({ ...tableRef.current, mode: next });
     setMessage(null);
   };
 
-  const finish = (id: number, hand: Hand, returned: number, shoe: Shoe) => {
-    commitBankroll(bankrollRef.current + returned);
-    commitBets({});
-    undoStack.current = [];
-    const entry = roadEntry(hand);
-    setRoads((r) => [...r, entry]);
-    setStats((s) => ({
-      hands: s.hands + 1,
-      banker: s.banker + (hand.winner === 'banker' ? 1 : 0),
-      player: s.player + (hand.winner === 'player' ? 1 : 0),
-      tie: s.tie + (hand.winner === 'tie' ? 1 : 0),
-      playerPairs: s.playerPairs + (entry.playerPair ? 1 : 0),
-      bankerPairs: s.bankerPairs + (entry.bankerPair ? 1 : 0),
-      naturals: s.naturals + (hand.natural ? 1 : 0),
-    }));
-    const finished = shoeFinished(shoe);
-    // After the cut card the next hand comes from a new, unseen shoe.
-    setUnseen(finished ? fullShoeCounts(shoe.decks) : unseenCounts(shoe));
-    setShoeView((v) => ({ ...v, cardsLeft: shoe.cards.length - shoe.next, finished }));
-    setRound((r) => (r && r.id === id ? { ...r, shown: cardsInHand(hand), settled: true } : r));
-    dealingRef.current = false;
-    setDealing(false);
+  const pickChip = (value: number) => {
+    commitChip(value);
+    keepTable({ ...tableRef.current, chip: value });
   };
 
   const deal = () => {
-    if (dealingRef.current) return;
-    let shoe = shoeRef.current;
-    const fresh = shoe === null || shoeFinished(shoe);
-    if (fresh) {
-      shoe = createShoe(DEFAULT_DECKS);
-      shoeNumber.current++;
+    const table = medalTable.current;
+    if (dealingRef.current || !table || !playable) return;
+    const placed = betsRef.current;
+    const atMode = modeRef.current;
+    if (!tableTakes(placed, atMode)) {
+      setMessage(t.bankerStep(stepFor('banker', atMode)));
+      return;
     }
+    const stake = totalOnTable(placed);
+    let shoe = tableRef.current.shoe;
+    const fresh = shoe === null || shoeFinished(shoe);
+    if (fresh) shoe = createShoe(DEFAULT_DECKS);
     const { hand, shoe: after } = dealHand(shoe!);
-    shoeRef.current = after;
-    lastBets.current = { ...betsRef.current };
-    const { results, returned } = settleBets(betsRef.current, hand, mode);
+    const { results, returned } = medalsBack(placed, hand, atMode);
+    // The stake is taken and the coup written down in one step; nothing is dealt if the medals are not there.
+    const coup = table.deal(stake, returned);
+    if (!coup) {
+      // Not enough medals; or the card is elsewhere; or, holding it, this browser would not keep the coup written down.
+      setMessage(stake > medalBank().balance() ? t.noMedals : table.holding() ? t.notKept : t.cardAway);
+      return;
+    }
+    const before = tableRef.current;
+    const next = afterCoup(before, hand, after, fresh, placed, atMode);
+    keepTable(next);
     dealingRef.current = true;
     setDealing(true);
     setMessage(null);
     if (fresh) setRoads([]);
-    // "Cards left" still shows the count before this hand; it only drops when
-    // the hand settles. Dropping it now would give away whether third cards
-    // are coming before they are turned over.
+    // "Cards left" still shows the count before this hand; it only drops when the hand settles. Dropping it now
+    // would give away whether third cards are coming before they are turned over.
     setShoeView((v) => ({
-      number: shoeNumber.current,
-      hand: fresh ? 1 : v.hand + 1,
+      number: next.shoeNumber,
+      hand: next.hand,
       cardsLeft: fresh ? after.cards.length - shoe!.next : v.cardsLeft,
       burnCard: after.burnCard,
       burned: after.burned,
       finished: false,
     }));
     const id = ++roundId.current;
-    setRound({ id, hand, shown: 0, settled: false, results, mode });
+    setRound({ id, hand, shown: 0, settled: false, results, mode: atMode, returned, paidEarly: false });
+
+    const finish = () => {
+      // What the hand won goes back now, unless it went back already as the card left the page.
+      medalTable.current?.settle(coup.id);
+      commitBets({});
+      undoStack.current = [];
+      setRoads(next.roads);
+      setStats(next.stats);
+      setUnseen(unseenOf(next));
+      setShoeView(shoeViewOf(next));
+      setRound((r) => (r && r.id === id ? { ...r, shown: cardsInHand(hand), settled: true } : r));
+      dealingRef.current = false;
+      setDealing(false);
+    };
 
     const count = cardsInHand(hand);
-    const { reveal, settle } = prefersReducedMotion()
-      ? { reveal: new Array<number>(count).fill(0), settle: 0 }
-      : revealSchedule(count);
+    const { reveal, settle } = prefersReducedMotion() ? { reveal: new Array<number>(count).fill(0), settle: 0 } : revealSchedule(count);
     timers.current.forEach(clearTimeout);
     timers.current = reveal.map((ms, k) =>
       setTimeout(() => setRound((r) => (r && r.id === id ? { ...r, shown: Math.max(r.shown, k + 1) } : r)), ms),
     );
-    timers.current.push(setTimeout(() => finish(id, hand, returned, after), settle));
+    timers.current.push(setTimeout(finish, settle));
   };
 
-  const reset = () => {
-    if (dealingRef.current) return;
-    commitBankroll(INITIAL_BANKROLL);
-    commitBets({});
-    undoStack.current = [];
-    lastBets.current = {};
-    shoeRef.current = null;
-    shoeNumber.current = 0;
-    setRound(null);
-    setMessage(null);
-    setRoads([]);
-    setStats(EMPTY_STATS);
-    setShoeView(NO_SHOE);
-    setUnseen(fullShoeCounts(DEFAULT_DECKS));
-  };
-
-  const live = useMemo(() => exactOdds(unseen), [unseen]);
-  const unseenTotal = live.cards;
+  const nextOdds = useMemo(() => exactOdds(unseen), [unseen]);
+  const unseenTotal = nextOdds.cards;
   const freshShoe = unseenTotal === DEFAULT_DECKS * 52;
   const exact = shoeOdds(DEFAULT_DECKS);
 
   const onTable = totalOnTable(bets);
-  const net = Math.round((bankroll + onTable - INITIAL_BANKROLL) * 100) / 100;
   const settledHand = round?.settled ? round.hand : null;
+  // The counter shows the medals still in hand: those on the felt are shown in the BET window until the deal takes
+  // them, and a hand paid early is not shown before its cards are.
+  const hiddenWin = round && !round.settled && round.paidEarly ? round.returned : 0;
+  const shownMedals = Math.max(0, bankState.balance - (dealing ? 0 : onTable) - hiddenWin);
+  const won = round?.settled ? round.returned : null;
 
   const handView = (side: Side) => {
     const cards = round ? round.hand[side] : [];
     const order = round ? dealOrder(round.hand)[side] : [];
     const visible = cards.filter((_, i) => order[i] < (round?.shown ?? 0));
     const total = visible.length > 0 ? handTotal(visible) : null;
-    const won = settledHand?.winner === side;
+    const wonSide = settledHand?.winner === side;
     const natural = settledHand?.natural === true && visible.length === 2 && total !== null && total >= 8;
     return (
       <div
         className={styles.handBox}
         data-hand={side}
-        data-won={won ? 'true' : undefined}
+        data-won={wonSide ? 'true' : undefined}
         role="group"
         aria-label={t.handAria(t.side[side], total)}
       >
@@ -309,14 +512,18 @@ export const PlayTab = () => {
         type="button"
         className={`${styles.spot} ${extraClass}`}
         onClick={() => place(id)}
-        disabled={dealing}
+        disabled={dealing || !playable}
         aria-label={t.betAria(t.betName[id], pays)}
         data-bet={id}
         data-lit={lit ? 'true' : undefined}
       >
         <span className={styles.spotLabel}>{t.betName[id]}</span>
         <span className={styles.spotPays}>{pays}</span>
-        {amount > 0 && <span className={styles.chipBadge}>{money(amount)}</span>}
+        {amount > 0 && (
+          <span className={styles.chipBadge} data-testid={`stake-${id}`}>
+            {amount}
+          </span>
+        )}
       </button>
     );
   };
@@ -330,275 +537,325 @@ export const PlayTab = () => {
 
   const liveRows = BET_IDS.filter((id) => betAvailable(id, mode) && id !== 'bankerPair').map((id) => ({
     id,
-    odds: betOdds(oddsBetFor(id, mode), live),
+    odds: betOdds(oddsBetFor(id, mode), nextOdds),
   }));
 
-  const statRow = (label: string, count: number, exactP: number, key: string) => (
+  const statRow = (label: string, n: number, exactP: number, key: string) => (
     <div key={key}>
       <dt>{label}</dt>
       <dd>
-        {count}
+        {n}
         <small>
           {' '}
-          {stats.hands > 0 ? pct(count / stats.hands, 1) : '–'} · {pct(exactP)}
+          {stats.hands > 0 ? pct(n / stats.hands, 1) : '–'} · {pct(exactP)}
         </small>
       </dd>
     </div>
   );
 
+  const busy = dealing || !playable;
+  const outOfMedals = bankState.loaded && playable && !dealing && bankState.balance === 0 && onTable === 0;
+
   return (
-    <div className={styles.playGrid}>
-      <div className={styles.panel}>
-        <div className={styles.shoeBar} data-testid="shoe-info">
-          {shoeView.number === 0 ? (
-            <span>{t.shoeWaiting}</span>
-          ) : (
-            <>
-              <span className={styles.shoeStrong}>{t.shoeLabel(shoeView.number)}</span>
-              <span>{t.handInShoe(shoeView.hand)}</span>
-              <span data-testid="cards-left">{t.cardsLeft(shoeView.cardsLeft)}</span>
-              {shoeView.burnCard && <span className={styles.muted}>{t.burnInfo(cardLabel(shoeView.burnCard), shoeView.burned)}</span>}
-            </>
-          )}
-        </div>
-
-        <div className={styles.table}>
-          <div className={styles.shoeBox} aria-hidden="true">
-            <span className={styles.shoeCards} />
+    <div>
+      {notice && (
+        <aside className={styles.notice} aria-labelledby="baccarat-notice-title" data-testid="baccarat-notice">
+          <MedalIcon className={styles.noticeMedal} />
+          <div className={styles.noticeText}>
+            <h3 id="baccarat-notice-title" className={styles.noticeTitle}>
+              {t.noticeTitle}
+            </h3>
+            <p>
+              {t.noticeBody}{' '}
+              <a className={styles.link} href={MEDAL_CENTER_PATH}>
+                {t.centerLink}
+              </a>
+            </p>
           </div>
-          <div className={styles.hands}>
-            {handView('player')}
-            {handView('banker')}
-          </div>
-        </div>
-
-        <div className={styles.callout} aria-live="polite" data-testid="baccarat-callout">
-          <span
-            className={
-              round?.settled
-                ? round.hand.winner === 'banker'
-                  ? styles.calloutBanker
-                  : round.hand.winner === 'player'
-                    ? styles.calloutPlayer
-                    : styles.calloutTie
-                : styles.calloutIdle
-            }
-          >
-            {calloutText()}
-          </span>
-        </div>
-        {shoeView.finished && !dealing && <p className={styles.cutNote}>{t.cutCardOut}</p>}
-
-        {round?.settled && (
-          <div className={styles.results}>
-            <div className={styles.sectionLabel}>{t.handResults}</div>
-            {round.results.length === 0 ? (
-              <p className={styles.muted}>{t.noBetsHand}</p>
+          <button type="button" className={styles.btn} onClick={() => setNotice(false)} data-testid="baccarat-notice-ok">
+            {t.noticeOk}
+          </button>
+        </aside>
+      )}
+      <div className={styles.playGrid}>
+        <div className={styles.panel}>
+          <div className={styles.shoeBar} data-testid="shoe-info">
+            {shoeView.number === 0 ? (
+              <span>{t.shoeWaiting}</span>
             ) : (
-              <ul className={styles.resultList}>
-                {round.results.map((r) => (
-                  <li key={r.id} data-outcome={r.outcome}>
-                    <span>{t.betName[r.id]}</span>
-                    <span className={styles.resultAmount}>
-                      {r.outcome === 'win' ? `+${money(r.profit)}` : r.outcome === 'lose' ? `−${money(r.stake)}` : '±0'}{' '}
-                      <small>{t.outcome[r.outcome]}</small>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <span className={styles.shoeStrong}>{t.shoeLabel(shoeView.number)}</span>
+                <span>{t.handInShoe(shoeView.hand)}</span>
+                <span data-testid="cards-left">{t.cardsLeft(shoeView.cardsLeft)}</span>
+                {shoeView.burnCard && <span className={styles.muted}>{t.burnInfo(cardLabel(shoeView.burnCard), shoeView.burned)}</span>}
+              </>
             )}
           </div>
-        )}
 
-        <div className={styles.roads}>
-          <BeadPlate
-            entries={roads}
-            name={t.beadPlate}
-            letters={t.roadLetter}
-            ariaLabel={t.roadAria(
-              t.beadPlate,
-              roads.filter((r) => r.winner === 'banker').length,
-              roads.filter((r) => r.winner === 'player').length,
-              roads.filter((r) => r.winner === 'tie').length,
-            )}
-          />
-          <BigRoad
-            entries={roads}
-            name={t.bigRoad}
-            ariaLabel={t.roadAria(
-              t.bigRoad,
-              roads.filter((r) => r.winner === 'banker').length,
-              roads.filter((r) => r.winner === 'player').length,
-              roads.filter((r) => r.winner === 'tie').length,
-            )}
-          />
-          <p className={styles.note}>{t.roadNote}</p>
-        </div>
+          <div className={styles.table}>
+            <div className={styles.shoeBox} aria-hidden="true">
+              <span className={styles.shoeCards} />
+            </div>
+            <div className={styles.hands}>
+              {handView('player')}
+              {handView('banker')}
+            </div>
+          </div>
 
-        <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>
-          {t.statsTitle} <small className={styles.muted}>({t.observedVsExact})</small>
-        </div>
-        <dl className={styles.statList} data-testid="session-stats">
-          <div>
-            <dt>{t.hands}</dt>
-            <dd>{stats.hands}</dd>
-          </div>
-          {statRow(t.betName.banker, stats.banker, exact.banker / exact.total, 'banker')}
-          {statRow(t.betName.player, stats.player, exact.player / exact.total, 'player')}
-          {statRow(t.betName.tie, stats.tie, exact.tie / exact.total, 'tie')}
-          <div>
-            <dt>{t.pairs}</dt>
-            <dd>
-              {stats.playerPairs} / {stats.bankerPairs}
-            </dd>
-          </div>
-          <div>
-            <dt>{t.naturals}</dt>
-            <dd>{stats.naturals}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div className={styles.panel}>
-        <div className={styles.pillRow}>
-          <div className={styles.pill}>
-            <span className={styles.pillLabel}>{t.bankroll}</span>
-            <span className={styles.pillValue} data-testid="baccarat-bankroll">
-              {money(bankroll)}
-            </span>
-          </div>
-          <div className={styles.pill}>
-            <span className={styles.pillLabel}>{t.onTable}</span>
-            <span className={styles.pillValue} data-testid="baccarat-on-table">
-              {money(onTable)}
-            </span>
-          </div>
-          <div className={styles.pill}>
-            <span className={styles.pillLabel}>{t.net}</span>
-            <span className={`${styles.pillValue} ${net >= 0 ? styles.pos : styles.neg}`}>
-              {net > 0 ? '+' : ''}
-              {money(net)}
-            </span>
-          </div>
-        </div>
-
-        <div className={styles.modeRow} role="radiogroup" aria-label={t.tableMode}>
-          {(['commission', 'ez'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={mode === m}
-              className={styles.modeBtn}
-              onClick={() => switchMode(m)}
-              disabled={dealing}
+          <div className={styles.callout} aria-live="polite" data-testid="baccarat-callout">
+            <span
+              className={
+                round?.settled
+                  ? round.hand.winner === 'banker'
+                    ? styles.calloutBanker
+                    : round.hand.winner === 'player'
+                      ? styles.calloutPlayer
+                      : styles.calloutTie
+                  : styles.calloutIdle
+              }
             >
-              {t.modeName[m]}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.chipRow} role="radiogroup" aria-label={t.chip}>
-          <span className={styles.chipRowLabel}>{t.chip}:</span>
-          {CHIP_VALUES.map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={chip === v}
-              aria-label={`${t.chip} ${v}`}
-              onClick={() => setChip(v)}
-              disabled={dealing}
-              className={styles.chip}
-              style={{ ['--c' as string]: CHIP_COLORS[v], color: v === 100 || v === 500 ? '#fff' : '#1a1200' }}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.felt}>
-          <div className={styles.sideRow}>
-            {spot('playerPair', paysText('playerPair'), styles.playerPairSpot)}
-            {spot('tie', paysText('tie'), styles.tieSpot)}
-            {spot('bankerPair', paysText('bankerPair'), styles.bankerPairSpot)}
+              {calloutText()}
+            </span>
           </div>
-          <div className={styles.mainRow}>
-            {spot('player', paysText('player'), styles.playerSpot)}
-            {spot('banker', t.bankerPays(mode), styles.bankerSpot)}
-          </div>
-          {mode === 'ez' && (
-            <div className={styles.sideRow} data-testid="ez-bets">
-              {spot('panda8', paysText('panda8'), styles.pandaSpot)}
-              {spot('dragon7', paysText('dragon7'), styles.dragonSpot)}
+          {shoeView.finished && !dealing && <p className={styles.cutNote}>{t.cutCardOut}</p>}
+
+          {round?.settled && (
+            <div className={styles.results}>
+              <div className={styles.sectionLabel}>{t.handResults}</div>
+              {round.results.length === 0 ? (
+                <p className={styles.muted}>{t.noBetsHand}</p>
+              ) : (
+                <ul className={styles.resultList}>
+                  {round.results.map((r) => (
+                    <li key={r.id} data-outcome={r.outcome}>
+                      <span>{t.betName[r.id]}</span>
+                      <span className={styles.resultAmount}>
+                        {r.outcome === 'win' ? `+${r.profit}` : r.outcome === 'lose' ? `−${r.stake}` : '±0'} <small>{t.outcome[r.outcome]}</small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
-        </div>
 
-        <p className={styles.message} role="status" data-testid="baccarat-message">
-          {message ?? ''}
-        </p>
-
-        <div className={styles.actions}>
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={dealing}>
-            {dealing ? t.dealing : t.deal}
-          </button>
-          <button type="button" className={styles.btn} onClick={undo} disabled={dealing}>
-            {t.undo}
-          </button>
-          <button type="button" className={styles.btn} onClick={clear} disabled={dealing}>
-            {t.clear}
-          </button>
-          <button type="button" className={styles.btn} onClick={rebet} disabled={dealing}>
-            {t.rebet}
-          </button>
-          <button type="button" className={`${styles.btn} ${styles.spacerLeft}`} onClick={reset} disabled={dealing}>
-            {t.reset}
-          </button>
-        </div>
-
-        <section className={styles.live} aria-labelledby="baccarat-live-title">
-          <div className={styles.liveHead}>
-            <h3 id="baccarat-live-title" className={styles.liveTitle}>
-              {t.liveTitle}
-            </h3>
-            {freshShoe && <span className={styles.liveBadge}>{t.liveFresh}</span>}
+          <div className={styles.roads}>
+            <BeadPlate
+              entries={roads}
+              name={t.beadPlate}
+              letters={t.roadLetter}
+              ariaLabel={t.roadAria(
+                t.beadPlate,
+                roads.filter((r) => r.winner === 'banker').length,
+                roads.filter((r) => r.winner === 'player').length,
+                roads.filter((r) => r.winner === 'tie').length,
+              )}
+            />
+            <BigRoad
+              entries={roads}
+              name={t.bigRoad}
+              ariaLabel={t.roadAria(
+                t.bigRoad,
+                roads.filter((r) => r.winner === 'banker').length,
+                roads.filter((r) => r.winner === 'player').length,
+                roads.filter((r) => r.winner === 'tie').length,
+              )}
+            />
+            <p className={styles.note}>{t.roadNote}</p>
           </div>
-          <table className={styles.liveTable} data-testid="live-odds">
-            <thead>
-              <tr>
-                <th>{t.colBet}</th>
-                <th className={styles.num}>{t.colWin}</th>
-                <th className={styles.num}>{t.colEdge}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Green only while the bet favors the player for the next hand. */}
-              {liveRows.map(({ id, odds }) => (
-                <tr key={id} data-live={id} data-positive={odds.ev > 0 ? 'true' : undefined}>
-                  <td>{id === 'playerPair' ? `${t.betName.playerPair} / ${t.betName.bankerPair}` : t.betName[id]}</td>
-                  <td className={styles.num}>{pct(odds.win, 3)}</td>
-                  <td className={styles.num}>
-                    {odds.ev > 0 ? (
-                      <b>
-                        +{pct(odds.ev, 3)} {t.playerEdge}
-                      </b>
-                    ) : (
-                      pct(-odds.ev, 3)
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className={styles.note}>{t.liveNote(unseenTotal)}</p>
-        </section>
 
-        <ul className={styles.hint}>
-          {t.hint.map((h, i) => (
-            <li key={i}>{h}</li>
-          ))}
-        </ul>
+          <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>
+            {t.statsTitle} <small className={styles.muted}>({t.observedVsExact})</small>
+          </div>
+          <dl className={styles.statList} data-testid="session-stats">
+            <div>
+              <dt>{t.hands}</dt>
+              <dd>{stats.hands}</dd>
+            </div>
+            {statRow(t.betName.banker, stats.banker, exact.banker / exact.total, 'banker')}
+            {statRow(t.betName.player, stats.player, exact.player / exact.total, 'player')}
+            {statRow(t.betName.tie, stats.tie, exact.tie / exact.total, 'tie')}
+            <div>
+              <dt>{t.pairs}</dt>
+              <dd>
+                {stats.playerPairs} / {stats.bankerPairs}
+              </dd>
+            </div>
+            <div>
+              <dt>{t.naturals}</dt>
+              <dd>{stats.naturals}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className={styles.panel}>
+          <MedalCounter
+            loaded={bankState.loaded}
+            medals={shownMedals}
+            onTable={onTable}
+            won={won}
+            fmt={fmt}
+            labels={{
+              medals: t.medalsLed,
+              bet: t.betLed,
+              win: t.winLed,
+              held: t.medalsHeld,
+              onTable: t.medalsOnTable,
+              won: t.medalsWon,
+              waiting: t.medalsWaiting,
+            }}
+          />
+          <p className={styles.notMoney} data-testid="baccarat-not-money">
+            {t.notMoney}
+          </p>
+          <p className={`${styles.note} ${styles.medalsFrom}`} data-testid="baccarat-medals-from">
+            {t.medalsFrom}{' '}
+            <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="baccarat-center-note-link">
+              {t.centerLink}
+            </a>
+          </p>
+          {outOfMedals && (
+            <button type="button" className={`${styles.btn} ${styles.refill}`} data-testid="baccarat-refill" onClick={() => medalBank().refill()}>
+              {t.refill(REFILL)}
+            </button>
+          )}
+
+          <div className={styles.modeRow} role="radiogroup" aria-label={t.tableMode}>
+            {(['ez', 'commission'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                className={styles.modeBtn}
+                onClick={() => switchMode(m)}
+                disabled={busy}
+              >
+                {t.modeName[m]}
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.chipRow} role="radiogroup" aria-label={t.betButtons}>
+            <span className={styles.chipRowLabel} aria-hidden>
+              {t.betButtons}
+            </span>
+            {BET_STEPS.map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={chip === v}
+                aria-label={t.betButtonAria(v)}
+                onClick={() => pickChip(v)}
+                disabled={dealing}
+                className={styles.chip}
+                data-step={v}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.feltArea} ref={feltRef} tabIndex={-1}>
+            <div className={styles.felt}>
+              <div className={styles.sideRow}>
+                {spot('playerPair', paysText('playerPair'), styles.playerPairSpot)}
+                {spot('tie', paysText('tie'), styles.tieSpot)}
+                {spot('bankerPair', paysText('bankerPair'), styles.bankerPairSpot)}
+              </div>
+              <div className={styles.mainRow}>
+                {spot('player', paysText('player'), styles.playerSpot)}
+                {spot('banker', t.bankerPays(mode), styles.bankerSpot)}
+              </div>
+              {mode === 'ez' && (
+                <div className={styles.sideRow} data-testid="ez-bets">
+                  {spot('panda8', paysText('panda8'), styles.pandaSpot)}
+                  {spot('dragon7', paysText('dragon7'), styles.dragonSpot)}
+                </div>
+              )}
+            </div>
+            {/* The player's card is in a table or machine in another tab: this table waits until it is played here again. */}
+            {cardAway && (
+              <div className={styles.cardAway} role="status" data-testid="baccarat-card-away">
+                <p>{t.cardAway}</p>
+                <button
+                  type="button"
+                  className={styles.cardAwayButton}
+                  data-testid="baccarat-play-here"
+                  onClick={() => {
+                    medalTable.current?.play();
+                    feltRef.current?.focus();
+                  }}
+                >
+                  {t.playHere}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <p className={styles.message} role="status" data-testid="baccarat-message">
+            {message ?? ''}
+          </p>
+
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={busy}>
+              {dealing ? t.dealing : t.deal}
+            </button>
+            <button type="button" className={styles.btn} onClick={undo} disabled={busy}>
+              {t.undo}
+            </button>
+            <button type="button" className={styles.btn} onClick={clear} disabled={busy}>
+              {t.clear}
+            </button>
+            <button type="button" className={styles.btn} onClick={rebet} disabled={busy}>
+              {t.rebet}
+            </button>
+          </div>
+
+          <section className={styles.live} aria-labelledby="baccarat-live-title">
+            <div className={styles.liveHead}>
+              <h3 id="baccarat-live-title" className={styles.liveTitle}>
+                {t.liveTitle}
+              </h3>
+              {freshShoe && <span className={styles.liveBadge}>{t.liveFresh}</span>}
+            </div>
+            <table className={styles.liveTable} data-testid="live-odds">
+              <thead>
+                <tr>
+                  <th>{t.colBet}</th>
+                  <th className={styles.num}>{t.colWin}</th>
+                  <th className={styles.num}>{t.colEdge}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Green only while the bet favors the player for the next hand. */}
+                {liveRows.map(({ id, odds }) => (
+                  <tr key={id} data-live={id} data-positive={odds.ev > 0 ? 'true' : undefined}>
+                    <td>{id === 'playerPair' ? `${t.betName.playerPair} / ${t.betName.bankerPair}` : t.betName[id]}</td>
+                    <td className={styles.num}>{pct(odds.win, 3)}</td>
+                    <td className={styles.num}>
+                      {odds.ev > 0 ? (
+                        <b>
+                          +{pct(odds.ev, 3)} {t.playerEdge}
+                        </b>
+                      ) : (
+                        pct(-odds.ev, 3)
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className={styles.note}>{t.liveNote(unseenTotal)}</p>
+          </section>
+
+          <ul className={styles.hint}>
+            {t.hint.map((h, i) => (
+              <li key={i}>{h}</li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );

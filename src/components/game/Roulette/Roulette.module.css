@@ -487,33 +487,216 @@
   }
 }
 
-/* ---------- Stats pills ---------- */
-.pillRow {
+/* ---------- The medal counter ----------
+   A medal machine's counter: the player's medals and the medals bet, on the Medal Pusher's LED digits behind smoked
+   acrylic, set in a dark plate with one of the medal center's medals beside them. The plate is an arcade fitting in a
+   fixed palette that reads the same in the light and the dark theme; every text colour on it is at least 4.5:1 on
+   the plate (gold #ffd65c and lilac #d9d2f5 on #1c1147 are over 10:1). */
+.meter {
   display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: 0.85rem;
+  padding: 0.75rem 0.85rem 0.8rem;
+  border-radius: 14px;
+  border: 2px solid #3a2a7a;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 32%),
+    linear-gradient(180deg, #2a1b66 0%, #1c1147 100%);
+  color: #fff6d6;
+  box-shadow:
+    0 8px 22px rgba(18, 10, 46, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-.pill {
+.meterRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.meterMedal {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.meterBet {
+  flex: 0 1 auto;
+}
+.meterLabel {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd65c;
+  white-space: nowrap;
+}
+/* The LED window: the cabinet's display, made bigger. */
+.meterLed {
+  display: flex;
+  min-width: 0;
+}
+.meterLed > span {
+  width: 100%;
+  height: clamp(30px, 8vw, 40px);
+  padding: 4px 6px;
+  gap: 2px;
+}
+.meterFinding {
+  margin: 0;
+  color: #d9d2f5;
+  font-size: 0.85rem;
+}
+.meterNote {
+  margin: 0;
+  color: #d9d2f5;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.meterLink {
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.meterLink:hover,
+.meterLink:visited {
+  color: inherit;
+}
+.meterLink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* The free cupful, offered when the player has run out of medals. */
+.refill {
+  appearance: none;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
   border-radius: 12px;
-  border: 1px solid var(--games-route-border);
-  background: var(--games-route-surface-raised);
-  padding: 0.5rem 0.85rem;
-  min-width: 92px;
+  border: 2px solid #ffd65c;
+  background: #2c1d70;
+  color: #ffd65c;
+  font-weight: 900;
+  font-size: 0.95rem;
+  cursor: pointer;
 }
-.pillLabel {
-  display: block;
-  font-size: 0.68rem;
-  color: var(--games-route-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.refill:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* The link back to the medal center, over the title. */
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.centerLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+
+/* The note shown once: the table plays with the medal center's medals now. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 2px solid var(--rl-gold);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+.notice p {
+  margin: 0;
+  flex: 1 1 18rem;
+}
+.notice .meterLink:focus-visible {
+  outline-color: var(--games-route-fg);
+}
+
+/* ---------- Medals a tap ----------
+   The steps a tap adds, as medals of the medal center: the same copper-nickel, its figure struck dark on it. */
+.chip.stepMedal {
+  border: 2px solid #44474c;
+  background: radial-gradient(circle at 42% 36%, #ffffff 0%, #eff0f2 18%, #bbbec3 58%, #80848a 100%);
+  color: #1f2328;
+  font-weight: 900;
+}
+.chip.stepMedal[aria-checked='true'] {
+  border-color: #1f2328;
+}
+
+/* The felt and its buttons, under the plate that says the medals are in another tab. */
+.tableArea {
+  position: relative;
+}
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: rgba(10, 6, 26, 0.92);
+  color: #fff6d6;
+  line-height: 1.45;
+  text-align: center;
+}
+.cardAway p {
+  margin: 0;
+  max-width: 34ch;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1238;
+  font-weight: 800;
+  cursor: pointer;
+}
+.cardAwayButton:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+.tableMessage {
+  margin: 0.5rem 0 0;
+  min-height: 1.2rem;
+  color: var(--rl-lose-text);
+  font-size: 0.85rem;
   font-weight: 700;
 }
-.pillValue {
-  display: block;
-  font-size: 1.15rem;
-  font-weight: 820;
-  font-variant-numeric: tabular-nums;
+.netEarlier {
+  color: var(--games-route-muted);
+  font-weight: 700;
 }
 
 /* ---------- Chips ---------- */
@@ -813,10 +996,6 @@
   color: var(--games-route-muted);
   box-shadow: none;
 }
-.spacerLeft {
-  margin-left: auto;
-}
-
 .hint {
   margin-top: 0.85rem;
   color: var(--games-route-muted);

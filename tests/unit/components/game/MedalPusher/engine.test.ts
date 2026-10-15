@@ -17,10 +17,13 @@ import {
   LANDING,
   LUCKY,
   MEDAL_RADIUS,
+  MEDAL_SLIDE,
   MEDAL_THICKNESS,
+  PLATE,
   PUSHER,
   RELEASE,
   ROLL_TIME,
+  TEETER,
   TOWER,
   armFor,
   armGoal,
@@ -158,13 +161,13 @@ describe('the generator and the pusher', () => {
     expect(left - mouth).toBeGreaterThan(FIELD.width * 0.3);
     expect(right + mouth).toBeLessThan(FIELD.width * 0.7);
     // The room to spare is a good deal less than half a medal's radius: a medal has to come over square on.
-    expect(CHECKERS.halfWidth).toBe(1.13);
+    expect(CHECKERS.halfWidth).toBe(1.27);
     expect(CHECKERS.halfWidth).toBeGreaterThan(0);
     expect(CHECKERS.halfWidth).toBeLessThan(MEDAL_RADIUS / 2);
     // With their wings open the slots take medals from a little further to the side: more than a tenth as wide
     // again, and well short of the 1.7 they took before they were narrowed, which paid fast play too well. Even
     // so they do not run into each other, and keep to the middle of the lip.
-    expect(CHECKERS.wingWidth).toBe(1.25);
+    expect(CHECKERS.wingWidth).toBe(1.42);
     expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth * 1.1);
     expect(CHECKERS.wingWidth).toBeLessThan(1.7);
     expect(CHECKERS.wingWidth).toBeLessThan(MEDAL_RADIUS);
@@ -186,7 +189,7 @@ describe('the generator and the pusher', () => {
       expect(checkerAt(x - CHECKERS.halfWidth - 0.01)).toBe(-1);
     });
     // Between two of them, beside all three, and out at the walls: none.
-    for (const x of [43, 57, 25, 75, AIM.min, AIM.max, 0, FIELD.width]) expect(checkerAt(x)).toBe(-1);
+    for (const x of [...TUBE.site, CHECKERS.positions[0] - 6, CHECKERS.positions[2] + 6, AIM.min, AIM.max, 0, FIELD.width]) expect(checkerAt(x)).toBe(-1);
     expect(clampAim(-5)).toBe(AIM.min);
     expect(clampAim(500)).toBe(AIM.max);
     expect(clampAim(40)).toBe(40);
@@ -208,9 +211,9 @@ describe('the generator and the pusher', () => {
       }
     });
     // Where the towers go up, and beside all three, no width that a slot has reaches.
-    for (const x of [43, 57, 25, 75, AIM.min, AIM.max, 0, FIELD.width]) expect(checkerAt(x, CHECKERS.wingWidth)).toBe(-1);
-    expect(checkerAt(50, 0)).toBe(1);
-    expect(checkerAt(50.001, 0)).toBe(-1);
+    for (const x of [...TUBE.site, CHECKERS.positions[0] - 6, CHECKERS.positions[2] + 6, AIM.min, AIM.max, 0, FIELD.width]) expect(checkerAt(x, CHECKERS.wingWidth)).toBe(-1);
+    expect(checkerAt(FIELD.width / 2, 0)).toBe(1);
+    expect(checkerAt(FIELD.width / 2 + 0.001, 0)).toBe(-1);
   });
 
   it('lights one slot at a time and steps the light along with every stroke of the pusher', () => {
@@ -328,12 +331,12 @@ describe('a machine that has just been switched on', () => {
 describe('dropping a medal', () => {
   it('takes one medal every drop interval and lands it near the aim', () => {
     const machine = createMachine(11);
-    expect(dropAt(machine, 40)).toBe(true);
-    expect(dropAt(machine, 40)).toBe(false);
+    expect(dropAt(machine, 30)).toBe(true);
+    expect(dropAt(machine, 30)).toBe(false);
     step(machine, DROP_INTERVAL / 2);
-    expect(dropAt(machine, 40)).toBe(false);
+    expect(dropAt(machine, 30)).toBe(false);
     step(machine, DROP_INTERVAL / 2 + 1e-6);
-    expect(dropAt(machine, 40)).toBe(true);
+    expect(dropAt(machine, 30)).toBe(true);
     // Both are on the left arm's rail, the first a drop interval further down it. Neither is in the air yet.
     expect(machine.falling).toHaveLength(0);
     expect(machine.rolling.map((medal) => medal.arm)).toEqual([0, 0]);
@@ -345,12 +348,12 @@ describe('dropping a medal', () => {
     expect(machine.rolling).toHaveLength(0);
     expect(machine.falling).toHaveLength(2);
     for (const medal of machine.falling) {
-      expect(Math.abs(medal.x - 40)).toBeLessThanOrEqual(LANDING.scatter);
+      expect(Math.abs(medal.x - 30)).toBeLessThanOrEqual(LANDING.scatter);
       expect(medal.y).toBeGreaterThanOrEqual(LANDING.from);
       expect(medal.y).toBeLessThanOrEqual(LANDING.to);
       expect(medal.level).toBe(1);
       expect(medal.source).toBe('player');
-      expect(medal.fromX).toBe(40);
+      expect(medal.fromX).toBe(30);
       expect(medal.fromY).toBe(RELEASE.depth);
       expect(medal.duration).toBe(FALL_TIME);
     }
@@ -444,8 +447,8 @@ describe('dropping a medal', () => {
     const machine = createMachine(11);
     aimArm(machine, 0, 20);
     expect(machine.aims).toEqual([20, armStart(1)]);
-    aimArm(machine, 1, 80);
-    expect(machine.aims).toEqual([20, 80]);
+    aimArm(machine, 1, 65);
+    expect(machine.aims).toEqual([20, 65]);
     // An aim is held inside the arm's own reach.
     aimArm(machine, 0, -40);
     expect(machine.aims[0]).toBe(ARM_REACH[0].min);
@@ -462,19 +465,20 @@ describe('dropping a medal', () => {
     aimArm(machine, 1, 70);
     aimArm(machine, 0, 90);
     expect(machine.aims).toEqual([ARM_REACH[0].max, 70]);
-    aimArm(machine, 1, 52);
+    aimArm(machine, 1, 40);
     expect(machine.aims).toEqual([ARM_REACH[0].max, ARM_REACH[0].max]);
-    aimArm(machine, 0, 58);
-    expect(machine.aims).toEqual([58, ARM_REACH[0].max]);
+    aimArm(machine, 0, 44);
+    expect(machine.aims).toEqual([44, ARM_REACH[0].max]);
     // Both can point down the middle at once.
+    const middle = FIELD.width / 2;
     aimArm(machine, 0, 10);
-    aimArm(machine, 1, 50);
-    aimArm(machine, 0, 50);
-    expect(machine.aims).toEqual([50, 50]);
+    aimArm(machine, 1, middle);
+    aimArm(machine, 0, middle);
+    expect(machine.aims).toEqual([middle, middle]);
     // An aim has to be a number, and one that is not changes nothing.
     expect(() => aimArm(machine, 0, Number.NaN)).toThrow();
     expect(() => aimArm(machine, 1, Number.POSITIVE_INFINITY)).toThrow();
-    expect(machine.aims).toEqual([50, 50]);
+    expect(machine.aims).toEqual([middle, middle]);
   });
 
   it('gives each arm its own side and a little of the other, enough for the column behind the centre chucker', () => {
@@ -492,10 +496,10 @@ describe('dropping a medal', () => {
     expect(ARM_REACH[1].min).toBeGreaterThan(CHECKERS.positions[0]);
     // A tip is over the aim as far as its arm reaches, and at the end of its reach beyond that.
     expect(tipOf(0, 30)).toBe(30);
-    expect(tipOf(0, 55)).toBe(55);
+    expect(tipOf(0, 44)).toBe(44);
     expect(tipOf(0, 90)).toBe(ARM_REACH[0].max);
     expect(tipOf(1, 70)).toBe(70);
-    expect(tipOf(1, 45)).toBe(45);
+    expect(tipOf(1, 34)).toBe(34);
     expect(tipOf(1, 10)).toBe(ARM_REACH[1].min);
     // Wherever a medal is aimed, the arm it goes into reaches there.
     for (let aim = AIM.min; aim <= AIM.max; aim += 0.37) expect(tipOf(armFor(aim), aim)).toBe(aim);
@@ -520,14 +524,14 @@ describe('dropping a medal', () => {
       return { from: medal.fromX, x: medal.x };
     };
     expect(letGo(30, 30)).toEqual({ from: 30, x: 30 });
-    expect(letGo(30, 45)).toEqual({ from: 45, x: 45 });
-    expect(letGo(70, 88)).toEqual({ from: 88, x: 88 });
+    expect(letGo(30, 36)).toEqual({ from: 36, x: 36 });
+    expect(letGo(55, 70)).toEqual({ from: 70, x: 70 });
     // Past the middle an arm still follows, as far as it reaches.
-    expect(letGo(30, 57)).toEqual({ from: 57, x: 57 });
-    expect(letGo(70, 43)).toEqual({ from: 43, x: 43 });
+    expect(letGo(30, 44)).toEqual({ from: 44, x: 44 });
+    expect(letGo(55, 34)).toEqual({ from: 34, x: 34 });
     // Beyond its reach it stops at the end of it, and the medal drops there.
     expect(letGo(30, 90)).toEqual({ from: ARM_REACH[0].max, x: ARM_REACH[0].max });
-    expect(letGo(70, 8)).toEqual({ from: ARM_REACH[1].min, x: ARM_REACH[1].min });
+    expect(letGo(55, 8)).toEqual({ from: ARM_REACH[1].min, x: ARM_REACH[1].min });
   });
 
   it('has its arms over their aims when it is switched on, and swings a tip to a new aim at the arms’ own speed', () => {
@@ -559,12 +563,12 @@ describe('dropping a medal', () => {
     // One long step takes a tip as far as the short ones it is cut into. The left arm, with nothing on its
     // rail and nobody moving its aim, stays where it is pointed: an arm has no other place to go back to.
     expect(machine.tips).toEqual([30, armStart(1)]);
-    aimArm(machine, 1, 90);
+    aimArm(machine, 1, 70);
     step(machine, 0.05);
     expect(machine.tips[1]).toBeCloseTo(armStart(1) + ARM_SPEED * 0.05, 9);
     expect(machine.tips[0]).toBe(30);
     step(machine, 5);
-    expect(machine.tips).toEqual([30, 90]);
+    expect(machine.tips).toEqual([30, 70]);
     // No time, no movement.
     const before = [...machine.tips];
     step(machine, 0);
@@ -578,20 +582,20 @@ describe('dropping a medal', () => {
     step(machine, 0.1);
     expect(machine.tips).toEqual([30, armStart(1)]);
     // The right arm is swung away. The left arm, with the medal on it, is not moved by that.
-    aimArm(machine, 1, 80);
+    aimArm(machine, 1, 70);
     step(machine, 0.1);
     expect(machine.tips[0]).toBe(30);
     // The left arm is pointed further than it reaches: it stops at the end of its reach, and its medal leaves
     // from there when it has come all its way. This is all of that but the last tenth of a second.
     aimArm(machine, 0, 80);
     step(machine, ROLL_TIME - 0.3);
-    expect(machine.tips).toEqual([ARM_REACH[0].max, 80]);
+    expect(machine.tips).toEqual([ARM_REACH[0].max, 70]);
     expect(machine.falling).toEqual([]);
     step(machine, 0.1);
     expect(machine.falling[0].fromX).toBe(ARM_REACH[0].max);
     // Its rail empty, it stays where it is pointed.
     step(machine, 0.5);
-    expect(machine.tips).toEqual([ARM_REACH[0].max, 80]);
+    expect(machine.tips).toEqual([ARM_REACH[0].max, 70]);
   });
 
   it('crosses an arm’s whole reach in less than its slot’s wait, so a medal’s arm can always be over its spot in time', () => {
@@ -661,16 +665,16 @@ describe('dropping a medal', () => {
     // In the very step it leaves: the arm has one step's swing behind it, nowhere near the end of its reach.
     const late = jump(1);
     expect(late.tips[0]).toBeCloseTo(10 + ARM_SPEED * DT, 9);
-    expect(late.tips[0]).toBeLessThan(tipOf(0, 90) - 40);
+    expect(late.tips[0]).toBeLessThan(tipOf(0, 90) - 25);
     // A few steps before: that much further along.
     expect(jump(4).tips[0]).toBeCloseTo(10 + 4 * ARM_SPEED * DT, 9);
     // Given the time, the arm is at the end of its reach before the medal is at the tip.
     expect(jump(12).tips[0]).toBe(ARM_REACH[0].max);
     // Its rail empty, the arm carries on to where it is pointed, and stays there.
     step(late, 0.2);
-    expect(late.tips).toEqual([ARM_REACH[0].max, 90]);
+    expect(late.tips).toEqual([ARM_REACH[0].max, ARM_REACH[1].max]);
     step(late, 2);
-    expect(late.tips).toEqual([ARM_REACH[0].max, 90]);
+    expect(late.tips).toEqual([ARM_REACH[0].max, ARM_REACH[1].max]);
   });
 
   it('never lets the two tips pass each other or leave their reach, wherever each arm is pointed', () => {
@@ -702,7 +706,7 @@ describe('dropping a medal', () => {
 
   it('makes a medal that leaves the tip the very medal the machine without arms dropped there at that moment', () => {
     // A seed, when the medal leaves, where it is aimed, and where the aim jumps to two steps before it leaves, if it does.
-    const cases: [number, number, number, number?][] = [[5, 0.4, 50], [6, 1.7, 23], [7, 2.9, 81], [8, 5.2, 57], [9, 0.9, 12, 88], [10, 3.3, 70, 45]];
+    const cases: [number, number, number, number?][] = [[5, 0.4, 39], [6, 1.7, 23], [7, 2.9, 66], [8, 5.2, 50], [9, 0.9, 12, 70], [10, 3.3, 62, 45]];
     for (const [seed, at, aim, jumpTo] of cases) {
       // Two machines alike. One has arms and is fed a roll before the moment; the other is left alone until then.
       const [armed, bare] = [createMachine(seed, 2), createMachine(seed, 2)];
@@ -824,9 +828,12 @@ describe('a machine in play', () => {
     const over = (x: number, medal: Partial<Medal> = {}) => {
       const machine = machineWith([medalAt(x, PUSHER.min + 0.5, { level: 1, ...medal })]);
       const events = step(machine, DT);
-      expect(machine.medals.map((m) => m.level)).toEqual([0]);
-      // It is on the lower table now, a medal like any other, and does not count again.
+      // It is on its way down the START plate.
+      expect(machine.medals).toEqual([]);
+      expect(machine.falling.map((m) => m.source)).toEqual(['slide']);
+      // A moment later it is on the lower table, a medal like any other, and does not count again.
       expect(step(machine, 1).checkers).toEqual([]);
+      expect(machine.medals.map((m) => m.level)).toEqual([0]);
       return events.checkers;
     };
     CHECKERS.positions.forEach((x, chucker) => {
@@ -837,12 +844,16 @@ describe('a machine in play', () => {
       expect(over(x - CHECKERS.halfWidth - 0.02)).toEqual([]);
     });
     // Between two chuckers, beside all three, hard against a wall: over the lip and through nothing.
-    for (const x of [43, 57, 22, 78, MEDAL_RADIUS, FIELD.width - MEDAL_RADIUS]) expect(over(x)).toEqual([]);
+    for (const x of [...TUBE.site, CHECKERS.positions[0] - 6, CHECKERS.positions[2] + 6, MEDAL_RADIUS, FIELD.width - MEDAL_RADIUS]) expect(over(x)).toEqual([]);
     // A medal that was lying on top of the pile counts like one on the table.
-    expect(over(50, { tier: 1 })).toEqual([1]);
-    // A ball does not fit a chucker.
-    expect(over(50, { ball: true })).toEqual([]);
-    expect(over(36, { ball: true })).toEqual([]);
+    expect(over(CHECKERS.positions[1], { tier: 1 })).toEqual([1]);
+    // A ball does not fit a hole: it rolls down the plate, over the holes, and counts for nothing then or after.
+    for (const x of [CHECKERS.positions[1], CHECKERS.positions[0] - 3]) {
+      const machine = machineWith([medalAt(x, PUSHER.min + 0.5, { level: 1, ball: true })]);
+      expect(step(machine, DT).checkers).toEqual([]);
+      expect(step(machine, 1).checkers).toEqual([]);
+      expect(machine.medals).toMatchObject([{ ball: true, level: 0 }]);
+    }
   });
 
   it('counts a medal that goes over a little to the side of a slot while the wings are open, and only then', () => {
@@ -872,30 +883,31 @@ describe('a machine in play', () => {
       }
     });
     // Every medal of a tower that goes over inside the wings counts, and a ball still does not fit.
-    expect(over(50 + beside, true, { stack: 6 })).toEqual([1, 1, 1, 1, 1, 1]);
-    expect(over(50 + beside, false, { stack: 6 })).toEqual([]);
-    expect(over(50 + beside, true, { ball: true })).toEqual([]);
+    const centre = CHECKERS.positions[1];
+    expect(over(centre + beside, true, { stack: 6 })).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(over(centre + beside, false, { stack: 6 })).toEqual([]);
+    expect(over(centre + beside, true, { ball: true })).toEqual([]);
     // Halfway between two slots, where the towers go up, no wing reaches.
-    expect(over(43, true)).toEqual([]);
+    expect(over(TUBE.site[0], true)).toEqual([]);
 
-    // The wings change what is counted and nothing else: two machines fed alike are the same field to the last
-    // digit, and the one with its wings open counts every medal the other does, and some more.
+    // The wings change what is counted, and with it where a medal they take comes down: through its hole, under the
+    // plate, and not off the plate's foot after hanging on the rim. Two machines fed alike: the one with its wings open
+    // counts more, and neither loses a medal on the way.
     const [shut, open] = [createMachine(12), createMachine(12)];
     const counted = { shut: 0, open: 0 };
     const moved = { shut: { won: 0, lost: 0 }, open: { won: 0, lost: 0 } };
     for (let i = 0; i < 40 * 60; i++) {
-      if (i % 12 === 0) for (const machine of [shut, open]) dropAt(machine, 44 + ((i / 12) % 13));
+      if (i % 12 === 0) for (const machine of [shut, open]) dropAt(machine, FIELD.width / 2 - 6 + ((i / 12) % 13));
       const [a, b] = [step(shut, DT, false), step(open, DT, true)];
       counted.shut += a.checkers.length;
       counted.open += b.checkers.length;
-      expect(b.checkers.length).toBeGreaterThanOrEqual(a.checkers.length);
       moved.shut.won += a.won;
       moved.shut.lost += a.lost;
       moved.open.won += b.won;
       moved.open.lost += b.lost;
     }
-    expect(snapshot(open)).toBe(snapshot(shut));
-    expect(moved.open).toEqual(moved.shut);
+    const accounted = (machine: Machine, { won, lost }: { won: number; lost: number }) => medalsOnField(machine) + won + lost;
+    expect(accounted(open, moved.open)).toBe(accounted(shut, moved.shut));
     expect(counted.shut).toBeGreaterThan(0);
     expect(counted.open).toBeGreaterThan(counted.shut);
   }, LONG);
@@ -913,13 +925,14 @@ describe('a machine in play', () => {
       expect(landing.checkers).toEqual([]);
       return events.checkers;
     };
-    expect(tower(50, 20)).toEqual(Array.from({ length: 20 }, () => 1));
-    expect(tower(36, 3)).toEqual([0, 0, 0]);
-    expect(tower(64 + CHECKERS.halfWidth - 0.02, TOWER.max)).toEqual(Array.from({ length: TOWER.max }, () => 2));
-    // Where the towers go up, halfway between two chuckers, a tower goes over and through neither.
-    expect(tower(43, 20)).toEqual([]);
-    expect(tower(57, TOWER.max)).toEqual([]);
-    expect(tower(50 + CHECKERS.halfWidth + 0.02, 20)).toEqual([]);
+    const [left, centre, right] = CHECKERS.positions;
+    expect(tower(centre, 20)).toEqual(Array.from({ length: 20 }, () => 1));
+    expect(tower(left, 3)).toEqual([0, 0, 0]);
+    expect(tower(right + CHECKERS.halfWidth - 0.02, TOWER.max)).toEqual(Array.from({ length: TOWER.max }, () => 2));
+    // Where the towers go up, halfway between two holes, a tower goes over and through neither.
+    expect(tower(TUBE.site[0], 20)).toEqual([]);
+    expect(tower(TUBE.site[1], TOWER.max)).toEqual([]);
+    expect(tower(centre + CHECKERS.halfWidth + 0.02, 20)).toEqual([]);
   });
 
   it('makes a medal as thin as a real one, and lays a tower that goes over down across the lower table as far as it stood tall', () => {
@@ -936,16 +949,21 @@ describe('a machine in play', () => {
       const down = machine.falling.filter((medal) => medal.source === 'spill').sort((a, b) => a.rank - b.rank);
       expect(down).toHaveLength(stack);
       for (const medal of down) {
-        // The bottom ones nearest and the top ones furthest, each within a unit of its own share of the way.
-        const out = MEDAL_RADIUS + ((medal.rank + 0.5) / stack) * reach;
-        expect(Math.abs(medal.y - (lip + out))).toBeLessThanOrEqual(1);
+        // The bottom ones nearest and the top ones furthest, each within a unit of its own share of the way; but
+        // never on the START plate or under it. One that would come down there comes down clear of the plate's foot,
+        // as the foot is by then: the whole medal past its edge, and a little further the higher it fell from.
+        const along = (medal.rank + 0.5) / stack;
+        const out = MEDAL_RADIUS + along * reach;
+        const foot = pusherFront(machine.time + medal.duration) + PLATE.reach;
+        expect(medal.y).toBeGreaterThanOrEqual(foot + 2 * MEDAL_RADIUS - 1e-9);
+        expect(Math.abs(medal.y - (lip + out)) <= 1 || Math.abs(medal.y - (foot + 2 * MEDAL_RADIUS + 2 * along)) < 1e-9).toBe(true);
         // And no further to either side than it has fanned out by then.
         expect(Math.abs(medal.x - 22)).toBeLessThanOrEqual(MEDAL_RADIUS + out * 0.35);
         expect(medal.fromY).toBe(lip);
       }
       // So the tallest tower there is comes down within six medals' widths of the foot of the pusher's face, and
       // short of the front edge wherever the lip is.
-      expect(Math.max(...down.map((medal) => medal.y))).toBeLessThan(lip + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1);
+      expect(Math.max(...down.map((medal) => medal.y))).toBeLessThan(Math.max(lip + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1, PUSHER.max + PLATE.reach + 2 * MEDAL_RADIUS + 2));
       expect(MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1).toBeLessThan(MEDAL_RADIUS * 12);
       expect(PUSHER.max + MEDAL_RADIUS + TOWER.max * MEDAL_THICKNESS * 1.1 + 1).toBeLessThan(FIELD.depth - MEDAL_RADIUS * 2);
     }
@@ -973,24 +991,27 @@ describe('a machine in play', () => {
     const fed = run(middle, 100, FIELD.width / 2, 0.25);
     const through = (chucker: number) => fed.checkers.filter((one) => one === chucker).length;
     expect(fed.dropped).toBeGreaterThan(350);
-    // About one medal in eight once the machine has been fed for a while, and fewer from a machine that is new.
+    // About one medal in five at the best pace once the machine has been fed for a while (scripts/medal-pusher-tune.ts),
+    // and fewer fed this fast to a machine that is new.
     expect(fed.checkers.length).toBeGreaterThan(fed.dropped / 16);
     expect(fed.checkers.length).toBeLessThan(fed.dropped / 5);
     expect(Math.min(through(0), through(1), through(2))).toBeGreaterThan(3);
     expect(through(1)).toBeGreaterThan(Math.max(through(0), through(2)) * 0.6);
 
-    // Fed at an edge, the pile has to carry a medal a third of the way across first: far fewer get there.
+    // Fed at an edge, the pile has to carry a medal a third of the way across first: fewer get there.
     const edge = createMachine(5);
     const atEdge = run(edge, 100, AIM.min, 0.25).checkers;
-    expect(atEdge.length).toBeLessThan(fed.checkers.length / 2);
+    expect(atEdge.length).toBeLessThan(fed.checkers.length * 0.7);
     // And of those, most through the chucker on that side.
     expect(atEdge.filter((one) => one === 0).length).toBeGreaterThan(atEdge.filter((one) => one === 2).length);
 
     // Medals the machine pays out count like any others: nobody feeds this machine, and its payout alone sends medals through.
+    // Every one of them lands on the pusher, and every medal that goes over the lip lands again, on the lower table.
     const paid = createMachine(5);
     queuePayout(paid, 400);
     const payout = run(paid, 60);
-    expect(payout.landed).toBe(400);
+    expect(paid.payoutQueue).toBe(0);
+    expect(payout.landed).toBeGreaterThan(400);
     expect(payout.dropped).toBe(0);
     expect(payout.checkers.length).toBeGreaterThan(15);
     expect(payout.checkers.length).toBeLessThan(100);
@@ -1085,39 +1106,51 @@ describe('medals two deep', () => {
     expect(Math.hypot(nearBall.x - ball.x, nearBall.y - ball.y)).toBeGreaterThan(D * 0.95);
   });
 
+  /** Where each of `medals` lies once whatever went over the lip has come down the START plate. */
+  const downOn = (machine: Machine, medals: Medal[]) => {
+    step(machine, MEDAL_SLIDE + TEETER.most);
+    expect(machine.falling).toEqual([]);
+    return medals.map((medal) => machine.medals.find((one) => one.id === medal.id));
+  };
+
   it('takes a medal on top over the lip with the one beneath it', () => {
-    // Both are past the lip of a pusher that is fully back, so the next step drops them.
-    const under = medalAt(50, PUSHER.min + 0.5, { level: 1 });
-    const rider = medalAt(50.3, PUSHER.min + 0.6, { level: 1, tier: 1 });
+    // Both are past the lip of a pusher that is fully back, away from the START holes, so the next step takes them over.
+    const under = medalAt(20, PUSHER.min + 0.5, { level: 1 });
+    const rider = medalAt(20.3, PUSHER.min + 0.6, { level: 1, tier: 1 });
     const machine = machineWith([under, rider]);
     const events = step(machine, DT);
     expect(events.won + events.lost + events.toppled).toBe(0);
-    expect(under.level).toBe(0);
-    expect(rider.level).toBe(0);
-    // The first lands on the empty table and the second on top of it.
-    expect(under.tier).toBe(0);
-    expect(rider.tier).toBe(1);
-    expect(under.sinceDrop).toBe(0);
-    expect(rider.sinceDrop).toBe(0);
+    // Both go down the START plate together.
+    expect(machine.medals).toEqual([]);
+    expect(machine.falling.map((medal) => [medal.id, medal.source])).toEqual([
+      [under.id, 'slide'],
+      [rider.id, 'slide'],
+    ]);
+    // Off its foot, the first lands on the empty table and the second on top of it.
+    const [down, onTop] = downOn(machine, [under, rider]);
+    expect([down?.level, down?.tier]).toEqual([0, 0]);
+    expect([onTop?.level, onTop?.tier]).toEqual([0, 1]);
   });
 
   it('lands them the same way round whichever the list holds first', () => {
     // The one on top comes earlier in the list than the one it lies on, as it can after medals have slid about.
-    const under = medalAt(50, PUSHER.min + 0.5, { level: 1 });
-    const rider = medalAt(50.3, PUSHER.min + 0.6, { level: 1, tier: 1 });
-    const beside = medalAt(70, PUSHER.min + 0.4, { level: 1, tier: 1 });
+    const under = medalAt(20, PUSHER.min + 0.5, { level: 1 });
+    const rider = medalAt(20.3, PUSHER.min + 0.6, { level: 1, tier: 1 });
+    const beside = medalAt(65, PUSHER.min + 0.4, { level: 1, tier: 1 });
     const machine = machineWith([rider, beside, under]);
     step(machine, DT);
-    expect([under.level, rider.level, beside.level]).toEqual([0, 0, 0]);
-    expect(under.tier).toBe(0);
-    expect(rider.tier).toBe(1);
+    const [down, onTop, alone] = downOn(machine, [under, rider, beside]);
+    expect([down?.level, onTop?.level, alone?.level]).toEqual([0, 0, 0]);
+    expect(down?.tier).toBe(0);
+    expect(onTop?.tier).toBe(1);
     // With nothing under it where it lands, a medal that was on top lies on the table.
-    expect(beside.tier).toBe(0);
+    expect(alone?.tier).toBe(0);
     // The same three in every other order end up the same way.
     for (const order of [[0, 1, 2], [2, 0, 1], [1, 2, 0], [2, 1, 0]]) {
-      const three = [medalAt(50, PUSHER.min + 0.5, { level: 1 }), medalAt(50.3, PUSHER.min + 0.6, { level: 1, tier: 1 }), medalAt(70, PUSHER.min + 0.4, { level: 1, tier: 1 })];
-      step(machineWith(order.map((index) => three[index])), DT);
-      expect(three.map((medal) => medal.tier)).toEqual([0, 1, 0]);
+      const three = [medalAt(20, PUSHER.min + 0.5, { level: 1 }), medalAt(20.3, PUSHER.min + 0.6, { level: 1, tier: 1 }), medalAt(65, PUSHER.min + 0.4, { level: 1, tier: 1 })];
+      const again = machineWith(order.map((index) => three[index]));
+      step(again, DT);
+      expect(downOn(again, three).map((medal) => medal?.tier)).toEqual([0, 1, 0]);
     }
   });
 
@@ -1358,8 +1391,10 @@ describe('jewels', () => {
     for (const x of CHECKERS.positions) {
       const machine = machineWith([medalAt(x, PUSHER.min + 0.5, { level: 1, jewel: true })]);
       expect(step(machine, DT).checkers).toEqual([]);
-      expect(machine.medals.map((medal) => [medal.level, medal.tier, medal.jewel])).toEqual([[0, 0, true]]);
+      // It tumbles down the START plate, over the hole, and off its foot.
+      expect(machine.falling.map((medal) => [medal.source, medal.jewel])).toEqual([['slide', true]]);
       expect(step(machine, 1).checkers).toEqual([]);
+      expect(machine.medals.map((medal) => [medal.level, medal.tier, medal.jewel])).toEqual([[0, 0, true]]);
     }
   });
 
@@ -1408,30 +1443,31 @@ describe('the side holes round the front corners', () => {
     return events;
   };
 
-  it('reach a fifth of the way along the front edge from each side, and a hair more, so the edge is over the tray for its middle three fifths, nearly', () => {
-    expect(FIELD.sideReach).toBe(20.3);
-    expect(FIELD.width - 2 * FIELD.sideReach).toBeCloseTo(59.4, 9);
+  it('reach a fifth of the way along the front edge from each side, so the edge is over the tray for its middle three fifths', () => {
+    expect(FIELD.sideReach).toBe(15.6);
+    expect(FIELD.sideReach / FIELD.width).toBeCloseTo(0.2, 9);
+    expect(FIELD.width - 2 * FIELD.sideReach).toBeCloseTo(46.8, 9);
     // The holes are the ones that run down the open sides, turned round the corners: they take less of the front than they leave.
     expect(FIELD.sideReach).toBeGreaterThan(MEDAL_RADIUS * 2);
     expect(FIELD.sideReach * 2).toBeLessThan(FIELD.width / 2);
     expect(FIELD.sideOpenFrom).toBeLessThan(FIELD.depth);
     // The three START pockets, where the best aim feeds, are over the part that pays.
     for (const pocket of CHECKERS.positions) expect(frontPays(pocket)).toBe(true);
-    for (const x of [FIELD.sideReach, 35, FIELD.width / 2, 65, FIELD.width - FIELD.sideReach]) expect(frontPays(x)).toBe(true);
-    for (const x of [0, MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, FIELD.width - FIELD.sideReach + 0.01, 90, FIELD.width - MEDAL_RADIUS, FIELD.width]) expect(frontPays(x)).toBe(false);
+    for (const x of [FIELD.sideReach, 25, FIELD.width / 2, 52, FIELD.width - FIELD.sideReach]) expect(frontPays(x)).toBe(true);
+    for (const x of [0, MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, FIELD.width - FIELD.sideReach + 0.01, FIELD.width - 10, FIELD.width - MEDAL_RADIUS, FIELD.width]) expect(frontPays(x)).toBe(false);
     // The two sides are alike.
     for (let x = 0; x <= FIELD.width; x += 0.5) expect(frontPays(x)).toBe(frontPays(FIELD.width - x));
   });
 
   it('pay a medal that goes over the middle of the front edge, and take one that goes over within their reach of a side', () => {
     const none = { checkers: [], landed: 0, toppled: 0, balls: 0, jewels: 0 };
-    for (const x of [FIELD.sideReach, 30, 50, 70, FIELD.width - FIELD.sideReach]) expect(over(x)).toEqual({ ...none, won: 1, lost: 0 });
-    for (const x of [MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, FIELD.width - FIELD.sideReach + 0.01, 90, FIELD.width - MEDAL_RADIUS]) expect(over(x)).toEqual({ ...none, won: 0, lost: 1 });
+    for (const x of [FIELD.sideReach, 25, FIELD.width / 2, 52, FIELD.width - FIELD.sideReach]) expect(over(x)).toEqual({ ...none, won: 1, lost: 0 });
+    for (const x of [MEDAL_RADIUS, 10, FIELD.sideReach - 0.01, FIELD.width - FIELD.sideReach + 0.01, FIELD.width - 10, FIELD.width - MEDAL_RADIUS]) expect(over(x)).toEqual({ ...none, won: 0, lost: 1 });
     // A medal lying on another goes the way the one under it does: the hole takes whatever is flat.
     expect(over(10, { tier: 1 })).toEqual({ ...none, won: 0, lost: 1 });
-    expect(over(50, { tier: 1 })).toEqual({ ...none, won: 1, lost: 0 });
+    expect(over(FIELD.width / 2, { tier: 1 })).toEqual({ ...none, won: 1, lost: 0 });
     // One still on the table at a corner, however near the edge, has gone nowhere yet.
-    const lying = machineWith([medalAt(10, FIELD.depth - 0.1), medalAt(90, FIELD.depth - 0.1)]);
+    const lying = machineWith([medalAt(10, FIELD.depth - 0.1), medalAt(FIELD.width - 10, FIELD.depth - 0.1)]);
     expect(step(lying, DT)).toEqual({ ...none, won: 0, lost: 0 });
     expect(lying.medals).toHaveLength(2);
   });
@@ -1452,7 +1488,7 @@ describe('the side holes round the front corners', () => {
       try {
         const machine = createMachine(31);
         // Two minutes of it, a medal every half second: some two hundred medals leave the field in that time.
-        const events = run(machine, 120, 50, 0.5);
+        const events = run(machine, 120, FIELD.width / 2, 0.5);
         expect(events.won + events.lost).toBeGreaterThan(150);
         return events.won / (events.won + events.lost);
       } finally {

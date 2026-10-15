@@ -58,14 +58,16 @@ describe('the side holes at the front corners, as the cabinet has them', () => {
     // What is printed on the table says the same: GET before the tray and nowhere else, OUT before each mouth.
     for (const x of TABLE_WORDS.get) expect(x > TRAY.from + 7 && x < TRAY.to - 7).toBe(true);
     expect(TABLE_WORDS.out.some(([x, depth]) => x < SIDE_HOLE.reach - 5 && depth > 90)).toBe(true);
-    // And the tray's bulbs are as far apart as they were when they ran the whole width: thirty in 96 units.
+    // And the tray's bulbs are as far apart as they were when they ran the whole width of a wider table: thirty in 96 units.
     expect((TRAY.to - TRAY.from - 2.6) / TRAY_BULBS).toBeCloseTo(96 / 30, 0);
   });
 
   it('is a mouth that reads on a phone: as wide as three medals and as tall as the picture has room for', () => {
     const PHONE = 345 / VIEW.width;
+    const medal = (project(2 * R, 0, D).x - project(0, 0, D).x) * PHONE;
     const wide = (project(SIDE_HOLE.reach - SIDE_HOLE.cheek, 0, D).x - project(0, 0, D).x) * PHONE;
-    expect(wide).toBeGreaterThan(60);
+    expect(wide).toBeGreaterThan(2.8 * medal);
+    expect(wide).toBeGreaterThan(45);
     // From the red edge down to the foot of the picture, which is where the cabinet's glass ends.
     const tall = (VIEW.height - project(0, 0, D).y) * PHONE;
     expect(tall).toBeGreaterThan(22);
@@ -122,7 +124,7 @@ describe('the side holes at the front corners, as the cabinet has them', () => {
 
 describe('a medal that goes down a side hole’s mouth', () => {
   const AGES = Array.from({ length: Math.round(EXIT_TIME * 240) + 1 }, (_, i) => i / 240);
-  const PLACES = [0.4, R, 6, 10, 15.9, 19.99];
+  const PLACES = [0.4, R, 6, 10, 12.4, FIELD.sideReach - 0.01];
 
   it('leaves the table where it lay, tips over the edge and slips off it, and never comes up again or goes through the table', () => {
     expect(SINK.gravity).toBe(EXIT.gravity);
@@ -230,7 +232,7 @@ describe('a medal that goes down a side hole’s mouth', () => {
 
 describe('a ball or a jewel that crosses a side hole’s mouth', () => {
   const ROUND = [BALL_RADIUS, JEWEL_CUT.girdle];
-  const PLACES = [0.5, 4.5, 10, 16, 19.9];
+  const PLACES = [0.5, 4.5, 10, 13, FIELD.sideReach - 0.1];
 
   it('comes down off the edge on to the rail, rolls along it to the tray and only there drops in', () => {
     for (const side of SIDES) {
@@ -335,8 +337,8 @@ describe('what the stage shows of a medal that has left the field', () => {
 
   it('shows a medal that went over a front corner going down the side hole there, and never into the tray', () => {
     fakeDocument();
-    for (const x of [1, 3.2, 10, 19.9, 80.1, 90, 99]) {
-      const side = x < 50 ? -1 : 1;
+    for (const x of [1, 3.2, 10, FIELD.sideReach - 0.1, W - FIELD.sideReach + 0.1, W - 10, W - 1]) {
+      const side = x < W / 2 ? -1 : 1;
       const stage = gone([lying(4, x, D - 0.1)]);
       expect(stage.exits).toEqual([{ id: 4, x, y: D - 0.1, kind: 'lost', side, ball: false, corner: true, age: 0 }]);
       // The hole's own light, on its side only; nothing of the tray's, and no glint.
@@ -346,9 +348,9 @@ describe('what the stage shows of a medal that has left the field', () => {
       expect(stage.tally).toBe(0);
     }
     // Over the middle of the edge it is won as it always was, to the rule's own lines.
-    for (const x of [FIELD.sideReach, 35, 50, 65, W - FIELD.sideReach]) {
+    for (const x of [FIELD.sideReach, 25, W / 2, 52, W - FIELD.sideReach]) {
       const stage = gone([lying(4, x, D - 0.1)]);
-      expect(stage.exits).toEqual([{ id: 4, x, y: D - 0.1, kind: 'won', side: x < 50 ? -1 : 1, ball: false, age: 0 }]);
+      expect(stage.exits).toEqual([{ id: 4, x, y: D - 0.1, kind: 'won', side: x < W / 2 ? -1 : 1, ball: false, age: 0 }]);
       expect(stage.sideGlow).toEqual([0, 0]);
       expect(stage.trayGlow).toBe(GLOW_TIME);
       expect(stage.sparks).toHaveLength(2);

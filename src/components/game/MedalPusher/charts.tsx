@@ -109,28 +109,31 @@ const WON = 'var(--mp-d-won)';
 const MEDAL = 'var(--mp-d-medal)';
 const GATE = 'var(--mp-d-gate)';
 
+/** A place across the field, as the share of its width that `x` is of a hundred: the diagram was drawn on a field a hundred wide. */
+const across = (x: number): number => (x * FIELD.width) / 100;
+
 /** Where each numbered badge of the diagram sits, in field units (depth may be negative: on the back panel). */
 const BADGES: { x: number; depth: number }[] = [
-  { x: 23, depth: 72 },
-  { x: 14, depth: 20 },
-  { x: 80, depth: 38 },
-  { x: 50, depth: 62 },
-  { x: 88, depth: 89 },
-  { x: 50, depth: 108 },
+  { x: across(23), depth: 72 },
+  { x: across(14), depth: 20 },
+  { x: across(80), depth: 38 },
+  { x: across(50), depth: 62 },
+  { x: across(88), depth: 89 },
+  { x: across(50), depth: 108 },
 ];
 
 /** A few medals lying about, so the diagram reads as a table and not as a floor plan. */
 const SAMPLE_MEDALS: { x: number; depth: number }[] = [
-  { x: 30, depth: 12 },
-  { x: 38, depth: 24 },
-  { x: 62, depth: 18 },
-  { x: 72, depth: 30 },
-  { x: 24, depth: 56 },
-  { x: 34, depth: 72 },
-  { x: 68, depth: 66 },
-  { x: 78, depth: 80 },
-  { x: 60, depth: 90 },
-  { x: 20, depth: 88 },
+  { x: across(30), depth: 12 },
+  { x: across(38), depth: 24 },
+  { x: across(62), depth: 18 },
+  { x: across(72), depth: 30 },
+  { x: across(24), depth: 56 },
+  { x: across(34), depth: 72 },
+  { x: across(68), depth: 66 },
+  { x: across(78), depth: 80 },
+  { x: across(60), depth: 90 },
+  { x: across(20), depth: 88 },
 ];
 
 /** The field from above, with a numbered badge on each part the list beside it explains. */
@@ -144,7 +147,7 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
   const Y = (depth: number) => top + depth * scale;
   const front = (PUSHER.min + PUSHER.max) / 2;
   const half = slotHalf();
-  // Seen from above, a length down the catcher's slide is shorter by as much as the slide leans.
+  // Seen from above, a length down the START plate is shorter by as much as the plate leans.
   const level = Math.cos(SLOPE.angle);
   const right = FIELD.width;
   return (
@@ -157,13 +160,13 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
       {/* How far the pusher's lip travels */}
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.min)} y2={Y(PUSHER.min)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
       <line x1={X(0)} x2={X(right)} y1={Y(PUSHER.max)} y2={Y(PUSHER.max)} stroke={LINE} strokeWidth={1} strokeDasharray="3 4" />
-      {/* The catcher hung on the pusher's front, out past its lip: a slide down toward the player with the three START slots in it, each an opening with square corners, as wide as a medal that just fits */}
+      {/* The START plate hung on the pusher's front, out past its lip, leaning down toward the player, with the three START holes in it, each an opening with square corners, as wide as a medal that just fits */}
       <rect data-catcher x={X(CATCHER.from)} y={Y(front)} width={(CATCHER.to - CATCHER.from) * scale} height={CATCHER.foot.out * scale} rx={3} fill={PANEL} stroke={LINE} strokeWidth={1.2} />
       {CHECKERS.positions.map((center) => (
         <rect key={center} data-chucker x={X(center - half)} y={Y(front + CATCHER.back * level)} width={half * 2 * scale} height={START_SLOT.long * level * scale} fill={TABLE} stroke={GATE} strokeWidth={2.4} />
       ))}
       <path
-        d={`M${X(26)} ${Y(PUSHER.min + 1.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} M${X(24)} ${Y(PUSHER.min + 4.5)} L${X(26)} ${Y(PUSHER.min + 1.5)} L${X(28)} ${Y(PUSHER.min + 4.5)} M${X(24)} ${Y(PUSHER.max - 4.5)} L${X(26)} ${Y(PUSHER.max - 1.5)} L${X(28)} ${Y(PUSHER.max - 4.5)}`}
+        d={`M${X(across(26))} ${Y(PUSHER.min + 1.5)} L${X(across(26))} ${Y(PUSHER.max - 1.5)} M${X(across(26) - 2)} ${Y(PUSHER.min + 4.5)} L${X(across(26))} ${Y(PUSHER.min + 1.5)} L${X(across(26) + 2)} ${Y(PUSHER.min + 4.5)} M${X(across(26) - 2)} ${Y(PUSHER.max - 4.5)} L${X(across(26))} ${Y(PUSHER.max - 1.5)} L${X(across(26) + 2)} ${Y(PUSHER.max - 4.5)}`}
         fill="none"
         stroke={LINE}
         strokeWidth={1.6}
@@ -200,7 +203,7 @@ export const FieldDiagram = ({ ariaLabel }: { ariaLabel: string }) => {
           </g>
         );
       })}
-      <circle cx={X(19)} cy={Y(87)} r={MEDAL_RADIUS * scale * 0.55} fill={MEDAL} fillOpacity={0.55} stroke={MEDAL} strokeWidth={1.2} />
+      <circle cx={X(across(19))} cy={Y(87)} r={MEDAL_RADIUS * scale * 0.55} fill={MEDAL} fillOpacity={0.55} stroke={MEDAL} strokeWidth={1.2} />
       {/* The front edge: its middle is over the tray, and its two ends are over the side holes, which turn the corners */}
       <line data-front="pays" x1={X(FIELD.sideReach)} x2={X(right - FIELD.sideReach)} y1={Y(FIELD.depth)} y2={Y(FIELD.depth)} stroke={WON} strokeWidth={3.5} />
       {[0, right - FIELD.sideReach].map((x) => (

@@ -2397,19 +2397,20 @@
   font-size: 7.8cqh;
 }
 /* The screen's lower corners are cut out for the windows the towers are stacked in, with the count over each
-   (works.ts). In the wall what stands low on the stage keeps clear of them: the slot's board is a little narrower,
-   and the column beside the wheel or the bowls stands a little in from the right. */
+   (works.ts). In the wall what stands low on the stage keeps clear of them: the slot's board is narrower, and the
+   column beside the wheel or the bowls stands in from the right, each by as much as the windows take of the screen
+   (--mp-stage-in, which ScreenPanel.tsx works out from them). */
 .wall .screen:not([data-mode='sugoroku']) .boardPlane {
-  --mp-board-width: 92cqw;
-  left: 4cqw;
+  --mp-board-width: calc(100cqw - 2 * var(--mp-stage-in, 4cqw));
+  left: var(--mp-stage-in, 4cqw);
 }
 .wall .wheelWindow,
 .wall .bowlWindow {
-  width: 62cqw;
+  width: calc(66cqw - var(--mp-stage-in, 4cqw));
 }
 .wall .chain {
   width: 31cqw;
-  margin-right: 4cqw;
+  margin-right: var(--mp-stage-in, 4cqw);
 }
 /* What each line of the slot leads to, under the stage. */
 .legendBelow {

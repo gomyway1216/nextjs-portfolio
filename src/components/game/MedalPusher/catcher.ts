@@ -1,251 +1,190 @@
 /**
- * The catcher: the one piece of furniture that holds the three START slots,
- * as a thing in the cabinet. It is hung on the front of the pusher, just
- * under its lip, and rides out and back with it.
+ * The START plate, as a thing in the cabinet: the board hung on the front of
+ * the pusher, from just under its lip, that the three START holes are cut
+ * in. It is as wide as the pusher, leans down toward the player to a foot
+ * clear of the medals on the lower table, and rides out and back with the
+ * pusher (`PLATE` in engine.ts has its measures). Nothing stands up from it:
+ * the frames round the holes, their flaps, their lamps and the two START
+ * signs are all let into its top, flush, so that whatever slides down it
+ * slides over them.
  *
- * It is a box with most of its top open. Under the lip is a well, as wide as
- * the catcher and a little longer, out from the lip, than a medal is across;
- * and beyond the well is a slide, a sloped board that leans down toward the
- * player to a foot that stops short of the lower table, so the medals that
- * lie there pass under it. In the slide are the three slots, side by side:
- * each an opening with square corners, a medal wide and a hair more, with a
- * frame round it and a dark throat under it, a lamp at its lower end and a
- * wing along either side of its frame. Under each slot, on the last of the
- * slide down to its foot, is the word START.
+ * Everything that goes over the lip comes down on it, and the machine has
+ * already settled where each thing comes down and how long it takes (a
+ * `FallingMedal` from the `slide` or the `spill`, `downThePlate` and `spill`
+ * in engine.ts). This file shows the way there and decides nothing: each way
+ * ends exactly where the machine has the thing come down, and nothing on it
+ * is ever inside the plate or the pusher.
  *
- * Over the well, from the lip to each slot, runs a tongue: a narrow bridge,
- * the only way across. A tongue is as wide as the play a medal has in its
- * slot, which is twice what the lip's rule allows a medal's middle to be off
- * the slot's (`CHECKERS.halfWidth`). So a medal stays on a tongue exactly
- * when its middle is over it, which is exactly when the rule counts it, and
- * exactly when the whole of it will fit the slot at the tongue's end. That is
- * all the mechanism there is, and it is why nothing that does not count ever
- * reaches a slot: there is nothing under it to carry it there.
+ * - A medal tips off the lip on to the plate: it slides over the edge until
+ *   its middle is past it, tips forward about the edge until its nose is on
+ *   the plate, slides on with its tail on the edge until the tail leaves it,
+ *   and lies along the plate.
+ * - A medal whose middle came over in line with a hole, within the play a
+ *   medal has in it (`CHECKERS.halfWidth`), slides down over the hole and
+ *   drops through it, lying along the plate as it goes, out of the light;
+ *   once it is clear of the board it falls straight down, comes down on its
+ *   lower edge and lies down flat under the plate, at the foot of the
+ *   pusher's face (`PLATE.through`).
+ * - A medal whose middle came over the hole's opening but not in line with it
+ *   has one side of it over the hole's frame: it stops there, rocks over the
+ *   frame's edge toward the hole and back, the more and the longer the nearer
+ *   it was to fitting, and slides on.
+ * - Every other medal slides down the plate, past the holes, and off its foot:
+ *   its nose comes down on the lower table, its tail slides down the plate to
+ *   the foot's edge and down the plumb end of the foot, and it lies flat just
+ *   in front of the foot.
+ * - A prize ball is too big for a hole and rolls down over them, over the
+ *   foot's edge and down against the foot. A jewel tumbles down the plate
+ *   end over end, over the holes, and lands on its point against the foot.
+ * - A tower that goes over the lip comes down on the plate: if it went over
+ *   at a hole its medals go down that hole one after another, and otherwise
+ *   they are thrown out over the plate and come down past its foot.
  *
- * The engine knows nothing of any of this. Its rule is the lip's: a medal
- * that goes over the lip with its middle inside a slot starts a spin
- * (`CHECKERS` in engine.ts), and everything that goes over the lip lands on
- * the lower table at the foot of the pusher's face. The catcher is what the
- * player is shown of that rule. A medal that counted is seen to come off the
- * lip on to its tongue, lying flat with its face up, ride the length of it
- * out over the well, tip over its end into the slot and go down the throat,
- * out of the light. One that came over with its middle off a tongue but some
- * of it on one has too little under it: it rides out until its tail leaves
- * the lip, hangs there on the tongue's edge, the longer the nearer it was to
- * fitting, and tips off sideways into the well. One that came over clear of
- * the tongues goes over the lip's edge nose first and straight down.
- *
- * Whatever has gone down, a slot or the well, is under the catcher from
- * then on, on the lower table at the foot of the pusher's face, which is
- * where the engine has had it all along: out of sight until the pusher has
- * pushed it out from under the foot. A prize ball is too big for the well.
- * It rolls across it and down the slide, off the foot, and stands on the
- * lower table in front of it until the catcher's foot comes over it.
- *
- * Two things about the slots change. One of them is lit gold at a time, the
+ * Two things about the holes change. One of them is lit gold at a time, the
  * lucky lamp, which steps along with each stroke of the pusher (`luckySlot`
- * in engine.ts). And during chance time their wings are open: every slot is
- * lit, and each takes medals at a wider width (`CHECKERS.wingWidth`), which
- * its wider tongue and opening, and the wings swung out, show.
+ * in engine.ts). And during chance time their flaps are open: every hole is
+ * lit, and each takes medals at a wider width (`CHECKERS.wingWidth`). A flap
+ * lies flush along each side of a hole's opening, inside its frame, and opens
+ * by swinging down under the plate, which leaves the opening that much wider.
  *
- * Everything here is in the cabinet's own measures — across the field, up
- * from the lower table, and out from the back wall — and decides nothing.
+ * Everything here is in the cabinet's own measures: across the field, up
+ * from the lower table, and out from the back wall.
  */
 
 import type { Spot } from './arms';
-import { droppedThrough, grazed } from './chuckers';
-import { CHECKERS, MEDAL_RADIUS, MEDAL_THICKNESS, START_RIDE, luckySlot, pusherFront, slotWidthAt, type Medal } from './engine';
-import { HEIGHT, project } from './view';
+import {
+  CHECKERS,
+  FIELD,
+  MEDAL_RADIUS,
+  MEDAL_SLIDE,
+  MEDAL_THICKNESS,
+  PLATE,
+  PUSHER,
+  ROLL_DOWN,
+  START_RIDE,
+  TEETER,
+  clearOfFoot,
+  luckySlot,
+  pusherFront,
+  spillHeight,
+  type FallingMedal,
+} from './engine';
+import { project } from './view';
 
-/** How far it is from one pocket to the next. */
+/** How far it is from one hole to the next. */
 const PITCH = CHECKERS.positions[1] - CHECKERS.positions[0];
-const P = HEIGHT.pusher;
+const P = PUSHER.height;
 const T = MEDAL_THICKNESS;
 const R = MEDAL_RADIUS;
-
-/**
- * What the catcher is made of down its length, from the lip to its foot: the
- * well; the upper bar of the slots' frames; the slots' openings; the lower
- * bar; and the strip with the words. The well is a little longer than a
- * medal is across. A medal that has some of a tongue under it lies flat
- * until its tail has left the lip, and by then its nose is a whole medal out
- * from the lip: if the slide began nearer than that, the nose would be on
- * it, and the medal would be carried on down to the slots, counted or not.
- */
-const RIM = { wide: 0.4, high: 0.3 } as const;
-const WELL = R * 2 + 0.3;
-const MOUTH = 4.5;
-const WORDS = 5.1;
-/**
- * All of it together is a little shorter than the pusher's stroke, and has to
- * be. A medal that goes down the well lies at the foot of the pusher's face,
- * under the catcher, and the next stroke pushes it a stroke's length out from
- * where the face stands when it is back. If the catcher's foot reached
- * further than that, the medal would still be under it when the pusher had
- * gone back, and would stay out of sight until the pile had shoved it
- * further: a quarter of a minute, on a quiet table. Reaching less, the
- * catcher draws back off it at the end of the stroke after the one it fell
- * in, and it is seen again where it lies. The well cannot be shorter than a
- * medal is across, and an opening cannot be as long as one; what the stroke
- * leaves beyond those goes to the words.
- */
-const LONG = WELL + RIM.wide + MOUTH + RIM.wide + WORDS;
-/** How high the tongues leave the lip, just under the edge of the pusher's top, and how high the foot is: higher than the medals that lie on the lower table, and than a jewel (jewel.ts). */
-const DECK = P - 0.3;
-const FOOT = 2.4;
-/** How far the catcher leans from level, in radians: what its length makes of the height there is between the lip and its foot. */
-const LEAN = Math.asin((DECK - FOOT) / LONG);
+const D = R * 2;
+const LEAN = PLATE.lean;
+const SIN = Math.sin(LEAN);
+const COS = Math.cos(LEAN);
+/** How far the plate's top is below the pusher's top at the lip. */
+const STEP = P - PLATE.deck;
 
 export const CATCHER = {
-  /** Where it begins and ends across the field: half the way to another pocket beyond the outer two. */
-  from: CHECKERS.positions[0] - PITCH / 2,
-  to: CHECKERS.positions[CHECKERS.positions.length - 1] + PITCH / 2,
-  /** How much of its length belongs to each pocket. */
+  /** Where the plate begins and ends across the field: the whole width of the pusher. */
+  from: 0,
+  to: FIELD.width,
+  /** How far it is from one hole to the next. */
   tile: PITCH,
-  /** How high its tongues are where they begin, at the lip: just under the edge of the pusher's top. The slide lies in the same plane, further down. */
-  deck: DECK,
-  /** How far down from the lip the slide begins: between the lip and it is the well, open from end to end but for the tongues. */
-  gap: WELL,
-  /** How far down from the lip a slot's opening begins: past the well and the upper bar of the slot's frame. A tongue ends there. */
-  back: WELL + RIM.wide,
-  /** What stands up round a slot, and how far: its frame. A tongue's top is level with the top of it. */
-  rim: RIM,
-  /** The foot of the slide: how far out from the lip, and how high above the lower table. */
-  foot: { out: LONG * Math.cos(LEAN), height: FOOT },
-  /** How high the floor of a throat is: as deep as the catcher goes. */
-  throat: FOOT + 0.1,
+  /** How high its top edge is, at the lip: just under the edge of the pusher's top. */
+  deck: PLATE.deck,
+  /** How far down the plate from the lip a hole's opening begins. */
+  back: PLATE.hole.from,
+  /** The frame round a hole, let into the plate: how far out from the opening it reaches. It stands up from the plate not at all. */
+  rim: { wide: 0.6 },
+  /** The plate's foot: how far out from the lip, and how high above the lower table the edge of its top is. */
+  foot: { out: PLATE.reach, height: PLATE.foot },
+  /** How thick the board is, square to its top. */
+  thick: PLATE.thick,
   /**
-   * Seconds a medal the lip's rule counted is shown from the lip to out of
-   * sight down its slot: on its tongue for the first `ride` of that, and
-   * going over the tongue's end and down the throat for the rest. This is
-   * the machine's own number: when it is up the machine takes the medal, and
-   * the cabinet says what it came to (`START_RIDE` in engine.ts).
+   * Seconds a medal the lip's rule counted is shown from the lip down through
+   * its hole to the lower table: the machine's own number (`START_RIDE`).
+   * It slides down to the hole for `ride` of that, drops through the hole
+   * until `drop`, falls to the table until `land`, and lies down.
    */
   sink: START_RIDE,
-  ride: 0.7,
-  /** Seconds such a medal is shown lying in the mouth of its slot, going dark, where nothing may move: it is not seen to ride there. */
-  still: 0.3,
-  /** Seconds a medal that fits no slot is shown going over the lip's edge and down into the well. */
-  fall: 0.3,
-  /**
-   * A medal that came over with its middle off a tongue but within `reach`
-   * of it has some of the tongue under it: a medal's radius. It rides out
-   * for `out` seconds, hangs on the tongue's edge for between `least` and
-   * `most` seconds, the longest for the one that was nearest to fitting, and
-   * then falls into the well as any other does.
-   */
-  reach: R,
-  teeter: { out: 0.2, least: 0.12, most: 0.6 },
-  /** Seconds a prize ball takes to roll from the lip across the well, down the slide and off its foot to the lower table. */
-  slide: 0.8,
-  /**
-   * A ball that has come down in front of the foot stands where it landed
-   * until the catcher's foot has come over it, or the engine has it there.
-   * It waits for that `wait` seconds at the most, and then takes `slip`
-   * seconds to roll to wherever the engine has it: which only a ball that
-   * came over as the pusher was on its way forward has to do.
-   */
-  lie: { wait: 1.4, slip: 0.4 },
-  /**
-   * How high the catcher is taken to be for a prize ball that lies under it.
-   * A ball is taller than the catcher. One that has come over the lip there
-   * is shown under it all the same, as a medal is, rather than standing up
-   * through its slide.
-   */
-  hood: 9.4,
+  ride: 0.3,
+  drop: 0.55,
+  land: 0.7,
+  /** How much light a medal that has gone down a hole still gets under the plate. */
+  shade: 0.5,
+  /** Seconds a prize ball or a jewel takes from the lip down the plate and off its foot: the machine's own number (`ROLL_DOWN`). */
+  slide: ROLL_DOWN,
 } as const;
 
-/**
- * The plane the catcher's top lies in: how far it leans from level, in
- * radians, down toward the player, and how long it is from the lip to the
- * foot. The first `CATCHER.gap` of that is the well, and the rest the slide.
- */
-export const SLOPE = { angle: LEAN, long: LONG } as const;
-
-const SIN = Math.sin(SLOPE.angle);
-const COS = Math.cos(SLOPE.angle);
+/** The plane the plate's top lies in: how far it leans from level, in radians, down toward the player, and how long it is from the lip to the foot. */
+export const SLOPE = { angle: LEAN, long: PLATE.long } as const;
 
 /**
- * A START slot: how long its opening is, down the slide, which is less than
- * a medal is across, since a medal goes into it nose first, over the end of
- * its tongue; the lamp on the lower bar of its frame, by how far below the
- * opening its middle is and how big it is; and its wings, which lie along
- * the sides of its frame: how far out the upper end of one swings when it is
- * open, how thick one is, and how high it stands off the slide.
+ * A START hole: how long its opening is, down the plate, which is a little
+ * more than a medal is across, so that one sliding down over it drops in; the
+ * lamp let into the lower bar of its frame, by how far below the opening its
+ * middle is and how big it is; and its flaps, which lie along the sides of
+ * the opening: how far a flap hangs down under the plate when it is open.
  */
 export const START_SLOT = {
-  long: MOUTH,
-  lamp: { out: 0.35, radius: 0.8 },
-  wing: { out: 1.2, thick: 0.35, high: 0.7 },
+  long: PLATE.hole.long,
+  lamp: { out: 0.55, radius: 0.45 },
+  wing: { hang: 1.6 },
 } as const;
 
-/**
- * A tongue: how deep the web under its top is, which is what is seen of its
- * side; and how far a medal that goes over the end of one has tipped, in
- * radians, by the time it is gone.
- */
-export const TONGUE = { deep: 0.55, dip: 1 } as const;
+/** How far down the plate the middle of a hole is. */
+export const HOLE_MIDDLE = CATCHER.back + START_SLOT.long / 2;
 
-/** Half the width of a slot's opening: a medal's radius and the rule's width, which is wider while the wings are open. */
+/** Half the width of a hole's opening: a medal's radius and the rule's width, which is wider while the flaps are open. */
 export const slotHalf = (wings = false): number => MEDAL_RADIUS + (wings ? CHECKERS.wingWidth : CHECKERS.halfWidth);
 
-/** Half the width of a tongue: the rule's width, so that a medal's middle is over it exactly when the rule counts the medal. It is wider while the wings are open. */
-export const tongueHalf = (wings = false): number => (wings ? CHECKERS.wingWidth : CHECKERS.halfWidth);
-
 /**
- * The slot the lucky lamp is shown on at `time`, from the left.
+ * The hole the lucky lamp is shown on at `time`, from the left.
  *
  * The lamp itself steps as the pusher comes to the back of its stroke, by
- * the machine's clock, and a medal's slot was lit or was not as the medal
+ * the machine's clock, and a medal's hole was lit or was not as the medal
  * came over the lip (`luckySlot` in engine.ts; the session keeps that with
- * the medal). But the medal drops into its slot a ride later, and medals come
- * over the lip late in the pusher's way back: for most of them the lamp
- * steps while they are on their tongues. Shown where the lamp stands, a slot
- * would be dark as a medal that came over it lit dropped in, and gold as one
- * that did not: six entries in ten, on a quiet table. So the light is shown
- * where the lamp stood a ride ago. It is then on a medal's slot as the medal
- * drops exactly when it was as the medal came over, for every medal, and it
- * is seen to step a ride after the pusher turns. Where nothing is shown
- * moving (`still`) a medal is taken as it comes over, and the light is where
- * the lamp is.
+ * the medal). But the medal drops into its hole a ride later, and medals come
+ * over the lip late in the pusher's way back: for many of them the lamp
+ * steps while they slide. So the light is shown where the lamp stood a ride
+ * ago. It is then on a medal's hole as the medal drops exactly when it was as
+ * the medal came over, for every medal, and it is seen to step a ride after
+ * the pusher turns. Where nothing is shown moving (`still`) a medal is taken
+ * as it comes over, and the light is where the lamp is.
  */
 export const lampShown = (time: number, still = false): number => luckySlot(Math.max(0, time - (still ? 0 : START_RIDE)));
 
-/** Which slots are lit gold at `time`, from the left: the one the lucky lamp is shown on (`lampShown`), or all of them while the wings are open. */
+/** Which holes are lit gold at `time`, from the left: the one the lucky lamp is shown on (`lampShown`), or all of them while the flaps are open. */
 export const litSlots = (time: number, wings = false, still = false): boolean[] => CHECKERS.positions.map((_x, slot) => wings || slot === lampShown(time, still));
 
-/** How far down the slide from the lip the strip with the words begins: under the lower bars of the slots' frames. */
-const WORDS_FROM = CATCHER.back + START_SLOT.long + CATCHER.rim.wide;
-
-/** How long the strip of the slide with the words on is, from under the slots' frames down to the foot. */
-export const APRON = SLOPE.long - WORDS_FROM;
-
-/**
- * A point of the catcher's top at `time`: `x` across the field and `down`
- * from the lip, both in field units, and `lift` clear of it, square to it.
- * The foot is `SLOPE.long` down.
- */
+/** A point of the plate at `time`: `x` across the field, `down` the plate from the lip, and `lift` clear of its top, square to it (under it for less than nothing). */
 export function slopeSpot(x: number, down: number, time: number, lift = 0): Spot {
-  return { x, height: CATCHER.deck - down * SIN + lift * COS, depth: pusherFront(time) + down * COS + lift * SIN };
+  return { x, height: PLATE.deck - down * SIN + lift * COS, depth: pusherFront(time) + down * COS + lift * SIN };
 }
 
-/** The middle of a slot's opening at `time`: across the field where the engine has its pocket, on the slide. */
+/** Where a point `down` the plate and `lift` clear of it is, out from the pusher's face and up from the lower table. */
+const onPlate = (down: number, lift: number): { out: number; height: number } => ({ out: down * COS + lift * SIN, height: PLATE.deck - down * SIN + lift * COS });
+
+/** The corners of the plate's top at `time`: its edge along the lip, from the left, and then its foot, from the right. */
+export function plateCorners(time: number): Spot[] {
+  const { from, to } = CATCHER;
+  return [slopeSpot(from, 0, time), slopeSpot(to, 0, time), slopeSpot(to, SLOPE.long, time), slopeSpot(from, SLOPE.long, time)];
+}
+
+/** The middle of a hole's opening at `time`: across the field where the engine has it, on the plate. */
 export function mouthSpot(chucker: number, time: number): Spot {
   if (!Number.isInteger(chucker) || chucker < 0 || chucker >= CHECKERS.positions.length) throw new Error('there is no such chucker');
-  return slopeSpot(CHECKERS.positions[chucker], CATCHER.back + START_SLOT.long / 2, time);
+  return slopeSpot(CHECKERS.positions[chucker], HOLE_MIDDLE, time);
 }
 
-/** The middles of all the slots at `time`, from the left. */
+/** The middles of all the holes at `time`, from the left. */
 export const mouthSpots = (time: number): Spot[] => CHECKERS.positions.map((_x, chucker) => mouthSpot(chucker, time));
 
 /**
- * The corners of a slot at `time`: of its opening in the slide, or of
+ * The corners of a hole at `time`: of its opening in the plate, or of
  * something round the opening or inside it — `grow` further out all round,
- * and `lift` clear of the slide. Its upper edge first, from the left, and
- * then its lower, from the right. The opening itself, at the top of its
- * frame, is `lift` the frame's height; the frame's outer edge is `grow` the
- * frame's width as well. With `wings` it is as wide as it is while they are
- * open.
+ * and `lift` clear of the plate (under it for less than nothing). Its upper
+ * edge first, from the left, and then its lower, from the right. With
+ * `wings` it is as wide as it is while the flaps are open.
  */
 export function slotCorners(chucker: number, time: number, wings = false, grow = 0, lift = 0): Spot[] {
   const { x } = mouthSpot(chucker, time);
@@ -256,447 +195,476 @@ export function slotCorners(chucker: number, time: number, wings = false, grow =
 }
 
 /**
- * The corners of a slot's tongue at `time`, `lift` clear of the catcher's
- * top: its end at the lip first, from the left, and then its end at the
- * slot, from the right. Its own top is the height of the slot's frame clear,
- * which is what `lift` is unless something else is asked for; its foot is
- * `TONGUE.deep` under that. With `wings` it is as wide as it is while they
- * are open.
+ * The corners of one of a hole's flaps at `time`: the left one (`side` −1)
+ * or the right (1). Shut, it lies flush in the plate along that side of the
+ * opening, from the edge of the narrower opening out to the edge of the wider
+ * one, the length of the opening. Open, which `wings` says, it has swung down
+ * on its hinge, which is its outer edge under the board, and hangs square
+ * under the plate.
+ * Its hinge end first, at the upper end of the opening, then its free edge
+ * there, then its free edge and its hinge at the lower end.
  */
-export function tongueCorners(chucker: number, time: number, wings = false, lift: number = CATCHER.rim.high): Spot[] {
+export function wingCorners(chucker: number, side: number, time: number, wings = false): Spot[] {
   const { x } = mouthSpot(chucker, time);
-  const half = tongueHalf(wings);
-  return [slopeSpot(x - half, 0, time, lift), slopeSpot(x + half, 0, time, lift), slopeSpot(x + half, CATCHER.back, time, lift), slopeSpot(x - half, CATCHER.back, time, lift)];
+  const hinge = x + side * slotHalf(true);
+  const upper = CATCHER.back;
+  const lower = CATCHER.back + START_SLOT.long;
+  if (wings) {
+    const hang = -START_SLOT.wing.hang;
+    const under = -CATCHER.thick;
+    return [slopeSpot(hinge, upper, time, under), slopeSpot(hinge, upper, time, hang), slopeSpot(hinge, lower, time, hang), slopeSpot(hinge, lower, time, under)];
+  }
+  const free = x + side * slotHalf(false);
+  return [slopeSpot(hinge, upper, time), slopeSpot(free, upper, time), slopeSpot(free, lower, time), slopeSpot(hinge, lower, time)];
 }
 
-/**
- * The corners of the well's mouth at `time`: its edge along the lip first,
- * from the left, and then the upper edge of the slide, from the right.
- */
-export function wellCorners(time: number): Spot[] {
-  const { from, to, gap } = CATCHER;
-  return [slopeSpot(from, 0, time), slopeSpot(to, 0, time), slopeSpot(to, gap, time), slopeSpot(from, gap, time)];
-}
-
-/**
- * The corners of one of a slot's wings at `time`, `lift` clear of the slide:
- * the left one (`side` −1) or the right (1). Its upper end first, the corner
- * against the frame and then the outer one, and then its lower end, the outer
- * corner and the one against the frame. Folded, it lies along the side of the
- * frame, as long as the frame. Open, which `wings` says, it is hinged at its
- * lower end and its upper end has swung out from the slot, so that the two of
- * them stand like the cheeks of a funnel that opens toward the lip.
- */
-export function wingCorners(chucker: number, side: number, time: number, wings = false, lift = 0): Spot[] {
-  const { x } = mouthSpot(chucker, time);
-  const { out, thick } = START_SLOT.wing;
-  const hinge = x + side * (slotHalf(wings) + CATCHER.rim.wide);
-  const swung = wings ? side * out : 0;
-  const upper = CATCHER.back - CATCHER.rim.wide;
-  const lower = CATCHER.back + START_SLOT.long + CATCHER.rim.wide;
-  return [
-    slopeSpot(hinge + swung, upper, time, lift),
-    slopeSpot(hinge + swung + side * thick, upper, time, lift),
-    slopeSpot(hinge + side * thick, lower, time, lift),
-    slopeSpot(hinge, lower, time, lift),
-  ];
-}
-
-/** Where the lamp of a slot is at `time`: on the lower bar of its frame, in the middle, standing a little out of it. */
+/** Where the lamp of a hole is at `time`: let into the lower bar of its frame, in the middle. */
 export function lampSpot(chucker: number, time: number): Spot {
   const { x } = mouthSpot(chucker, time);
-  return slopeSpot(x, CATCHER.back + START_SLOT.long + START_SLOT.lamp.out, time, CATCHER.rim.high + START_SLOT.lamp.radius * 0.6);
+  return slopeSpot(x, CATCHER.back + START_SLOT.long + START_SLOT.lamp.out, time);
 }
 
 /**
- * A point of the strip with the words at `time`: `across` from its left end,
- * and `down` the slide from where the strip begins, both in field units. The
- * strip is `CATCHER.to − CATCHER.from` across and `APRON` down, and ends at
- * the foot.
+ * The two START signs on the plate, one to either side of the holes: each
+ * reaches from `margin` in from the plate's end to `margin` short of the
+ * frame of the outer hole on its side, as wide as that is while the flaps are
+ * open, and from `margin` down from the lip to `margin` short of the foot.
  */
-export function apronSpot(across: number, down: number, time: number): Spot {
-  return slopeSpot(CATCHER.from + across, WORDS_FROM + down, time);
+export const SIGNS = { margin: 0.8 } as const;
+
+/** The span across the field of a START sign: the left one (`side` −1) or the right (1). */
+export function signSpan(side: number): { from: number; to: number } {
+  const inner = slotHalf(true) + CATCHER.rim.wide + SIGNS.margin;
+  return side < 0
+    ? { from: CATCHER.from + SIGNS.margin, to: CHECKERS.positions[0] - inner }
+    : { from: CHECKERS.positions[CHECKERS.positions.length - 1] + inner, to: CATCHER.to - SIGNS.margin };
+}
+
+/** How wide a START sign is across the field, and how long down the plate. */
+export const SIGN = { wide: signSpan(-1).to - signSpan(-1).from, long: SLOPE.long - SIGNS.margin * 2 } as const;
+
+/** A point of a START sign at `time`: `across` from its left end and `down` from its upper edge, both in field units, and `lift` clear of the plate. */
+export function signSpot(side: number, across: number, down: number, time: number, lift = 0): Spot {
+  return slopeSpot(signSpan(side).from + across, SIGNS.margin + down, time, lift);
 }
 
 /**
  * Whether something `radius` across lying on the lower table at (x, depth)
- * is under the catcher at `time`, wholly or in part.
+ * is under the plate at `time`, wholly or in part. The plate is as wide as
+ * the field, so it is only how far out it is that tells.
  */
-export function underCatcher(x: number, depth: number, radius: number, time: number): boolean {
-  return x + radius > CATCHER.from && x - radius < CATCHER.to && depth - radius < pusherFront(time) + CATCHER.foot.out;
+export function underCatcher(_x: number, depth: number, radius: number, time: number): boolean {
+  return depth - radius < pusherFront(time) + CATCHER.foot.out;
 }
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
+const clamp01 = (t: number): number => Math.min(1, Math.max(0, t));
 
-/** Where a medal on its way out of sight at the catcher is shown, and how. */
+/** Where a medal on its way down the plate is shown, and how. */
 export interface Caught extends Spot {
   /** How far it is tipped out of level, in radians. */
   tilt: number;
-  /** Which way it is tipped: 0 is forward, toward the player, as the catcher leans, and a quarter turn is sideways, about the line out from the lip. */
+  /** Which way it is tipped: 0 is forward, toward the player, as the plate leans, and a quarter turn is to the left. */
   heading: number;
-  /** How much light it still gets, from 1 in the open to nearly none at the bottom of a throat or of the well. */
+  /** How much light it still gets, from 1 in the open to `CATCHER.shade` under the plate. */
   light: number;
-  /** The slot it is on its way to, or −1 if it is on its way to none. */
+  /** The hole it is on its way into, or −1 if it is on its way into none. */
   chucker: number;
-  /** The slot whose tongue it has some of under it without fitting, or −1. */
+  /** The hole whose frame it rocks on without fitting, or −1. */
   near: number;
   /**
-   * Where on its way it is: on a `tongue`, lying on it or hanging on its
-   * edge; going over the tongue's end into its `slot`, part of it under the
-   * slide; or going down into the `gap`, the well under the lip, off the
-   * lip's edge or off the side of a tongue.
+   * Where on its way it is: on the `plate`, sliding down it or thrown over
+   * it; rocking on a hole's `rim`; going down into a hole, the `slot`, with
+   * some of it under the plate; or `off` the plate's foot, on the lower table.
    */
-  leg: 'tongue' | 'slot' | 'gap';
+  leg: 'plate' | 'rim' | 'slot' | 'off';
 }
 
 type Pose = Pick<Caught, 'x' | 'height' | 'depth' | 'tilt' | 'heading'>;
 
-/** Where a prize ball the catcher has is shown, and on which leg of its way it is: rolling down the `slide`, off the `foot` in the air, or standing on the lower `table`. */
-export interface Rolled extends Spot {
-  leg: 'slide' | 'foot' | 'table';
+/** The middle of a medal, out from the pusher's face and up from the lower table, and how far it is tipped forward. */
+interface Side {
+  out: number;
+  height: number;
+  tilt: number;
 }
+
+/** The middle of a medal whose underside has its middle at (out, height), tipped forward by `tilt`: half its thickness up from that, square to its face. */
+const middleOver = (out: number, height: number, tilt: number): Side => ({ out: out + (T / 2) * Math.sin(tilt), height: height + (T / 2) * Math.cos(tilt), tilt });
+
+// ── The way a medal goes down the plate ─────────────────────────────────────
+
+/** How far past the lip's edge, along its face, a medal's middle is when its nose first comes down on the plate. */
+const TIPPED = 0.6;
+/** How far a medal goes along its way as its tail slides off the lip's edge and down the pusher's face on to the plate. */
+const SETTLE = 0.4;
+
+/** How far forward a medal leans when its underside rests on the lip's edge `past` behind its middle and its nose is on the plate. */
+const restingTilt = (past: number): number => LEAN + Math.asin((STEP * COS) / (past + R));
+
+/** Where a medal going over the lip is when its middle is `past` beyond the lip's edge, along its underside, which rests on the edge. */
+function overTheLip(past: number): Side {
+  const tilt = past < TIPPED ? restingTilt(TIPPED) * ease(past / TIPPED) : restingTilt(past);
+  return middleOver(past * Math.cos(tilt), P - past * Math.sin(tilt), tilt);
+}
+
+/** How far down the plate the middle of a medal is once it lies on it, having come off the lip: its tail is on the plate's upper edge. */
+const LAID = R;
 
 /**
- * A medal lying on the catcher's top with its middle `down` it from the lip,
- * `lift` clear of it, and rocked to one side by `rock` about the line down
- * the slope: to the left for a rock that is more than nothing. As it comes
- * off the lip it is still level, at the height it lay at on the pusher; by
- * the time its middle is half its radius out it has tipped on to the slope.
+ * Where a medal is as its tail comes off the lip's edge, `share` of the way:
+ * its tail slides down the pusher's face, from the lip's edge to the plate's
+ * upper edge just under it, and its nose slides down the plate, so that it
+ * leans less and less, until it lies along the plate.
  */
-function lying(x: number, down: number, front: number, lift = 0, rock = 0): Pose {
-  const share = ease(Math.min(1, down / (R / 2)));
-  const lean = SLOPE.angle * share;
-  const off = T / 2 + lift;
-  const height = (P + T / 2) * (1 - share) + (CATCHER.deck - down * SIN + off * COS) * share;
-  const depth = front + down * COS + off * SIN * share;
-  if (rock === 0) return { x, height, depth, tilt: lean, heading: 0 };
-  // Leaning with the slope and rocked across it, it is tipped by one angle about one level line: these are they.
-  return { x, height, depth, tilt: Math.acos(Math.cos(lean) * Math.cos(rock)), heading: Math.atan2(Math.sin(rock), Math.sin(lean) * Math.cos(rock)) };
+function settling(share: number): Side {
+  const tail = P - STEP * ease(share);
+  const tilt = LEAN + Math.asin(((tail - PLATE.deck) * COS) / D);
+  return middleOver(R * Math.cos(tilt), tail - R * Math.sin(tilt), tilt);
 }
 
-/** How far down the slide a ball that rolls the length of it has got, `u` of the way through: it comes off the lip at a pace and gathers more. */
-const slid = (u: number): number => SLOPE.long * (0.4 * u + 0.6 * u * u);
-
-/** How long a ball stands in front of the foot at the most before it is the engine's. */
-const LIE = CATCHER.lie.wait + CATCHER.lie.slip;
-
-/** Where something that has gone off the foot of the slide comes down, across the field and out from the back wall. It does not move with the pusher: the thing has left it. */
-interface Landing {
-  x: number;
-  depth: number;
-}
+/** The slope distance down the plate's plane at which the nose of a medal lying along it reaches the lower table, past the foot: the plane goes on under the foot. */
+const NOSE_DOWN = PLATE.deck / SIN - R;
+/** How far a medal leans when its tail is on the edge of the foot and its nose on the table. */
+const ON_FOOT = Math.asin(PLATE.foot / D);
 
 /**
- * Where a thing that came over the lip at `came` and reaches the lower table
- * `takes` seconds later comes down: straight out from where it left the
- * slide, `out` past where the foot's edge is at that moment.
+ * Where a flat medal that is going down the plate and off its foot is, when
+ * the middle of its underside is `out` from the pusher's face. It lies along
+ * the plate while all of it is on it or past its foot on the line of the
+ * plate; once its nose is on the lower table, its tail slides down the plate
+ * to the foot's edge, so that it leans less and less; then its tail comes down
+ * the plumb end of the foot, which it keeps to, and it lies flat on the
+ * table, its middle `PLATE.reach + R` out. No part of it is ever inside the
+ * plate.
  */
-function landingOf(x: number, came: number, takes: number, out: number): Landing {
-  return { x, depth: pusherFront(came + takes) + CATCHER.foot.out + out };
-}
-
-/**
- * Where a thing that came down at `landing` is shown `since` seconds later,
- * and how much of the way from there to where the engine has it is still to
- * go, from 1 to 0; or null once it is where the engine has it.
- *
- * The engine has it nearer the pusher than it landed, at the foot of the
- * pusher's face, and it stays where it landed until the engine has it there
- * too: the pile has pushed it that far. Then the two are one and nothing is
- * seen to change. If that has not happened in the time the catcher waits,
- * and the catcher has not let go of it meanwhile (`lyingOut`), it slips the
- * rest of the way. Sideways it is the engine's by the time the engine has
- * it within a medal's radius.
- */
-function settling(medal: Medal, landing: Landing, since: number): { x: number; depth: number; left: number } | null {
-  const short = landing.depth - medal.y;
-  if (short <= 0 || since >= LIE) return null;
-  const held = 1 - ease(Math.min(1, Math.max(0, (since - CATCHER.lie.wait) / CATCHER.lie.slip)));
-  const left = held * Math.min(1, short / R);
-  // Where it landed, to the number, for as long as none of the way has been gone.
-  return { x: left < 1 ? medal.x + (landing.x - medal.x) * left : landing.x, depth: held < 1 ? medal.y + short * held : landing.depth, left };
-}
-
-/** Where a thing that is about to come down at `landing` touches down: there, or where the engine has it if that is further out already. */
-function touchdown(medal: Medal, landing: Landing): { x: number; depth: number; left: number } {
-  return settling(medal, landing, 0) ?? { x: medal.x, depth: medal.y, left: 0 };
-}
-
-/**
- * Where a ball of this `radius` that came down at `landing` `since` seconds
- * ago stands at `time`, or null if it is the engine's: now, or since some
- * earlier time, which `kept` remembers.
- *
- * The catcher reaches further out from the lip than the pusher's stroke is
- * long, so the face does not come up to a ball that stands in front of the
- * foot: the foot comes over it first. A ball under the catcher is out of
- * sight, where it stands and where the engine has it alike, and so that is
- * where the catcher lets go of it: once the foot has come over the whole of
- * it, it is the engine's. When the pusher goes back it is seen where the
- * engine has it, and nothing was seen to move.
- */
-function lyingOut(medal: Medal, kept: CameOver, landing: Landing, since: number, time: number, radius: number): { x: number; depth: number; left: number } | null {
-  const covered = landing.depth + radius < pusherFront(time) + CATCHER.foot.out;
-  const at = kept.released || covered ? null : settling(medal, landing, since);
-  if (!at) kept.released = true;
-  return at;
-}
-
-/** The longest the catcher has a medal: one that all but fitted, out on its tongue, hanging on its edge and down into the well. */
-const LONGEST = Math.max(CATCHER.sink, CATCHER.still, CATCHER.teeter.out + CATCHER.teeter.most + CATCHER.fall);
-
-/** What is settled about a thing as it comes over the lip: where across the field it came over, and whether the slots' wings were open. And, later, for a ball, whether the catcher has let go of it. */
-interface CameOver {
-  x: number;
-  wings: boolean;
-  /** Set once a ball that came down in front of the foot is where the engine has it: it is the engine's from then on. */
-  released?: boolean;
-}
-
-/**
- * What the catcher has settled about each thing that comes over the lip at
- * it, the first time it is asked about it, which is in the step the thing
- * came over or the frame after: where across the field it came over, and
- * whether the wings of the slots were open then. The two of them say which
- * tongue carried it, or whose edge it hung on, or neither.
- *
- * Neither is asked again. The engine has the thing on the lower table from
- * that step on, where the pile shoves it about; and chance time can begin or
- * end while it is still on its way, which opens the wings or shuts them. The
- * catcher shows it coming down from where it came over, along the tongue
- * that carried it or off the one that did not, and does not change its mind
- * half way: a medal that began by hanging on a tongue's edge is not seen to
- * ride on to the slot because the wings have opened since.
- *
- * For the wings it takes the engine's word, where the engine saw the thing
- * come over: the width the lip's rule had in that piece of its step, which
- * is the width that counted (`slotWidthAt` in engine.ts). A medal the engine
- * did not see come over, one read back from a save in the middle of its way
- * down, is taken as the slots stand when the catcher is first asked.
- *
- * One more thing is kept, for a ball that has come down off the foot and
- * stands in front of it: that the catcher has let go of it, which it does
- * the first time its foot has come over the whole of the ball, or the engine
- * has the ball where it stands. The catcher does not take it up again.
- */
-const cameOver = new WeakMap<Medal, CameOver>();
-
-function crossing(medal: Medal, wings: boolean): CameOver {
-  const known = cameOver.get(medal);
-  if (known) return known;
-  const width = slotWidthAt(medal);
-  const settled = { x: medal.x, wings: width === undefined ? wings : width > CHECKERS.halfWidth };
-  cameOver.set(medal, settled);
-  return settled;
-}
-
-/** How far over a medal that goes into the well has turned by the time it is out of sight, in radians: off the lip's edge nose first, or off a tongue's edge sideways. */
-const OVER = { nose: 1.35, side: 1.5 } as const;
-/** How far a medal slides off the lip's edge along its own length on its way down into the well, and how far it drops off the side of a tongue: far enough, either way, to be wholly under the catcher. */
-const DOWN = { nose: 7.2, side: DECK + R - FOOT };
-/** How far a medal that hangs on a tongue's edge has rocked over when it lets go of it, in radians, and how far a near miss rocks back and forth before it goes, as a share of that. */
-const ROCK = { over: 1.2, shake: 0.16 } as const;
-
-/**
- * A medal going over the lip's edge into the well, `v` of the way down: it
- * tips about the edge, nose down, and slides off it along its own length,
- * faster and faster, out of the light.
- */
-function overLip(x: number, front: number, v: number): Pose & Pick<Caught, 'light'> {
-  const turned = OVER.nose * ease(Math.min(1, v / 0.6));
-  const gone = DOWN.nose * v * v;
-  return { x, height: P + T / 2 - gone * Math.sin(turned), depth: front + gone * Math.cos(turned), tilt: turned, heading: 0, light: 1 - 0.95 * v * v };
-}
-
-/**
- * How a medal that has come over the lip at the catcher is shown, or null
- * for one that is shown where the engine has it: a ball, a medal that is not
- * on its way down, one that has gone down a slot or the well and is out of
- * sight, and one that came over the lip beside the catcher.
- *
- * A medal starts with its middle on the lip's edge, where it was the moment
- * before. One the lip's rule counted has its middle over a tongue. It tips
- * on to the tongue, lying flat on it with its face up, and rides the length
- * of it at the place across where it came over, gathering pace; at the
- * tongue's end it tips over into the slot, nose first, and slides down the
- * throat, losing the light. `CATCHER.sink` after it came over the lip it is
- * gone. With `calm` it is not seen to ride: it is shown lying in the mouth
- * of its slot, still, going dark, for `CATCHER.still`.
- *
- * One that came over with its middle within `CATCHER.reach` of a tongue's
- * edge has some of the tongue under it, and the lip under its tail. It rides
- * out, slowing, until its tail has left the lip, and then there is too
- * little under it: it hangs on the tongue's edge, rocking, the longer the
- * nearer its middle was to the tongue, tips over the edge away from the
- * slot, and falls into the well on its side. Its nose never gets as far as
- * the slide. With `calm` it does not hang there: it goes over the lip's
- * edge as one that came over clear of the tongues does, which is nose first
- * and straight down.
- *
- * Which it is was decided as the medal came over the lip, and stays decided
- * for as long as it is on its way (see `cameOver`): by where it came over,
- * and by how wide the slots were taking medals then. `wings` says whether
- * their wings are open now, and is only gone by for a medal the engine did
- * not see come over, the first time it is asked about. Where it came over
- * is exact if it is asked in the step the medal comes over, and as near as
- * the pile has left the medal if it is first asked later.
- *
- * A jewel fits no slot, and goes into the well as a medal clear of the
- * tongues does, wherever it came over.
- */
-export function caught(medal: Medal, time: number, calm = false, wings = false): Caught | null {
-  if (medal.ball || medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= LONGEST) return null;
-  const front = pusherFront(time);
-  const { x, wings: open } = crossing(medal, wings);
-  const asItCame = x === medal.x ? medal : { ...medal, x };
-  const chucker = droppedThrough(asItCame, Infinity, open);
-  if (chucker >= 0) {
-    // Where its middle is as it starts to go over the tongue's end: a little past the upper edge of the opening.
-    const end = CATCHER.back + 0.4;
-    if (calm) {
-      if (medal.sinceDrop >= CATCHER.still) return null;
-      const dark = medal.sinceDrop / CATCHER.still;
-      return { ...lying(x, end, front, CATCHER.rim.high), light: 1 - 0.9 * dark, chucker, near: -1, leg: 'tongue' };
+export function ridingAt(out: number): Side {
+  if (out <= NOSE_DOWN * COS) return middleOver(out, PLATE.deck - (out / COS) * SIN, LEAN);
+  // Its nose on the table and its tail on the plate, `along` down it.
+  const underside = (along: number) => {
+    const tail = { out: along * COS, height: PLATE.deck - along * SIN };
+    const nose = tail.out + Math.sqrt(Math.max(0, D * D - tail.height * tail.height));
+    return { out: (tail.out + nose) / 2, height: tail.height / 2, tilt: Math.asin(Math.min(1, tail.height / D)) };
+  };
+  if (out <= underside(SLOPE.long).out) {
+    let lo = NOSE_DOWN - R;
+    let hi = SLOPE.long;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (underside(mid).out < out) lo = mid;
+      else hi = mid;
     }
-    // It is gone in the step the machine takes it, which is the step its ride is up to within a billionth of a second (session.ts).
-    if (medal.sinceDrop >= CATCHER.sink - 1e-9) return null;
-    const t = medal.sinceDrop / CATCHER.sink;
-    if (t < CATCHER.ride) {
-      const u = t / CATCHER.ride;
-      return { ...lying(x, end * u * (1.2 - 0.2 * u), front, CATCHER.rim.high), light: 1, chucker, near: -1, leg: 'tongue' };
-    }
-    // Then it tips about the end of the tongue, by `TONGUE.dip`, and slides in along its own length: its middle goes on down the slide a little, and under it far enough to take its tail under too.
-    const u = (t - CATCHER.ride) / (1 - CATCHER.ride);
-    const down = end + START_SLOT.long * 0.3 * u;
-    const clear = T / 2 + CATCHER.rim.high;
-    const under = -clear + (R * Math.sin(TONGUE.dip) + 0.3 + clear) * u * u;
-    return {
-      x,
-      height: CATCHER.deck - down * SIN - under * COS,
-      depth: front + down * COS - under * SIN,
-      tilt: SLOPE.angle + TONGUE.dip * ease(Math.min(1, u / 0.6)),
-      heading: 0,
-      light: 1 - 0.9 * u * u,
-      chucker,
-      near: -1,
-      leg: 'slot',
-    };
+    const at = underside((lo + hi) / 2);
+    return middleOver(at.out, at.height, at.tilt);
   }
-  // Only a medal that is wholly behind the catcher goes down into it: one that hangs past its end is seen beside it, and falls as the engine has it.
-  if (x - MEDAL_RADIUS < CATCHER.from || x + MEDAL_RADIUS > CATCHER.to) return null;
-  // Whether it had some of a tongue under it was settled as it came over, like the rest.
-  const near = calm ? -1 : grazed(asItCame, Infinity, CATCHER.reach, open);
-  if (near < 0) {
-    if (medal.sinceDrop >= CATCHER.fall) return null;
-    return { ...overLip(x, front, medal.sinceDrop / CATCHER.fall), chucker: -1, near: -1, leg: 'gap' };
+  // Its tail coming down the plumb end of the foot.
+  if (out < CATCHER.foot.out + R) {
+    const tilt = Math.min(ON_FOOT, Math.acos(clamp01((out - CATCHER.foot.out) / R)));
+    return middleOver(CATCHER.foot.out + R * Math.cos(tilt), R * Math.sin(tilt), tilt);
   }
-  // The edge of the tongue it has under it, which side of that its middle is, and how far off: no way at all for the nearest of misses.
-  const half = tongueHalf(open);
-  const away = Math.sign(x - CHECKERS.positions[near]);
-  const edge = CHECKERS.positions[near] + away * half;
-  const off = Math.abs(x - edge);
-  const nearly = 1 - off / CATCHER.reach;
-  const { out, least, most } = CATCHER.teeter;
-  // It lies flat for as long as its tail is on the lip, and hangs where the tail has just left it: its nose is not yet over the slide.
-  const hangs = R + 0.1;
-  const hung = least + (most - least) * nearly * nearly;
-  const since = medal.sinceDrop;
-  if (since < out) {
-    const u = since / out;
-    return { ...lying(x, hangs * u * (1.6 - 0.6 * u), front, CATCHER.rim.high), light: 1, chucker: -1, near, leg: 'tongue' };
+  return middleOver(out, 0, 0);
+}
+
+/** The measures of the way a medal goes from the lip to the lower table: how far it has gone when it lies on the plate, when its middle is over a hole's, and when it is down. */
+const WAY = (() => {
+  const laid = R + SETTLE;
+  const laidOut = LAID * COS;
+  return { laid, laidOut, hole: laid + (HOLE_MIDDLE - LAID) * COS, end: laid + (CATCHER.foot.out + R - laidOut) };
+})();
+
+/**
+ * Where a medal is that has gone `way` along its way from the lip: over the
+ * lip's edge (`overTheLip`), dropping on to the plate (`settling`), and down
+ * the plate and off its foot (`ridingAt`), which it measures by how far the
+ * middle of its underside is out from the face.
+ */
+function along(way: number): Side {
+  if (way <= R) return overTheLip(way);
+  if (way <= WAY.laid) return settling((way - R) / SETTLE);
+  return ridingAt(WAY.laidOut + (way - WAY.laid));
+}
+
+/** How far along its way a medal sliding down the plate has gone, `u` of the time it takes: slowly off the lip, quickly down the plate, slowing on the table. */
+const pace = (u: number): number => WAY.end * ease(clamp01(u));
+
+/** The `u` at which `pace(u)` is `way`. */
+function paceAt(way: number): number {
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (pace(mid) < way) lo = mid;
+    else hi = mid;
   }
-  /** Hanging on the tongue's edge, rocked `rock` over it: the side of it that has nothing under it sags, and its middle with it. */
-  const hanging = (rock: number): Pose => lying(x, hangs, front, CATCHER.rim.high - off * Math.sin(rock), -away * rock);
-  if (since < out + hung) {
-    const u = (since - out) / hung;
-    // It rocks a little, over the edge and back level, as it makes up its mind; and goes over slowly at first and then all at once.
-    const rock = ROCK.over * (u * u * u + ROCK.shake * nearly * nearly * Math.sin(Math.PI * 7 * u) * (1 - u));
-    return { ...hanging(Math.max(0, rock)), light: 1, chucker: -1, near, leg: 'tongue' };
+  return (lo + hi) / 2;
+}
+
+/** The share of `MEDAL_SLIDE` at which a medal sliding down the plate is level with the middle of the holes. */
+export const AT_THE_HOLES = paceAt(WAY.hole);
+
+/** Seconds after a near miss came over the lip at which it reaches the hole's frame and starts to rock. */
+export const RIM_REACHED = MEDAL_SLIDE * AT_THE_HOLES;
+
+const shown = (side: Side, x: number, front: number): Pose => ({ x, height: side.height, depth: front + side.out, tilt: side.tilt, heading: 0 });
+
+/**
+ * The way a medal that went down a hole falls under the plate, `u` of the way
+ * from lying along the plate over the hole's middle (0) to lying flat on the
+ * lower table (1): it drops square to the plate through the opening until it
+ * is clear of the board's underside, by `CATCHER.drop`; falls straight down
+ * until its lower edge is on the table, by `CATCHER.land`; and lies down,
+ * its edge sliding out along the table and its middle coming straight down,
+ * to lie `PLATE.through` out from the face. Shares are of the whole way from
+ * the lip, so `u` starts at `CATCHER.ride`.
+ */
+function throughTheHole(u: number): Side & { light: number } {
+  const { ride, drop, land, shade } = CATCHER;
+  const clear = -(PLATE.thick + T / 2 + 0.05);
+  if (u < drop) {
+    const v = ease((u - ride) / (drop - ride));
+    const at = onPlate(HOLE_MIDDLE, T / 2 + (clear - T / 2) * v);
+    return { ...at, tilt: LEAN, light: 1 - (1 - shade) * v };
   }
-  const v = (since - out - hung) / CATCHER.fall;
-  if (v >= 1) return null;
-  // Off the edge it falls on its side, a little further from the tongue, straight down past the slide and out of the light.
-  const pose = hanging(ROCK.over + (OVER.side - ROCK.over) * ease(v));
-  return { ...pose, x: pose.x + away * 0.8 * ease(v), height: pose.height - DOWN.side * v * v, light: 1 - 0.95 * v * v, chucker: -1, near, leg: 'gap' };
+  const under = onPlate(HOLE_MIDDLE, clear);
+  const touching = R * SIN + (T / 2) * COS;
+  if (u < land) {
+    const v = (u - drop) / (land - drop);
+    return { out: under.out, height: under.height - (under.height - touching) * v * v, tilt: LEAN, light: shade };
+  }
+  const tilt = LEAN * (1 - ease((u - land) / (1 - land)));
+  return { out: under.out, height: R * Math.sin(tilt) + (T / 2) * Math.cos(tilt), tilt, light: shade };
 }
 
 /**
- * How near a medal that hangs on a tongue's edge was to fitting its slot:
- * from 0, for one that had no more than its rim on the tongue, to 1, for one
- * whose middle was on the tongue's very edge; and 0 for any that is not such
- * a medal. The nearer it was, the longer it hangs there and the more it is
- * seen to rock. `wings` says whether the slots' wings are open, which is how
- * wide the tongue is taken to be.
+ * The way something that came over the lip is going down the plate, as the
+ * machine settled it there (`downThePlate` in engine.ts), read off what is in
+ * the air: a ball or a jewel `roll`s; a medal the lip's rule counted goes
+ * down a `hole`, which is where the machine has it come down, under the
+ * plate; one that was a near miss rocks on a hole's `rim`, which is what its
+ * longer way down says, and how much longer says how near it was (from 0, a
+ * medal with its middle only just over the opening, to 1, one that all but
+ * fitted); and any other just `slide`s down and off. Null for anything else.
  */
-export function nearness(held: Pick<Caught, 'x' | 'near'>, wings = false): number {
-  if (held.near < 0) return 0;
-  const off = Math.abs(held.x - CHECKERS.positions[held.near]) - tongueHalf(wings);
-  return Math.min(1, Math.max(0, 1 - off / CATCHER.reach));
+export type PlateWay = { kind: 'roll' } | { kind: 'slide' } | { kind: 'hole'; hole: number } | { kind: 'rim'; hole: number; nearness: number; hang: number };
+
+/** The hole nearest to `x` across the field. */
+const nearestHole = (x: number): number => {
+  let best = 0;
+  CHECKERS.positions.forEach((at, hole) => {
+    if (Math.abs(x - at) < Math.abs(x - CHECKERS.positions[best])) best = hole;
+  });
+  return best;
+};
+
+/** How far out from the pusher's face a thing on its way down comes down, with the face where it will be then: the machine's own place for it. */
+const landingOut = (medal: FallingMedal, time: number): number => medal.y - pusherFront(time + medal.remaining);
+
+export function plateWay(medal: FallingMedal, time: number): PlateWay | null {
+  if (medal.source !== 'slide') return null;
+  if (medal.ball || medal.jewel) return { kind: 'roll' };
+  if (landingOut(medal, time) < CATCHER.foot.out) return { kind: 'hole', hole: nearestHole(medal.x) };
+  const hang = medal.duration - MEDAL_SLIDE;
+  if (hang <= 1e-9) return { kind: 'slide' };
+  return { kind: 'rim', hole: nearestHole(medal.x), nearness: Math.sqrt(clamp01((hang - TEETER.least) / (TEETER.most - TEETER.least))), hang };
 }
 
 /**
- * How far out past the foot's edge the middle of a ball of this `radius`
- * stands when it stands on the lower table against the foot: it is taller
- * than the foot is high, so it does not go under.
+ * How near a medal that rocks on a hole's frame was to fitting it: from 0,
+ * for one whose middle was only just over the opening, to 1, for one that all
+ * but fitted; and 0 for anything else. The nearer it was, the longer it rocks
+ * there and the further over.
  */
-export function clearOfFoot(radius: number): number {
-  const over = radius - CATCHER.foot.height;
-  return over > 0 ? Math.sqrt(radius * radius - over * over) : radius;
+export function nearness(medal: FallingMedal, time: number): number {
+  const way = plateWay(medal, time);
+  return way?.kind === 'rim' ? way.nearness : 0;
+}
+
+/** How far over a near miss rocks at the most, in radians, and how much it shakes as it makes up its mind. */
+const ROCK = { most: 0.45, shake: 0.18 } as const;
+
+/**
+ * A medal lying along the plate over the middle of a hole, at `x` across the
+ * field, rocked by `rock` over the edge of the opening on the side its middle
+ * is off the hole's, toward the hole: it turns about that edge, so the side of
+ * it over the opening goes down into the hole and the side over the frame
+ * lifts off it.
+ */
+function rocked(x: number, hole: number, wings: boolean, rock: number, front: number): Pose {
+  const centre = CHECKERS.positions[hole];
+  const away = Math.sign(x - centre) || 1;
+  const edge = centre + away * slotHalf(wings);
+  const turn = away * rock;
+  // About the edge, in the plate's own terms: across from the edge, and up from the plate's top.
+  const across = x - edge;
+  const up = T / 2;
+  const turnedAcross = across * Math.cos(turn) - up * Math.sin(turn);
+  const turnedUp = across * Math.sin(turn) + up * Math.cos(turn);
+  const at = onPlate(HOLE_MIDDLE, turnedUp);
+  // Leaning with the plate and turned across it, it is tipped by one angle about one level line: these are they.
+  return {
+    x: edge + turnedAcross,
+    height: at.height,
+    depth: front + at.out,
+    tilt: Math.acos(Math.cos(LEAN) * Math.cos(turn)),
+    heading: Math.atan2(Math.sin(turn), Math.sin(LEAN) * Math.cos(turn)),
+  };
 }
 
 /**
- * Where the middle of a prize ball of this `radius` that has come over the
- * lip at the catcher is shown, or null for one that is shown where the
- * engine has it: a medal, a ball that is not on its way down, one that has
- * come down off the foot and is where the engine has it by now, and one that
- * came over the lip beside the catcher or hanging past an end of it. A ball
- * is too big for the well, and no slot takes one. It rolls from the lip
- * across the well, the length of the slide and off its foot, and comes down
- * on the lower table in front of it, standing against the foot's edge
- * (`clearOfFoot`). There it stands until the catcher's foot has come over
- * the whole of it, or the engine has it there too, and is the engine's from
- * then on; or it rolls to where the engine has it if neither has happened
- * in the time the catcher waits. It ends exactly where the engine has it.
+ * How a medal that came over the lip is shown on its way down the plate, or
+ * null for anything that is not such a medal (`plateWay`): one the lip's rule
+ * counted down its hole, a near miss rocking on a hole's frame on its way,
+ * and any other down the plate and off its foot (see the top of this file).
+ * With `calm` nothing is seen to rock, and one that went down a hole is shown
+ * where it lies under the plate from the moment it came over. `wings` says the
+ * flaps are open, as they were when it came over.
  */
-export function rolling(medal: Medal, radius: number, time: number): Rolled | null {
-  if (!medal.ball || medal.level !== 0 || medal.sinceDrop < 0 || medal.sinceDrop >= CATCHER.slide + LIE) return null;
-  // No slot takes a ball, wings or no wings: only where it came over is kept, and whether the catcher has let go of it.
-  const kept = crossing(medal, false);
-  const { x } = kept;
-  if (x - radius < CATCHER.from || x + radius > CATCHER.to) return null;
-  const landing = landingOf(x, time - medal.sinceDrop, CATCHER.slide, clearOfFoot(radius));
-  if (medal.sinceDrop >= CATCHER.slide) {
-    const at = lyingOut(medal, kept, landing, medal.sinceDrop - CATCHER.slide, time, radius);
-    return at && { x: at.x, height: radius, depth: at.depth, leg: 'table' };
-  }
+export function slidDown(medal: FallingMedal, time: number, calm = false, wings = false): Caught | null {
+  const way = plateWay(medal, time);
+  if (!way || way.kind === 'roll') return null;
   const front = pusherFront(time);
-  const t = medal.sinceDrop / CATCHER.slide;
-  const gone = 0.75;
-  const foot = slopeSpot(x, SLOPE.long, time, radius);
-  if (t >= gone) {
-    const v = (t - gone) / (1 - gone);
-    const down = touchdown(medal, landing);
-    return { x: x + (down.x - x) * ease(v), height: foot.height - (foot.height - radius) * v * v, depth: foot.depth + (down.depth - foot.depth) * v, leg: 'foot' };
+  const elapsed = medal.duration - medal.remaining;
+  const { x } = medal;
+  if (way.kind === 'hole') {
+    const chucker = way.hole;
+    const u = calm ? 1 : clamp01(elapsed / CATCHER.sink);
+    if (u < CATCHER.ride) return { ...shown(along(WAY.hole * ease(u / CATCHER.ride)), x, front), light: 1, chucker, near: -1, leg: 'plate' };
+    const at = throughTheHole(u);
+    return { ...shown(at, x, front), light: at.light, chucker, near: -1, leg: 'slot' };
   }
-  // It comes off the lip at the height it stood at on the pusher, and is on the slope by the time it has rolled half its radius down it.
-  const down = slid(t / gone);
-  const share = ease(Math.min(1, down / (radius / 2)));
-  const on = slopeSpot(x, down, time, radius);
-  return { x, height: (P + radius) * (1 - share) + on.height * share, depth: (front + down * COS) * (1 - share) + on.depth * share, leg: 'slide' };
+  /** On its way down without stopping, `way` of it gone. */
+  const going = (gone: number, near: number): Caught => {
+    const side = along(gone);
+    return { ...shown(side, x, front), light: 1, chucker: -1, near, leg: side.out > CATCHER.foot.out ? 'off' : 'plate' };
+  };
+  if (way.kind === 'slide' || calm) return going(pace(elapsed / medal.duration), -1);
+  const { hole, hang } = way;
+  if (elapsed < RIM_REACHED) return going(pace(elapsed / MEDAL_SLIDE), hole);
+  if (elapsed >= RIM_REACHED + hang) return going(pace((elapsed - hang) / MEDAL_SLIDE), hole);
+  // On the frame: it rocks toward the hole and back, the more the nearer it was, and shakes a little as it makes up its mind.
+  const u = (elapsed - RIM_REACHED) / hang;
+  const swing = Math.sin(Math.PI * u) + ROCK.shake * way.nearness * Math.sin(Math.PI * 7 * u) * (1 - u);
+  const rock = ROCK.most * (0.4 + 0.6 * way.nearness) * Math.max(0, swing);
+  return { ...rocked(x, hole, wings, rock, front), light: 1, chucker: -1, near: hole, leg: 'rim' };
+}
+
+// ── A ball ──────────────────────────────────────────────────────────────────
+
+/**
+ * How far a ball of this `radius` turns about the lip's edge before it comes
+ * down on the plate: from standing on the pusher at the edge, it rolls over
+ * the edge, which it keeps touching, until it touches the plate too, beyond
+ * the plate's upper edge.
+ */
+const lipTurn = (radius: number): number => LEAN + Math.acos(1 - (STEP * COS) / radius);
+
+/**
+ * Where the middle of a prize ball of this `radius` that is rolling down the
+ * plate is, or null for anything else: a medal, and a ball in the air on
+ * its way from the hatch. A ball is too big for a hole. It rolls over the
+ * lip's edge until it touches the plate, rolls down the plate over the holes,
+ * gathering pace, and at the foot rolls over the foot's edge, against it all
+ * the way, and comes down on the lower table in front of the foot, touching
+ * it (`clearOfFoot`). That is where the machine has it come down (`ROLL_DOWN`
+ * in engine.ts), and from then on it is shown where the machine has it. It is
+ * never under the plate, and nothing of it is ever inside it.
+ */
+export function rolledDown(ball: FallingMedal, radius: number, time: number): Spot | null {
+  if (ball.source !== 'slide' || !ball.ball) return null;
+  const t = clamp01(1 - ball.remaining / ball.duration);
+  const { x } = ball;
+  const front = pusherFront(time);
+  const over = lipTurn(radius);
+  // Where it is on the plate when it first touches it, and from there to the foot.
+  const first = { out: radius * Math.sin(over), height: P + radius * Math.cos(over) };
+  const start = first.out * COS - (first.height - PLATE.deck) * SIN;
+  const lip = 0.12;
+  const foot = 0.78;
+  if (t < lip) {
+    const turned = over * ease(t / lip);
+    return { x, height: P + radius * Math.cos(turned), depth: front + radius * Math.sin(turned) };
+  }
+  if (t < foot) {
+    const v = (t - lip) / (foot - lip);
+    const down = start + (SLOPE.long - start) * (0.35 * v + 0.65 * v * v);
+    return slopeSpot(x, down, time, radius);
+  }
+  // Over the foot's edge: it turns about the edge, from resting on the plate to standing on the table.
+  const v = (t - foot) / (1 - foot);
+  const last = Math.atan2(clearOfFoot(radius), radius - PLATE.foot);
+  const turned = LEAN + (last - LEAN) * v;
+  return { x, height: PLATE.foot + radius * Math.cos(turned), depth: front + CATCHER.foot.out + radius * Math.sin(turned) };
+}
+
+// ── A tower ─────────────────────────────────────────────────────────────────
+
+/** How a medal off a tower that is thrown over the plate tumbles in the air: a high one turns right over, a low one rocks; `id` gives each its own. */
+const tumbleOf = (rank: number, id: number, t: number): number => (rank > 9 ? Math.PI * ease(t) : 0.4 * Math.sin(Math.PI * t) * (0.5 + ((id * 0.618034) % 1)));
+
+/** The share of a tower medal's way down a hole at which it lies along the plate over the hole, and starts down it. */
+const ON_THE_HOLE = 0.5;
+
+/**
+ * How a medal off a tower that went over the lip is shown, `t` of the way
+ * down, or null for anything else.
+ *
+ * Where it comes down was settled as the tower went over (`spill` in
+ * engine.ts), and that says which way it goes. One that comes down under the
+ * plate went down the hole the tower went over at: it comes from where it was
+ * in the tower out and down on to the hole, turning to lie along the plate
+ * over the hole's middle by half way, and goes down it as a medal down a hole
+ * does. One that comes down in front of the foot goes out from the pusher's
+ * face evenly all the way, coming down faster and faster as a spilled medal
+ * does, thrown out over the plate; where it would be lower than a medal
+ * riding down the plate and off its foot (`ridingAt`), it is on the plate
+ * instead, sliding down it; and it lies flat where the machine has it.
+ * Nothing of either is ever inside the plate. Both are measured from the
+ * pusher's face as it moves, since the plate moves with it, and both end
+ * where the machine has the medal come down.
+ */
+export function spilled(medal: FallingMedal, time: number): Caught | null {
+  if (medal.source !== 'spill') return null;
+  const t = clamp01(1 - medal.remaining / medal.duration);
+  const front = pusherFront(time);
+  // Out from the face: from the lip as the tower went over, to where it comes down as the face will be then.
+  const fromOut = medal.fromY - pusherFront(time - (medal.duration - medal.remaining));
+  const toOut = landingOut(medal, time);
+  const x = medal.fromX + (medal.x - medal.fromX) * ease(Math.min(1, t / 0.15));
+  if (toOut < CATCHER.foot.out) {
+    const hole = nearestHole(medal.x);
+    if (t >= ON_THE_HOLE) {
+      const at = throughTheHole(CATCHER.ride + (1 - CATCHER.ride) * ((t - ON_THE_HOLE) / (1 - ON_THE_HOLE)));
+      return { ...shown(at, x, front), light: at.light, chucker: hole, near: -1, leg: 'slot' };
+    }
+    // From where it was in the tower, out and down on to the hole: the way a medal goes over the lip and down to the
+    // hole, lifted at first as high as it was in the tower, and coming down on to that way faster and faster.
+    const v = t / ON_THE_HOLE;
+    const side = along(WAY.hole * ease(v));
+    const lift = (spillHeight(medal.rank, 0) - (P + T / 2)) * (1 - v * v);
+    return { x, height: side.height + lift, depth: front + fromOut + side.out, tilt: side.tilt, heading: 0, light: 1, chucker: hole, near: -1, leg: 'plate' };
+  }
+  const out = fromOut + (toOut - fromOut) * t;
+  const arc = spillHeight(medal.rank, t);
+  // What holds it up where it would be lower than that: the pusher's top behind the lip, the plate and its foot.
+  const riding = out < 0 ? middleOver(out, P, 0) : ridingAt(out);
+  // The nearer it is to what holds it up, the more it lies as that has it; tumbling more than that, it is held up as far again as its rim dips.
+  const lying = clamp01(1 - (arc - riding.height) / D);
+  const landing = clamp01((t - 0.85) / 0.15);
+  const tumble = tumbleOf(medal.rank, medal.id, t) * (1 - landing);
+  const tilt = tumble + (riding.tilt - tumble) * lying;
+  const height = Math.max(arc, riding.height + R * Math.abs(Math.sin(tilt - riding.tilt)));
+  return { x, height, depth: front + out + (riding.out - out) * lying, tilt, heading: 0, light: 1, chucker: -1, near: -1, leg: out > CATCHER.foot.out ? 'off' : 'plate' };
 }
 
 /**
- * Where a slot is on the drawing at `time`: the middle of its opening, at the
- * top of its frame, and how wide and how tall the opening is there, in pixels
- * of the drawing. An opening in a board that leans toward the player is seen
- * more nearly square on than one in a level board would be. With `wings` it
- * is as wide as it is while they are open.
+ * Where a hole is on the drawing at `time`: the middle of its opening, and
+ * how wide and how tall the opening is there, in pixels of the drawing. With
+ * `wings` it is as wide as it is while the flaps are open.
  */
 export function mouthOnDrawing(chucker: number, time: number, wings = false): { x: number; y: number; wide: number; tall: number } {
   const spot = mouthSpot(chucker, time);
-  const middle = slopeSpot(spot.x, CATCHER.back + START_SLOT.long / 2, time, CATCHER.rim.high);
-  const upper = slopeSpot(spot.x, CATCHER.back, time, CATCHER.rim.high);
-  const lower = slopeSpot(spot.x, CATCHER.back + START_SLOT.long, time, CATCHER.rim.high);
-  const at = project(middle.x, middle.height, middle.depth);
+  const upper = slopeSpot(spot.x, CATCHER.back, time);
+  const lower = slopeSpot(spot.x, CATCHER.back + START_SLOT.long, time);
+  const at = project(spot.x, spot.height, spot.depth);
   return { x: at.x, y: at.y, wide: slotHalf(wings) * 2 * at.scale, tall: project(lower.x, lower.height, lower.depth).y - project(upper.x, upper.height, upper.depth).y };
 }

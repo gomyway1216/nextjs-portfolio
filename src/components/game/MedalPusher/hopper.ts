@@ -40,9 +40,14 @@ export const POUR = {
   perSecond: 36,
   /** Channels a medal can come down: three to a door. */
   channels: 6,
-  /** The band of the pusher the sheet comes down across, which is the band the slot throws across. */
-  from: 14,
-  to: 86,
+  /**
+   * The band of the pusher the sheet comes down across, which is the band the
+   * slot throws across: the middle seven tenths of the field and a little more.
+   * This file cannot read the field's width (78) from the engine, which reads
+   * this file first; the tests hold the two to each other.
+   */
+  from: 78 * 0.14,
+  to: 78 * 0.86,
   /** Seconds the doors take to drop open, and to be drawn shut. */
   opens: 0.45,
   closes: 0.6,
@@ -52,11 +57,13 @@ export const POUR = {
 
 /**
  * The two doors: how far across the hood's face each reaches. They stop
- * short of the middle, where the ball hatch is.
+ * short of the middle, where the ball hatch is. This file cannot read the
+ * field's width from the engine, which reads this file first; the tests hold
+ * the two to each other.
  */
 export const DOORS: readonly [{ from: number; to: number }, { from: number; to: number }] = [
-  { from: 15, to: 44.4 },
-  { from: 55.6, to: 85 },
+  { from: 11.7, to: 33.4 },
+  { from: 44.6, to: 66.3 },
 ];
 
 /** Channels to a door. */

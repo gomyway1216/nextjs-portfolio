@@ -65,7 +65,7 @@ export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 /** Jackpot sizes the value table is worked out for: where it starts, and two it grows to. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 1000, 2000] as const;
 /** What the calculator starts from: about what feeding both rails down the middle of the pusher, two medals a second between them, measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 56, spins: 13 } as const;
+export const CALC_DEFAULT = { front: 55, spins: 15 } as const;
 /** The least and the most the calculator's share into the tray goes to, as percentages: fed at the edges the field gives back less than half. */
 export const CALC_FRONT = { min: 30, max: 100 } as const;
 /**

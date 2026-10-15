@@ -717,7 +717,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
         </p>
 
         <p className={styles.hint}>
-          {t.outsideHint}
+          {t.outsideHint}{' '}
           <br />
           <strong>{t.insideHint}</strong>
         </p>

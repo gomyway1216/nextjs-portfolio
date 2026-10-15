@@ -3,7 +3,9 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { Craps } from '@/components/game/Craps';
-import { DiceTray, DieFace } from '@/components/game/Craps/Dice';
+import { CrapsFelt } from '@/components/game/Craps/CrapsFelt';
+import { DieFace } from '@/components/game/Craps/Dice';
+import { TABLES, liveAreas } from '@/components/game/Craps/tableLayout';
 import { OddsTab } from '@/components/game/Craps/OddsTab';
 import { PlayTab } from '@/components/game/Craps/PlayTab';
 import { SimTab } from '@/components/game/Craps/SimTab';
@@ -17,20 +19,91 @@ import { createI18nInstance } from '@/lib/i18n';
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
 
-describe('DieFace / DiceTray', () => {
+describe('DieFace', () => {
   it('draws the right number of pips', () => {
     for (let v = 1; v <= 6; v++) {
       const markup = renderToStaticMarkup(<DieFace value={v} />);
       expect(markup.match(/<circle/g)).toHaveLength(v);
     }
   });
+});
 
-  it('renders two dice resting in the tray with all six faces available', () => {
-    const markup = render(<DiceTray dice={null} rollId={0} label="table" />);
-    expect(markup.match(/data-die="\d"/g)).toHaveLength(2);
-    expect(markup.match(/data-value="\d"/g)).toHaveLength(12);
+describe('the table', () => {
+  const felt = (lang: 'en' | 'ja' = 'en', point: 4 | 5 | 6 | 8 | 9 | 10 | null = null) =>
+    render(
+      <CrapsFelt
+        bets={{ pass: 5, place8: 12 }}
+        point={point}
+        size={5}
+        canPlay
+        onPress={() => undefined}
+        t={getStrings(lang)}
+        language={lang}
+        shown={null}
+        onSettled={() => undefined}
+        sound={false}
+      />,
+      lang,
+    );
+
+  it('draws a full table for a desk and a half one for a phone, each with every bet the game takes, a wall of pyramids and two dice', () => {
+    const markup = felt();
+    // The half table is drawn first, then the full one.
+    const split = markup.indexOf('data-table-kind="full"');
+    expect(markup.indexOf('data-table-kind="half"')).toBeLessThan(split);
+    for (const kind of ['full', 'half'] as const) {
+      const view = kind === 'half' ? markup.slice(0, split) : markup.slice(split);
+      expect([...view.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...BET_IDS].sort());
+      expect(view.match(/data-die="\d"/g)).toHaveLength(2);
+      expect(view.match(/data-value="\d"/g)?.length).toBeGreaterThanOrEqual(12);
+      expect(view).toContain(`craps-rubber-${kind}`);
+      // The Pass Line turns up the end by the wall: a second part that presses the same bet, kept out of the tab order.
+      expect(view).toMatch(/<button[^>]*tabindex="-1"[^>]*aria-hidden="true"[^>]*data-bet-part="pass"/);
+    }
+    // The other end of the full table is printed, and not played.
+    expect(markup).toContain('data-testid="craps-other-end"');
     expect(markup).toContain('data-rolling="false"');
-    expect(markup).toContain('aria-label="table"');
+  });
+
+  it('prints a real felt’s words, and shows the medals on the layout and the puck', () => {
+    const markup = felt('en', 8);
+    for (const words of ['PASS LINE', 'DON&#x27;T PASS BAR', 'FIELD', 'COME', 'DON&#x27;T COME BAR', 'SIX', 'NINE', 'ODDS', 'LAY', 'PROPOSITION BETS', '2 PAYS DOUBLE · 12 PAYS TRIPLE']) expect(markup).toContain(words);
+    expect(markup.match(/data-amount="5"/g)).toHaveLength(2);
+    expect(markup.match(/data-amount="12"/g)).toHaveLength(2);
+    expect(markup).toContain('data-testid="craps-puck"');
+    expect(markup).toContain('aria-label="Pass Line (1:1) — 5 medals on it"');
+    expect(markup).toContain('aria-label="Place 8 (7:6), in 6s — 12 medals on it"');
+  });
+
+  it('adds Japanese help under the English words', () => {
+    const markup = felt('ja');
+    expect(markup).toContain('パスライン');
+    expect(markup).toContain('カム（このテーブルではなし）');
+    expect(markup).toContain('2 は 2 倍 · 12 は 3 倍');
+    expect(markup).toContain('PASS LINE');
+  });
+
+  it('lays out every area inside its felt, with no two areas of one felt overlapping', () => {
+    for (const kind of ['full', 'half'] as const) {
+      const layout = TABLES[kind];
+      const felts = [{ felt: layout, areas: layout.live }, ...(layout.center ? [{ felt: layout.center, areas: layout.center.live }] : [])];
+      for (const { felt: f, areas } of felts) {
+        const boxes = areas.flatMap((area) => [area.box, ...(area.more ?? [])]);
+        for (const box of boxes) {
+          expect(box.x).toBeGreaterThanOrEqual(f.rail);
+          expect(box.y).toBeGreaterThanOrEqual(f.rail);
+          expect(box.x + box.w).toBeLessThanOrEqual(f.width - f.rail + 1e-9);
+          expect(box.y + box.h).toBeLessThanOrEqual(f.height - f.rail + 1e-9);
+        }
+        for (let i = 0; i < boxes.length; i++)
+          for (let j = i + 1; j < boxes.length; j++) {
+            const [a, b] = [boxes[i], boxes[j]];
+            const apart = a.x + a.w <= b.x + 1e-9 || b.x + b.w <= a.x + 1e-9 || a.y + a.h <= b.y + 1e-9 || b.y + b.h <= a.y + 1e-9;
+            expect(apart, `${kind}: ${JSON.stringify(a)} and ${JSON.stringify(b)}`).toBe(true);
+          }
+      }
+      expect(liveAreas(layout).map((area) => area.id).sort()).toEqual([...BET_IDS].sort());
+    }
   });
 });
 
@@ -42,7 +115,8 @@ describe('PlayTab', () => {
     expect(markup).toContain('data-testid="craps-medals">—<');
     expect(markup).toContain('data-testid="craps-on-table">0<');
     expect(markup).toContain('>YOUR MEDALS<');
-    expect([...markup.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...BET_IDS].sort());
+    // Every bet is on the layout of both tables, the full one and the half one, and none can be pressed yet.
+    expect([...markup.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...BET_IDS, ...BET_IDS].sort());
     expect(markup.match(/<button[^>]*data-bet="[a-zA-Z0-9]+"[^>]*>/g)?.every((tag) => tag.includes('disabled=""'))).toBe(true);
     expect(markup).toContain('>OFF<');
     expect(markup).not.toContain('data-testid="craps-puck"');

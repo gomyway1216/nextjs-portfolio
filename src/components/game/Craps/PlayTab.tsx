@@ -10,7 +10,7 @@ import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { rollDice, type BetId } from './engine';
 import { crapsTable, mayPlayTable, playTableHere, seatTable, settleTable, tableStore } from './crapsTable';
-import { CrapsTable, type ShownThrow } from './CrapsTable';
+import { CrapsFelt, type ShownThrow } from './CrapsFelt';
 import { BET_SIZES, CRAPS_GAME, lastRoll, onTable, pressAmount, spotLimit, stakeStep, tableKey, type Table, type TableError } from './medalTable';
 import { DieFace } from './Dice';
 import { getStrings } from './i18n';
@@ -385,7 +385,7 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
 
       <div className={styles.tableArea}>
         {/* The table: the layout is where the medals are bet, and the dice are thrown down it. */}
-        <CrapsTable
+        <CrapsFelt
           bets={bets}
           point={point}
           size={size}

@@ -46,6 +46,11 @@ export interface CrapsStrings {
   clear: string;
   repeat: string;
   takeDown: string;
+  /** Under the table: what is printed on the felt and not played. */
+  printedNote: string;
+  soundOn: string;
+  soundOff: string;
+  quickRoll: string;
   puckOn: string;
   puckOff: string;
   comeOut: string;
@@ -213,7 +218,7 @@ const EN: CrapsStrings = {
   infoBody: [
     'The first roll of a round is the come-out. Pass Line wins on 7 or 11 and loses on 2, 3 or 12; any other total becomes the point (the puck turns ON). The shooter then rolls until the point comes again (Pass wins) or a 7 shows (seven out — Pass loses).',
     "Don't Pass is the opposite, except a come-out 12 is a push. Once a point is on you can back your line bet with odds, which pay true odds — the only bet in the casino with no house edge (up to 3-4-5× here, lay up to 6×).",
-    'Place bets and hardways work only while a point is on; place bets stay up after they win. Field and the center bets are one-roll bets. Pick a BET size, click a betting area, then ROLL.',
+    'Place bets and hardways work only while a point is on; place bets stay up after they win. Field and the center bets are one-roll bets. Pick a BET size, tap an area of the layout, then ROLL: the shooter throws the dice down the table, off the far wall’s rubber pyramids. Quick roll skips the throw.',
     'You play with your medals from the Medal Game Center, the same medals every game there uses. A bet takes its medals as you put it on; a win brings back the bet and what it won. A spot holds up to 50 medals, and every win is whole medals: Place 6 and 8 take medals in 6s, Place 4, 5, 9 and 10 in 5s, and the odds in the steps shown on them.',
     'Bets stay on the table when you leave or reload the page, as they would at a real table. Take down brings back every bet that may come down; a Pass Line bet stays until its point is decided.',
     NOT_MONEY.en,
@@ -245,6 +250,10 @@ const EN: CrapsStrings = {
   clear: 'Clear',
   repeat: 'Repeat bets',
   takeDown: 'Take down',
+  printedNote: 'COME and DON’T COME are printed as on a real felt; this table does not take them. The odds go behind the line bet, on ODDS and LAY.',
+  soundOn: 'Sound: on',
+  soundOff: 'Sound: off',
+  quickRoll: 'Quick roll',
   puckOn: 'ON',
   puckOff: 'OFF',
   comeOut: 'Coming out',
@@ -412,7 +421,7 @@ const JA: CrapsStrings = {
   infoBody: [
     '1 ラウンドの最初の投げはカムアウト。パスラインは 7・11 で勝ち、2・3・12 で負け。それ以外の目は「ポイント」になり（パックが ON）、シューターはポイントがもう一度出る（パスの勝ち）か、7 が出る（セブンアウト・パスの負け）まで振り続けます。',
     'ドントパスはその逆ですが、カムアウトの 12 は引き分けです。ポイントが決まったらラインベットの後ろにオッズを付けられます。オッズは真の確率どおりの配当になる、カジノで唯一ハウスエッジ 0% の賭けです（ここでは 3-4-5 倍まで、レイは 6 倍まで）。',
-    'プレイスベットとハードウェイはポイントが ON のときだけ有効で、プレイスは当たってもそのまま残ります。フィールドと中央のベットは 1 投ごとに決着します。ベット枚数を選んでエリアをクリックし、ROLL を押します。',
+    'プレイスベットとハードウェイはポイントが ON のときだけ有効で、プレイスは当たってもそのまま残ります。フィールドと中央のベットは 1 投ごとに決着します。ベット枚数を選んでテーブルのエリアをタップし、ROLL を押すと、シューターがテーブルの奥の壁（ゴムのピラミッド）に当たるようにサイコロを投げます。クイックロールでは投げる様子を省きます。',
     'メダルゲームセンターの持ちメダルで遊びます。センターのどのゲームとも共通のメダルです。ベットを置くとその枚数が持ちメダルから減り、勝つとベットと配当の分が戻ります。1 か所に置けるのは 50 枚まで。配当はいつも整数枚です。プレイス 6・8 は 6 枚単位、プレイス 4・5・9・10 は 5 枚単位、オッズはエリアに書かれた単位でベットします。',
     'ページを閉じたり読み込み直したりしても、ベットは本物のテーブルと同じようにテーブルに残ります。「引き上げる」で、引き上げられるベットをすべて持ちメダルに戻せます。パスラインはポイントの決着までそのままです。',
     NOT_MONEY.ja,
@@ -444,6 +453,10 @@ const JA: CrapsStrings = {
   clear: 'クリア',
   repeat: '前回と同じ賭け',
   takeDown: '引き上げる',
+  printedNote: 'カム・ドントカムは本物のテーブルと同じく印刷してありますが、このテーブルでは置けません。オッズはラインベットの後ろの ODDS・LAY に置きます。',
+  soundOn: '音: オン',
+  soundOff: '音: オフ',
+  quickRoll: 'クイックロール',
   puckOn: 'ON',
   puckOff: 'OFF',
   comeOut: 'カムアウト',

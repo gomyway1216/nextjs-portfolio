@@ -25,7 +25,7 @@ export interface ShownThrow {
   mode: 'animate' | 'quick' | 'calm' | 'rest';
 }
 
-export interface CrapsTableProps {
+export interface CrapsFeltProps {
   bets: Bets;
   point: PointNumber | null;
   /** The BET size a press puts on: areas it cannot go on now are dimmed. */
@@ -434,7 +434,7 @@ const MedalPile = ({ count }: { count: number }) => {
 interface AreasProps {
   felt: Felt;
   areas: LiveArea[];
-  props: CrapsTableProps;
+  props: CrapsFeltProps;
 }
 
 /** The areas a player taps, over the art: one button per bet, with the medals on it. */
@@ -532,7 +532,7 @@ function place(layout: TableLayout, refs: DiceRefs, states: readonly [DieState, 
 }
 
 /** One table: the tub (and, on a phone, the stickman's box under it). */
-function TableView({ layout, props, refs, label }: { layout: TableLayout; props: CrapsTableProps; refs: RefObject<Record<TableKind, DiceRefs>>; label: string }) {
+function TableView({ layout, props, refs, label }: { layout: TableLayout; props: CrapsFeltProps; refs: RefObject<Record<TableKind, DiceRefs>>; label: string }) {
   const { point, t, language } = props;
   const tub = layout.live;
   const puckBox = point === null ? null : tub.find((area) => area.id === `place${point}`)?.box;
@@ -593,7 +593,7 @@ function TableView({ layout, props, refs, label }: { layout: TableLayout; props:
  * shows the one that fits), the layout the player bets on, and the dice,
  * thrown down the felt to land on the roll the game drew.
  */
-export function CrapsTable(props: CrapsTableProps) {
+export function CrapsFelt(props: CrapsFeltProps) {
   const { shown, onSettled, sound } = props;
   const refs = useRef<Record<TableKind, DiceRefs>>({ half: { dice: [], shadows: [], scale: 0 }, full: { dice: [], shadows: [], scale: 0 } });
   const wrapper = useRef<HTMLDivElement | null>(null);

@@ -164,8 +164,11 @@ test('a bet takes medals, a win adds them, and the Medal Game Center shows the s
   await arrived(page);
   await expect(page.getByTestId('craps-counter')).toHaveAttribute('data-loaded', 'true');
   await expect(medalsShown(page)).toHaveText(String(WELCOME + 5));
-  // The roll is still on the record after the reload.
+  // The roll is still on the record after the reload, and the dice in the tray show it.
   await expect(page.getByRole('list', { name: 'Recent rolls' }).locator('li[data-event]')).toHaveCount(1);
+  await expect(page.locator('[data-die]').first()).toHaveAttribute('data-face', '5');
+  await expect(page.locator('[data-die]').nth(1)).toHaveAttribute('data-face', '6');
+  await expect(page.locator('[data-rolling]')).toHaveAttribute('aria-label', /^Dice: 5 and 6/);
 
   await openCenter(page);
   await expect(page.getByTestId('center-balance')).toHaveText(String(WELCOME + 5));

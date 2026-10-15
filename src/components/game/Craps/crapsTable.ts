@@ -27,6 +27,7 @@ export const crapsTable = (): MedalTable =>
     {
       read: (key) => window.localStorage.getItem(key),
       write: (key, text) => window.localStorage.setItem(key, text),
+      remove: (key) => window.localStorage.removeItem(key),
     },
     mayPlay,
   ));

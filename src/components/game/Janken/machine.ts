@@ -15,6 +15,15 @@
  * written down with the outcome, so nothing about them can be learned or
  * drawn again by leaving and coming back.
  *
+ * The round and the medals are two writes, and a browser can die between
+ * any two writes. So both moves go into the medals under a receipt
+ * (`bank.apply`; "A machine's rounds" in bank.ts), named by the round, and
+ * the round is written down before each: as calling before its medal is
+ * taken, and as being paid (`paying`) before the medals it ends with go in.
+ * The page that next holds the card looks at the round against the
+ * receipts: a round whose medal never went in was never played, and is
+ * struck out; a round being paid is paid, once, and struck out.
+ *
  * **When the page is hidden or left** (a reload among them), the round is
  * settled before the card goes: a medal put in and not yet thrown is given
  * back, and medals won (still spinning, or on offer, or put on a double-up
@@ -49,7 +58,11 @@ export interface RoundStorage {
 }
 
 /** What the machine needs of the medal center's bank. */
-export type MachineBank = Pick<Bank, 'take' | 'give' | 'owner' | 'restartDue' | 'restarted' | 'sit' | 'listen' | 'subscribe' | 'getState' | 'balance' | 'refill'>;
+export type MachineBank = Pick<Bank, 'apply' | 'applied' | 'forget' | 'owner' | 'restartDue' | 'restarted' | 'sit' | 'listen' | 'subscribe' | 'getState' | 'balance' | 'refill'>;
+
+/** The names of a round's two moves of medals at the bank: the medal put in, and the medals it ends with. */
+export const INSERT_STEP = 'in';
+export const PAY_STEP = 'pay';
 
 /** A throw, as the cabinet acts it out. */
 export interface Throw {
@@ -89,11 +102,23 @@ export interface MachineDeps {
   storage: RoundStorage | null;
   /** Random numbers in [0, 1): for the cat's hand and the roulette's lamp. */
   random: () => number;
+  /** A new round's name (never from `random`, which draws the cat's hands). */
+  newId?: () => string;
 }
+
+const LETTERS = '0123456789abcdefghijklmnopqrstuvwxyz';
+/** A new round's name: twelve letters and digits from the browser's random numbers. */
+const randomId = (): string => {
+  try {
+    return Array.from(globalThis.crypto.getRandomValues(new Uint32Array(12)), (n) => LETTERS[n % LETTERS.length]).join('');
+  } catch {
+    return Array.from({ length: 12 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
+  }
+};
 
 export type Machine = ReturnType<typeof createMachine>;
 
-export function createMachine({ bank, storage, random }: MachineDeps) {
+export function createMachine({ bank, storage, random, newId = randomId }: MachineDeps) {
   let round: Round | null = null;
   /** Whose round is on the table: the owner of the medals it was read for. */
   let owner: string | null = null;
@@ -164,7 +189,21 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
     } catch {
       // Storage that cannot be read: the round in memory is all there is.
     }
+    square();
   };
+
+  /**
+   * Squares the round with its receipts, with the card: a round whose medal never went in (the browser died between
+   * the round and the medals) was never played, and is struck out; a round being paid is paid, once, and struck out.
+   */
+  function square(): void {
+    if (!round || !holding()) return;
+    if (round.paying !== undefined) {
+      finishPaying(round, true);
+      return;
+    }
+    if (round.id !== undefined && !bank.applied({ game: JANKEN_GAME, round: round.id, step: INSERT_STEP })) write(null);
+  }
   /** Writes the round down. Storage that refuses still leaves the round in play on this page. */
   const write = (next: Round | null): void => {
     round = next;
@@ -191,21 +230,40 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
     return true;
   };
 
-  /*
-   * Paying and striking the round out are one step: `bank.give` writes the medals down and the round is removed
-   * straight after, with nothing able to run between the two (no other code runs in the middle of a step). A page
-   * that holds the card is the only one that does either. What the bank does not offer is a receipt written in
-   * the same write as the medals, so a browser killed in the instant between the two writes would leave the round
-   * to be paid again by the next page; the Slot Machine (#867) stands on the same ground.
+  /**
+   * Ends a round with `medals` paid: the round is written down as being paid, the medals go in under its receipt, and
+   * it is struck out. A browser that dies between any two of those leaves a round being paid, which the next page that
+   * holds the card pays, once (`square`). Returns whether it was paid.
    */
+  const payOut = (from: Round, medals: number): boolean => {
+    const paying: Round = { ...from, id: from.id ?? newId(), paying: medals };
+    write(paying);
+    if (finishPaying(paying, false)) return true;
+    // The bank would not take the move now: the round is as it was, to be paid when it can be.
+    write(from);
+    return false;
+  };
+
+  /** Pays a round being paid, under its receipt, and strikes it out. `found`: it was found so, left by a page that died. */
+  function finishPaying(at: Round, found: boolean): boolean {
+    const medals = at.paying ?? 0;
+    const moved = bank.apply({ game: JANKEN_GAME, round: at.id ?? newId(), step: PAY_STEP, medals });
+    if (!moved) return false;
+    write(null);
+    // Over and struck out: nothing will try its moves again.
+    bank.forget(JANKEN_GAME);
+    if (found) tell({ type: 'paid', medals, left: true });
+    return true;
+  }
 
   /** Settles the round as the page goes: what is at stake and not thrown is given back, what is won is paid. */
   const settle = (): void => {
     if (!round || !holding()) return;
     const medals = owed(round);
     const returned = round.phase === 'calling' && round.kind === 'play';
-    if (medals > 0 && !bank.give(medals)) return;
-    write(null);
+    if (medals > 0) {
+      if (!payOut(round, medals)) return;
+    } else write(null);
     tell(returned ? { type: 'returned', medals } : { type: 'paid', medals, left: true });
   };
 
@@ -213,8 +271,7 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
   const pay = (left: boolean): boolean => {
     if (!round || round.phase !== 'offer' || !holding()) return false;
     const medals = round.win;
-    if (!bank.give(medals)) return false;
-    write(null);
+    if (!payOut(round, medals)) return false;
     tell({ type: 'paid', medals, left });
     return true;
   };
@@ -286,11 +343,20 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
       seat?.play();
     },
 
-    /** A medal goes in, if the player has one and no round is in play. */
+    /**
+     * A medal goes in, if the player has one and no round is in play: the round is written down as calling, and then
+     * the medal taken under its receipt (a browser that dies between the two leaves a round that was never played).
+     */
     insert(): boolean {
-      if (!ready() || round !== null) return false;
-      if (!bank.take(1)) return false;
-      write(started());
+      if (!ready() || round !== null || bank.balance() < 1) return false;
+      const next: Round = { ...started(), id: newId() };
+      write(next);
+      if (bank.apply({ game: JANKEN_GAME, round: next.id!, step: INSERT_STEP, medals: -1 }) !== 'applied') {
+        write(null);
+        return false;
+      }
+      // Any round before this one is struck out: nothing will try its moves again.
+      bank.forget(JANKEN_GAME, [next.id!]);
       tell({ type: 'inserted' });
       return true;
     },

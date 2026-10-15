@@ -4,10 +4,10 @@ import { LAMPS, MAX_DOUBLES } from '@/components/game/Janken/engine';
 import { JANKEN_GAME, createMachine, type Happening, type RoundStorage } from '@/components/game/Janken/machine';
 import { ROUND_KEY, readRound, roundKey } from '@/components/game/Janken/round';
 import { BANK_KEY, ledgerKey } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, parseLedger, restartDue, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, parseLedger, receiptsOf, restartDue, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { BONUS_CARD } from '@/components/game/MedalPusher/records';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 
 // The machine with the medal center's real bank, in a browser that is all fakes (bankFakes.ts): one storage that every
 // page shares, the one card, a channel between the pages. Nothing is fetched and no account is named.
@@ -114,8 +114,8 @@ describe('a round at the machine', () => {
     const browser = new FakeBrowser();
     const { machine, draws } = await opened(browser);
     machine.insert();
-    // Nothing has been drawn: the round written down knows nothing of the cat's hand.
-    expect(Object.keys(roundIn(browser)!).sort()).toEqual(['doubles', 'draws', 'kind', 'lamp', 'phase', 'stake', 'v', 'win']);
+    // Nothing has been drawn: the round written down knows nothing of the cat's hand (only its own name, for its receipts).
+    expect(Object.keys(roundIn(browser)!).sort()).toEqual(['doubles', 'draws', 'id', 'kind', 'lamp', 'phase', 'stake', 'v', 'win']);
     expect(roundIn(browser)?.lamp).toBe(-1);
     draws.push(CAT.choki, lamp(3));
     machine.press('gu');
@@ -414,6 +414,113 @@ describe('a round and the page it is on', () => {
     machine.stopped();
     expect(machine.collect()).toBe(true);
     expect(stored(browser)).toBe(WELCOME - 1 + BONUS_CARD[0] + 10);
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The round and the medals are two writes (machine.ts): the browser is killed at every moment of a round, started
+  // again, and the machine opened on what it left; the round left is then settled as a page going settles it. Every
+  // medal put in is taken once and every win paid once, or the round was never played.
+  const machines = new Map<FakeBrowser, Awaited<ReturnType<typeof opened>>>();
+  const setUp = async () => {
+    const browser = new FakeBrowser();
+    machines.set(browser, await opened(browser));
+    return browser;
+  };
+  /** The machine opened again on what the browser left, and the round it finds settled as the page goes. */
+  const reopenedAndLeft = async (after: FakeBrowser) => {
+    const again = await opened(after);
+    again.page.hide('left');
+    await quiet(after);
+    return again;
+  };
+  const rowIn = (browser: FakeBrowser) => {
+    const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
+    return ledger.rows[ledger.device] ?? { got: 0, spent: 0 };
+  };
+
+  it('pays a won round exactly once, or never plays it, wherever the browser dies in it', async () => {
+    const won = LAMPS[15];
+    const writes = await atEveryWrite(
+      setUp,
+      (browser) => {
+        const { machine, draws } = machines.get(browser)!;
+        machine.insert();
+        draws.push(CAT.choki, lamp(15));
+        machine.press('gu');
+        machine.stopped();
+        machine.collect();
+      },
+      async (after, reached) => {
+        // The throw is in once it is written down (the round moved on from calling), or once its win has gone in.
+        const left = roundIn(after);
+        const thrown = (left !== null && (left.phase !== 'calling' || left.paying !== undefined)) || rowIn(after).got > 0;
+        await reopenedAndLeft(after);
+        expect(stored(after), `died after ${reached} writes`).toBe(thrown ? WELCOME - 1 + won : WELCOME);
+        expect(roundIn(after), `died after ${reached} writes`).toBeNull();
+        // The next medal in lets go of whatever receipts the round left: only its own are kept.
+        const next = await opened(after);
+        expect(next.machine.insert()).toBe(true);
+        const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
+        expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${JANKEN_GAME}:${roundIn(after)!.id}:in`]);
+      },
+    );
+    expect(writes).toBeGreaterThanOrEqual(5);
+  });
+
+  it('gives a medal put in and not thrown back exactly once, wherever the browser dies as the page goes', async () => {
+    await atEveryWrite(
+      setUp,
+      (browser) => {
+        const { machine, page } = machines.get(browser)!;
+        machine.insert();
+        page.hide('left');
+      },
+      async (after, reached) => {
+        await reopenedAndLeft(after);
+        expect(stored(after), `died after ${reached} writes`).toBe(WELCOME);
+        expect(roundIn(after), `died after ${reached} writes`).toBeNull();
+      },
+    );
+  });
+
+  it('pays a double-up exactly once wherever the browser dies in it', async () => {
+    const won = LAMPS[15] * 2;
+    await atEveryWrite(
+      setUp,
+      (browser) => {
+        const { machine, draws } = machines.get(browser)!;
+        machine.insert();
+        draws.push(CAT.choki, lamp(15));
+        machine.press('gu');
+        machine.stopped();
+        machine.double();
+        draws.push(CAT.choki);
+        machine.press('gu');
+        machine.collect();
+      },
+      async (after, reached) => {
+        const left = roundIn(after);
+        const thrown = (left !== null && (left.phase !== 'calling' || left.kind === 'double' || left.paying !== undefined)) || rowIn(after).got > 0;
+        const doubled = (left !== null && left.doubles === 1) || rowIn(after).got === won;
+        await reopenedAndLeft(after);
+        expect(stored(after), `died after ${reached} writes`).toBe(!thrown ? WELCOME : WELCOME - 1 + (doubled ? won : LAMPS[15]));
+      },
+    );
+  });
+
+  it('takes a round from before receipts at its word: its medal went in, and its win is paid once', async () => {
+    const browser = new FakeBrowser();
+    const { machine, page } = await opened(browser);
+    page.bank.take(1);
+    browser.storage.set(ROUND_KEY, JSON.stringify({ v: 1, kind: 'play', phase: 'offer', stake: 0, win: 5, lamp: 15, doubles: 0, draws: 0 }));
+    page.hide();
+    page.show();
+    await quiet(browser);
+    expect(machine.view().round).toMatchObject({ phase: 'offer', win: 5 });
+    expect(machine.collect()).toBe(true);
+    expect(machine.collect()).toBe(false);
+    expect(stored(browser)).toBe(WELCOME - 1 + 5);
   });
 });
 

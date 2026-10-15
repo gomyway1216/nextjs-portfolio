@@ -40,7 +40,7 @@ describe('the medal center’s front, as the server sends it', () => {
   it('reads in Japanese, in the words of a medal counter', () => {
     const html = render('ja');
     const t = getCenterStrings('ja');
-    expect(html).toContain('預かりメダル');
+    expect(html).toContain('持ちメダル');
     expect(html).toContain('メダルをリセット');
     expect(html).toContain(t.soon);
     expect(t.resetDialogBody('2,480', true)).toContain('すべての端末');

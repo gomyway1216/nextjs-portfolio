@@ -47,10 +47,10 @@ describe('the second press of a button that takes two (clearing the records)', (
 });
 
 describe('the cabinet and its save', () => {
-  it('has no reset of its own, says the medals are the medal bank’s and where they are reset, and that the machine is kept on this device', () => {
+  it('has no reset of its own, says the medals are the player’s and where they are reset, and that the machine is kept on this device', () => {
     const html = render(<PlayTab />);
     expect(html).not.toContain('data-testid="pusher-reset"');
-    expect(html).toMatch(/data-testid="pusher-bank-note"[^>]*>Your medals are not this machine’s: they are in your medal bank/);
+    expect(html).toMatch(/data-testid="pusher-bank-note"[^>]*>Your medals are not this machine’s: they are yours, and every game at the Medal Center plays with them/);
     expect(html).toMatch(/<a[^>]*href="\/games\/medal-center"[^>]*data-testid="pusher-center-link"[^>]*>Go to the Medal Center<\/a>/);
     expect(html).toContain('This machine is saved on this device.');
     // Until a save has been tried, the note is the one the server sent: the page cannot know better yet.
@@ -69,8 +69,8 @@ describe('the cabinet and its save', () => {
 
   it('says so in Japanese', () => {
     const html = render(<PlayTab />, 'ja');
-    expect(html).toContain('このマシンはこの端末に預けてあります。');
-    expect(html).toContain('メダルはこのマシンのものではなく、メダルバンクに預けてあります。');
+    expect(html).toContain('このマシンはこの端末に保存してあります。');
+    expect(html).toContain('メダルはこのマシンのものではなく、あなたの持ちメダルです。');
     expect(html).toMatch(/data-testid="pusher-center-link"[^>]*>メダルゲームセンターへ<\/a>/);
     const ja = getStrings('ja');
     expect(ja.sayCenterReset).toContain('リセット');

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ledgerKey } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
 import { TOTAL_WAYS, analyzeMachine, paylineOf, type Stops } from '@/components/game/SlotMachine/engine';
 import {
   BET_OPTIONS,
@@ -19,7 +19,7 @@ import {
   type Round,
   type TableStorage,
 } from '@/components/game/SlotMachine/medals';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 const UID = 'test-player-1';
@@ -588,5 +588,106 @@ describe('storage that keeps nothing', () => {
     };
     expect(noticeRead(blocked)).toBe(false);
     expect(() => markNoticeRead(blocked)).not.toThrow();
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The round and the medals are two writes (medals.ts): the browser is killed at every moment between them, started
+  // again, and the machine opened again in the same tab. Every spin is paid exactly once, or, if its stake never went
+  // in, never happened at all.
+
+  /** A browser with the machine open and holding the card, the medals read. */
+  const opened = async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const machine = slot(page, 'taba');
+    await quiet(browser);
+    return { browser, page, ...machine };
+  };
+  const machines = new Map<FakeBrowser, Awaited<ReturnType<typeof opened>>>();
+  const setUp = async () => {
+    const at = await opened();
+    machines.set(at.browser, at);
+    return at.browser;
+  };
+
+  /** What the browser left, opened again: the machine pays what it owes as it is given the card, and shows this tab's spin. */
+  async function reopened(after: FakeBrowser) {
+    const page = after.open();
+    const machine = slot(page, 'taba');
+    await quiet(after);
+    const shown = machine.table.leftover();
+    if (shown) machine.table.finish(shown);
+    await quiet(after);
+    return { page, ...machine };
+  }
+
+  for (const [what, stops] of [
+    ['a 7-7-7', JACKPOT],
+    ['a spin that wins nothing', LOSS],
+  ] as const) {
+    it(`pays ${what} exactly once, or takes nothing for it, wherever the browser dies in a spin`, async () => {
+      const writes = await atEveryWrite(
+        setUp,
+        (browser) => {
+          const { table } = machines.get(browser)!;
+          const round = bet(table, 3, stops);
+          table.finish(round);
+        },
+        async (after, reached) => {
+          const before = stored(after)!;
+          const staked = before.rows[before.device]?.spent === 3;
+          const { table } = await reopened(after);
+          expect(storedBalance(after), `died after ${reached} writes`).toBe(staked ? WELCOME - 3 + winOf({ bet: 3, stops }) : WELCOME);
+          const left = storedRound(after);
+          expect(left === null || left.paid, `died after ${reached} writes`).toBe(true);
+          // Another spin, played through: every receipt is let go of once nothing needs it.
+          bet(table, 1, LOSS);
+          table.finish(table.current()!);
+          const ledger = stored(after)!;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([]);
+          expect(balanceOf(ledger)).toBe((staked ? WELCOME - 3 + winOf({ bet: 3, stops }) : WELCOME) - 1);
+        },
+      );
+      expect(writes).toBeGreaterThanOrEqual(4);
+    });
+  }
+
+  it('pays a spin exactly once wherever the browser dies while the page going pays it, and the tab shows it again', async () => {
+    await atEveryWrite(
+      setUp,
+      (browser) => {
+        const { table, page } = machines.get(browser)!;
+        bet(table, 2, JACKPOT);
+        // A reload: the page going pays the spin before the card goes.
+        page.hide('left');
+      },
+      async (after, reached) => {
+        const before = stored(after)!;
+        const staked = before.rows[before.device]?.spent === 2;
+        const back = after.open();
+        const { table } = slot(back, 'taba');
+        await quiet(after);
+        const shown = table.leftover();
+        expect(shown !== null, `died after ${reached} writes`).toBe(staked);
+        if (shown) expect(table.finish(shown)).toBe(true);
+        expect(storedBalance(after), `died after ${reached} writes`).toBe(staked ? WELCOME - 2 + 2000 : WELCOME);
+      },
+    );
+  });
+
+  it('takes a round from before receipts at its word: its stake was taken, and its win is paid once', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    // As the machine wrote it before receipts: stake taken, round written, reels still turning.
+    const opener = slot(page, 'taba');
+    await quiet(browser);
+    page.bank.take(3);
+    const old: Round = { v: 1, id: 'old0001', tab: 'taba', owner: null, era: 0, bet: 3, stops: JACKPOT, paid: false };
+    browser.storage.set(roundKey(null), serializeRound(old));
+    expect(opener.table.payDue()?.id).toBe('old0001');
+    expect(storedBalance(browser)).toBe(WELCOME - 3 + 3000);
+    expect(opener.table.payDue()).toBeNull();
+    expect(storedRound(browser)).toEqual({ ...old, paid: true });
   });
 });

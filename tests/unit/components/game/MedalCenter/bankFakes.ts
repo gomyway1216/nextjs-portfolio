@@ -214,3 +214,27 @@ export async function quiet(...browsers: FakeBrowser[]): Promise<void> {
   }
   for (const browser of browsers) browser.run();
 }
+
+/**
+ * Plays `play` in a browser made by `setUp`, once through to count its writes, and then once for every moment the
+ * browser could die in it: before its first write, between each two, and after its last. Each time `check` is handed
+ * what the browser left, started again (`revive`), and how many of the writes reached storage. `play` must make the
+ * same writes each time.
+ */
+export async function atEveryWrite(
+  setUp: () => Promise<FakeBrowser>,
+  play: (browser: FakeBrowser) => Promise<void> | void,
+  check: (revived: FakeBrowser, reached: number, writes: number) => Promise<void> | void,
+): Promise<number> {
+  const counting = await setUp();
+  const from = counting.writes;
+  await play(counting);
+  const writes = counting.writes - from;
+  for (let reached = 0; reached <= writes; reached++) {
+    const browser = await setUp();
+    browser.writesLeft = reached;
+    await play(browser);
+    await check(browser.revive(), reached, writes);
+  }
+  return writes;
+}

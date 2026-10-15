@@ -581,6 +581,16 @@ export function createBank(env: BankEnv) {
     return true;
   };
 
+  /**
+   * In a browser that cannot keep its pages apart, every page writes as though it held the card, and another tab's
+   * write may have come since this page last read: a round's move reads what storage holds first, so that a move
+   * another tab has made is known as made. (A page that holds the card is the only one that writes, and what it
+   * has is newer than storage when a write of its own did not take: it does not read.)
+   */
+  const fresh = (at: Desk): void => {
+    if (!env.card.apart && started) refresh(at);
+  };
+
   // ── The card ──
 
   const holding = (): boolean => held !== null || !env.card.apart;
@@ -1156,7 +1166,9 @@ export function createBank(env: BankEnv) {
      */
     apply(move: Move): 'applied' | 'already' | null {
       const at = desk;
-      if (!at || !holding() || (move.era !== undefined && move.era !== at.ledger.era)) return null;
+      if (!at || !holding()) return null;
+      fresh(at);
+      if (move.era !== undefined && move.era !== at.ledger.era) return null;
       const receipt = receiptOf(move.game, move.round, move.step);
       const moved = receipt === null ? null : applyMove(at.ledger, receipt, move.medals);
       if (!moved) return null;
@@ -1169,8 +1181,11 @@ export function createBank(env: BankEnv) {
 
     /** Whether a move of a round's medals has been made in the medals on the table: its receipt is there. */
     applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean {
+      const at = desk;
       const receipt = receiptOf(move.game, move.round, move.step);
-      return desk !== null && receipt !== null && hasReceipt(desk.ledger, receipt);
+      if (!at || receipt === null) return false;
+      if (holding()) fresh(at);
+      return hasReceipt(at.ledger, receipt);
     },
 
     /**
@@ -1182,6 +1197,7 @@ export function createBank(env: BankEnv) {
     forget(game: string, keep: readonly string[] = []): boolean {
       const at = desk;
       if (!at || !holding()) return false;
+      fresh(at);
       const next = forgetReceipts(at.ledger, game, keep);
       if (next !== at.ledger) {
         at.ledger = next;

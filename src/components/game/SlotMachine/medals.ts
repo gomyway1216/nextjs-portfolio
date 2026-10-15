@@ -28,6 +28,14 @@
  * looked good. The tab that pulled the lever is shown the spin again when it
  * comes back, reels and all.
  *
+ * The round and the medals are two writes: the round's record here, and the
+ * medals in the bank. The round is written down before its stake is taken,
+ * and the stake and the win each go in under a receipt (`bank.apply`; see
+ * "A machine's rounds" in bank.ts), so a browser that dies between any two
+ * writes leaves nothing paid twice and nothing lost: a round written down
+ * whose stake never went in never happened, and is struck out; a round whose
+ * stake went in is paid, and a win paid already is not paid again.
+ *
  * A round is void once the medals have been reset since it began: the reset
  * threw away every medal of the era before it, those on the machine included.
  *
@@ -78,7 +86,17 @@ export interface Round {
   stops: Stops;
   /** Whether what it won has been put into the medals. */
   paid: boolean;
+  /**
+   * Whether its stake and its win go in under receipts (`bank.apply`): its
+   * stake was taken only if the bank holds the stake's receipt. A round written
+   * before there were receipts has none, and its stake was taken.
+   */
+  receipts?: true;
 }
+
+/** The names of a round's two moves of medals at the bank. */
+export const STAKE_STEP = 'stake';
+export const PAY_STEP = 'pay';
 
 /** The medals a round wins. */
 export const winOf = (round: Pick<Round, 'bet' | 'stops'>): number => resolveSpin(round.stops, round.bet).win;
@@ -97,16 +115,29 @@ export function parseRound(text: unknown): Round | null {
     return null;
   }
   if (!isRecord(value) || value.v !== ROUND_VERSION) return null;
-  const { id, tab, owner, era, bet, stops, paid } = value;
+  const { id, tab, owner, era, bet, stops, paid, receipts } = value;
   if (typeof id !== 'string' || !NAME.test(id) || typeof tab !== 'string' || !NAME.test(tab)) return null;
   if (owner !== null && (typeof owner !== 'string' || owner.length === 0 || owner.length > 128)) return null;
   if (typeof era !== 'number' || !Number.isInteger(era) || era < 0) return null;
   if (!isBet(bet) || !Array.isArray(stops) || stops.length !== 3 || !stops.every(isStop) || typeof paid !== 'boolean') return null;
-  return { v: ROUND_VERSION, id, tab, owner, era, bet, stops: [stops[0], stops[1], stops[2]], paid };
+  if (receipts !== undefined && receipts !== true) return null;
+  const round: Round = { v: ROUND_VERSION, id, tab, owner, era, bet, stops: [stops[0], stops[1], stops[2]], paid };
+  if (receipts) round.receipts = true;
+  return round;
 }
 
 export const serializeRound = (round: Round): string =>
-  JSON.stringify({ v: ROUND_VERSION, id: round.id, tab: round.tab, owner: round.owner, era: round.era, bet: round.bet, stops: round.stops, paid: round.paid });
+  JSON.stringify({
+    v: ROUND_VERSION,
+    id: round.id,
+    tab: round.tab,
+    owner: round.owner,
+    era: round.era,
+    bet: round.bet,
+    stops: round.stops,
+    paid: round.paid,
+    ...(round.receipts ? { receipts: true } : {}),
+  });
 
 /** Storage, as the machine needs it. Throws when storage is blocked. */
 export interface TableStorage {
@@ -166,6 +197,38 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
       memory.set(key, serializeRound(round));
     }
   };
+  /** What is written down for a player, as text (null for nothing), to put back if a bet is not taken after all. */
+  const textOf = (owner: string | null): { memory: boolean; text: string | null } => {
+    const key = roundKey(owner);
+    if (memory.has(key)) return { memory: true, text: memory.get(key) ?? null };
+    try {
+      return { memory: false, text: storage.read(key) };
+    } catch {
+      return { memory: false, text: null };
+    }
+  };
+  const putBack = (owner: string | null, was: { memory: boolean; text: string | null }): void => {
+    const key = roundKey(owner);
+    if (was.memory && was.text !== null) {
+      memory.set(key, was.text);
+      return;
+    }
+    memory.delete(key);
+    try {
+      if (was.text === null) storage.remove(key);
+      else storage.write(key, was.text);
+    } catch {
+      // What is there is a round whose stake was never taken: it is struck out when it is next looked at.
+    }
+  };
+  /** A move of the round's medals at the bank, under its receipt. */
+  const move = (round: Round, step: string, medals: number): 'applied' | 'already' | null =>
+    bank.apply({ game: SLOT_GAME, round: round.id, step, medals, era: round.era });
+  /**
+   * Whether an unpaid round's stake went in: the bank holds its receipt until the round is paid. A round from before
+   * receipts is taken at its word.
+   */
+  const staked = (round: Round): boolean => !round.receipts || bank.applied({ game: SLOT_GAME, round: round.id, step: STAKE_STEP });
   /** The era of the bank on the table, once it has been read. */
   const era = (): number | null => bank.getState().ledger?.era ?? null;
   const holding = (): boolean => seat?.holding() ?? false;
@@ -210,11 +273,20 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
     }
     // A round from an era this page has not heard of yet waits until it has.
     if (round.era > now) return null;
+    // Written down, and the browser died before its stake went in: it never happened. Nothing is paid for it.
+    if (!staked(round)) {
+      clear(owner, round.id);
+      return null;
+    }
+    // Paid under its receipt before it is written down as paid: should the page die between the two, the next page
+    // that pays it finds the win in already, and does not pay it again.
     const win = winOf(round);
-    if (win > 0 && !bank.give(win)) return null;
+    if (win > 0 && !move(round, PAY_STEP, win)) return null;
     // Shown already (its reels stopped while it could not be paid): nothing more is to be done with it.
     if (seen.has(round.id)) clear(owner, round.id);
     else save({ ...round, paid: true });
+    // Over, and written down as over: nothing will try its moves again.
+    bank.forget(SLOT_GAME);
     return round;
   };
 
@@ -295,9 +367,16 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
       const now = era();
       if (before && !before.paid) return { ok: false, why: 'unpaid' };
       if (now === null) return { ok: false, why: 'card' };
-      if (!bank.take(medals)) return { ok: false, why: 'medals' };
-      const round: Round = { v: ROUND_VERSION, id: name(), tab, owner, era: now, bet: medals, stops: [stops[0], stops[1], stops[2]], paid: false };
+      if (bank.balance() < medals) return { ok: false, why: 'medals' };
+      // Written down first, then the stake taken under its receipt: a page that dies between the two leaves a round
+      // whose stake the bank never took, which is struck out unpaid (`payDue`).
+      const round: Round = { v: ROUND_VERSION, id: name(), tab, owner, era: now, bet: medals, stops: [stops[0], stops[1], stops[2]], paid: false, receipts: true };
+      const was = textOf(owner);
       save(round);
+      if (move(round, STAKE_STEP, -medals) !== 'applied') {
+        putBack(owner, was);
+        return { ok: false, why: 'medals' };
+      }
       return { ok: true, round };
     },
 
@@ -323,7 +402,7 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
     leftover(): Round | null {
       const round = load(bank.owner());
       const now = era();
-      return round && round.tab === tab && !seen.has(round.id) && now !== null && round.era === now ? round : null;
+      return round && round.tab === tab && !seen.has(round.id) && now !== null && round.era === now && (round.paid || staked(round)) ? round : null;
     },
 
     /** The round written down for the medals on the table, whoever's tab it is. */

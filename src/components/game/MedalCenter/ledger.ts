@@ -98,9 +98,9 @@ export const LIMITS = {
  */
 export const RECEIPTS = {
   /** Receipts one device holds at once. */
-  device: 32,
+  device: 48,
   /** Receipts a copy keeps in all: its own device's, and other devices' while they fit. */
-  total: 64,
+  total: 80,
 } as const;
 
 /** One device's row: what it has put into the bank, and what it has taken out, in this era. */

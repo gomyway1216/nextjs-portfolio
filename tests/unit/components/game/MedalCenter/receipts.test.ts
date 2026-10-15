@@ -238,7 +238,7 @@ describe('receipts as text', () => {
     const cloud = toCloud(text, 'm'.repeat(20), 1_800_000_000_000);
     expect(cloud).not.toBeNull();
     const size = sizeOf(cloud!);
-    // Measured when receipts came in: 42,789 characters of text and 45,517 bytes on the account, against 36,809 and
+    // Measured when receipts came in: 43,893 characters of text and 46,653 bytes on the account, against 36,809 and
     // 39,209 for the same ledger with no receipts. The account takes 65,536.
     expect(size).toBeLessThanOrEqual(48 * 1024);
     expect(ACCOUNT_LIMIT - size).toBeGreaterThan(16 * 1024);

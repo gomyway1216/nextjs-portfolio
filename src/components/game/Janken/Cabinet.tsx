@@ -151,6 +151,18 @@ export const Cabinet = ({ active }: CabinetProps) => {
     litNow.current = at;
     setLit(at);
   }, []);
+  /**
+   * Stops whatever the cabinet is acting out: the hands being shown, the light running round. Done when the round
+   * on the table is replaced (read again as the card comes back, or struck out by a reset), so that no step of an
+   * old round's show is played over the new one.
+   */
+  const stopActing = useCallback(() => {
+    for (const id of timers.current) window.clearTimeout(id);
+    timers.current.clear();
+    spinningNow.current = false;
+    setSpinning(false);
+    setActing(null);
+  }, []);
 
   /**
    * The roulette: the light runs round the ring, once and on, slowing, and stops on the lamp drawn for the win. A
@@ -164,7 +176,9 @@ export const Cabinet = ({ active }: CabinetProps) => {
       const finish = () => {
         light(target);
         play('stop');
-        machine.stopped();
+        // Only the round this light was run for is stopped by it.
+        const now = machine.view().round;
+        if (now?.phase === 'spinning' && now.lamp === target) machine.stopped();
         spinningNow.current = false;
         setSpinning(false);
         const after = machine.view().round;
@@ -231,24 +245,26 @@ export const Cabinet = ({ active }: CabinetProps) => {
           return;
         }
         case 'paid':
-          if (happening.left) return;
+          // Paid as the page was hidden, the medals are in the tray when the player comes back; nothing is heard.
           setTray({ medals: happening.medals, key: Date.now() });
           setSaid({ paid: happening.medals });
+          setAnnouncement(words.announcePaid(happening.medals));
+          if (happening.left) return;
           for (let i = 0; i < Math.min(12, happening.medals); i++) play('medal', 0.05 + i * 0.07);
           if (happening.medals >= 10) play('big');
-          setAnnouncement(words.announcePaid(happening.medals));
           return;
         case 'returned':
           setAnnouncement(words.announceReturned(happening.medals));
           return;
         case 'resumed':
+          stopActing();
           setShown(null);
           setLamp(happening.round.phase === 'calling' ? null : 'win');
           setAnnouncement(words.announceResumed);
           if (happening.round.phase === 'spinning') spin(happening.round.lamp);
           return;
         case 'restarted':
-          setActing(null);
+          stopActing();
           setShown(null);
           setLamp(null);
           light(null);
@@ -258,7 +274,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
           return;
       }
     });
-  }, [machine, later, light, play, spin]);
+  }, [machine, later, light, play, spin, stopActing]);
 
   // Another tab's machine has the card: said a moment after, since the card goes away for a moment now and then.
   useEffect(() => {

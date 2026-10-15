@@ -34,7 +34,7 @@
  * a round among them, and the machine starts over with no round.
  */
 
-import type { Bank, BankEvent, BankState, Seat } from '../MedalCenter/bank';
+import { BANK_KEY, type Bank, type BankEvent, type BankState, type Seat } from '../MedalCenter/bank';
 import { drawHand, drawLamp, judge, type Hand, type Outcome } from './engine';
 import { canDouble, doubled, owed, packRound, readRound, roundKey, spun, started, thrown, type Round } from './round';
 
@@ -122,11 +122,45 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
     }
   };
 
+  /**
+   * Rounds this page could not write down (no storage, or storage that refused), under the name they would have
+   * been written under. Kept here until a write takes, so that a round is never lost to storage that cannot keep
+   * it: a medal put in, or medals won, are still this page's to settle when the card comes back.
+   */
+  const unsaved = new Map<string, Round | null>();
+
+  /**
+   * At sign-in, the medal center moves a guest's medals into an account that has none, and leaves the guest's
+   * place empty (bank.ts). A round the guest had in play was played with those medals: it goes with them, so that
+   * the account can finish it, and a guest's medals made afterwards never pay for it. When the account had medals
+   * of its own, the guest's stay the guest's, and so does the guest's round.
+   */
+  const adoptGuestRound = (): void => {
+    if (owner === null || !storage || !holding()) return;
+    const mine = roundKey(owner);
+    const guests = roundKey(null);
+    if (storage.read(mine) !== null || storage.read(BANK_KEY) !== null) return;
+    const text = storage.read(guests);
+    if (text === null || readRound(text) === null) return;
+    storage.write(mine, text);
+    storage.remove(guests);
+  };
+
   /** The round written down for whoever's medals are on the table now. */
   const read = (): void => {
     owner = bank.owner();
+    const key = roundKey(owner);
+    if (unsaved.has(key)) {
+      round = unsaved.get(key) ?? null;
+      return;
+    }
+    if (!storage) {
+      round = null;
+      return;
+    }
     try {
-      round = readRound(storage?.read(roundKey(owner)) ?? null);
+      adoptGuestRound();
+      round = readRound(storage.read(key));
     } catch {
       // Storage that cannot be read: the round in memory is all there is.
     }
@@ -134,11 +168,15 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
   /** Writes the round down. Storage that refuses still leaves the round in play on this page. */
   const write = (next: Round | null): void => {
     round = next;
+    const key = roundKey(owner);
     try {
-      if (next === null) storage?.remove(roundKey(owner));
-      else storage?.write(roundKey(owner), packRound(next));
+      if (!storage) throw new Error('nowhere to write');
+      if (next === null) storage.remove(key);
+      else storage.write(key, packRound(next));
+      unsaved.delete(key);
     } catch {
-      // Not kept: the page plays on, and the medals are where the bank says.
+      // Not kept: the page plays on with the round it has, and the medals are where the bank says.
+      unsaved.set(key, next);
     }
     publish();
   };
@@ -152,6 +190,14 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
     if (had) tell({ type: 'restarted' });
     return true;
   };
+
+  /*
+   * Paying and striking the round out are one step: `bank.give` writes the medals down and the round is removed
+   * straight after, with nothing able to run between the two (no other code runs in the middle of a step). A page
+   * that holds the card is the only one that does either. What the bank does not offer is a receipt written in
+   * the same write as the medals, so a browser killed in the instant between the two writes would leave the round
+   * to be paid again by the next page; the Slot Machine (#867) stands on the same ground.
+   */
 
   /** Settles the round as the page goes: what is at stake and not thrown is given back, what is won is paid. */
   const settle = (): void => {
@@ -225,10 +271,12 @@ export function createMachine({ bank, storage, random }: MachineDeps) {
       read();
       publish();
       return () => {
+        // The seat is left first, while it is still this machine's: leaving lets the card go, and as it goes the round
+        // is settled (a medal not thrown given back, medals won paid). Only then is the machine put away.
+        mine.leave();
+        if (seat === mine) seat = null;
         unsubscribe();
         unlisten();
-        if (seat === mine) seat = null;
-        mine.leave();
         publish();
       };
     },

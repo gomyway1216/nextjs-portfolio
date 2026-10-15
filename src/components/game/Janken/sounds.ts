@@ -284,14 +284,18 @@ export function createSpeaker(): Speaker {
     on: () => enabled,
     set(on) {
       enabled = on;
-      if (!on) return;
+      if (!on) {
+        // Switched off, nothing more is heard: what is playing, and what was already set to play a moment later.
+        if (audio && master) master.gain.setValueAtTime(0, audio.currentTime);
+        return;
+      }
       try {
         if (!audio && typeof AudioContext !== 'undefined') {
           audio = new AudioContext();
           master = audio.createGain();
-          master.gain.value = MASTER;
           master.connect(audio.destination);
         }
+        if (audio && master) master.gain.setValueAtTime(MASTER, audio.currentTime);
         void audio?.resume();
       } catch {
         audio = null;

@@ -188,6 +188,32 @@ test('the medal center’s reset throws away a medal in play with the rest, and 
   await hub.close();
 });
 
+test('a reset in the middle of a win leaves nothing of that win behind: the next win stops on its own lamp', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await openJanken(page);
+  await insert(page);
+  // A win on the 10; while the hands are shown or the light is running, the medals are reset at the medal center.
+  await cat(page, [CAT.choki, lamp(0)]);
+  await page.getByTestId('janken-hand-gu').click();
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await hub.getByTestId('center-reset').click();
+  await hub.getByTestId('center-reset-confirm').click();
+  await expect(hub.getByTestId('center-balance')).toHaveText(String(WELCOME));
+  await hub.close();
+  await expect(cabinet(page)).toHaveAttribute('data-phase', 'idle', { timeout: 10_000 });
+  await expect(page.getByTestId('janken-medals')).toHaveText(String(WELCOME));
+  // The next round is its own: its light stops on its own lamp and offers its own medals.
+  await insert(page);
+  await cat(page, [CAT.choki, lamp(15)]);
+  await page.getByTestId('janken-hand-gu').click();
+  await expect(cabinet(page)).toHaveAttribute('data-phase', 'offer', { timeout: 15_000 });
+  await expect(page.getByTestId('janken-face')).toHaveAttribute('data-lit', '15');
+  await expect(page.getByTestId('janken-win')).toHaveText('5');
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('janken-face')).toHaveAttribute('data-lit', '15');
+});
+
 test('fits a phone’s width in both languages, with the odds on their own tab', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];

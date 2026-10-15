@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { LAMPS, MAX_DOUBLES } from '@/components/game/Janken/engine';
-import { JANKEN_GAME, createMachine, type Happening } from '@/components/game/Janken/machine';
+import { JANKEN_GAME, createMachine, type Happening, type RoundStorage } from '@/components/game/Janken/machine';
 import { ROUND_KEY, readRound, roundKey } from '@/components/game/Janken/round';
-import { ledgerKey } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger, restartDue } from '@/components/game/MedalCenter/ledger';
+import { BANK_KEY, ledgerKey } from '@/components/game/MedalCenter/bank';
+import { WELCOME, balanceOf, createLedger, parseLedger, restartDue, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { BONUS_CARD } from '@/components/game/MedalPusher/records';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
 
 // The machine with the medal center's real bank, in a browser that is all fakes (bankFakes.ts): one storage that every
@@ -15,12 +17,15 @@ const CAT = { gu: 0.1, choki: 0.5, pa: 0.9 } as const;
 /** The random number that stops the roulette on a lamp. */
 const lamp = (at: number) => (at + 0.5) / LAMPS.length;
 
+/** The page's storage, as the machine is given it. */
+const storageOf = (page: FakePage): RoundStorage => ({ read: (key) => page.env.read(key), write: (key, text) => page.env.write(key, text), remove: (key) => page.env.remove(key) });
+
 /** A page with the machine on it, playing from the page's bank, its cat drawing from `draws` in order. */
-function cabinet(page: FakePage) {
+function cabinet(page: FakePage, storage: RoundStorage | null = storageOf(page)) {
   const draws: number[] = [];
   const machine = createMachine({
     bank: page.bank,
-    storage: { read: (key) => page.env.read(key), write: (key, text) => page.env.write(key, text), remove: (key) => page.env.remove(key) },
+    storage,
     random: () => {
       if (draws.length === 0) throw new Error('the test did not say what the cat draws');
       return draws.shift()!;
@@ -32,11 +37,13 @@ function cabinet(page: FakePage) {
   return { machine, happened, close, draws };
 }
 
-/** The player's medals as this browser keeps them. */
-const stored = (browser: FakeBrowser): number => {
-  const ledger = parseLedger(browser.storage.get(ledgerKey(null)) ?? null);
+/** The player's medals as this browser keeps them: a guest's, or an account's. */
+const stored = (browser: FakeBrowser, uid: string | null = null): number => {
+  const ledger = parseLedger(browser.storage.get(ledgerKey(uid)) ?? null);
   return ledger ? balanceOf(ledger) : -1;
 };
+const UID = 'test-player-1';
+const GUEST_PLAYER = { uid: null, settled: true, expected: false };
 const roundIn = (browser: FakeBrowser) => readRound(browser.storage.get(ROUND_KEY) ?? null);
 
 /** A page with the machine on it, its card held and its medals found. */
@@ -329,5 +336,127 @@ describe('the round’s place in storage', () => {
   it('keeps a guest’s round and an account’s apart', () => {
     expect(roundKey(null)).toBe(ROUND_KEY);
     expect(roundKey('someone')).toBe(`${ROUND_KEY}:someone`);
+  });
+});
+
+describe('a round and the page it is on', () => {
+  it('settles the round as the cabinet is put away without the page going (moving to another page of the site)', async () => {
+    const browser = new FakeBrowser();
+    const first = await opened(browser);
+    first.machine.insert();
+    expect(stored(browser)).toBe(WELCOME - 1);
+    first.close();
+    await quiet(browser);
+    expect(first.happened.at(-1)).toEqual({ type: 'returned', medals: 1 });
+    expect(stored(browser)).toBe(WELCOME);
+    expect(roundIn(browser)).toBeNull();
+
+    // And medals won, the same way.
+    const second = cabinet(first.page);
+    await quiet(browser);
+    second.machine.insert();
+    second.draws.push(CAT.choki, lamp(0));
+    second.machine.press('gu');
+    second.close();
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME - 1 + 10);
+    expect(roundIn(browser)).toBeNull();
+  });
+
+  it('keeps a round it could not write down, and settles it when the card comes back from a moment’s loan', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const { machine, happened } = cabinet(page, null);
+    await quiet(browser);
+    expect(machine.insert()).toBe(true);
+    expect(stored(browser)).toBe(WELCOME - 1);
+    // The medal center's front borrows the card for a moment to pay the day's bonus, and gives it back.
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME - 1 + BONUS_CARD[0]);
+    // The card went to the front and came back: the machine read its round again, and found the one it had kept.
+    expect(happened.filter((h) => h.type === 'resumed')).toHaveLength(1);
+    expect(machine.view()).toMatchObject({ ready: true, round: expect.objectContaining({ phase: 'calling', stake: 1 }) });
+    page.close();
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME + BONUS_CARD[0]);
+  });
+
+  it('keeps a round whose write storage refused, rather than the older one storage still holds', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const storage = storageOf(page);
+    let refuse = false;
+    const { machine, draws } = cabinet(page, {
+      ...storage,
+      write: (key, text) => {
+        if (refuse) throw new Error('full');
+        storage.write(key, text);
+      },
+    });
+    await quiet(browser);
+    machine.insert();
+    refuse = true;
+    draws.push(CAT.choki, lamp(0));
+    machine.press('gu');
+    // Storage still holds the round as it was called; this page holds the win.
+    expect(roundIn(browser)?.phase).toBe('calling');
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME - 1 + BONUS_CARD[0]);
+    expect(machine.view().round).toMatchObject({ phase: 'spinning', win: 10 });
+    machine.stopped();
+    expect(machine.collect()).toBe(true);
+    expect(stored(browser)).toBe(WELCOME - 1 + BONUS_CARD[0] + 10);
+  });
+});
+
+describe('a round across a sign-in', () => {
+  it('goes with the guest’s medals into an account that had none, and is finished and paid there', async () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    const { page, machine, draws } = await opened(browser);
+    machine.insert();
+    expect(stored(browser)).toBe(WELCOME - 1);
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: WELCOME - 1 });
+    expect(browser.storage.has(BANK_KEY)).toBe(false);
+    expect(browser.storage.has(ROUND_KEY)).toBe(false);
+    expect(readRound(browser.storage.get(roundKey(UID)) ?? null)).toMatchObject({ phase: 'calling', stake: 1 });
+    expect(machine.view()).toMatchObject({ ready: true, round: expect.objectContaining({ phase: 'calling' }) });
+    draws.push(CAT.choki, lamp(15));
+    machine.press('gu');
+    machine.stopped();
+    expect(machine.collect()).toBe(true);
+    expect(stored(browser, UID)).toBe(WELCOME - 1 + 5);
+    // Signed out, the guest has a new member's medals and no round of the account's to finish.
+    page.bank.attend(GUEST_PLAYER, accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME });
+    expect(machine.view().round).toBeNull();
+  });
+
+  it('stays the guest’s when the account has medals of its own, and is there for the guest again after signing out', async () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    accounts.put(UID, serializeLedger(createLedger('laptop0001', 500)), 'm-elsewhere');
+    const { page, machine } = await opened(browser);
+    machine.insert();
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: UID, balance: 500 });
+    expect(machine.view().round).toBeNull();
+    expect(roundIn(browser)).toMatchObject({ phase: 'calling', stake: 1 });
+    page.bank.attend(GUEST_PLAYER, accounts.store);
+    await quiet(browser);
+    expect(page.bank.getState()).toMatchObject({ owner: null, balance: WELCOME - 1 });
+    expect(machine.view().round).toMatchObject({ phase: 'calling', stake: 1 });
   });
 });

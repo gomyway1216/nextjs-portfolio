@@ -80,8 +80,9 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-blackjack')).toHaveAttribute('href', '/games/blackjack');
   await expect(page.getByTestId('center-play-video-poker')).toHaveAttribute('href', '/games/video-poker');
   await expect(page.getByTestId('center-play-baccarat')).toHaveAttribute('href', '/games/baccarat');
+  await expect(page.getByTestId('center-play-craps')).toHaveAttribute('href', '/games/craps');
   await expect(page.getByTestId('center-play-three-card-poker')).toHaveAttribute('href', '/games/three-card-poker');
-  for (const id of ['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'three-card-poker']) {
+  for (const id of ['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
   // Eight machines on the floor: those open, and the rest shown as coming.

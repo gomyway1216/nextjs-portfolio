@@ -30,7 +30,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'blackjack', path: '/games/blackjack' },
   { id: 'video-poker', path: '/games/video-poker' },
   { id: 'baccarat', path: '/games/baccarat' },
-  { id: 'craps', path: null },
+  { id: 'craps', path: '/games/craps' },
   { id: 'three-card-poker', path: '/games/three-card-poker' },
 ];
 
@@ -233,19 +233,23 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
               );
             })}
           </ul>
-          {/* The machines still to come onto the floor, shown honestly as not open yet. */}
-          <h3 className={styles.soonTitle}>{t.soon}</h3>
-          <p className={styles.sectionLead}>{t.soonNote}</p>
-          <ul className={styles.soonList} data-testid="center-soon">
-            {FLOOR.filter(({ path }) => path === null).map(({ id }) => (
-              <li key={id} className={styles.soonMachine} data-open="false" data-machine={id}>
-                <div className={styles.soonCover}>
-                  <Image src={getGameCoverPath(id)} alt="" fill sizes="(min-width: 900px) 240px, 45vw" />
-                </div>
-                <span className={styles.soonName}>{translate(`games.${id}.title`)}</span>
-              </li>
-            ))}
-          </ul>
+          {/* The machines still to come onto the floor, shown honestly as not open yet; none, once every one is open. */}
+          {FLOOR.some(({ path }) => path === null) && (
+            <>
+              <h3 className={styles.soonTitle}>{t.soon}</h3>
+              <p className={styles.sectionLead}>{t.soonNote}</p>
+              <ul className={styles.soonList} data-testid="center-soon">
+                {FLOOR.filter(({ path }) => path === null).map(({ id }) => (
+                  <li key={id} className={styles.soonMachine} data-open="false" data-machine={id}>
+                    <div className={styles.soonCover}>
+                      <Image src={getGameCoverPath(id)} alt="" fill sizes="(min-width: 900px) 240px, 45vw" />
+                    </div>
+                    <span className={styles.soonName}>{translate(`games.${id}.title`)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
 
         {/* The plate by the counter that says how the bank works. */}

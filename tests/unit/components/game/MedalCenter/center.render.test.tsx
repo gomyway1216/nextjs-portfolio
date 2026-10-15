@@ -28,7 +28,7 @@ describe('the medal center’s front, as the server sends it', () => {
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
     // The casino games on the medals so far: open, and each Play link goes to its own page in the catalog.
-    const open = ['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'three-card-poker'];
+    const open = ['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker'];
     for (const id of open) {
       expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
       const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
@@ -36,6 +36,8 @@ describe('the medal center’s front, as the server sends it', () => {
     }
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
     for (const id of open) expect(soon).not.toContain(id);
+    // With nothing still to come, the coming-soon shelf is not there at all.
+    if (soon.length === 0) expect(html).not.toContain('data-testid="center-soon"');
     expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
     // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
     for (const { id, path } of FLOOR) {
@@ -52,7 +54,9 @@ describe('the medal center’s front, as the server sends it', () => {
     const t = getCenterStrings('ja');
     expect(html).toContain('持ちメダル');
     expect(html).toContain('メダルをリセット');
-    expect(html).toContain(t.soon);
+    expect(html).toContain(t.floorTitle);
+    // Every casino game is on the floor now: nothing is shown as coming.
+    expect(html).not.toContain(t.soon);
     expect(t.resetDialogBody('2,480', true)).toContain('すべての端末');
     expect(getCenterStrings('en').resetDialogBody('2,480', false)).not.toContain('every device');
   });

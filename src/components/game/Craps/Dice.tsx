@@ -71,10 +71,16 @@ interface DiceTrayProps {
   /** Bump for every roll; 0 = not rolled yet. Must never repeat. */
   rollId: number;
   onSettled?: () => void;
+  /**
+   * The roll the dice show while nothing is being thrown here: the table's last
+   * roll, after a reload or another tab's throw. They turn up its faces where
+   * they lie, with no throw played again. Null: the faces they show already.
+   */
+  resting?: Dice | null;
   label: string;
 }
 
-export const DiceTray = ({ dice, rollId, onSettled, label }: DiceTrayProps) => {
+export const DiceTray = ({ dice, rollId, onSettled, resting = null, label }: DiceTrayProps) => {
   const dieRefs = useRef<(HTMLDivElement | null)[]>([]);
   const shadowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const onSettledRef = useRef(onSettled);
@@ -108,6 +114,15 @@ export const DiceTray = ({ dice, rollId, onSettled, label }: DiceTrayProps) => {
   useEffect(() => {
     if (dice === null) RESTING.forEach((frame, i) => placeDie(i, frame));
   }, [dice]);
+
+  // Nothing in the air: the dice show the table's last roll where they lie.
+  useEffect(() => {
+    if (!settled || !resting) return;
+    resting.forEach((face, i) => {
+      const die = dieRefs.current[i];
+      if (die && die.dataset.face !== String(face)) die.dataset.face = String(face);
+    });
+  }, [settled, resting]);
 
   useEffect(() => {
     if (rollId === 0 || dice === null) return;

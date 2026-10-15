@@ -12,11 +12,25 @@ import {
   toNumber,
   type Fraction,
 } from './analysis';
-import { WAYS } from './engine';
+import { LAY_ODDS, PLACE_PAYS, TRUE_ODDS, WAYS, type BetId, type PointNumber, type Ratio } from './engine';
 import { getStrings } from './i18n';
+import { stakeStep } from './medalTable';
 import styles from './Craps.module.css';
 
 const BETS = [...allBetOdds()].sort((a, b) => toNumber(a.houseEdge) - toNumber(b.houseEdge));
+/** The bets that pay a fraction of their stake, and how many medals each takes at a time so that it pays whole medals. */
+const PAIRS = [
+  [4, 10],
+  [5, 9],
+  [6, 8],
+] as const satisfies readonly (readonly [PointNumber, PointNumber])[];
+const WHOLE_ROWS = (['place', 'passOdds', 'dontPassOdds'] as const).flatMap((kind) =>
+  PAIRS.map(([a, b]) => {
+    const pays: Ratio = kind === 'place' ? PLACE_PAYS[a] : kind === 'passOdds' ? TRUE_ODDS[a] : LAY_ODDS[a];
+    const id: BetId = kind === 'place' ? (`place${a}` as BetId) : kind;
+    return { kind, a, b, pays: `${pays[0]}:${pays[1]}`, step: stakeStep(id, a) };
+  }),
+);
 const MAX_EDGE = Math.max(...BETS.map((b) => toNumber(b.houseEdge)));
 const PASS = passLineBreakdown();
 const STRATEGIES = [
@@ -104,6 +118,34 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.edgeNote}</p>
+      </section>
+
+      <section className={styles.panel} aria-labelledby="craps-whole-title">
+        <h3 id="craps-whole-title" className={styles.blockTitle}>
+          {t.wholeTitle}
+        </h3>
+        <p className={styles.note}>{t.wholeIntro}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="craps-whole-medals">
+            <thead>
+              <tr>
+                <th>{t.colBet}</th>
+                <th>{t.colPays}</th>
+                <th className={styles.num}>{t.colStep}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {WHOLE_ROWS.map((row) => (
+                <tr key={`${row.kind}-${row.a}`} data-whole={`${row.kind}-${row.a}`}>
+                  <td>{t.wholeRow(row.kind, row.a, row.b)}</td>
+                  <td>{row.pays}</td>
+                  <td className={styles.num}>{t.stepCell(row.step)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={styles.note}>{t.wholeNote}</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-pass-title">

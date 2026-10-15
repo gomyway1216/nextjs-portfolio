@@ -20,6 +20,10 @@ import {
   type TableStorage,
 } from '@/components/game/SlotMachine/medals';
 import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
+
+const UID = 'test-player-1';
+const GUEST_PLAYER = { uid: null, settled: true, expected: false };
 
 // The slot machine at the medal center's bank, run against the real bank in a fake browser (bankFakes.ts): one
 // storage that every page shares, the one card, and pages that can be hidden, left, reloaded or lost. Nothing is
@@ -53,9 +57,9 @@ function slot(page: FakePage, tab = 'taba', storage: TableStorage = page.env) {
   return { table, events, getUp };
 }
 
-const stored = (browser: FakeBrowser) => parseLedger(browser.storage.get(ledgerKey(null)) ?? null);
-const storedBalance = (browser: FakeBrowser): number | null => {
-  const ledger = stored(browser);
+const stored = (browser: FakeBrowser, uid: string | null = null) => parseLedger(browser.storage.get(ledgerKey(uid)) ?? null);
+const storedBalance = (browser: FakeBrowser, uid: string | null = null): number | null => {
+  const ledger = stored(browser, uid);
   return ledger ? balanceOf(ledger) : null;
 };
 const storedRound = (browser: FakeBrowser, owner: string | null = null): Round | null => parseRound(browser.storage.get(roundKey(owner)) ?? null);
@@ -269,6 +273,87 @@ describe('the card', () => {
     expect(storedBalance(browser)).toBe(WELCOME + 997);
   });
 
+  it('pays the round under way when the machine is put away mid-spin, as when the player goes to another page of the site', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    const one = slot(page, 'taba');
+    await quiet(browser);
+    const round = bet(one.table, 2, JACKPOT);
+    // The play tab is taken down (a client-side navigation): it gets up from the bank with the card still in hand.
+    one.getUp();
+    expect(storedBalance(browser)).toBe(WELCOME - 2 + 2000);
+    expect(storedRound(browser)).toEqual({ ...round, paid: true });
+    await quiet(browser);
+    expect(hub.bank.getState().balance).toBe(WELCOME + 1998);
+    // Coming back to it in the same tab shows the spin the player did not see stop, and pays nothing more.
+    const back = slot(page, 'taba');
+    await quiet(browser);
+    expect(back.table.leftover()?.id).toBe(round.id);
+    back.table.finish(round);
+    expect(storedRound(browser)).toBeNull();
+    expect(storedBalance(browser)).toBe(WELCOME + 1998);
+  });
+
+  it('never writes or removes a round without the card: a stale tab cannot remove the round another tab has just written', async () => {
+    const browser = new FakeBrowser();
+    const first = browser.open();
+    const touched: string[] = [];
+    // The first tab's storage, which notes every write and removal it makes.
+    const watched: TableStorage = {
+      read: first.env.read,
+      write: (key, text) => {
+        touched.push(`write ${key}`);
+        first.env.write(key, text);
+      },
+      remove: (key) => {
+        touched.push(`remove ${key}`);
+        first.env.remove(key);
+      },
+    };
+    const one = slot(first, 'taba', watched);
+    await quiet(browser);
+    const mine = bet(one.table, 1, CHERRY);
+    const second = browser.open();
+    const two = slot(second, 'tabb');
+    await quiet(browser);
+    expect(one.table.holding()).toBe(false);
+    // The second tab bets before the first tab's reels have stopped.
+    const theirs = bet(two.table, 3, JACKPOT);
+    touched.length = 0;
+    // The first tab's reels stop now, and it may still be reading what it wrote itself: whatever it reads, it touches nothing.
+    browser.storage.set(ROUND_KEY, serializeRound({ ...mine, paid: true }));
+    expect(one.table.finish(mine)).toBe(true);
+    expect(touched).toEqual([]);
+    browser.storage.set(ROUND_KEY, serializeRound(theirs));
+    // The second tab's round is whole, and pays when its reels stop.
+    expect(two.table.finish(theirs)).toBe(true);
+    expect(storedBalance(browser)).toBe(WELCOME - 1 + 2 - 3 + 3000);
+    expect(storedRound(browser)).toBeNull();
+  });
+
+  it('clears a round shown without the card the next time it holds the card, and does not show it again', async () => {
+    const browser = new FakeBrowser();
+    const first = browser.open();
+    const one = slot(first, 'taba');
+    await quiet(browser);
+    const round = bet(one.table, 1, JACKPOT);
+    const second = browser.open();
+    slot(second, 'tabb');
+    await quiet(browser);
+    // Paid as the card went; its reels stop afterwards, with the card in the other tab: it stays written down for now.
+    expect(one.table.finish(round)).toBe(true);
+    expect(storedRound(browser)).toEqual({ ...round, paid: true });
+    expect(one.table.leftover()).toBeNull();
+    one.table.play();
+    await quiet(browser);
+    expect(one.table.holding()).toBe(true);
+    expect(storedRound(browser)).toBeNull();
+    expect(one.table.leftover()).toBeNull();
+    expect(storedBalance(browser)).toBe(WELCOME + 999);
+  });
+
   it('lends the card to the medal center’s front for a moment mid-spin: the round is paid once, around the day’s bonus', async () => {
     const browser = new FakeBrowser();
     const hub = browser.open();
@@ -306,6 +391,41 @@ describe('the card', () => {
     expect(two.table.payDue()).toBeNull();
     expect(one.table.payDue()).toBeNull();
     // (Two such tabs can still lose a medal to each other in the bank itself, as bank.ts says: that is not the round's.)
+  });
+});
+
+describe('a player who signs out and in again mid-spin', () => {
+  it('pays the round into their own medals once they are back, and never shows or counts it a second time', async () => {
+    const browser = new FakeBrowser();
+    const accounts = new FakeAccounts(() => browser.clock);
+    const page = browser.open();
+    page.bank.attend(signedIn(UID), accounts.store);
+    const { table } = slot(page, 'taba');
+    await quiet(browser);
+    expect(page.bank.owner()).toBe(UID);
+    const before = page.bank.balance();
+    const round = bet(table, 1, JACKPOT);
+    expect(round.owner).toBe(UID);
+
+    // Signed out while the reels turn: the guest's medals are on the table, and the round is not theirs to be paid.
+    page.bank.attend(GUEST_PLAYER, accounts.store);
+    await quiet(browser);
+    expect(page.bank.owner()).toBeNull();
+    expect(table.finish(round)).toBe(false);
+    expect(storedBalance(browser, UID)).toBe(before - 1);
+    expect(page.bank.getState().balance).toBe(WELCOME);
+    expect(table.leftover()).toBeNull();
+
+    // Back in, with the machine still open: it is paid into their medals, once, and is not shown again.
+    page.bank.attend(signedIn(UID), accounts.store);
+    await quiet(browser);
+    expect(page.bank.owner()).toBe(UID);
+    expect(table.payDue()?.id).toBe(round.id);
+    expect(table.leftover()).toBeNull();
+    expect(storedRound(browser, UID)).toBeNull();
+    expect(table.payDue()).toBeNull();
+    await quiet(browser);
+    expect(storedBalance(browser, UID)).toBe(before - 1 + 1000);
   });
 });
 

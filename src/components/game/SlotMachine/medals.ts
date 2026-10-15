@@ -166,7 +166,22 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
       memory.set(key, serializeRound(round));
     }
   };
+  /** The era of the bank on the table, once it has been read. */
+  const era = (): number | null => bank.getState().ledger?.era ?? null;
+  const holding = (): boolean => seat?.holding() ?? false;
+  /**
+   * The rounds whose reels this page has stopped in front of the player: they are
+   * never shown again, and are no longer written down once they are paid.
+   */
+  const seen = new Set<string>();
+
+  /**
+   * Stops writing a round down. Only the page that holds the card does: a page
+   * without it may not yet have heard of a round another tab has written since
+   * under the same name, and would remove that one.
+   */
   const clear = (owner: string | null, id: string): void => {
+    if (!holding()) return;
     const key = roundKey(owner);
     if (load(owner)?.id !== id) return;
     memory.delete(key);
@@ -176,10 +191,6 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
       // It stays, paid: nothing more is paid for it.
     }
   };
-
-  /** The era of the bank on the table, once it has been read. */
-  const era = (): number | null => bank.getState().ledger?.era ?? null;
-  const holding = (): boolean => seat?.holding() ?? false;
 
   /**
    * Pays the round written down for the medals on the table, if one is still to
@@ -201,8 +212,20 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
     if (round.era > now) return null;
     const win = winOf(round);
     if (win > 0 && !bank.give(win)) return null;
-    save({ ...round, paid: true });
+    // Shown already (its reels stopped while it could not be paid): nothing more is to be done with it.
+    if (seen.has(round.id)) clear(owner, round.id);
+    else save({ ...round, paid: true });
     return round;
+  };
+
+  /** Settles what can be settled with the card: a round still to be paid, and a round shown and paid that is still written down. */
+  const settle = (): Round | null => {
+    const paid = payDue();
+    if (!holding()) return paid;
+    const owner = bank.owner();
+    const round = load(owner);
+    if (round && round.paid && seen.has(round.id)) clear(owner, round.id);
+    return paid;
   };
 
   /** Starts the machine over after a reset: the round written down from before it is void. */
@@ -227,12 +250,12 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
           queueMicrotask(() => {
             if (seat !== mine) return;
             if (bank.restartDue(SLOT_GAME)) startOver();
-            payDue();
+            settle();
             events.granted?.();
           }),
         yielding: (why) => {
           // Paid while the card is still here: whichever page has it next finds the round settled.
-          payDue();
+          settle();
           events.yielding?.(why);
         },
       });
@@ -243,8 +266,10 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
       return () => {
         unlisten?.();
         unlisten = null;
-        if (seat === mine) seat = null;
+        // Got up from with the card still in hand (as when the player goes to another page of the site mid-spin), so
+        // that the round under way is paid as it goes.
         mine.leave();
+        if (seat === mine) seat = null;
       };
     },
 
@@ -264,7 +289,7 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
     bet(medals: number, stops: Stops): BetResult {
       if (!isBet(medals)) return { ok: false, why: 'bet' };
       if (!holding()) return { ok: false, why: 'card' };
-      payDue();
+      settle();
       const owner = bank.owner();
       const before = load(owner);
       const now = era();
@@ -278,27 +303,27 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
 
     /**
      * The reels of a round have stopped in front of the player: it is paid if it
-     * has not been, and is no longer written down. Returns whether it has been
-     * paid (by now or before); a round that cannot be paid yet (no card, or
-     * another player's medals on the table) stays written down for later.
+     * has not been, and is no longer written down, now if this page holds the
+     * card and otherwise the next time it does; it is never shown again. Returns
+     * false only for a round that is still to be paid and cannot be yet (no card,
+     * or another player's medals on the table): it is paid when it can be. A
+     * round paid before, or made void by a reset since, is done with: true.
      */
     finish(round: Pick<Round, 'id' | 'owner'>): boolean {
-      payDue();
+      seen.add(round.id);
+      settle();
       const stored = load(round.owner);
-      if (!stored || stored.id !== round.id) return true;
-      if (!stored.paid) return false;
-      clear(round.owner, round.id);
-      return true;
+      return !(stored && stored.id === round.id && !stored.paid);
     },
 
-    /** Pays a round still to be paid, if it can be now. */
-    payDue,
+    /** Settles, with the card, what can be settled now: a round still to be paid, and one shown and paid. Returns the round paid. */
+    payDue: settle,
 
     /** The round this tab left in progress or unseen when it was last reloaded, to be shown again; or null. */
     leftover(): Round | null {
       const round = load(bank.owner());
       const now = era();
-      return round && round.tab === tab && now !== null && round.era === now ? round : null;
+      return round && round.tab === tab && !seen.has(round.id) && now !== null && round.era === now ? round : null;
     },
 
     /** The round written down for the medals on the table, whoever's tab it is. */

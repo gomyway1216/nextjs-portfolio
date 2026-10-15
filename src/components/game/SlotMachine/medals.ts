@@ -1,0 +1,359 @@
+/**
+ * The slot machine on the medal center's floor: it plays with the player's
+ * medals, the ones the medal bank keeps for every machine there
+ * (MedalCenter/bank.ts), and keeps no count of its own.
+ *
+ * ## A spin is a round
+ *
+ * The outcome of a spin is drawn when the lever is pulled, as a real machine
+ * draws it, and its stake is taken out of the medals at that moment. The round
+ * is written down then too, in the same breath: what was drawn, for how many
+ * medals, in which era of the bank (a reset at the medal center starts a new
+ * one), for whose medals, and by which tab. It is settled exactly once, by
+ * whichever of these comes first:
+ *
+ * - the reels stop;
+ * - the card goes (MedalCenter/bank.ts: the page is hidden or left, a reload
+ *   among them, or another tab's machine takes it): the round is paid while
+ *   this page still holds the card;
+ * - for a round whose page went without a word (a crash), the next time a page
+ *   of this machine holds the card.
+ *
+ * So a round in progress at a reload is never refunded and never paid twice:
+ * it resumes. That is what a real machine does after a power cut: its game
+ * state is kept through it and play carries on where it stopped (IGT's
+ * US4948138A, "Device for maintaining game state audit trail upon
+ * instantaneous power failure"). Refunding instead would let a player reload
+ * whenever the first reel stopped on nothing, and only lose the spins that
+ * looked good. The tab that pulled the lever is shown the spin again when it
+ * comes back, reels and all.
+ *
+ * A round is void once the medals have been reset since it began: the reset
+ * threw away every medal of the era before it, those on the machine included.
+ *
+ * Nothing here draws or animates; the play tab does. This file is only what
+ * happens to the medals, so that it can be run in its tests against the real
+ * bank in a fake browser.
+ */
+
+import type { Bank, Seat } from '../MedalCenter/bank';
+import { PHYSICAL_STOPS, resolveSpin, type Stops } from './engine';
+
+/** The slot machine's name at the medal bank. */
+export const SLOT_GAME = 'slot-machine';
+
+/**
+ * Medals that can be bet on one spin: one, two or three, as a Japanese medal
+ * slot takes them (パチスロ: up to three medals a game since 1977, MAX BET
+ * puts in all three). The payout is the paytable's times the medals bet, so the
+ * odds and the return do not depend on the bet.
+ */
+export const BET_OPTIONS = [1, 2, 3] as const;
+export type Bet = (typeof BET_OPTIONS)[number];
+export const isBet = (value: unknown): value is Bet => BET_OPTIONS.includes(value as Bet);
+
+/** Where a round is written down on this device: a guest's under this name, an account's under it and the account. */
+export const ROUND_KEY = 'slot-machine-round';
+export const roundKey = (owner: string | null): string => (owner === null ? ROUND_KEY : `${ROUND_KEY}:${owner}`);
+/** Where this device notes that the player has read that the machine now plays with their medals. */
+export const NOTICE_KEY = 'slot-machine-medals-notice';
+/** Where a tab keeps its own name, which lasts through its reloads (sessionStorage). */
+export const TAB_KEY = 'slot-machine-tab';
+
+export const ROUND_VERSION = 1;
+
+/** One spin's round, as it is written down. */
+export interface Round {
+  v: typeof ROUND_VERSION;
+  /** A name for the round. */
+  id: string;
+  /** The tab that pulled the lever: the one that shows it again after a reload. */
+  tab: string;
+  /** Whose medals were bet: an account's id, or null for a guest's. */
+  owner: string | null;
+  /** The bank's era when the stake was taken. */
+  era: number;
+  bet: Bet;
+  /** What was drawn: the physical stop on the payline of each reel. */
+  stops: Stops;
+  /** Whether what it won has been put into the medals. */
+  paid: boolean;
+}
+
+/** The medals a round wins. */
+export const winOf = (round: Pick<Round, 'bet' | 'stops'>): number => resolveSpin(round.stops, round.bet).win;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isStop = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < PHYSICAL_STOPS;
+const NAME = /^[a-z0-9]{1,40}$/;
+
+/** Reads a round back. Anything that is not one, whole and as written, is not a round (null), and is never paid. */
+export function parseRound(text: unknown): Round | null {
+  if (typeof text !== 'string' || text.length > 2_000) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isRecord(value) || value.v !== ROUND_VERSION) return null;
+  const { id, tab, owner, era, bet, stops, paid } = value;
+  if (typeof id !== 'string' || !NAME.test(id) || typeof tab !== 'string' || !NAME.test(tab)) return null;
+  if (owner !== null && (typeof owner !== 'string' || owner.length === 0 || owner.length > 128)) return null;
+  if (typeof era !== 'number' || !Number.isInteger(era) || era < 0) return null;
+  if (!isBet(bet) || !Array.isArray(stops) || stops.length !== 3 || !stops.every(isStop) || typeof paid !== 'boolean') return null;
+  return { v: ROUND_VERSION, id, tab, owner, era, bet, stops: [stops[0], stops[1], stops[2]], paid };
+}
+
+export const serializeRound = (round: Round): string =>
+  JSON.stringify({ v: ROUND_VERSION, id: round.id, tab: round.tab, owner: round.owner, era: round.era, bet: round.bet, stops: round.stops, paid: round.paid });
+
+/** Storage, as the machine needs it. Throws when storage is blocked. */
+export interface TableStorage {
+  read: (key: string) => string | null;
+  write: (key: string, text: string) => void;
+  remove: (key: string) => void;
+}
+
+/** What the machine acts out of what happens at the bank. */
+export interface TableEvents {
+  /** The card is this page's: the machine may take bets. */
+  granted?: () => void;
+  /** The card is going, for the reason the bank gives. Any round in progress has been paid by then. */
+  yielding?: (why: 'moment' | 'hidden' | 'left') => void;
+  /** The medals have been reset at the medal center since this machine last started over: it starts over now. */
+  restart?: () => void;
+}
+
+export interface TableDeps {
+  bank: Bank;
+  storage: TableStorage;
+  /** This tab's name (`tabName`). */
+  tab: string;
+  /** A new round's name. */
+  name: () => string;
+  events?: TableEvents;
+}
+
+/** What a bet comes to. */
+export type BetResult = { ok: true; round: Round } | { ok: false; why: 'card' | 'medals' | 'unpaid' | 'bet' };
+
+/**
+ * The machine's place at the bank: it sits down, takes stakes, pays wins,
+ * and starts over after a reset. One per page.
+ */
+export function createTable({ bank, storage, tab, name, events = {} }: TableDeps) {
+  let seat: Seat | null = null;
+  let unlisten: (() => void) | null = null;
+  /** Rounds written down while storage would not keep them: the page keeps them itself, for as long as it is open. */
+  const memory = new Map<string, string>();
+
+  const load = (owner: string | null): Round | null => {
+    const key = roundKey(owner);
+    if (memory.has(key)) return parseRound(memory.get(key));
+    try {
+      return parseRound(storage.read(key));
+    } catch {
+      return null;
+    }
+  };
+  const save = (round: Round): void => {
+    const key = roundKey(round.owner);
+    try {
+      storage.write(key, serializeRound(round));
+      memory.delete(key);
+    } catch {
+      memory.set(key, serializeRound(round));
+    }
+  };
+  const clear = (owner: string | null, id: string): void => {
+    const key = roundKey(owner);
+    if (load(owner)?.id !== id) return;
+    memory.delete(key);
+    try {
+      storage.remove(key);
+    } catch {
+      // It stays, paid: nothing more is paid for it.
+    }
+  };
+
+  /** The era of the bank on the table, once it has been read. */
+  const era = (): number | null => bank.getState().ledger?.era ?? null;
+  const holding = (): boolean => seat?.holding() ?? false;
+
+  /**
+   * Pays the round written down for the medals on the table, if one is still to
+   * be paid and this page holds the card. The win goes in and the round is
+   * marked paid in one breath, so that it is paid once whoever pays it. A round
+   * from before the last reset is void and is dropped. Returns the round paid.
+   */
+  const payDue = (): Round | null => {
+    if (!holding()) return null;
+    const owner = bank.owner();
+    const round = load(owner);
+    const now = era();
+    if (!round || round.paid || round.owner !== owner || now === null) return null;
+    if (round.era < now) {
+      clear(owner, round.id);
+      return null;
+    }
+    // A round from an era this page has not heard of yet waits until it has.
+    if (round.era > now) return null;
+    const win = winOf(round);
+    if (win > 0 && !bank.give(win)) return null;
+    save({ ...round, paid: true });
+    return round;
+  };
+
+  /** Starts the machine over after a reset: the round written down from before it is void. */
+  const startOver = (): void => {
+    const owner = bank.owner();
+    const round = load(owner);
+    const now = era();
+    if (round && now !== null && round.era < now) clear(owner, round.id);
+    if (bank.restartDue(SLOT_GAME)) bank.restarted(SLOT_GAME);
+    events.restart?.();
+  };
+
+  return {
+    /**
+     * Sits down at the bank: the card is asked for at once. Returns what gets
+     * up again. What the bank says is acted on a moment later, once the bank
+     * has shown it (its state is published after its handlers have run).
+     */
+    sit(): () => void {
+      const mine = bank.sit(SLOT_GAME, {
+        granted: () =>
+          queueMicrotask(() => {
+            if (seat !== mine) return;
+            if (bank.restartDue(SLOT_GAME)) startOver();
+            payDue();
+            events.granted?.();
+          }),
+        yielding: (why) => {
+          // Paid while the card is still here: whichever page has it next finds the round settled.
+          payDue();
+          events.yielding?.(why);
+        },
+      });
+      seat = mine;
+      unlisten = bank.listen((event) => {
+        if (event.type === 'reset') queueMicrotask(() => seat === mine && startOver());
+      });
+      return () => {
+        unlisten?.();
+        unlisten = null;
+        if (seat === mine) seat = null;
+        mine.leave();
+      };
+    },
+
+    /** Whether this page holds the card, so that the machine may take a bet. */
+    holding,
+
+    /** The player plays here: the card is asked back from the machine in another tab that has it. */
+    play(): void {
+      seat?.play();
+    },
+
+    /**
+     * Takes the stake for a spin whose outcome has been drawn, and writes the
+     * round down: or neither. A round of the same player's still to be paid is
+     * paid first, and while it cannot be, nothing more is bet.
+     */
+    bet(medals: number, stops: Stops): BetResult {
+      if (!isBet(medals)) return { ok: false, why: 'bet' };
+      if (!holding()) return { ok: false, why: 'card' };
+      payDue();
+      const owner = bank.owner();
+      const before = load(owner);
+      const now = era();
+      if (before && !before.paid) return { ok: false, why: 'unpaid' };
+      if (now === null) return { ok: false, why: 'card' };
+      if (!bank.take(medals)) return { ok: false, why: 'medals' };
+      const round: Round = { v: ROUND_VERSION, id: name(), tab, owner, era: now, bet: medals, stops: [stops[0], stops[1], stops[2]], paid: false };
+      save(round);
+      return { ok: true, round };
+    },
+
+    /**
+     * The reels of a round have stopped in front of the player: it is paid if it
+     * has not been, and is no longer written down. Returns whether it has been
+     * paid (by now or before); a round that cannot be paid yet (no card, or
+     * another player's medals on the table) stays written down for later.
+     */
+    finish(round: Pick<Round, 'id' | 'owner'>): boolean {
+      payDue();
+      const stored = load(round.owner);
+      if (!stored || stored.id !== round.id) return true;
+      if (!stored.paid) return false;
+      clear(round.owner, round.id);
+      return true;
+    },
+
+    /** Pays a round still to be paid, if it can be now. */
+    payDue,
+
+    /** The round this tab left in progress or unseen when it was last reloaded, to be shown again; or null. */
+    leftover(): Round | null {
+      const round = load(bank.owner());
+      const now = era();
+      return round && round.tab === tab && now !== null && round.era === now ? round : null;
+    },
+
+    /** The round written down for the medals on the table, whoever's tab it is. */
+    current: (): Round | null => load(bank.owner()),
+  };
+}
+
+export type Table = ReturnType<typeof createTable>;
+
+// ── The browser ─────────────────────────────────────────────────────────────
+
+const LETTERS = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+/** A name of twelve letters and digits, from the browser's random numbers (never `Math.random`, which a test may fix). */
+export function randomName(): string {
+  try {
+    return Array.from(window.crypto.getRandomValues(new Uint32Array(12)), (n) => LETTERS[n % LETTERS.length]).join('');
+  } catch {
+    return Array.from({ length: 12 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
+  }
+}
+
+/** This tab's name: kept in the tab's own storage, so that it is the same after a reload, and made up when there is none. */
+export function tabName(): string {
+  try {
+    const kept = window.sessionStorage.getItem(TAB_KEY);
+    if (kept && NAME.test(kept)) return kept;
+    const made = randomName();
+    window.sessionStorage.setItem(TAB_KEY, made);
+    return made;
+  } catch {
+    return randomName();
+  }
+}
+
+/** The page's storage, as the machine needs it. */
+export const browserStorage = (): TableStorage => ({
+  read: (key) => window.localStorage.getItem(key),
+  write: (key, text) => window.localStorage.setItem(key, text),
+  remove: (key) => window.localStorage.removeItem(key),
+});
+
+/** Whether the player has read, on this device, that the machine plays with their medals now. */
+export function noticeRead(storage: TableStorage): boolean {
+  try {
+    return storage.read(NOTICE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markNoticeRead(storage: TableStorage): void {
+  try {
+    storage.write(NOTICE_KEY, '1');
+  } catch {
+    // Shown again next time.
+  }
+}

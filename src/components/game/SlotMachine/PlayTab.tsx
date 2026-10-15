@@ -2,23 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import {
-  PAY_RULES,
-  analyzeMachine,
-  isJackpotNearMiss,
-  resolveSpin,
-  spinReels,
-  winningReels,
-  type SpinResult,
-  type Stops,
-} from './engine';
+import { bank as medalBank, useBank } from '../MedalCenter/bank';
+import { REFILL } from '../MedalCenter/ledger';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
+import { PAY_RULES, analyzeMachine, isJackpotNearMiss, resolveSpin, spinReels, winningReels, type SpinResult, type Stops } from './engine';
 import { getStrings } from './i18n';
+import { MedalIcon } from './MedalIcon';
+import { BET_OPTIONS, browserStorage, createTable, randomName, tabName, type Bet, type Round, type Table } from './medals';
 import { Reels } from './Reels';
 import { SlotSymbol } from './Symbols';
 import styles from './SlotMachine.module.css';
 
-export const INITIAL_CREDITS = 500;
-export const BET_OPTIONS = [1, 2, 5, 10] as const;
+export { BET_OPTIONS };
 const AUTO_SPINS = 10;
 const AUTO_GAP_MS = 450;
 /** Resting reels before the first spin: plum / BAR / plum, a non-winning line. */
@@ -26,6 +22,16 @@ const INITIAL_STOPS: Stops = [4, 8, 2];
 /** Wins at least this many times the bet get the big-win lights. */
 const BIG_WIN_MULTIPLE = 50;
 const RECENT_LIMIT = 8;
+/** How many digits each LED display has: the medals up to 9,999,999 (as the medal center's counter), the bet, and a win (3 × 1000 at most). */
+export const MEDAL_PLACES = 7;
+export const BET_PLACES = 1;
+export const WIN_PLACES = 4;
+/**
+ * How long the machine waits for the card before it says that the medals are
+ * being played in another tab, in seconds. The card is away for a moment
+ * whenever another page takes the day's bonus or the like; nothing is said of that.
+ */
+export const CARD_WAIT = 1.5;
 
 const ODDS = analyzeMachine();
 
@@ -45,7 +51,30 @@ interface RecentSpin {
   result: SpinResult;
 }
 
-export const PlayTab = () => {
+/** Who is playing, as the site says: the medals on the table have to be theirs before a medal is bet. */
+export interface SlotPlayer {
+  uid: string | null;
+  /** Whether the site is sure who is signed in. Until it is, the medals on the table are played as they are, as the Medal Pusher plays them. */
+  settled: boolean;
+}
+
+const GUEST_PLAYER: SlotPlayer = { uid: null, settled: true };
+
+/** Whether the medals on the table are the player's: a signed-in player's medals are not played while a guest's stand in for them. */
+const theirs = (player: SlotPlayer): boolean => !player.settled || medalBank().owner() === player.uid;
+
+/** The round on the reels: its name, its outcome, and whether it is one left under way before a reload. */
+interface OnReels {
+  round: Pick<Round, 'id' | 'owner'>;
+  result: SpinResult;
+  resumed: boolean;
+}
+
+export interface PlayTabProps {
+  player?: SlotPlayer;
+}
+
+export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -53,49 +82,73 @@ export const PlayTab = () => {
   const pct = (v: number, digits = 2) =>
     `${(v * 100).toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`;
 
-  const [credits, setCredits] = useState(INITIAL_CREDITS);
-  const [bet, setBet] = useState<number>(BET_OPTIONS[0]);
+  // The medals are the medal center's (MedalCenter/bank.ts), and so is the card that lets this machine play with them.
+  const medals = useBank();
+  const [bet, setBet] = useState<Bet>(BET_OPTIONS[0]);
   const [spinning, setSpinning] = useState(false);
   const [spinId, setSpinId] = useState(0);
   const [stops, setStops] = useState<Stops>(INITIAL_STOPS);
   const [anticipation, setAnticipation] = useState(false);
   const [last, setLast] = useState<SpinResult | null>(null);
+  const [lastResumed, setLastResumed] = useState(false);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   const [recent, setRecent] = useState<RecentSpin[]>([]);
   const [autoLeft, setAutoLeft] = useState(0);
   const [bigWin, setBigWin] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
 
   // Refs mirror what the spin / auto-spin callbacks must read synchronously
   // (a second click or the auto timer can fire before React re-renders).
   const spinningRef = useRef(false);
-  const creditsRef = useRef(INITIAL_CREDITS);
-  const betRef = useRef<number>(BET_OPTIONS[0]);
-  const pendingRef = useRef<SpinResult | null>(null);
+  const betRef = useRef<Bet>(BET_OPTIONS[0]);
+  const pendingRef = useRef<OnReels | null>(null);
   const recentId = useRef(0);
+  const table = useRef<Table | null>(null);
+  const playerRef = useRef(player);
+  const live = useRef({ t });
+  // The rounds left under way that this page has shown again, so that each is shown once.
+  const shown = useRef(new Set<string>());
 
-  const doSpin = useCallback(() => {
-    const stake = betRef.current;
-    if (spinningRef.current || creditsRef.current < stake) return;
+  useEffect(() => {
+    playerRef.current = player;
+    live.current = { t };
+  });
+
+  /** Sets the reels rolling to a round's outcome. */
+  const roll = useCallback((round: Pick<Round, 'id' | 'owner' | 'bet' | 'stops'>, resumed: boolean) => {
+    const result = resolveSpin(round.stops, round.bet);
     spinningRef.current = true;
-    creditsRef.current -= stake;
-    setCredits(creditsRef.current);
-    const result = resolveSpin(spinReels(), stake);
-    pendingRef.current = result;
+    pendingRef.current = { round, result, resumed };
     setStops(result.stops);
     setAnticipation(result.line[0] === 'seven' && result.line[1] === 'seven');
     setLast(null);
+    setLastResumed(false);
     setBigWin(false);
     setSpinning(true);
     setSpinId((id) => id + 1);
   }, []);
 
+  const doSpin = useCallback(() => {
+    const mine = table.current;
+    if (spinningRef.current || !mine || !theirs(playerRef.current)) return;
+    // The outcome is drawn as the lever is pulled, and the stake is taken with it (medals.ts).
+    const placed = mine.bet(betRef.current, spinReels());
+    if (!placed.ok) return;
+    roll(placed.round, false);
+  }, [roll]);
+
   const settle = useCallback(() => {
-    const result = pendingRef.current;
-    if (!result) return;
+    const pending = pendingRef.current;
     pendingRef.current = null;
-    creditsRef.current += result.win;
-    setCredits(creditsRef.current);
+    spinningRef.current = false;
+    setSpinning(false);
+    // A round the reset at the medal center made void is shown as nothing.
+    if (!pending) return;
+    // Paid now, if the card going had not paid it already (medals.ts).
+    table.current?.finish(pending.round);
+    const { result } = pending;
     setLast(result);
+    setLastResumed(pending.resumed);
     setBigWin(result.win >= result.bet * BIG_WIN_MULTIPLE);
     setStats((s) => ({
       spins: s.spins + 1,
@@ -107,15 +160,66 @@ export const PlayTab = () => {
     }));
     const entry = { id: recentId.current++, result };
     setRecent((r) => [entry, ...r].slice(0, RECENT_LIMIT));
-    spinningRef.current = false;
-    setSpinning(false);
+    if (pending.resumed) setAnnouncement(live.current.t.resumed);
   }, []);
 
-  // Auto-spin: after each settled spin, start the next one while any remain.
+  // The machine's place at the medal bank, while the page is open: the card is asked for at once, and a reset at the
+  // medal center starts the machine over.
+  useEffect(() => {
+    const mine = createTable({
+      bank: medalBank(),
+      storage: browserStorage(),
+      tab: tabName(),
+      name: randomName,
+      events: {
+        yielding: (why) => {
+          // A moment's lending (the day's bonus taken at the hub, say) gives the card straight back: auto-spin waits it out.
+          if (why !== 'moment') setAutoLeft(0);
+        },
+        restart: () => {
+          // Every medal of the era before the reset is gone, the ones on the reels with them.
+          pendingRef.current = null;
+          setStats(EMPTY_STATS);
+          setRecent([]);
+          setLast(null);
+          setLastResumed(false);
+          setBigWin(false);
+          setAutoLeft(0);
+          setAnnouncement(live.current.t.sayRestart);
+        },
+      },
+    });
+    table.current = mine;
+    const getUp = mine.sit();
+    const unlisten = medalBank().listen((event) => {
+      if (event.type === 'refill') setAnnouncement(live.current.t.sayRefill(event.medals));
+    });
+    return () => {
+      unlisten();
+      getUp();
+      if (table.current === mine) table.current = null;
+    };
+  }, []);
+
+  // Whenever the card is here and the medals on the table change hands or era: a round still to be paid is paid, and a
+  // round this tab left under way before a reload is shown again, reels and all, once.
+  const era = medals.ledger?.era ?? null;
+  useEffect(() => {
+    const mine = table.current;
+    if (!mine || medals.card !== 'here' || !medals.loaded) return;
+    mine.payDue();
+    if (spinningRef.current) return;
+    const round = mine.leftover();
+    if (!round || shown.current.has(round.id)) return;
+    shown.current.add(round.id);
+    roll(round, true);
+  }, [medals.card, medals.loaded, medals.owner, era, roll]);
+
+  // Auto-spin: after each settled spin, start the next one while any remain and the medals allow.
   useEffect(() => {
     if (spinning || autoLeft <= 0) return;
     const timer = window.setTimeout(() => {
-      if (creditsRef.current < betRef.current) {
+      if (!table.current?.holding() || !theirs(playerRef.current) || medalBank().balance() < betRef.current) {
         setAutoLeft(0);
         return;
       }
@@ -125,31 +229,35 @@ export const PlayTab = () => {
     return () => window.clearTimeout(timer);
   }, [spinning, autoLeft, doSpin]);
 
-  const chooseBet = (value: number) => {
+  // While the card is in another tab's machine, the machine says so, a moment after (it is away for a moment whenever
+  // another page takes the day's bonus or the like, and nothing need be said of that).
+  const [longWait, setLongWait] = useState(false);
+  useEffect(() => {
+    if (medals.card !== 'asking') return;
+    const timer = window.setTimeout(() => setLongWait(true), CARD_WAIT * 1000);
+    return () => {
+      window.clearTimeout(timer);
+      setLongWait(false);
+    };
+  }, [medals.card]);
+  const cardAway = medals.card === 'away' || (medals.card === 'asking' && longWait);
+
+  const chooseBet = (value: Bet) => {
     if (spinningRef.current) return;
     betRef.current = value;
     setBet(value);
   };
 
-  const reset = () => {
-    if (spinningRef.current) return;
-    creditsRef.current = INITIAL_CREDITS;
-    setCredits(INITIAL_CREDITS);
-    setStats(EMPTY_STATS);
-    setRecent([]);
-    setLast(null);
-    setBigWin(false);
-    setAutoLeft(0);
-  };
-
-  const canSpin = !spinning && credits >= bet;
+  const ready = medals.loaded && medals.card === 'here' && (!player.settled || medals.owner === player.uid);
+  const canSpin = ready && !spinning && medals.balance >= bet;
   const autoRunning = autoLeft > 0;
   const lineSymbols = last ? last.line.map((s) => t.symbolName[s]) : null;
   const observed = stats.wagered > 0 ? stats.paid / stats.wagered : null;
+  const outOfMedals = ready && !spinning && medals.balance === 0;
 
   return (
     <div className={styles.playGrid}>
-      <div className={`${styles.cabinet} ${bigWin ? styles.cabinetBigWin : ''}`} data-spinning={spinning ? 'true' : 'false'}>
+      <div className={`${styles.cabinet} ${bigWin ? styles.cabinetBigWin : ''}`} data-spinning={spinning ? 'true' : 'false'} data-card={medals.card}>
         <div className={styles.marquee} aria-hidden="true">
           <span className={styles.marqueeText}>LUCKY 7</span>
         </div>
@@ -176,34 +284,57 @@ export const PlayTab = () => {
           </button>
         </div>
 
+        {/* The medals, the bet and the win, on LED displays as a medal machine shows them. The numbers are in type
+            beside them, for a screen reader and for anything else that reads the page. */}
         <div className={styles.meters}>
-          <div className={styles.meter}>
-            <span className={styles.meterLabel}>{t.credits}</span>
-            <span className={styles.meterValue} data-testid="slot-credits">
-              {credits}
+          <div className={`${styles.meter} ${styles.meterMedals}`}>
+            <span className={styles.meterLabel}>
+              <MedalIcon className={styles.meterMedal} />
+              {t.medals}
+            </span>
+            <span className={styles.meterValue} data-testid="slot-medals" data-loaded={medals.loaded}>
+              {medals.loaded ? fmt(medals.balance) : '—'}
+            </span>
+            <span className={styles.led}>
+              <SegmentDisplay value={medals.loaded ? medals.balance : ''} places={MEDAL_PLACES} />
             </span>
           </div>
           <div className={styles.meter}>
             <span className={styles.meterLabel}>{t.bet}</span>
-            <span className={styles.meterValue}>{bet}</span>
+            <span className={styles.meterValue} data-testid="slot-bet">
+              {bet}
+            </span>
+            <span className={styles.led}>
+              <SegmentDisplay value={bet} places={BET_PLACES} tone="amber" />
+            </span>
           </div>
-          <div className={styles.meter}>
+          <div className={`${styles.meter} ${last && last.win > 0 ? styles.meterWin : ''}`}>
             <span className={styles.meterLabel}>{t.win}</span>
-            <span className={`${styles.meterValue} ${last && last.win > 0 ? styles.meterWin : ''}`} data-testid="slot-win">
+            <span className={styles.meterValue} data-testid="slot-win">
               {last ? last.win : 0}
+            </span>
+            <span className={styles.led}>
+              <SegmentDisplay value={last ? last.win : 0} places={WIN_PLACES} tone="amber" />
             </span>
           </div>
         </div>
 
-        <p className={styles.resultLine} aria-live="polite">
+        <p className={styles.resultLine} aria-live="polite" data-testid="slot-result">
           {last
             ? last.rule
               ? t.resultWin(last.win, t.ruleName[last.rule.id])
               : t.resultLose
-            : !spinning && credits < bet
-              ? t.outOfCredits
-              : ' '}
+            : outOfMedals
+              ? t.outOfMedals
+              : ready && !spinning && medals.balance < bet
+                ? t.notEnough(bet)
+                : ' '}
         </p>
+        {lastResumed && (
+          <p className={styles.resumedLine} data-testid="slot-resumed">
+            {t.resumed}
+          </p>
+        )}
 
         <div className={styles.controls}>
           <div className={styles.betRow} role="radiogroup" aria-label={t.bet}>
@@ -214,7 +345,8 @@ export const PlayTab = () => {
                 role="radio"
                 aria-checked={bet === value}
                 aria-label={t.betAria(value)}
-                className={styles.betChip}
+                className={styles.betMedal}
+                data-testid={`slot-bet-${value}`}
                 onClick={() => chooseBet(value)}
                 disabled={spinning || autoRunning}
               >
@@ -235,11 +367,35 @@ export const PlayTab = () => {
                 {t.auto(AUTO_SPINS)}
               </button>
             )}
-            <button type="button" className={styles.btn} onClick={reset} disabled={spinning || autoRunning}>
-              {t.reset}
-            </button>
           </div>
         </div>
+
+        {/* The attendant's free cupful, the medal center's own, for a player with no medals left. */}
+        {outOfMedals && (
+          <button type="button" className={styles.refill} data-testid="slot-refill" onClick={() => medalBank().refill()}>
+            {t.refill(REFILL)}
+          </button>
+        )}
+
+        <div className={styles.medalNotes}>
+          <p data-testid="slot-not-money">{t.notMoney}</p>
+          <p>
+            {t.centerNote}{' '}
+            <a className={styles.cabinetLink} href={MEDAL_CENTER_PATH} data-testid="slot-center-note-link">
+              {t.centerNoteLink}
+            </a>
+          </p>
+        </div>
+
+        {/* The member's card is in a machine in another tab: this one waits until it is played here again. */}
+        {cardAway && (
+          <div className={styles.cardAway} role="status" data-testid="slot-card-away">
+            <p>{t.cardAway}</p>
+            <button type="button" className={styles.cardAwayButton} data-testid="slot-play-here" onClick={() => table.current?.play()}>
+              {t.playHere}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className={styles.sidePanel}>
@@ -351,6 +507,10 @@ export const PlayTab = () => {
           </section>
         )}
       </div>
+
+      <p className={styles.srOnly} aria-live="polite" data-testid="slot-announcement">
+        {announcement}
+      </p>
     </div>
   );
 };

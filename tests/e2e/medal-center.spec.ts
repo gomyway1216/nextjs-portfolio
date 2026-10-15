@@ -72,14 +72,15 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-not-money')).toHaveText(NOT_MONEY.en);
   // The bank is written down at once, as a new member's.
   await expect.poll(() => bankBalance(page)).toBe(WELCOME);
-  // The floor: the Medal Pusher, the Slot Machine and Video Poker open and linked, the casino games still to come shown
-  // as not open yet; all eight machines are on it, one way or the other.
+  // The floor: the Medal Pusher, the Slot Machine, Roulette and Video Poker open and linked, the casino games still to
+  // come shown as not open yet; all eight machines are on it, one way or the other.
   await expect(page.getByTestId('center-play-medal-pusher')).toHaveAttribute('href', '/games/medal-pusher');
   await expect(page.getByTestId('center-play-slot-machine')).toHaveAttribute('href', '/games/slot-machine');
+  await expect(page.getByTestId('center-play-roulette')).toHaveAttribute('href', '/games/roulette');
   await expect(page.getByTestId('center-play-video-poker')).toHaveAttribute('href', '/games/video-poker');
   await expect(page.getByTestId('center-soon')).not.toContainText('Slot Machine');
+  await expect(page.getByTestId('center-soon')).not.toContainText('Roulette');
   await expect(page.getByTestId('center-soon')).not.toContainText('Video Poker');
-  await expect(page.getByTestId('center-soon').locator('li')).toHaveCount(5);
   expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(8);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');

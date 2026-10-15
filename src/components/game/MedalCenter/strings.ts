@@ -1,7 +1,10 @@
 /**
- * The medal center's own words, in English and Japanese. A Japanese arcade's
- * medal counter speaks of 預け入れ (depositing), 引き出し (drawing out) and
- * 預かりメダル (medals held for you); those are the words used here.
+ * The medal center's own words, in English and Japanese. Nothing here may read
+ * as money: the owner's rule is that no player should take the medals for real
+ * money. So the medals are "your medals" (持ちメダル), and none of a bank's or a
+ * money counter's words is used: no bank, deposit or withdrawal, no balance,
+ * and in Japanese no 預け・預かり・引き出し・残高. `NOT_MONEY` says it outright, and
+ * every game that plays with the medals shows it.
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
@@ -47,106 +50,119 @@ export interface CenterStrings {
   resetCancel: string;
   resetConfirm: string;
   sayReset: (medals: number) => string;
+  // That medals are not money
+  notMoney: string;
 }
+
+/**
+ * That the medals are not money, said outright. Every game that plays with the
+ * medals shows it, in the player's language, by its medal counter or its help.
+ */
+export const NOT_MONEY: Record<GameLanguage, string> = {
+  en: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+  ja: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+};
 
 const en: CenterStrings = {
   title: 'Medal Game Center',
   sign: 'MEDAL GAME CENTER',
   signSub: 'メダルゲームセンター',
-  lead: 'Your medals are kept here, in the medal bank, and every machine on the floor plays from them. What you win at one machine you can play at another.',
+  lead: 'Your medals are shared by every machine on the floor. What you win at one machine you can play at another.',
   backToGames: 'All games',
-  counterLabel: 'MEDALS IN THE BANK',
+  counterLabel: 'YOUR MEDALS',
   unit: 'medals',
   owed: (count) => `${count} medals short: two devices played the same medals at once. Your next wins pay it back.`,
   memberGuest: 'Guest',
   memberAccount: 'Member',
-  memberChecking: 'Looking for your bank…',
+  memberChecking: 'Looking for your medals…',
   where: {
     device: 'Kept on this device.',
     account: 'Kept on your account, and on every device you sign in on.',
     offline: 'Your account cannot be reached just now: kept on this device, and sent when it can be.',
-    unreadable: 'The bank on your account was saved by a newer version of the site: it is left as it is, and this device keeps its own.',
-    checking: 'Looking for the bank on your account…',
+    unreadable: 'The medals on your account were saved by a newer version of the site: they are left as they are, and this device keeps its own.',
+    checking: 'Looking for the medals on your account…',
   },
-  notKept: 'This browser is not keeping anything: the bank starts again when the page is reloaded.',
+  notKept: 'This browser is not keeping anything: your medals start again when the page is reloaded.',
   signInInvite: 'Sign in to keep your medals on your account.',
   refill: (medals) => `Out of medals — take ${medals} more`,
-  sayRefill: (medals) => `${medals} medals put into your bank.`,
-  sayBonus: (medals) => `Daily bonus: ${medals} medals put into your bank.`,
+  sayRefill: (medals) => `${medals} medals added to yours.`,
+  sayBonus: (medals) => `Daily bonus: ${medals} medals added to yours.`,
   floorTitle: 'THE FLOOR',
-  floorLead: 'Every open machine draws its medals straight from your bank, and pays what it wins back into it.',
+  floorLead: 'Every open machine plays with your medals, and the medals it wins come straight back to you.',
   open: 'OPEN',
   soon: 'COMING SOON',
   play: 'Play',
-  playsFromBank: 'Plays from your medal bank.',
+  playsFromBank: 'Plays with your medals.',
   soonNote: 'These casino games are coming onto the medal floor one by one. Until each does, it keeps its own chips on its own page, apart from your medals.',
-  rulesTitle: 'THE MEDAL BANK',
+  rulesTitle: 'ABOUT YOUR MEDALS',
   rules: [
-    'Every medal you win at a machine goes back into the bank as it lands, and every medal you drop is taken out of it. Nothing is held at the machine.',
-    'Medals stay in the bank until you reset them here. They do not run out after 30 days as a real shop’s do.',
+    'Every medal you drop at a machine comes out of your medals, and every medal you win is added to them as it lands. Nothing is left behind at the machine.',
+    'Your medals stay until you reset them here. They do not run out after 30 days as a real arcade’s do.',
     'Run out, and the attendant brings a free cupful of 100. Once a day there is the daily bonus.',
     'Your medals can be played at one machine at a time, like a member’s card in one cabinet: open a machine in another tab and the first one waits.',
   ],
   resetTitle: 'RESET',
-  resetLead: 'Throws away every medal in the bank and starts every machine over. The daily bonus card is kept.',
+  resetLead: 'Throws away all your medals and starts every machine over. The daily bonus card is kept.',
   resetButton: 'Reset medals',
   resetDialogTitle: 'Reset your medals?',
   resetDialogBody: (medals, account) =>
-    `The ${medals} medals in your bank are thrown away, and the bank starts again with 100 medals, as a new member’s. Every machine starts over, with a new field and its jackpot back at the start.${account ? ' This is your account’s bank: it is reset on every device you sign in on.' : ''}`,
+    `Your ${medals} medals are thrown away, and you start again with 100 medals, as a new member does. Every machine starts over, with a new field and its jackpot back at the start.${account ? ' These are your account’s medals: they are reset on every device you sign in on.' : ''}`,
   resetKeeps: 'Your daily bonus card and your record book are kept. This cannot be undone.',
   resetCancel: 'Keep my medals',
   resetConfirm: 'Reset medals',
-  sayReset: (medals) => `Your medals have been reset. The bank holds ${medals} medals, and every machine has started over.`,
+  sayReset: (medals) => `Your medals have been reset. You have ${medals} medals, and every machine has started over.`,
+  notMoney: NOT_MONEY.en,
 };
 
 const ja: CenterStrings = {
   title: 'メダルゲームセンター',
   sign: 'MEDAL GAME CENTER',
   signSub: 'メダルゲームセンター',
-  lead: 'メダルはここのメダルバンクに預けてあり、フロアのどのマシンもそこから遊びます。あるマシンで勝ったメダルを、別のマシンで遊べます。',
+  lead: 'メダルはフロアのすべてのマシンで共通です。あるマシンで勝ったメダルを、別のマシンで遊べます。',
   backToGames: 'ゲーム一覧',
-  counterLabel: '預かりメダル',
+  counterLabel: '持ちメダル',
   unit: '枚',
   owed: (count) => `${count}枚足りません。2つの端末で同じメダルを同時に遊んだためです。次に勝ったメダルで埋まります。`,
   memberGuest: 'ゲスト',
   memberAccount: '会員',
-  memberChecking: 'メダルバンクを確認しています…',
+  memberChecking: 'メダルを確認しています…',
   where: {
-    device: 'この端末に預けてあります。',
-    account: 'アカウントに預けてあります。サインインしたどの端末でも使えます。',
-    offline: 'いまアカウントに接続できません。この端末に預けてあり、接続できしだい送ります。',
-    unreadable: 'アカウントのメダルバンクは新しい版のサイトで保存されています。そのまま残し、この端末では端末の分を使います。',
-    checking: 'アカウントのメダルバンクを確認しています…',
+    device: 'この端末に保存しています。',
+    account: 'アカウントに保存しています。サインインしたどの端末でも使えます。',
+    offline: 'いまアカウントに接続できません。この端末に保存し、接続できしだい送ります。',
+    unreadable: 'アカウントのメダルは新しい版のサイトで保存されています。そのまま残し、この端末では端末の分を使います。',
+    checking: 'アカウントのメダルを確認しています…',
   },
-  notKept: 'このブラウザには保存できません。ページを読み込み直すと、メダルバンクは最初からになります。',
-  signInInvite: 'サインインすると、メダルをアカウントに預けておけます。',
+  notKept: 'このブラウザには保存できません。ページを読み込み直すと、メダルは最初からになります。',
+  signInInvite: 'サインインすると、メダルをアカウントに保存できます。',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
-  sayRefill: (medals) => `メダルバンクに${medals}枚入りました。`,
-  sayBonus: (medals) => `デイリーボーナス: メダルバンクに${medals}枚入りました。`,
+  sayRefill: (medals) => `メダルが${medals}枚増えました。`,
+  sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
   floorTitle: 'フロア',
-  floorLead: '遊べるマシンは、メダルバンクから直接メダルを引き出し、勝った分をそのまま預け入れます。',
+  floorLead: '遊べるマシンは持ちメダルで遊べ、勝ったメダルはそのまま持ちメダルに加わります。',
   open: '営業中',
   soon: '準備中',
   play: '遊ぶ',
-  playsFromBank: 'メダルバンクのメダルで遊べます。',
+  playsFromBank: '持ちメダルで遊べます。',
   soonNote: 'これらのカジノゲームは、順番にメダルフロアに入る予定です。それまでは各ゲームのページで、メダルとは別のそのゲームのチップで遊びます。',
-  rulesTitle: 'メダルバンクのご案内',
+  rulesTitle: 'メダルについて',
   rules: [
-    'マシンで勝ったメダルは落ちたそばからバンクに預け入れられ、投入したメダルはバンクから引き出されます。マシンに残しておくメダルはありません。',
-    'メダルは、ここでリセットしない限りバンクに残ります。実際のお店のように30日で期限切れになることはありません。',
+    'マシンに入れたメダルは持ちメダルから減り、勝ったメダルは落ちたそばから持ちメダルに加わります。マシンに残しておくメダルはありません。',
+    'メダルは、ここでリセットしない限り残ります。実際のお店のように30日で期限切れになることはありません。',
     'メダルがなくなったら、店員さんが100枚を無料で持ってきます。1日1回、デイリーボーナスもあります。',
     'メダルを遊べるマシンは一度に1台です。会員カードを1台の筐体に差すのと同じで、別のタブでマシンを開くと、先のマシンは待機します。',
   ],
   resetTitle: 'リセット',
-  resetLead: 'バンクのメダルをすべて捨て、すべてのマシンを最初からにします。デイリーボーナスのカードは残ります。',
+  resetLead: '持ちメダルをすべて捨て、すべてのマシンを最初からにします。デイリーボーナスのカードは残ります。',
   resetButton: 'メダルをリセット',
   resetDialogTitle: 'メダルをリセットしますか？',
   resetDialogBody: (medals, account) =>
-    `メダルバンクの${medals}枚を捨てて、新規会員と同じ100枚からやり直します。すべてのマシンも、フィールドもジャックポットも最初からになります。${account ? 'これはアカウントのメダルバンクです。サインインしているすべての端末でリセットされます。' : ''}`,
+    `持ちメダル${medals}枚を捨てて、新規会員と同じ100枚からやり直します。すべてのマシンも、フィールドもジャックポットも最初からになります。${account ? 'これはアカウントのメダルです。サインインしているすべての端末でリセットされます。' : ''}`,
   resetKeeps: 'デイリーボーナスのカードと記録は残ります。元には戻せません。',
   resetCancel: 'メダルを残す',
   resetConfirm: 'リセットする',
-  sayReset: (medals) => `メダルをリセットしました。バンクは${medals}枚で、すべてのマシンが最初からになりました。`,
+  sayReset: (medals) => `メダルをリセットしました。持ちメダルは${medals}枚で、すべてのマシンが最初からになりました。`,
+  notMoney: NOT_MONEY.ja,
 };
 
 export const getCenterStrings = (language: GameLanguage): CenterStrings => (language === 'ja' ? ja : en);

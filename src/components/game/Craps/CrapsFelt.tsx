@@ -104,6 +104,8 @@ const PrintedPair = ({ cx, y, size, values }: { cx: number; y: number; size: num
 const LINE = 'rgba(255, 255, 255, 0.86)';
 const GOLD = '#ffd65c';
 const RED = '#ff5a4f';
+/** The outline of red words: against it the red reads at over 6 to 1. */
+const INK = '#2a0705';
 
 /** Words on the felt: English as a real felt has them, and Japanese help under them for a Japanese reader. */
 function Words({ box, main, help, language, size, color = '#ffffff', at = 0.5, helpSize }: { box: Box; main: string; help?: string; language: 'en' | 'ja'; size: number; color?: string; at?: number; helpSize: number }) {
@@ -111,7 +113,21 @@ function Words({ box, main, help, language, size, color = '#ffffff', at = 0.5, h
   const cy = box.y + box.h * at;
   return (
     <g>
-      <text x={box.x + box.w / 2} y={showHelp ? cy - helpSize * 0.35 : cy} fontSize={size} fill={color} fontWeight={850} textAnchor="middle" dominantBaseline="middle" letterSpacing="0.04em">
+      {/* A felt prints COME and the center's bets in red; outlined in near-black, as the red alone is too faint on the green to read. */}
+      <text
+        x={box.x + box.w / 2}
+        y={showHelp ? cy - helpSize * 0.35 : cy}
+        fontSize={size}
+        fill={color}
+        stroke={color === RED ? INK : undefined}
+        strokeWidth={color === RED ? size * 0.14 : undefined}
+        paintOrder="stroke"
+        strokeLinejoin="round"
+        fontWeight={850}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        letterSpacing="0.04em"
+      >
         {main}
       </text>
       {showHelp && (
@@ -537,7 +553,8 @@ function TableView({ layout, props, refs, label }: { layout: TableLayout; props:
   const { point, t, language } = props;
   const tub = layout.live;
   const puckBox = point === null ? null : tub.find((area) => area.id === `place${point}`)?.box;
-  const puck = puckBox ? { x: puckBox.x + puckBox.w / 2, y: puckBox.y + layout.puck * 0.62 } : layout.puckOff;
+  // The ON puck sits at the top of the point's box, as a dealer puts it, so that the number under it can still be read.
+  const puck = puckBox ? { x: puckBox.x + puckBox.w / 2, y: puckBox.y + layout.puck * 0.22 } : layout.puckOff;
   return (
     <div className={styles.tableView} data-table-kind={layout.kind}>
       <div className={styles.tub} style={{ aspectRatio: `${layout.width} / ${layout.height}` }} data-testid={`craps-tub-${layout.kind}`}>

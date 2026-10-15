@@ -19,6 +19,15 @@
  *   or the hand cannot even be read back, nothing is won yet: the hand waits,
  *   still dealt, until storage can be used again. So no reload, and no other
  *   tab, can ever find a hand still dealt whose win is in.
+ * - The hand and the medals are two writes, and a browser can die between
+ *   any two writes. So the bet and the win each go into the medals under a
+ *   receipt (`bank.apply`; "A machine's rounds" in bank.ts), named by the
+ *   hand, and the page that next holds the card looks at the hand against
+ *   them: a hand written down as dealt whose bet never went in was never
+ *   dealt, and is taken away; a hand written down as drawn whose win never
+ *   went in is paid now. A move made already is never made again. A hand's
+ *   receipts are let go of when the next hand is dealt over it. A hand dealt
+ *   before there were receipts is taken at its word: its bet was taken.
  * - A hand belongs to the very medals it was bet from: the same copy of them
  *   (`ledger.device`, which a player's medals keep on each device) in the same
  *   era. A reset at the medal center begins a new era, and the hand on the
@@ -67,7 +76,16 @@ export interface SavedHand {
   held: number;
   /** Whether the hand has been drawn, and what it won put into the medals. */
   drawn: boolean;
+  /**
+   * Whether its bet and its win go in under receipts (`bank.apply`): its bet was taken only if the bank holds the
+   * bet's receipt, and its win paid only if it holds the win's. A hand dealt before there were receipts has none.
+   */
+  receipts?: true;
 }
+
+/** The names of a hand's two moves of medals at the bank. */
+export const DEAL_STEP = 'deal';
+export const PAY_STEP = 'pay';
 
 const ID_SHAPE = /^[a-z0-9]{4,32}$/;
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -89,7 +107,7 @@ export function parseHand(text: unknown): SavedHand | null {
     return null;
   }
   if (!isRecord(value) || value.v !== HAND_VERSION) return null;
-  const { id, era, device, hand, stub, coins, payId, held, drawn } = value;
+  const { id, era, device, hand, stub, coins, payId, held, drawn, receipts } = value;
   if (typeof id !== 'string' || !ID_SHAPE.test(id)) return null;
   if (typeof era !== 'number' || !Number.isInteger(era) || era < 0 || era > 1_000_000) return null;
   if (!isDevice(device)) return null;
@@ -100,11 +118,26 @@ export function parseHand(text: unknown): SavedHand | null {
   if (typeof payId !== 'string' || !(PAY_TABLE_IDS as readonly string[]).includes(payId)) return null;
   if (!isMask(held)) return null;
   if (typeof drawn !== 'boolean') return null;
-  return { v: HAND_VERSION, id, era, device, hand: [...hand], stub: [...stub], coins, payId: payId as PayTableId, held, drawn };
+  if (receipts !== undefined && receipts !== true) return null;
+  const read: SavedHand = { v: HAND_VERSION, id, era, device, hand: [...hand], stub: [...stub], coins, payId: payId as PayTableId, held, drawn };
+  if (receipts) read.receipts = true;
+  return read;
 }
 
 export const serializeHand = (h: SavedHand): string =>
-  JSON.stringify({ v: HAND_VERSION, id: h.id, era: h.era, device: h.device, hand: h.hand, stub: h.stub, coins: h.coins, payId: h.payId, held: h.held, drawn: h.drawn });
+  JSON.stringify({
+    v: HAND_VERSION,
+    id: h.id,
+    era: h.era,
+    device: h.device,
+    hand: h.hand,
+    stub: h.stub,
+    coins: h.coins,
+    payId: h.payId,
+    held: h.held,
+    drawn: h.drawn,
+    ...(h.receipts ? { receipts: true } : {}),
+  });
 
 /** The five cards on the screen: as dealt, or as drawn. */
 export const cardsOf = (h: SavedHand): number[] => (h.drawn ? drawCards({ hand: h.hand, stub: h.stub }, heldFromMask(h.held)) : h.hand);
@@ -126,7 +159,7 @@ export const deviceStore: HandStore = {
 };
 
 /** What of the medal center's bank the machine uses. */
-export type MedalBank = Pick<Bank, 'owner' | 'balance' | 'take' | 'give' | 'getState' | 'restartDue' | 'restarted'>;
+export type MedalBank = Pick<Bank, 'owner' | 'balance' | 'apply' | 'applied' | 'forget' | 'getState' | 'restartDue' | 'restarted'>;
 
 export interface MedalPlayEnv {
   bank: MedalBank;
@@ -203,12 +236,42 @@ export function createMedalPlay(env: MedalPlayEnv) {
     }
   };
 
+  /** A move of a hand's medals, under its receipt. */
+  const move = (h: SavedHand, step: string, medals: number) => bank.apply({ game: GAME, round: h.id, step, medals, era: h.era });
+  const moved = (h: SavedHand, step: string): boolean => bank.applied({ game: GAME, round: h.id, step });
+
+  /**
+   * Squares a hand found kept with its receipts, with the card: a hand dealt whose bet never went in (the browser died
+   * between the hand and the medals) was never dealt, and is taken away; a hand drawn whose win never went in is paid
+   * now, once. Returns the hand as it stands, or null for none.
+   */
+  const square = (h: SavedHand, from: string | null): SavedHand | null => {
+    if (!h.receipts || !holding()) return h;
+    if (!h.drawn && !moved(h, DEAL_STEP)) {
+      if (from !== null) removeKey(from);
+      else memory = null;
+      return null;
+    }
+    if (h.drawn) {
+      const won = wonBy(h);
+      if (won > 0 && !moved(h, PAY_STEP)) move(h, PAY_STEP, won);
+    }
+    return h;
+  };
+
   /**
    * The hand in play, and where it was read from: under the player's own
    * name, under the guest's (the guest's medals having become this
-   * account's), or from this page's memory (null).
+   * account's), or from this page's memory (null). Squared with its
+   * receipts when this page holds the card.
    */
   const look = (): { ok: true; hand: SavedHand | null; from: string | null } | { ok: false } => {
+    const found = lookUp();
+    if (!found.ok || !found.hand) return found;
+    return { ok: true, hand: square(found.hand, found.from), from: found.from };
+  };
+
+  const lookUp = (): { ok: true; hand: SavedHand | null; from: string | null } | { ok: false } => {
     const own = key();
     let text: string | null;
     try {
@@ -304,7 +367,7 @@ export function createMedalPlay(env: MedalPlayEnv) {
       if (before.ok && before.hand && !before.hand.drawn) return { kind: 'inPlay', hand: before.hand };
       if (bank.balance() < coins) return { kind: 'short' };
       const { hand, stub } = dealCards(random);
-      const dealt: SavedHand = { v: HAND_VERSION, id: newId(), era: ledger.era, device: ledger.device, hand, stub, coins, payId, held: 0, drawn: false };
+      const dealt: SavedHand = { v: HAND_VERSION, id: newId(), era: ledger.era, device: ledger.device, hand, stub, coins, payId, held: 0, drawn: false, receipts: true };
       const kept = write(dealt, null);
       if (kept === 'failed') {
         // Storage that can be read, but will neither take this hand nor let go of the last one, would show that one in
@@ -313,13 +376,17 @@ export function createMedalPlay(env: MedalPlayEnv) {
         if (before.ok) return { kind: 'unsaved' };
         memory = { key: key(), hand: dealt };
       }
-      if (!bank.take(coins)) {
+      // The bet goes in under its receipt after the hand is written down: a browser that dies between the two leaves a
+      // hand whose bet the medals do not hold, which is taken away unplayed (`square`).
+      if (move(dealt, DEAL_STEP, -coins) !== 'applied') {
         // Nothing was bet, so nothing is dealt: the hand before (if it could be read) is put back as it was.
         memory = null;
         if (before.ok && before.hand) write(before.hand, null);
         else removeKey(key());
         return { kind: 'short' };
       }
+      // The hand before this one is no longer kept: nothing will look at its receipts again.
+      bank.forget(GAME, [dealt.id]);
       return { kind: 'dealt', hand: dealt };
     },
 
@@ -373,7 +440,8 @@ export function createMedalPlay(env: MedalPlayEnv) {
         if (!current || current.id !== id) return { kind: 'unsaved' };
       }
       if (!current || current.id !== id || current.drawn) return { kind: 'gone', hand: current };
-      const drawn: SavedHand = { ...current, held: isMask(held) ? held : current.held, drawn: true };
+      // Drawn under receipts whichever way it was dealt: a hand dealt before receipts has its win checked for too.
+      const drawn: SavedHand = { ...current, held: isMask(held) ? held : current.held, drawn: true, receipts: true };
       if (from !== null) {
         if (write(drawn, from) === 'failed') return { kind: 'unsaved' };
       } else {
@@ -386,8 +454,10 @@ export function createMedalPlay(env: MedalPlayEnv) {
           // Shown from memory.
         }
       }
+      // Written down as drawn first, then the win in under its receipt: a browser that dies between the two leaves a hand
+      // drawn whose win the next page holding the card pays (`square`), once.
       const won = wonBy(drawn);
-      if (won > 0) bank.give(won);
+      if (won > 0) move(drawn, PAY_STEP, won);
       return { kind: 'drawn', hand: drawn, won };
     },
   };

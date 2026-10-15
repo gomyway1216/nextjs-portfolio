@@ -11,6 +11,11 @@
  *   has been drawn with it. The ring is being run round to it.
  * - **offer**: the medals won wait to be taken, or put on a double-up.
  *
+ * A round that is being paid says so (`paying`): the medals it ends with are
+ * written down before they go in, so that a browser that dies between the
+ * two pays them once when the machine is next opened, and the round cannot
+ * be played on instead.
+ *
  * No round at all is the machine waiting for a medal.
  */
 
@@ -33,6 +38,13 @@ export interface Round {
   doubles: number;
   /** Draws in a row on the throw being called: shown as "あいこで…", and "しょ!" when the hand is pressed. */
   draws: number;
+  /**
+   * The round's name, which its moves of medals go under (`bank.apply`). A round from before receipts has none until
+   * it is paid.
+   */
+  id?: string;
+  /** The medals the round ends with, once it is being paid: written down before they go in. */
+  paying?: number;
 }
 
 /** A medal has gone in: it is at stake. */
@@ -98,6 +110,14 @@ export function readRound(text: unknown): Round | null {
   if (r.v !== ROUND_VERSION || (r.kind !== 'play' && r.kind !== 'double') || (r.phase !== 'calling' && r.phase !== 'spinning' && r.phase !== 'offer')) return null;
   if (!whole(r.stake, 0, MOST_MEDALS) || !whole(r.win, 0, MOST_MEDALS) || !whole(r.lamp, -1, LAMPS.length - 1) || !whole(r.doubles, 0, MAX_DOUBLES) || !whole(r.draws, 0, 1_000_000)) return null;
   const round: Round = { v: ROUND_VERSION, kind: r.kind, phase: r.phase, stake: r.stake, win: r.win, lamp: r.lamp, doubles: r.doubles, draws: r.draws };
+  if (r.id !== undefined) {
+    if (typeof r.id !== 'string' || !/^[a-z0-9]{1,24}$/.test(r.id)) return null;
+    round.id = r.id;
+  }
+  if (r.paying !== undefined) {
+    if (!whole(r.paying, 1, MOST_MEDALS)) return null;
+    round.paying = r.paying;
+  }
   // What each step leaves, and nothing else: a medal or a won sum at stake while calling, a lamp's medals spinning.
   if (round.phase === 'calling') {
     if (round.win !== 0 || round.stake < 1) return null;

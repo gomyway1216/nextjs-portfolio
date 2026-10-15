@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-import { GAME, NOTICE_KEY, TABLE_KEY } from '../../src/components/game/Blackjack/medalTable';
+import { GAME, NOTICE_KEY, TABLE_KEY, parseTable } from '../../src/components/game/Blackjack/medalTable';
 import { PUSHER } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { arrived } from './streamedPage';
@@ -10,6 +10,9 @@ import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCente
 // Blackjack on the medal center's floor: it plays with the player's medals (MedalCenter/bank.ts), which every game
 // there shares. These check the medals: a bet taken as it is made, a win put back, a hand that survives a reload, the
 // card in another tab, the medal center's reset, and old saved state.
+
+/** The guest's table as this browser keeps it, read the way the table reads it. */
+const storedTable = (page: Page) => page.evaluate((key) => window.localStorage.getItem(key), TABLE_KEY).then(parseTable);
 
 /** The medals on the medal center's counter. */
 async function shownAtCenter(page: Page): Promise<number> {
@@ -231,12 +234,21 @@ test('a browser with no room left for the table bets nothing, and says why', asy
   await expect(page.locator('[data-hand]')).toHaveCount(0);
   await expect.poll(() => medalsShown(page)).toBe(before);
   await expect.poll(() => bankBalance(page)).toBe(before);
-  // With room again, the same bet is made, and only that one: the refused deal took nothing.
+  // With room again, the same bet is made, and only that one: the refused deal took nothing. The shoe is shuffled at
+  // random, and about one deal in sixteen settles at once (a natural, a push of two naturals): what such a hand brings
+  // back is put back as it is settled, and counted beside the bet.
   await page.evaluate(() => {
     (window as unknown as { __full?: boolean }).__full = false;
   });
   await dealButton(page).click();
-  await expect.poll(() => bankBalance(page)).toBe(before - 2);
+  await expect.poll(() => storedTable(page).then((table) => table?.hand)).toBe(1);
+  await expect
+    .poll(async () => {
+      const table = await storedTable(page);
+      const back = table?.paid && table.round?.result ? table.round.result.returned : 0;
+      return (await bankBalance(page)) - back;
+    })
+    .toBe(before - 2);
 });
 
 test('at a phone’s width, in both languages: the counter, the note that medals are not money, the note shown once, and no sideways scroll', async ({ page }) => {

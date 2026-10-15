@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Seat } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, give, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 import { BET_IDS, POINT_NUMBERS, maxOdds, resolveRoll, type BetId, type Bets, type Dice, type PointNumber } from '@/components/game/Craps/engine';
 import {
@@ -26,7 +26,7 @@ import {
   type TablePurse,
   type TableStorage,
 } from '@/components/game/Craps/medalTable';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 
 // The craps table on the medal center's floor, played against the real medal bank in a fake browser (one storage the
 // pages share, the one card, the channel between the pages). Nothing is fetched and no account is named.
@@ -563,6 +563,7 @@ describe('whose table it is', () => {
       ['player-a', 300],
     ]);
     let owner: string | null = null;
+    const made = new Set<string>();
     const purse: TablePurse = {
       loaded: () => true,
       balance: () => medals.get(owner) ?? 0,
@@ -577,6 +578,16 @@ describe('whose table it is', () => {
         medals.set(owner, (medals.get(owner) ?? 0) + n);
         return true;
       },
+      // Each player's moves made once, under their receipts, as the bank makes them.
+      apply: ({ game, round, step, medals: n }) => {
+        const receipt = `${owner}/${game}:${round}:${step}`;
+        if (made.has(receipt)) return 'already';
+        if (n < 0 ? !purse.take(-n) : n > 0 && !purse.give(n)) return null;
+        made.add(receipt);
+        return 'applied';
+      },
+      applied: ({ game, round, step }) => made.has(`${owner}/${game}:${round}:${step}`),
+      forget: () => true,
       restartDue: () => false,
       restarted: () => undefined,
       kept: () => true,
@@ -627,6 +638,96 @@ describe('whose table it is', () => {
     table.roll([5, 6]);
     expect(medals.get('player-a')).toBe(300);
     expect(medals.get(null)).toBe(70);
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The table and the medals are two writes (medalTable.ts): the browser is killed at every moment of an evening at
+  // the table, started again, and the table opened on what it left. Whatever it left, the player's medals in hand and
+  // on the table come to what they started with plus what the rolls decided (the table's own net), and the evening
+  // plays on from there to the same end.
+  const tables = new Map<FakeBrowser, { page: FakePage; table: MedalTable }>();
+  const setUp = async () => {
+    const at = await opened();
+    tables.set(at.browser, at);
+    return at.browser;
+  };
+  /** Medals in hand and on the table, against the start and what the rolls decided. */
+  const squared = (page: FakePage, table: MedalTable): number => everything(page, table) - (WELCOME + table.table().stats.net);
+
+  it('loses no medal and makes none, wherever the browser dies between a bet, a roll and the medals', async () => {
+    const evening = (table: MedalTable) => {
+      table.place('pass', 5);
+      table.place('field', 2);
+      table.roll([3, 3]); // the point is 6; the field loses
+      table.place('passOdds', 10);
+      table.place('place8', 6);
+      table.undo(); // the 6 on the eight comes back
+      table.roll([4, 2]); // the point is made
+    };
+    const writes = await atEveryWrite(
+      setUp,
+      (browser) => evening(tables.get(browser)!.table),
+      async (after, reached) => {
+        const page = after.open();
+        const { table } = crapsOn(page);
+        await quiet(after);
+        table.sync();
+        expect(squared(page, table), `died after ${reached} writes`).toBe(0);
+        expect(storedMedals(after) + onTable(table.table()), `died after ${reached} writes`).toBe(WELCOME + table.table().stats.net);
+        // Opened again, nothing changes; played on, it still adds up, and once a move is made only its receipt is kept.
+        table.sync();
+        expect(squared(page, table)).toBe(0);
+        table.roll([1, 1]);
+        expect(table.place('field', 1).ok).toBe(true);
+        expect(squared(page, table), `died after ${reached} writes`).toBe(0);
+        const ledger = parseLedger(after.storage.get('medal-center-bank') ?? null)!;
+        expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${CRAPS_GAME}:${table.table().id}-${table.table().seq}:move`]);
+      },
+    );
+    expect(writes).toBeGreaterThanOrEqual(12);
+  });
+
+  it('gives back exactly what a winning roll owes, once, wherever the browser dies in it', async () => {
+    await atEveryWrite(
+      async () => {
+        const browser = await setUp();
+        const { table } = tables.get(browser)!;
+        table.place('pass', 5);
+        table.roll([3, 3]);
+        table.place('passOdds', 10);
+        return browser;
+      },
+      (browser) => {
+        tables.get(browser)!.table.roll([4, 2]);
+      },
+      async (after, reached) => {
+        const page = after.open();
+        const { table } = crapsOn(page);
+        await quiet(after);
+        table.sync();
+        // Either the roll never happened (the bets still up) or it did, and its 32 medals came back once.
+        const rolled = table.table().stats.rolls === 2;
+        expect(storedMedals(after), `died after ${reached} writes`).toBe(rolled ? WELCOME - 15 + 32 : WELCOME - 15);
+        expect(onTable(table.table())).toBe(rolled ? 0 : 15);
+      },
+    );
+  });
+
+  it('takes a table from before receipts at its word: its bets were taken, and it plays on', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const { table } = crapsOn(page);
+    await quiet(browser);
+    // As the table wrote it before receipts: 5 on the pass line, taken from the medals, and no name or moves written down.
+    page.bank.take(5);
+    browser.storage.set(TABLE_KEY, serializeTable({ ...freshTable(), bets: { pass: 5 }, placed: [{ id: 'pass', amount: 5 }] }));
+    table.sync();
+    expect(table.table().bets).toEqual({ pass: 5 });
+    expect(table.place('field', 2).ok).toBe(true);
+    expect(table.roll([3, 4]).ok).toBe(true); // a natural: the pass line wins, the field loses
+    expect(storedMedals(browser)).toBe(WELCOME - 5 - 2 + 10);
+    expect(squared(page, table)).toBe(0);
   });
 });
 

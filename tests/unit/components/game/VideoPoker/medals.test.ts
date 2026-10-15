@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY, ledgerKey, type BankEvent } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, give, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { PAY_TABLES, payout, rankCards } from '@/components/game/VideoPoker/engine';
 import {
   GAME,
@@ -20,7 +20,7 @@ import {
   type HandStore,
   type SavedHand,
 } from '@/components/game/VideoPoker/medals';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 // Video poker plays with the medal center's medals (medals.ts). These tests play it on the medal center's own fake
@@ -623,6 +623,101 @@ describe('a player who signs in or out with a hand on the machine', () => {
     expect(play.draw(dealt.hand.id, ALL)).toMatchObject({ kind: 'drawn', won: 45 });
     expect(page.bank.balance()).toBe(WELCOME - 5 + 45);
     expect(storedBalance(browser, UID)).toBe(WELCOME + 400);
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The hand and the medals are two writes (medals.ts): the browser is killed at every moment of a hand, started again,
+  // and the machine plays on from what it left. Every hand is paid exactly once, or, if its bet never went in, never
+  // dealt at all.
+  const machines = new Map<FakeBrowser, ReturnType<typeof machine>>();
+  const setUp = async (cards: readonly string[] = FULL_HOUSE) => {
+    const browser = new FakeBrowser();
+    const at = machine(browser.open(), dealing(...cards));
+    await quiet(browser);
+    machines.set(browser, at);
+    return browser;
+  };
+  const spentIn = (browser: FakeBrowser): number => {
+    const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
+    return ledger.rows[ledger.device]?.spent ?? 0;
+  };
+  /** The machine opened again on what the browser left: a hand still dealt is drawn holding everything. */
+  const playOn = async (after: FakeBrowser) => {
+    const at = machine(after.open());
+    await quiet(after);
+    const read = at.play.read();
+    if (read.ok && read.hand && !read.hand.drawn) expect(at.play.draw(read.hand.id, ALL).kind).toBe('drawn');
+    return at;
+  };
+
+  for (const [what, cards, won] of [
+    ['a full house', FULL_HOUSE, 45],
+    ['a hand that wins nothing', ['2♠', '7♥', '9♦', 'J♣', '4♠', '3♥', '5♦', '8♣', 'T♥', 'Q♦'], 0],
+  ] as const) {
+    it(`takes the bet and pays ${what} exactly once, or never deals it, wherever the browser dies in a hand`, async () => {
+      const writes = await atEveryWrite(
+        () => setUp(cards),
+        (browser) => {
+          const { play } = machines.get(browser)!;
+          const dealt = play.deal(5, '9/6');
+          if (dealt.kind !== 'dealt') return;
+          play.hold(dealt.hand.id, ALL);
+          play.draw(dealt.hand.id, ALL);
+        },
+        async (after, reached) => {
+          const dealt = spentIn(after) === 5;
+          const { play } = await playOn(after);
+          expect(storedBalance(after), `died after ${reached} writes`).toBe(dealt ? WELCOME - 5 + won : WELCOME);
+          const left = storedHand(after);
+          expect(left === null || left.drawn, `died after ${reached} writes`).toBe(true);
+          // Looked at again, nothing more is paid; the next hand lets go of this one's receipts.
+          play.read();
+          expect(storedBalance(after)).toBe(dealt ? WELCOME - 5 + won : WELCOME);
+          const next = play.deal(1, '9/6');
+          expect(next.kind).toBe('dealt');
+          const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${GAME}:${next.kind === 'dealt' ? next.hand.id : ''}:deal`]);
+        },
+      );
+      expect(writes).toBeGreaterThanOrEqual(won > 0 ? 4 : 3);
+    });
+  }
+
+  it('takes a hand dealt before receipts at its word: its bet was taken, and its win is paid once', async () => {
+    const browser = await setUp();
+    const page = browser.pages[0];
+    const { play } = machines.get(browser)!;
+    // As the machine wrote it before receipts: the bet taken, and the hand written down.
+    page.bank.take(5);
+    const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+    const old: SavedHand = { v: 1, id: 'oldhand1', era: 0, device, hand: FULL_HOUSE.slice(0, 5).map(c), stub: FULL_HOUSE.slice(5).map(c), coins: 5, payId: '9/6', held: 0, drawn: false };
+    browser.storage.set(handKey(null), serializeHand(old));
+    expect(play.read()).toEqual({ ok: true, hand: old });
+    expect(play.draw('oldhand1', ALL)).toMatchObject({ kind: 'drawn', won: 45 });
+    expect(play.draw('oldhand1', ALL)).toMatchObject({ kind: 'gone' });
+    expect(storedBalance(browser)).toBe(WELCOME - 5 + 45);
+  });
+
+  it('pays a hand dealt before receipts exactly once wherever the browser dies as it is drawn', async () => {
+    await atEveryWrite(
+      async () => {
+        const browser = await setUp();
+        const page = browser.pages[0];
+        page.bank.take(5);
+        const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+        const old: SavedHand = { v: 1, id: 'oldhand1', era: 0, device, hand: FULL_HOUSE.slice(0, 5).map(c), stub: FULL_HOUSE.slice(5).map(c), coins: 5, payId: '9/6', held: 0, drawn: false };
+        browser.storage.set(handKey(null), serializeHand(old));
+        return browser;
+      },
+      (browser) => {
+        machines.get(browser)!.play.draw('oldhand1', ALL);
+      },
+      async (after, reached) => {
+        await playOn(after);
+        expect(storedBalance(after), `died after ${reached} writes`).toBe(WELCOME - 5 + 45);
+      },
+    );
   });
 });
 

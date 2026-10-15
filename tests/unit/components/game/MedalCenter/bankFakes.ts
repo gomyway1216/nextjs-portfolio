@@ -19,6 +19,40 @@ export class FakeBrowser {
   tasks: (() => void)[] = [];
   day = '2026-10-14';
   clock = 1_800_000_000_000;
+  /**
+   * How many more writes reach storage before the browser dies, or null while it lives on. Every write and every
+   * removal counts one, the bank's and a machine's alike. Once none are left the browser has died between two writes:
+   * nothing more reaches storage, and nothing on its pages is told, as when the browser's process is killed. What it
+   * left is opened again with `revive`.
+   */
+  writesLeft: number | null = null;
+  /** The writes and removals that have reached storage. */
+  writes = 0;
+
+  /** Whether one more write reaches storage: it is counted, and once the browser has died it does not. */
+  lets(): boolean {
+    if (this.writesLeft !== null) {
+      if (this.writesLeft <= 0) return false;
+      this.writesLeft -= 1;
+    }
+    this.writes += 1;
+    return true;
+  }
+
+  /** Whether the browser has died (`writesLeft`). */
+  get dead(): boolean {
+    return this.writesLeft !== null && this.writesLeft <= 0;
+  }
+
+  /** The browser started again after it died: its storage as it was left, and nothing else (no page, no lock, no message). */
+  revive(): FakeBrowser {
+    const next = new FakeBrowser();
+    next.storage = new Map(this.storage);
+    next.apart = this.apart;
+    next.day = this.day;
+    next.clock = this.clock;
+    return next;
+  }
   /** A name no other device, page or mark has, in any browser of the test: names are random in a real one. */
   name(prefix: string): string {
     names += 1;
@@ -81,12 +115,14 @@ export class FakePage {
       },
       write: (key, text) => {
         if (browser.blocked) throw new Error('blocked');
+        if (!browser.lets()) return;
         const was = browser.storage.get(key);
         browser.storage.set(key, text);
         if (was !== text) this.tellOthers((other) => other.watchers?.changed(key));
       },
       remove: (key) => {
         if (browser.blocked) throw new Error('blocked');
+        if (!browser.lets()) return;
         const had = browser.storage.delete(key);
         if (had) this.tellOthers((other) => other.watchers?.changed(key));
       },
@@ -177,4 +213,28 @@ export async function quiet(...browsers: FakeBrowser[]): Promise<void> {
     for (let i = 0; i < 20; i++) await Promise.resolve();
   }
   for (const browser of browsers) browser.run();
+}
+
+/**
+ * Plays `play` in a browser made by `setUp`, once through to count its writes, and then once for every moment the
+ * browser could die in it: before its first write, between each two, and after its last. Each time `check` is handed
+ * what the browser left, started again (`revive`), and how many of the writes reached storage. `play` must make the
+ * same writes each time.
+ */
+export async function atEveryWrite(
+  setUp: () => Promise<FakeBrowser>,
+  play: (browser: FakeBrowser) => Promise<void> | void,
+  check: (revived: FakeBrowser, reached: number, writes: number) => Promise<void> | void,
+): Promise<number> {
+  const counting = await setUp();
+  const from = counting.writes;
+  await play(counting);
+  const writes = counting.writes - from;
+  for (let reached = 0; reached <= writes; reached++) {
+    const browser = await setUp();
+    browser.writesLeft = reached;
+    await play(browser);
+    await check(browser.revive(), reached, writes);
+  }
+  return writes;
 }

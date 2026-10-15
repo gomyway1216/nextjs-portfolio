@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY, ledgerKey, type Seat } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, parseLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import type { Player } from '@/components/game/MedalPusher/account';
 import { ROULETTE_RESULTS_STORAGE_KEY, parseStoredResults } from '@/components/game/Roulette/resultsStore';
 import {
@@ -24,7 +24,7 @@ import {
   type SpinRecord,
   type Staked,
 } from '@/components/game/Roulette/medalTable';
-import { FakeBrowser, quiet, type FakePage } from '../MedalCenter/bankFakes';
+import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 
 // The roulette table plays with the medal center's medals: a spin's stake is taken once, its winnings are given back
@@ -618,6 +618,137 @@ describe('players, storage and old saved state', () => {
     expect(readBet({ kind: 'dozen', which: 4 })).toBeNull();
     expect(readBet({ kind: 'straight', number: 37 })).toBeNull();
     expect(readBet({ kind: 'column', which: 2 })).toEqual({ kind: 'column', which: 2 });
+  });
+});
+
+describe('a browser that dies between two writes', () => {
+  // The spin's record and the medals are two writes (medalTable.ts): the browser is killed at every moment between
+  // them and started again, and the table finishes whatever it left. Every spin is paid exactly once, or, if its stake
+  // never went in, never happened at all.
+  const tables = new Map<FakeBrowser, ReturnType<typeof rouletteOn>>();
+  const setUp = async () => {
+    const browser = new FakeBrowser();
+    const roulette = rouletteOn(browser.open());
+    await quiet(browser);
+    tables.set(browser, roulette);
+    return browser;
+  };
+  /** The table opened again on what the browser left: a spin left unfinished is spun again and settled. */
+  const reopened = async (after: FakeBrowser) => {
+    const roulette = rouletteOn(after.open());
+    await quiet(after);
+    const left = roulette.table.leftover();
+    if (left) roulette.table.settle({ record: left, stored: true, paid: false, void: false });
+    return roulette;
+  };
+  const spentIn = (browser: FakeBrowser): number => {
+    const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
+    return ledger.rows[ledger.device]?.spent ?? 0;
+  };
+
+  for (const [what, result, won] of [
+    ['a winning spin', HITS_17, 72],
+    ['a losing spin', 2, 0],
+  ] as const) {
+    it(`pays ${what} exactly once, or takes nothing for it, wherever the browser dies between the spin and its end`, async () => {
+      const writes = await atEveryWrite(
+        setUp,
+        (browser) => {
+          const roulette = tables.get(browser)!;
+          roulette.spin([RED, SEVENTEEN], result);
+          roulette.stop();
+        },
+        async (after, reached) => {
+          const staked = spentIn(after) === 12;
+          const roulette = await reopened(after);
+          expect(stored(after), `died after ${reached} writes`).toBe(staked ? WELCOME - 12 + won : WELCOME);
+          expect(roulette.table.leftover(), `died after ${reached} writes`).toBeNull();
+          const left = record(after);
+          expect(left === null || left.paid, `died after ${reached} writes`).toBe(true);
+          // The next spin bets and pays as ever, and the spins before it let go of their receipts: only its own are kept,
+          // for as long as it is the spin on record.
+          const next = roulette.spin([RED], HITS_RED);
+          expect(next).not.toBeNull();
+          expect(roulette.stop()).toBe('paid');
+          const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
+          const id = next!.record.id;
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${ROULETTE_GAME}:${id}:pay`, `${ROULETTE_GAME}:${id}:stake`]);
+          expect(stored(after)).toBe((staked ? WELCOME - 12 + won : WELCOME) + 10);
+        },
+      );
+      expect(writes).toBeGreaterThanOrEqual(won > 0 ? 4 : 3);
+    });
+  }
+
+  it('pays a spin exactly once wherever the browser dies while the page going settles it', async () => {
+    await atEveryWrite(
+      setUp,
+      (browser) => {
+        tables.get(browser)!.spin([RED, SEVENTEEN], HITS_17);
+        browser.pages[0].hide('left');
+      },
+      async (after, reached) => {
+        const staked = spentIn(after) === 12;
+        await reopened(after);
+        expect(stored(after), `died after ${reached} writes`).toBe(staked ? WELCOME - 12 + 72 : WELCOME);
+      },
+    );
+  });
+
+  it('is marked paid before its winnings go in, so a page that looks at the table as the medals move never finds it to finish', async () => {
+    // The page looks at the table whenever the medals change (PlayTab's `sync`), and spins again a spin it finds
+    // unfinished: it must not find the one being paid.
+    const browser = await setUp();
+    const roulette = tables.get(browser)!;
+    const found: string[] = [];
+    let stopping = false;
+    browser.pages[0].bank.subscribe(() => {
+      const left = stopping ? roulette.table.leftover() : null;
+      if (left) found.push(left.id);
+    });
+    roulette.spin([RED, SEVENTEEN], HITS_17);
+    stopping = true;
+    expect(roulette.stop()).toBe('paid');
+    expect(found).toEqual([]);
+    expect(stored(browser)).toBe(WELCOME - 12 + 72);
+  });
+
+  it('takes a spin from before receipts at its word: its stake was taken, and its winnings are paid once', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const roulette = rouletteOn(page);
+    await quiet(browser);
+    page.bank.take(12);
+    const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+    const old: SpinRecord = { v: 1, id: 'oldspin1', owner: null, ledger: device, era: 0, result: HITS_17, bets: [RED, SEVENTEEN], wagered: 12, won: 72, paid: false };
+    browser.storage.set(SPIN_KEY, serializeSpin(old));
+    const left = roulette.table.leftover();
+    expect(left?.id).toBe('oldspin1');
+    expect(roulette.table.settle({ record: left!, stored: true, paid: false, void: false })).toBe('paid');
+    expect(stored(browser)).toBe(WELCOME - 12 + 72);
+    expect(roulette.table.leftover()).toBeNull();
+  });
+
+  it('pays a spin from before receipts exactly once wherever the browser dies while it is finished', async () => {
+    await atEveryWrite(
+      async () => {
+        const browser = await setUp();
+        const page = browser.pages[0];
+        page.bank.take(12);
+        const device = parseLedger(browser.storage.get(BANK_KEY) ?? null)!.device;
+        browser.storage.set(SPIN_KEY, serializeSpin({ v: 1, id: 'oldspin1', owner: null, ledger: device, era: 0, result: HITS_17, bets: [RED, SEVENTEEN], wagered: 12, won: 72, paid: false }));
+        return browser;
+      },
+      (browser) => {
+        const { table } = tables.get(browser)!;
+        const left = table.leftover();
+        if (left) table.settle({ record: left, stored: true, paid: false, void: false });
+      },
+      async (after, reached) => {
+        await reopened(after);
+        expect(stored(after), `died after ${reached} writes`).toBe(WELCOME - 12 + 72);
+      },
+    );
   });
 });
 

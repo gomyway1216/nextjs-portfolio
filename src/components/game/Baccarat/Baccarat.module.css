@@ -59,6 +59,30 @@
   line-height: 1.55;
   font-size: 0.95rem;
 }
+/* The way back to the Medal Game Center, over the title, as on the Medal Pusher. */
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.centerLink:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 /* ---------- Tabs & buttons ---------- */
 .tabs {
@@ -125,9 +149,6 @@
   background: var(--games-route-surface-raised);
   color: var(--games-route-muted);
   box-shadow: none;
-}
-.spacerLeft {
-  margin-left: auto;
 }
 .modeRow,
 .deckRow {
@@ -563,40 +584,153 @@
   font-weight: 600;
 }
 
-/* ---------- Bankroll, mode & chips ---------- */
-.pillRow {
+/* ---------- The medal counter ---------- */
+/* A medal machine's display: the medals on a red seven-segment window (the Medal Pusher's own, from
+   ControlPanel.module.css), the bet and the last win on amber ones, in a dark cabinet panel that reads the same in
+   light and dark. Text on it is at least 7:1. */
+.counter {
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 0.85rem 0.7rem;
+  border-radius: 14px;
+  border: 2px solid #4b4370;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0) 32%),
+    linear-gradient(180deg, #2a2348 0%, #16122b 100%);
+  color: #f4f1ff;
+  box-shadow:
+    0 8px 22px rgba(18, 10, 46, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.counterMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.6rem;
   flex-wrap: wrap;
-  margin-bottom: 0.8rem;
 }
-.pill {
-  border-radius: 12px;
-  border: 1px solid var(--games-route-border);
-  background: var(--games-route-surface-raised);
-  padding: 0.45rem 0.8rem;
-  min-width: 96px;
+/* Two classes, so that the site's dark-theme heading colour does not take the gold off the label. */
+.counter .counterLabel {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd65c;
 }
-.pillLabel {
-  display: block;
-  font-size: 0.68rem;
-  color: var(--games-route-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 700;
+.counterMedal {
+  width: 26px;
+  height: 26px;
+  flex: none;
 }
-.pillValue {
-  display: block;
-  font-size: 1.15rem;
-  font-weight: 820;
+/* The windows, made the size this panel wants: SegmentDisplay draws a span of digits, filled to the height given. */
+.ledBig {
+  display: flex;
+  margin-left: auto;
+}
+.ledBig > span {
+  height: 40px;
+  padding: 5px 8px;
+  gap: 2px;
+  border-radius: 6px;
+}
+.counterSmall {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem 1rem;
+  flex-wrap: wrap;
+}
+.ledPair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ledLabel {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd65c;
+}
+.ledSmall {
+  display: flex;
+}
+.ledSmall > span {
+  height: 28px;
+  padding: 4px 6px;
+}
+.counterText {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #e9e5ff;
   font-variant-numeric: tabular-nums;
 }
-.pos {
-  color: var(--bc-win-text);
+.counterText strong {
+  color: #ffffff;
+  font-weight: 850;
 }
-.neg {
-  color: var(--bc-lose-text);
+.notMoney {
+  margin: 0.35rem 0 0;
+  padding: 0.45rem 0.6rem;
+  border-left: 3px solid var(--bc-gold);
+  border-radius: 4px;
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
+.medalsFrom {
+  margin-bottom: 0.85rem;
+}
+.feltArea:focus-visible {
+  outline: 3px solid var(--bc-gold);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+.refill {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 0.25rem;
+}
+
+/* ---------- Told once: the table plays with the player's medals now ---------- */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 14px;
+  border: 2px solid var(--bc-gold);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+}
+.noticeMedal {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.noticeText {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.noticeTitle {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 820;
+}
+.noticeText p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+/* ---------- Table, BET buttons ---------- */
 .chipRow {
   display: flex;
   gap: 0.45rem;
@@ -610,17 +744,22 @@
   font-weight: 700;
 }
 .chip {
-  --c: var(--bc-gold);
+  /* A medal of the floor's silver (medalLook.ts MEDAL_PAINT): a raised rim, the face, and the number struck on it. */
   appearance: none;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 3px dashed rgba(255, 255, 255, 0.7);
-  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--c) 78%, #fff) 0%, var(--c) 62%, color-mix(in srgb, var(--c) 70%, #000) 100%);
-  font-weight: 800;
-  font-size: 0.8rem;
+  border: 2px solid #44474c;
+  background: radial-gradient(circle at 38% 32%, #eff0f2 0%, #bbbec3 55%, #80848a 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.55),
+    inset 0 0 0 5px rgba(105, 109, 115, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.28);
+  color: #15171a;
+  font-weight: 900;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
 }
 .chip[aria-checked='true'] {
   outline: 3px solid var(--games-route-fg);
@@ -735,14 +874,54 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 38%, #f4cd7a 0%, var(--bc-gold) 62%, #a9781f 100%);
-  color: #1a1200;
+  background: radial-gradient(circle at 38% 32%, #eff0f2 0%, #bbbec3 60%, #80848a 100%);
+  color: #15171a;
   font-size: 0.7rem;
-  font-weight: 850;
-  border: 2px solid #1a1200;
+  font-weight: 900;
+  border: 2px solid #44474c;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   font-variant-numeric: tabular-nums;
   z-index: 2;
+}
+/* The felt and, over it, the plate that says the player's medals are being played in another tab. */
+.feltArea {
+  position: relative;
+}
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 2px solid #ffd65c;
+  background: rgba(10, 6, 26, 0.93);
+  color: #fff6d6;
+  line-height: 1.45;
+  text-align: center;
+  font-size: 0.92rem;
+}
+.cardAway p {
+  margin: 0;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1238;
+  font-weight: 800;
+  cursor: pointer;
+}
+.cardAwayButton:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
 }
 .message {
   margin: 0.7rem 0 0;

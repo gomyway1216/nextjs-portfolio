@@ -193,8 +193,13 @@ export interface Table {
   stats: Stats;
   /** The latest roll first. */
   history: HistoryEntry[];
-  /** The last roll as it was thrown: the table before it and the dice. What it decided is worked out again from these. */
-  last: { point: PointNumber | null; bets: Bets; dice: Dice } | null;
+  /**
+   * The last roll as it was thrown: the table before it and the dice. What it
+   * decided is worked out again from these. `seed` is what the throw's look
+   * was made from, so that the dice lie where they came to rest after a
+   * reload too; a table written before the throw was drawn has none.
+   */
+  last: { point: PointNumber | null; bets: Bets; dice: Dice; seed?: number } | null;
   /**
    * Which medals the bets on it were taken from: the medals' own copy on this
    * device and its era (`TablePurse.mark`). A guest's medals that become an
@@ -327,7 +332,9 @@ export function parseTable(text: unknown): Table | null {
     const lastBets = readBets(raw.last.bets);
     const dice = readDice(raw.last.dice);
     if (lastPoint === undefined || !lastBets || !dice || !standsUp(lastBets, lastPoint)) return null;
-    last = { point: lastPoint, bets: lastBets, dice };
+    const seed = raw.last.seed;
+    if (seed !== undefined && !(typeof seed === 'number' && Number.isSafeInteger(seed) && seed >= 0 && seed < 2 ** 32)) return null;
+    last = seed === undefined ? { point: lastPoint, bets: lastBets, dice } : { point: lastPoint, bets: lastBets, dice, seed };
   }
   const { mark } = raw;
   if (mark !== undefined && !(typeof mark === 'string' && mark.length <= 64)) return null;
@@ -697,9 +704,10 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
     /**
      * Throws the dice: every bet is resolved, the table is written as the roll
      * leaves it, and then the medals the roll gives back are given, once. A
-     * roll whose table or medals cannot be kept is not made.
+     * roll whose table or medals cannot be kept is not made. `seed`, if given,
+     * is kept with the roll: what its throw's look was made from.
      */
-    roll(dice: Dice): Done<Thrown> {
+    roll(dice: Dice, seed?: number): Done<Thrown> {
       if (!ready()) return fail('notHere');
       const before = table;
       const resolution = resolveRoll(before.point, before.bets, dice);
@@ -713,7 +721,7 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         lastRound: { ...before.bets },
         stats: nextStats(before.stats, resolution),
         history: [{ dice, event: resolution.event }, ...before.history].slice(0, HISTORY_LIMIT),
-        last: { point: before.point, bets: before.bets, dice },
+        last: seed === undefined ? { point: before.point, bets: before.bets, dice } : { point: before.point, bets: before.bets, dice, seed: seed >>> 0 },
       };
       if (!giveBack(before, next, resolution.returned)) return fail('notKept');
       return { ok: true, value: { resolution, before } };

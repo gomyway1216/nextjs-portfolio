@@ -8,14 +8,14 @@ import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
-import { HARD_PAYS, LAY_ODDS, ONE_ROLL_PAYS, PLACE_PAYS, POINT_NUMBERS, TRUE_ODDS, hardNumber, maxOdds, placeNumber, rollDice, type BetId, type Dice, type Ratio } from './engine';
+import { rollDice, type BetId } from './engine';
 import { crapsTable, mayPlayTable, playTableHere, seatTable, settleTable, tableStore } from './crapsTable';
+import { CrapsFelt, type ShownThrow } from './CrapsFelt';
 import { BET_SIZES, CRAPS_GAME, lastRoll, onTable, pressAmount, spotLimit, stakeStep, tableKey, type Table, type TableError } from './medalTable';
-import { DiceTray, DieFace } from './Dice';
+import { DieFace } from './Dice';
 import { getStrings } from './i18n';
+import { unlockThrowSounds } from './throwSounds';
 import styles from './Craps.module.css';
-
-const ratioText = ([n, d]: Ratio) => `${n}:${d}`;
 
 /** How long the medals may be away for a moment (the hub taking the day's bonus, say) before the table says where they are, in seconds. */
 const CARD_WAIT = 1.5;
@@ -66,6 +66,51 @@ const noticeStore = {
   },
 };
 
+// ── How the dice are thrown: with sound or not, and watched or quick ────────
+
+/** The player's choices for the throw, kept on this device: they belong to it and its speakers, not to the table. */
+export const THROW_KEY = 'craps-throw';
+interface ThrowChoices {
+  sound: boolean;
+  quick: boolean;
+}
+const PLAIN: ThrowChoices = { sound: false, quick: false };
+let choices: ThrowChoices | null = null;
+const choiceListeners = new Set<() => void>();
+const choiceStore = {
+  subscribe: (listener: () => void) => {
+    choiceListeners.add(listener);
+    return () => choiceListeners.delete(listener);
+  },
+  snapshot: (): ThrowChoices => {
+    if (choices === null) {
+      try {
+        const kept = JSON.parse(window.localStorage.getItem(THROW_KEY) ?? 'null') as unknown;
+        const record = typeof kept === 'object' && kept !== null ? (kept as Record<string, unknown>) : {};
+        choices = { sound: record.sound === true, quick: record.quick === true };
+      } catch {
+        choices = PLAIN;
+      }
+    }
+    return choices;
+  },
+  server: (): ThrowChoices => PLAIN,
+  set: (next: Partial<ThrowChoices>) => {
+    choices = { ...choiceStore.snapshot(), ...next };
+    try {
+      window.localStorage.setItem(THROW_KEY, JSON.stringify(choices));
+    } catch {
+      // Kept for this page only.
+    }
+    for (const listener of [...choiceListeners]) listener();
+  },
+};
+
+const prefersReducedMotion = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** The seed a throw kept from before seeds were kept is shown with: the same one every time for the same table. */
+const seedOf = (table: Table): number => (table.last?.seed ?? Math.imul(table.stats.rolls + 1, 0x9e3779b1)) >>> 0;
+
 export interface PlayTabProps {
   /** Whether the site knows who is playing. Until it does, no medal is played. */
   settled?: boolean;
@@ -82,17 +127,18 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   // The table as it is kept (medalTable.ts): its bets are medals taken from the player's.
   const table = useSyncExternalStore(tableStore.subscribe, tableStore.snapshot, tableStore.serverSnapshot);
   const noticeOpen = useSyncExternalStore(noticeStore.subscribe, noticeStore.snapshot, noticeStore.server);
+  const chosen = useSyncExternalStore(choiceStore.subscribe, choiceStore.snapshot, choiceStore.server);
 
   const [size, setSize] = useState<number>(BET_SIZES[1]);
   const [rolling, setRolling] = useState(false);
-  const [rollId, setRollId] = useState(0);
-  const [dice, setDice] = useState<Dice | null>(null);
+  const [thrown, setThrown] = useState<ShownThrow | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   // A roll is settled as the dice are thrown, and shown as they land: until then the table as it was is shown, and the
   // medals the roll brought back are kept off the counter.
   const [held, setHeld] = useState<{ table: Table; returned: number } | null>(null);
   const rollingRef = useRef(false);
+  const throws = useRef(0);
   const strings = useRef(t);
   useEffect(() => {
     strings.current = t;
@@ -116,7 +162,7 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
         else machine.resetSeen();
         // A roll still in the air belonged to the table before: the cleared table is shown at once.
         setHeld(null);
-        if (!rollingRef.current) setDice(null);
+        if (!rollingRef.current) setThrown(null);
         setMessage(null);
         setAnnouncement(strings.current.sayReset);
       } else if (event.type === 'refill') {
@@ -174,9 +220,14 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   const medals = Math.max(0, bankState.balance - (held?.returned ?? 0));
   const staked = onTable(shown);
   const net = shown.stats.net;
-  // The dice in the tray: this page's throw while it is in the air, and otherwise the table's last roll, whoever threw
-  // it (this page before a reload, or another tab), shown as it lies.
-  const trayDice = rolling ? dice : (shown.last?.dice ?? null);
+  // The dice lie where the last throw left them, a reload or another tab's throw included; before any, in the hand.
+  const resting = useMemo<ShownThrow | null>(
+    () => (table.last ? { id: -1 - table.stats.rolls, faces: table.last.dice, seed: seedOf(table), mode: 'rest' } : null),
+    [table],
+  );
+  // This page's own throw while it is the table's last; any other (another tab's, or the one before a reload) at rest.
+  // A throw in the air is always played to its end, whatever another tab writes meanwhile.
+  const onFelt = thrown && (rolling || thrown.seed === table.last?.seed) ? thrown : resting;
 
   const errorText = (error: TableError, id?: BetId): string => {
     const max = id ? spotLimit(id, table.point, table.bets) : undefined;
@@ -227,70 +278,35 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
 
   const roll = () => {
     if (rollingRef.current) return;
-    const done = crapsTable().roll(rollDice());
+    // The roll is drawn first, by the game's own draw; the throw that is shown is then made to land on it.
+    const dice = rollDice();
+    const seed = Math.floor(Math.random() * 2 ** 32) >>> 0;
+    const done = crapsTable().roll(dice, seed);
     if (!done.ok) {
       setMessage(errorText(done.error));
       return;
     }
     const { resolution, before } = done.value;
+    if (chosen.sound) void unlockThrowSounds();
     rollingRef.current = true;
     setRolling(true);
     setMessage(null);
     setHeld({ table: before, returned: resolution.returned });
-    setDice(resolution.dice);
-    setRollId((id) => id + 1);
+    throws.current += 1;
+    setThrown({ id: throws.current, faces: resolution.dice, seed, mode: chosen.quick ? 'quick' : prefersReducedMotion() ? 'calm' : 'animate' });
   };
 
-  const settle = useCallback(() => {
-    if (!rollingRef.current) return;
+  const settle = useCallback((id: number) => {
+    if (!rollingRef.current || id !== throws.current) return;
     rollingRef.current = false;
     setRolling(false);
     setHeld(null);
   }, []);
 
-  const spot = (id: BetId, label: string, pays: string, extraClass = '', children?: React.ReactNode) => {
-    const amount = bets[id] ?? 0;
-    const step = stakeStep(id, point);
-    const unavailable = 'error' in pressAmount(id, size, point, bets);
-    return (
-      <button
-        key={id}
-        type="button"
-        className={`${styles.spot} ${extraClass} ${unavailable ? styles.spotUnavailable : ''}`}
-        onClick={() => press(id)}
-        disabled={!canPlay}
-        aria-label={t.betAria(t.betName[id], pays, amount, step)}
-        data-bet={id}
-        data-step={step}
-      >
-        <span className={styles.spotLabel}>{label}</span>
-        <span className={styles.spotPays}>{pays}</span>
-        {step > 1 && (
-          <span className={styles.spotStep} aria-hidden>
-            {t.stepTag(step)}
-          </span>
-        )}
-        {children}
-        {amount > 0 && (
-          <span className={styles.chipBadge} aria-hidden>
-            {amount}
-          </span>
-        )}
-        {amount > 0 && point === null && (placeNumber(id) !== null || hardNumber(id) !== null) && (
-          <span className={styles.offTag} title={t.offOnComeOut}>
-            {t.puckOff}
-          </span>
-        )}
-      </button>
-    );
-  };
-
-  const oddsSpot = (id: 'passOdds' | 'dontPassOdds') => {
-    const max = maxOdds(id, point, bets);
-    const pays = point === null ? t.trueOdds : ratioText(id === 'passOdds' ? TRUE_ODDS[point] : LAY_ODDS[point]);
-    // Printed short on the felt, as the odds sit behind the line with no box of their own on a real table; the button's
-    // name says it in full.
-    return spot(id, id === 'passOdds' ? t.oddsShort : t.layShort, pays, styles.oddsSpot, max > 0 ? <span className={styles.spotMax}>{t.oddsMax(max)}</span> : null);
+  const toggleSound = () => {
+    const next = !chosen.sound;
+    if (next) void unlockThrowSounds();
+    choiceStore.set({ sound: next });
   };
 
   return (
@@ -368,30 +384,109 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
         </p>
       </section>
 
-      <div className={styles.playGrid}>
-        <div className={styles.panel}>
-          <DiceTray dice={dice} rollId={rollId} onSettled={settle} resting={rolling ? null : (shown.last?.dice ?? null)} label={trayDice ? t.diceLabel(trayDice[0], trayDice[1]) : t.trayIdle} />
+      <div className={styles.tableArea}>
+        {/* The table: the layout is where the medals are bet, and the dice are thrown down it. */}
+        <CrapsFelt
+          bets={bets}
+          point={point}
+          size={size}
+          canPlay={canPlay}
+          onPress={press}
+          t={t}
+          language={language === 'ja' ? 'ja' : 'en'}
+          shown={onFelt}
+          onSettled={settle}
+          sound={chosen.sound}
+        />
+        <p className={styles.printedNote}>{t.printedNote}</p>
 
-          <div className={styles.callout} aria-live="polite" data-testid="craps-callout">
-            {rolling ? (
-              <span className={styles.calloutRolling}>{t.rolling}</span>
-            ) : lastRes ? (
-              <>
-                <span className={lastRes.event === 'sevenOut' || lastRes.event === 'craps' ? styles.calloutBad : styles.calloutGood}>
-                  {t.event(lastRes.event, lastRes.total, lastRes.pointAfter)}
+        <div className={styles.callout} aria-live="polite" data-testid="craps-callout">
+          {rolling ? (
+            <span className={styles.calloutRolling}>{t.rolling}</span>
+          ) : lastRes ? (
+            <>
+              <span className={lastRes.event === 'sevenOut' || lastRes.event === 'craps' ? styles.calloutBad : styles.calloutGood}>
+                {t.event(lastRes.event, lastRes.total, lastRes.pointAfter)}
+              </span>
+              {lastRes.returned > 0 && (
+                <span className={styles.calloutWon} data-testid="craps-won">
+                  {t.wonMedals(lastRes.returned)}
                 </span>
-                {lastRes.returned > 0 && (
-                  <span className={styles.calloutWon} data-testid="craps-won">
-                    {t.wonMedals(lastRes.returned)}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span>{t.comeOut}</span>
-            )}
+              )}
+            </>
+          ) : (
+            <span>{t.comeOut}</span>
+          )}
+        </div>
+
+        <div className={styles.controls}>
+          <div className={styles.chipRow} role="radiogroup" aria-label={t.betSize}>
+            <span className={styles.chipRowLabel} aria-hidden>
+              {t.betSize}
+            </span>
+            {BET_SIZES.map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={size === v}
+                aria-label={t.betSizeAria(v)}
+                onClick={() => setSize(v)}
+                disabled={rolling}
+                className={styles.betSize}
+                data-size={v}
+              >
+                <Medal className={styles.betSizeMedal} />
+                <span className={styles.betSizeValue}>{v}</span>
+              </button>
+            ))}
           </div>
 
-          {lastRes && !rolling && (
+          <p className={styles.message} role="status" data-testid="craps-message">
+            {message ?? (point === null ? t.comeOut : t.pointIs(point))}
+          </p>
+
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={roll} disabled={!canPlay}>
+              {rolling ? t.rolling : t.roll}
+            </button>
+            <button type="button" className={styles.btn} onClick={undo} disabled={!canPlay}>
+              {t.undo}
+            </button>
+            <button type="button" className={styles.btn} onClick={clear} disabled={!canPlay}>
+              {t.clear}
+            </button>
+            <button type="button" className={styles.btn} onClick={repeat} disabled={!canPlay}>
+              {t.repeat}
+            </button>
+            <button type="button" className={styles.btn} onClick={takeDown} disabled={!canPlay} data-testid="craps-take-down">
+              {t.takeDown}
+            </button>
+          </div>
+          <div className={styles.throwChoices}>
+            <button type="button" className={styles.toggle} aria-pressed={chosen.sound} onClick={toggleSound} data-testid="craps-sound">
+              {chosen.sound ? t.soundOn : t.soundOff}
+            </button>
+            <button type="button" className={styles.toggle} aria-pressed={chosen.quick} onClick={() => choiceStore.set({ quick: !chosen.quick })} data-testid="craps-quick">
+              {t.quickRoll}
+            </button>
+          </div>
+        </div>
+
+        {/* The medals are in a machine in another tab: this table waits, with its bets on it, until it is played here again. */}
+        {cardAway && (
+          <div className={styles.cardAway} role="status" data-testid="craps-card-away">
+            <p>{t.cardAway}</p>
+            <button type="button" className={styles.cardAwayButton} data-testid="craps-play-here" onClick={playTableHere}>
+              {t.playHere}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.infoGrid}>
+        <div className={styles.panel}>
+          {lastRes && !rolling ? (
             <div className={styles.results}>
               <div className={styles.sectionLabel}>{t.rollResults}</div>
               {lastRes.results.length === 0 ? (
@@ -410,7 +505,7 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
                 </ul>
               )}
             </div>
-          )}
+          ) : null}
 
           <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>
             {t.recentRolls}
@@ -458,115 +553,7 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
             </div>
           </dl>
         </div>
-
         <div className={styles.panel}>
-          <div className={styles.chipRow} role="radiogroup" aria-label={t.betSize}>
-            <span className={styles.chipRowLabel} aria-hidden>
-              {t.betSize}
-            </span>
-            {BET_SIZES.map((v) => (
-              <button
-                key={v}
-                type="button"
-                role="radio"
-                aria-checked={size === v}
-                aria-label={t.betSizeAria(v)}
-                onClick={() => setSize(v)}
-                disabled={rolling}
-                className={styles.betSize}
-                data-size={v}
-              >
-                <Medal className={styles.betSizeMedal} />
-                <span className={styles.betSizeValue}>{v}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className={styles.tableArea}>
-            <div className={styles.felt}>
-              <div className={styles.placeRow}>
-                <span className={`${styles.puck} ${point === null ? styles.puckOff : styles.puckHidden}`} aria-hidden="true">
-                  {t.puckOff}
-                </span>
-                {POINT_NUMBERS.map((n) =>
-                  spot(
-                    `place${n}` as BetId,
-                    n === 6 ? 'SIX' : n === 9 ? 'NINE' : String(n),
-                    ratioText(PLACE_PAYS[n]),
-                    styles.placeSpot,
-                    point === n ? (
-                      <span className={`${styles.puck} ${styles.puckOn}`} data-testid="craps-puck">
-                        {t.puckOn}
-                      </span>
-                    ) : null,
-                  ),
-                )}
-              </div>
-
-              {spot('field', t.betName.field, t.fieldNote, styles.fieldSpot, (
-                <span className={styles.fieldNumbers} aria-hidden="true">
-                  {Object.keys(ONE_ROLL_PAYS.field).join(' · ')}
-                </span>
-              ))}
-
-              <div className={styles.lineRow}>
-                {spot('dontPass', t.betName.dontPass, '1:1 · Bar 12', styles.dontSpot)}
-                {oddsSpot('dontPassOdds')}
-              </div>
-              <div className={styles.lineRow}>
-                {spot('pass', t.betName.pass, '1:1', styles.passSpot)}
-                {oddsSpot('passOdds')}
-              </div>
-
-              <div className={styles.propBox} aria-label={t.proposition} role="group">
-                {spot('any7', t.betName.any7, ratioText(ONE_ROLL_PAYS.any7), styles.any7Spot)}
-                {([6, 10, 8, 4] as const).map((h) =>
-                  spot(`hard${h}` as BetId, t.betName[`hard${h}` as BetId], ratioText(HARD_PAYS[h]), styles.propSpot, (
-                    <span className={styles.hardDice} aria-hidden="true">
-                      <DieFace value={h / 2} className={styles.miniDie} />
-                      <DieFace value={h / 2} className={styles.miniDie} />
-                    </span>
-                  )),
-                )}
-                {spot('aces', t.betName.aces, ratioText(ONE_ROLL_PAYS.aces), styles.propSpot)}
-                {spot('yo', t.betName.yo, ratioText(ONE_ROLL_PAYS.yo), styles.propSpot)}
-                {spot('twelve', t.betName.twelve, ratioText(ONE_ROLL_PAYS.twelve), styles.propSpot)}
-                {spot('anyCraps', t.betName.anyCraps, ratioText(ONE_ROLL_PAYS.anyCraps), styles.anyCrapsSpot)}
-              </div>
-            </div>
-
-            <p className={styles.message} role="status" data-testid="craps-message">
-              {message ?? (point === null ? t.comeOut : t.pointIs(point))}
-            </p>
-
-            <div className={styles.actions}>
-              <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={roll} disabled={!canPlay}>
-                {rolling ? t.rolling : t.roll}
-              </button>
-              <button type="button" className={styles.btn} onClick={undo} disabled={!canPlay}>
-                {t.undo}
-              </button>
-              <button type="button" className={styles.btn} onClick={clear} disabled={!canPlay}>
-                {t.clear}
-              </button>
-              <button type="button" className={styles.btn} onClick={repeat} disabled={!canPlay}>
-                {t.repeat}
-              </button>
-              <button type="button" className={styles.btn} onClick={takeDown} disabled={!canPlay} data-testid="craps-take-down">
-                {t.takeDown}
-              </button>
-            </div>
-
-            {/* The medals are in a machine in another tab: this table waits, with its bets on it, until it is played here again. */}
-            {cardAway && (
-              <div className={styles.cardAway} role="status" data-testid="craps-card-away">
-                <p>{t.cardAway}</p>
-                <button type="button" className={styles.cardAwayButton} data-testid="craps-play-here" onClick={playTableHere}>
-                  {t.playHere}
-                </button>
-              </div>
-            )}
-          </div>
           <ul className={styles.hint}>
             {t.hint.map((h, i) => (
               <li key={i}>{h}</li>

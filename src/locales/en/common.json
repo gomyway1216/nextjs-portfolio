@@ -1313,7 +1313,7 @@
     },
     "medal-center": {
       "title": "Medal Game Center",
-      "description": "A Japanese arcade’s medal counter: one medal bank for every machine on the floor, kept on your account, with a daily bonus, a free refill when you run out, and the one reset."
+      "description": "A Japanese arcade’s medal counter: your medals for every machine on the floor, kept on your account, with a daily bonus, a free refill when you run out, and the one reset. Medals are for play only, not money."
     },
     "medal-pusher": {
       "title": "Medal Pusher",

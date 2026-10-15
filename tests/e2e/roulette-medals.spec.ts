@@ -1,0 +1,256 @@
+import { test, expect, type Page } from '@playwright/test';
+
+import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { colorOf } from '../../src/components/game/Roulette/engine';
+import { getStrings } from '../../src/components/game/Roulette/i18n';
+import { ROULETTE_RESULTS_STORAGE_KEY } from '../../src/components/game/Roulette/resultsStore';
+import { NOTICE_KEY, ROULETTE_GAME, SPIN_KEY, parseSpin, winningsOf, type SpinRecord } from '../../src/components/game/Roulette/medalTable';
+import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { boardNumbers, openRoulette, placeFirstBet, settledResult, shownBet, shownMedals, spinButton } from './roulettePage';
+import { arrived } from './streamedPage';
+
+// Roulette on the medal center's floor: it plays with the player's medals, the ones every game there shares. A bet
+// is taken when the wheel spins and what it wins goes back when the ball stops, once each, through reloads, a page
+// that dies, another tab and the medal center's reset. Nothing here signs in: the medals are a guest's, on this device.
+
+const NOT_MONEY_EN = 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.';
+const NOT_MONEY_JA = 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。';
+
+/** The spin this device has on record for a guest, read the way the table reads it. */
+async function spinOnRecord(page: Page): Promise<SpinRecord | null> {
+  return parseSpin(await page.evaluate((key) => window.localStorage.getItem(key), SPIN_KEY));
+}
+
+/** One medal on red, one on black and one on zero: whatever comes up, something wins. */
+async function coverTheWheel(page: Page) {
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: /^Black \(1:1\)$/ }).click();
+  await page.getByRole('button', { name: /^Straight up \(35:1\) — 0$/ }).click();
+  await expect.poll(() => shownBet(page)).toBe(3);
+}
+
+const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
+
+test('a bet takes medals when the wheel spins, a win puts medals back, and the medal center shows the same count after a reload', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openRoulette(page);
+  expect(await shownMedals(page)).toBe(WELCOME);
+  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY_EN);
+  await expect(page.getByTestId('roulette-center')).toHaveAttribute('href', '/games/medal-center');
+
+  await coverTheWheel(page);
+  // On the felt, off the counter, and not yet taken from the medals.
+  expect(await shownMedals(page)).toBe(WELCOME - 3);
+  expect(await bankBalance(page)).toBe(WELCOME);
+
+  await spinButton(page).click();
+  const n = await settledResult(page);
+  const won = n === 0 ? 36 : 2;
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 3 + won);
+  expect(await shownMedals(page)).toBe(WELCOME - 3 + won);
+  await expect(page.getByTestId('roulette-outcome')).toHaveAttribute('data-won', String(won));
+  await expect(page.getByTestId('roulette-outcome')).toContainText(getStrings('en').wonLine(won, won - 3));
+  expect(await spinOnRecord(page)).toMatchObject({ result: n, wagered: 3, won, paid: true });
+  await expect(page.getByTestId('roulette-announcement')).toContainText(`Won ${won} medals`);
+
+  // After a reload the table shows the same medals, and so does the medal center.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-medals', String(WELCOME - 3 + won));
+  // The last spin is still shown, as the last one.
+  await expect(page.getByTestId('roulette-outcome')).toContainText(`Last spin: Won ${won} medals`);
+  await openCenter(page);
+  await expect(page.getByTestId('center-balance')).toHaveText(String(WELCOME - 3 + won));
+  // And the floor has the table open, with a way in.
+  await expect(page.getByTestId('center-play-roulette')).toHaveAttribute('href', '/games/roulette');
+  await expect(page.locator('[data-machine="roulette"]')).toHaveAttribute('data-open', 'true');
+});
+
+test('a reload while the ball is rolling settles the spin once, with the number drawn when it was bet', async ({ page }) => {
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: /^Black \(1:1\)$/ }).click();
+  await spinButton(page).click();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  // Taken as the wheel spins, and on record with its number before the ball has stopped.
+  expect(await bankBalance(page)).toBe(WELCOME - 2);
+  const staked = await spinOnRecord(page);
+  expect(staked).toMatchObject({ wagered: 2, paid: false });
+
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  // Settled as the page was left: not refunded, and paid once.
+  const after = await spinOnRecord(page);
+  expect(after).toMatchObject({ id: staked!.id, result: staked!.result, paid: true });
+  const won = winningsOf(after!.bets, after!.result);
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - 2 + won);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-medals', String(WELCOME - 2 + won));
+  await expect(page.getByTestId('roulette-outcome')).toHaveAttribute('data-won', String(won));
+  await expect.poll(() => boardNumbers(page)).toEqual([staked!.result]);
+
+  // Another reload pays nothing more and posts nothing more.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  await page.waitForTimeout(500);
+  expect(await bankBalance(page)).toBe(WELCOME - 2 + won);
+  expect(await boardNumbers(page)).toEqual([staked!.result]);
+});
+
+test('moving to another page of the site while the ball rolls settles the spin as the table is taken down', async ({ page }) => {
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: /^Black \(1:1\)$/ }).click();
+  await spinButton(page).click();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  const staked = await spinOnRecord(page);
+  expect(staked).toMatchObject({ wagered: 2, paid: false });
+  // The site's own link to the games: the page is not left, the table is unmounted (a mark on the window survives).
+  await page.evaluate(() => ((window as unknown as { stayed: boolean }).stayed = true));
+  await page.getByRole('link', { name: 'Games', exact: true }).filter({ visible: true }).first().click();
+  await page.waitForURL(/\/games$/);
+  expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)).toBe(true);
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+  expect(await bankBalance(page)).toBe(WELCOME - 2 + winningsOf(staked!.bets, staked!.result));
+});
+
+test('a page that dies mid-spin: the next one spins the wheel again to the same number and pays it once', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: /^Black \(1:1\)$/ }).click();
+  await spinButton(page).click();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  const staked = await spinOnRecord(page);
+  expect(staked).toMatchObject({ wagered: 2, paid: false });
+  // The tab's renderer dies: no pagehide, nothing settled.
+  const cdp = await context.newCDPSession(page);
+  const crashed = page.waitForEvent('crash');
+  void cdp.send('Page.crash').catch(() => undefined);
+  await crashed;
+
+  const next = await context.newPage();
+  await openRoulette(next);
+  await expect(next.getByTestId('roulette-announcement')).toContainText('Your last spin had not finished');
+  expect(await settledResult(next)).toBe(staked!.result);
+  const won = winningsOf(staked!.bets, staked!.result);
+  await expect.poll(() => bankBalance(next)).toBe(WELCOME - 2 + won);
+  expect(await spinOnRecord(next)).toMatchObject({ id: staked!.id, paid: true });
+  expect(await boardNumbers(next)).toEqual([staked!.result]);
+
+  await next.reload();
+  await arrived(next);
+  await expect(next.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  await next.waitForTimeout(500);
+  expect(await bankBalance(next)).toBe(WELCOME - 2 + won);
+  await expect(next.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'false');
+});
+
+test('another tab takes the medals: this table stops taking bets and says so, and Play here brings them back', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+
+  const other = await context.newPage();
+  await other.emulateMedia({ reducedMotion: 'reduce' });
+  await openRoulette(other);
+  await expect(page.getByTestId('roulette-card-away')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('roulette-play-here')).toHaveText('Play here');
+  await expect(spinButton(page)).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Black \(1:1\)$/ })).toBeDisabled();
+
+  // The other tab plays the same medals.
+  await placeFirstBet(other, /^Red \(1:1\)$/);
+  await spinButton(other).click();
+  const n = await settledResult(other);
+  const medals = WELCOME + (colorOf(n) === 'red' ? 1 : -1);
+  await expect.poll(() => bankBalance(other)).toBe(medals);
+
+  // Back to the first: it has the medals again, with what the other tab left, and the other waits.
+  await page.bringToFront();
+  await page.getByTestId('roulette-play-here').click();
+  await expect(page.getByTestId('roulette-card-away')).toHaveCount(0);
+  await expect(other.getByTestId('roulette-card-away')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-medals', String(medals - 1));
+  await expect(spinButton(page)).toBeEnabled();
+  await spinButton(page).click();
+  await settledResult(page);
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+  const last = (await spinOnRecord(page))!;
+  expect(await bankBalance(page)).toBe(medals - 1 + last.won);
+});
+
+test('the medal center’s reset starts the table over; the winning numbers, which describe the wheel, stay', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await spinButton(page).click();
+  const n = await settledResult(page);
+  await expect(page.getByText('No spins yet.')).toHaveCount(0);
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+
+  await resetAtCenter(page);
+  await openRoulette(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-medals', String(WELCOME));
+  await expect(page.getByText('No spins yet.')).toBeVisible();
+  await expect(page.getByTestId('roulette-outcome')).toHaveAttribute('data-won', '');
+  expect(await boardNumbers(page)).toEqual([n]);
+  // This device's table is written down as started over in the new era, and its old spin is off the record.
+  await expect.poll(async () => {
+    const ledger = await storedBank(page);
+    return ledger ? (ledger.restarted[`${ROULETTE_GAME}@${ledger.device}`] ?? -1) : -1;
+  }).toBe(1);
+  await expect.poll(() => spinOnRecord(page)).toBeNull();
+});
+
+test('old saved state: the board is kept, the chips are retired, and the note that says so is shown once', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  // What a player of the chip-era table has on this device: the results board (the chips were never saved), and,
+  // where the table now writes its spin, text it cannot read.
+  await page.addInitScript(
+    ([boardKey, spinKey]) => {
+      if (window.localStorage.getItem(boardKey) === null) window.localStorage.setItem(boardKey, JSON.stringify({ results: [17, 0, 32, 5], spinCount: 412 }));
+      if (window.sessionStorage.getItem('seeded') === null) {
+        window.sessionStorage.setItem('seeded', '1');
+        window.localStorage.setItem(spinKey, '{"v":0,"bankroll":1000,"chips":[25,100]}');
+      }
+    },
+    [ROULETTE_RESULTS_STORAGE_KEY, SPIN_KEY],
+  );
+  await openRoulette(page);
+  await expect.poll(() => boardNumbers(page)).toEqual([17, 0, 32, 5]);
+  // A new player's medals, not the old chips; and what could not be read is cleared.
+  expect(await shownMedals(page)).toBe(WELCOME);
+  await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), SPIN_KEY)).toBeNull();
+  const notice = page.getByTestId('roulette-notice');
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('Roulette now plays with your medals from the Medal Game Center');
+  await expect(notice.getByRole('link')).toHaveAttribute('href', '/games/medal-center');
+  await page.getByTestId('roulette-notice-ok').click();
+  await expect(notice).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), NOTICE_KEY)).not.toBeNull();
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  await expect(page.getByTestId('roulette-notice')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('the medal counter and the note that medals are not money, at a phone’s width, in both languages', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openRoulette(page);
+  await expect(page.getByTestId('roulette-meter')).toBeVisible();
+  await expect(page.getByTestId('roulette-medals')).toHaveText(`Your medals: ${WELCOME}`);
+  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY_EN);
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+
+  await openRoulette(page, 'ja');
+  await expect(page.getByTestId('roulette-medals')).toHaveText(`持ちメダル ${WELCOME}枚`);
+  await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY_JA);
+  await expect(page.getByRole('radiogroup', { name: '1回のベット枚数' })).toBeVisible();
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+});

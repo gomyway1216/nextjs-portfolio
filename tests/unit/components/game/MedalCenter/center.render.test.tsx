@@ -23,12 +23,14 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
-  it('has the Medal Pusher open on the floor, and every casino game shown as coming, with no way in yet', () => {
+  it('has the Medal Pusher open on the floor, and every casino game not on it yet shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
+    // Roulette is open on the floor too, and plays with the same medals.
+    expect(html.match(/<a[^>]*data-testid="center-play-roulette"[^>]*>/)?.[0] ?? '').toContain('href="/games/roulette"');
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
-    expect(soon).toEqual(['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
+    expect(soon).toEqual(['slot-machine', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
     for (const id of soon) {
       expect(html).toContain(`data-machine="${id}"`);
       expect(html).not.toContain(`center-play-${id}`);

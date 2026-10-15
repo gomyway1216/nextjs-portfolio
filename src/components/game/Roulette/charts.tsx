@@ -7,9 +7,12 @@ interface BankrollChartProps {
   height?: number;
   yLabel?: string;
   xLabel?: string;
+  /** The mark where the run ran out of medals. */
+  outLabel?: string;
 }
 
-export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height = 240, yLabel, xLabel }: BankrollChartProps) => {
+/** One run's medals, spin by spin (the simulation's pretend medals, never the player's own). */
+export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height = 240, yLabel, xLabel, outLabel = 'OUT' }: BankrollChartProps) => {
   if (trajectory.length === 0) return null;
   const padding = { top: 12, right: 12, bottom: 24, left: 48 };
   const innerW = width - padding.left - padding.right;
@@ -45,7 +48,7 @@ export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height
         );
       })}
 
-      {/* initial bankroll reference line */}
+      {/* the starting medals, for reference */}
       <line x1={padding.left} x2={width - padding.right} y1={initialY} y2={initialY} stroke="#e0a83c" strokeDasharray="4 4" strokeWidth={1} />
 
       {/* trajectory */}
@@ -54,7 +57,7 @@ export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height
       {bust && (
         <g>
           <circle cx={lastX} cy={yScale(0)} r={5} fill="#ef4444" />
-          <text x={lastX} y={yScale(0) - 8} textAnchor="middle" fill="#ef4444" fontSize="11" fontWeight={700}>BUST</text>
+          <text x={lastX} y={yScale(0) - 8} textAnchor="middle" fill="#ef4444" fontSize="11" fontWeight={700}>{outLabel}</text>
         </g>
       )}
 

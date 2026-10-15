@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
@@ -28,6 +29,11 @@ export const ThreeCardPoker = () => {
       <div className={styles.shell}>
         <div className={styles.header}>
           <div style={{ flex: 1 }}>
+            {/* The table stands on the Medal Game Center's floor, whose front has the medals, the daily bonus and the reset. */}
+            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="tcp-center">
+              <span aria-hidden>← </span>
+              {t.centerLink}
+            </a>
             <h1 className={styles.title}>
               <span aria-hidden>♣️</span> {t.title}
             </h1>
@@ -56,7 +62,7 @@ export const ThreeCardPoker = () => {
         </div>
 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
-            never drops the bankroll or a hand that is still in progress. */}
+            never drops a hand that is still in progress. */}
         <div role="tabpanel" id="tcp-panel-play" aria-labelledby="tcp-tab-play" hidden={tab !== 'play'}>
           <PlayTab />
         </div>

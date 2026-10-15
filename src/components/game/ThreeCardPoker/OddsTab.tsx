@@ -31,6 +31,7 @@ import {
 import { rankLabel } from './Cards';
 import { EvCurve, type CurveTick } from './charts';
 import { getStrings } from './i18n';
+import { SPOT_MAX } from './medalTable';
 import styles from './ThreeCardPoker.module.css';
 
 const PAY_TABLE_IDS: PairPlusTableId[] = ['standard', 'old'];
@@ -276,6 +277,15 @@ export const OddsTab = () => {
           </table>
         </div>
         <p className={styles.note}>{t.anteNote(pct(optimal.houseEdge), optimal.averageWager.toFixed(3), pct(optimal.elementOfRisk))}</p>
+        {/* The same edges in medals, at the table's limit on each spot. */}
+        <p className={styles.note} data-testid="tcp-medals-note">
+          {t.medalsNote(
+            SPOT_MAX,
+            (optimal.averageWager * SPOT_MAX).toFixed(2),
+            (optimal.houseEdge * SPOT_MAX).toFixed(2),
+            (-pairPlusOdds(PAIR_PLUS_TABLES.standard).ev * SPOT_MAX).toFixed(2),
+          )}
+        </p>
       </section>
 
       <section className={styles.panel} aria-labelledby="tcp-threshold-title">

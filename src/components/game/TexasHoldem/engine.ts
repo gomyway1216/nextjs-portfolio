@@ -217,6 +217,11 @@ export function evaluateBest(cards: readonly Card[]): HandRank {
   return best;
 }
 
+export function evaluateMadeHand(hole: readonly Card[], board: readonly Card[]): HandRank | null {
+  if (hole.length !== 2 || board.length < 3 || board.length > 5) return null;
+  return evaluateBest([...hole, ...board]);
+}
+
 export function totalPot(state: Pick<GameState, 'players'>): number {
   return state.players.reduce((sum, player) => sum + player.totalContribution, 0);
 }

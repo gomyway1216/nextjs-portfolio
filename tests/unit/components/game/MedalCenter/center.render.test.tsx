@@ -28,7 +28,9 @@ describe('the medal center’s front, as the server sends it', () => {
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
     const soon = FLOOR.filter(({ path }) => path === null).map(({ id }) => id);
-    expect(soon).toEqual(['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']);
+    expect(soon).toEqual(['slot-machine', 'roulette', 'blackjack', 'baccarat', 'craps', 'three-card-poker']);
+    // Video Poker plays from the medals now: open, with its way in.
+    expect(html.match(/<a[^>]*data-testid="center-play-video-poker"[^>]*>/)?.[0] ?? '').toContain('href="/games/video-poker"');
     for (const id of soon) {
       expect(html).toContain(`data-machine="${id}"`);
       expect(html).not.toContain(`center-play-${id}`);

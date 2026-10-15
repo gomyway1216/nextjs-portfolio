@@ -15,8 +15,22 @@ export interface VideoPokerStrings {
   howToPlay: string;
   infoBody: string[];
   hand: Record<HandName, string>;
+  // The medal center
+  centerLink: string;
+  /** What the medals are, and are not: shown by the counter. */
+  notMoney: string;
+  noticeTitle: string;
+  noticeBody: string;
+  noticeLink: string;
+  noticeDismiss: string;
+  cardAway: string;
+  playHere: string;
+  findingMedals: string;
+  refill: (medals: number) => string;
+  sayRefill: (medals: number) => string;
+  sayReset: string;
   // Play
-  credits: string;
+  medals: string;
   bet: string;
   win: string;
   net: string;
@@ -34,11 +48,10 @@ export interface VideoPokerStrings {
   payTableOption: (id: string, payback: string) => string;
   coins: (n: number) => string;
   pressDeal: string;
-  chooseHolds: string;
-  resultWin: (hand: string, amount: string) => string;
+  chooseHolds: (bet: number) => string;
+  resultWin: (hand: string, won: number, amount: string) => string;
   resultLose: string;
-  noCredits: string;
-  reset: string;
+  noMedals: string;
   bestTitle: string;
   bestToggle: string;
   holdBest: string;
@@ -124,16 +137,18 @@ export interface VideoPokerStrings {
 const en: VideoPokerStrings = {
   title: 'Video Poker',
   subtitle:
-    'Jacks or Better — the one machine where your choices matter. Play it with the exact value of every possible hold, then see how a “9/6” machine returns 99.54% and what each cheaper pay table costs.',
+    'Jacks or Better — the one machine where your choices matter. Play it with your medals from the Medal Game Center and the exact value of every possible hold, then see how a “9/6” machine returns 99.54% and what each cheaper pay table gives up.',
   tabPlay: 'Machine',
   tabOdds: 'Odds',
   tabSim: 'Simulation',
   howToPlay: 'How to play',
   infoBody: [
-    'Bet 1–5 coins and press DEAL to get five cards from a fresh 52-card deck.',
-    'Tap the cards you want to keep (HELD), then press DRAW: every other card is replaced once from the same deck. The final hand is paid by the table at the top.',
-    'A pair of jacks or better is the lowest paying hand. A royal flush pays 250 per coin, but 4,000 for five coins — which is why you bet five.',
-    'There are 32 ways to play every deal. The Best play panel shows the five best of them, plus your own hold, each with its exact expected payout, counted over every card that could be drawn.',
+    'The machine plays with your medals from the Medal Game Center: the same medals as every other machine there. Bet 1–5 medals and press DEAL to get five cards from a fresh 52-card deck. The bet comes out of your medals as the cards are dealt.',
+    'Tap the cards you want to keep (HELD), then press DRAW: every other card is replaced once from the same deck. What the final hand wins, by the table at the top, goes into your medals.',
+    'A pair of jacks or better is the lowest winning hand. A royal flush wins 250 medals for each medal bet, but 4,000 on a five-medal bet — which is why you bet five.',
+    'A hand that has been dealt stays dealt: reload the page, or come back to it in another tab, and the same five cards are waiting, with the same cards to come.',
+    'There are 32 ways to play every deal. The Best play panel shows the five best of them, plus your own hold, each with its exact expected return, counted over every card that could be drawn.',
+    'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
   ],
   hand: {
     nothing: 'Nothing',
@@ -147,10 +162,23 @@ const en: VideoPokerStrings = {
     straightFlush: 'Straight Flush',
     royalFlush: 'Royal Flush',
   },
-  credits: 'Credits',
+  centerLink: 'Medal Game Center',
+  notMoney: 'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+  noticeTitle: 'Video Poker now plays with your medals',
+  noticeBody:
+    'This machine now plays with your medals from the Medal Game Center, the same medals as every other machine there. The 1,000 it used to start every visit with are gone, and were not added to your medals.',
+  noticeLink: 'Go to the Medal Game Center',
+  noticeDismiss: 'Got it',
+  cardAway: 'Your medals are being played on a machine in another tab. This machine waits where it is.',
+  playHere: 'Play here',
+  findingMedals: 'Looking for your medals…',
+  refill: (medals) => `Out of medals — take ${medals} more`,
+  sayRefill: (medals) => `${medals} medals added.`,
+  sayReset: 'Your medals were reset at the Medal Game Center: this machine starts over, and the hand that was on it is gone.',
+  medals: 'Medals',
   bet: 'Bet',
   win: 'Win',
-  net: 'Net',
+  net: 'Net medals',
   betOne: 'Bet one',
   betMax: 'Bet max',
   deal: 'DEAL',
@@ -160,15 +188,14 @@ const en: VideoPokerStrings = {
   holdAria: (card, held) => `${card}${held ? ', held' : ''}`,
   cardBack: 'Face-down card',
   payTableLabel: 'Pay table',
-  coinColumn: (coins, current) => `${coins} ${coins === 1 ? 'coin' : 'coins'}${current ? ' (current bet)' : ''}`,
+  coinColumn: (coins, current) => `${coins} ${coins === 1 ? 'medal' : 'medals'}${current ? ' (current bet)' : ''}`,
   payTableOption: (id, payback) => `${id} · ${payback}`,
-  coins: (n) => (n === 1 ? '1 coin' : `${n} coins`),
+  coins: (n) => (n === 1 ? '1 medal' : `${n} medals`),
   pressDeal: 'Press DEAL to start.',
-  chooseHolds: 'Tap the cards to hold, then DRAW.',
-  resultWin: (hand, amount) => `${hand}! +${amount}`,
+  chooseHolds: (bet) => `BET ${bet} ${bet === 1 ? 'medal' : 'medals'}. Tap the cards to hold, then DRAW.`,
+  resultWin: (hand, won, amount) => `${hand}! Won ${amount} ${won === 1 ? 'medal' : 'medals'}`,
   resultLose: 'No win.',
-  noCredits: 'Not enough credits for that bet.',
-  reset: 'Reset',
+  noMedals: 'Not enough medals for that bet.',
   bestTitle: 'Best play',
   bestToggle: 'Show the best play',
   holdBest: 'Hold the best',
@@ -177,45 +204,45 @@ const en: VideoPokerStrings = {
   holdAll: 'Hold all five',
   yourHold: 'your hold',
   evUnit: '× bet',
-  bestNote: 'Expected payout per coin bet, exact: every card that could be drawn is counted (up to 1,533,939 draws).',
+  bestNote: 'Expected return per medal bet, exact: every card that could be drawn is counted (up to 1,533,939 draws).',
   mistake: (cost) => `That hold gives up ${cost} × your bet on average.`,
   perfect: 'That is the best play.',
   statsTitle: 'This session',
   statHands: 'Hands',
-  statReturn: 'Paid back',
+  statReturn: 'Returned',
   statPerfect: 'Best plays',
   statMistakeCost: 'Given up by other holds',
   hint: [
-    'The meters are in coins. Betting five coins is what unlocks the 4,000-coin royal.',
+    'The meters are in medals. Betting five medals is what unlocks the 4,000-medal royal.',
     'Never hold a kicker with a pair, and almost never break a paying pair — the panel shows why.',
     'The pay table changes the best play only in a few close hands.',
   ],
   oddsIntro:
-    'Video poker deals from one honest 52-card deck, so everything can be counted: all 2,598,960 deals, each of the 32 ways to play them, and every card the draw could bring. With the best hold for every deal, that gives the machine’s exact payback. Nothing on this tab is simulated.',
-  paybackTitle: 'Payback with perfect play',
+    'Video poker deals from one honest 52-card deck, so everything can be counted: all 2,598,960 deals, each of the 32 ways to play them, and every card the draw could bring. With the best hold for every deal, that gives the machine’s exact return. Nothing on this tab is simulated, and nothing on it touches your medals.',
+  paybackTitle: 'Return with perfect play',
   paybackNote: (classes, deals) =>
-    `At five coins. Computed from the best of 32 holds for each of the ${classes} suit-distinct deals, weighted over all ${deals}.`,
+    `At five medals a hand. Computed from the best of 32 holds for each of the ${classes} suit-distinct deals, weighted over all ${deals}.`,
   statHouseEdge: 'House edge',
   statVariance: 'Variance',
-  statShortCoin: 'Payback at 1–4 coins',
+  statShortCoin: 'Return at 1–4 medals',
   statRoyalEvery: 'Hands per royal flush',
-  finalTitle: 'Where the money comes from',
+  finalTitle: 'Where the return comes from',
   finalIntro:
-    'How often perfect play ends on each hand, and how much of the payback it provides. The royal flush comes once in about 40,000 hands yet carries two percent of the return — in the short run you are playing a worse game than the label says.',
+    'How often perfect play ends on each hand, and how much of the return it provides. The royal flush comes once in about 40,000 hands yet carries two percent of the return — in the short run you are playing a worse game than the label says.',
   colHand: 'Hand',
-  colPays: 'Pays',
+  colPays: 'Wins per medal',
   colProbability: 'After the draw',
   colOneIn: '1 in',
-  colContribution: 'Share of payback',
+  colContribution: 'Share of return',
   colDealt: 'On the deal',
   tablesTitle: 'The same game at six prices',
   tablesIntro:
-    'Casinos change only two lines — what a full house and a flush pay. Each coin taken off those lines costs about 1.1 points of payback.',
+    'Machines differ in only two lines — what a full house and a flush win. Each medal taken off those lines costs about 1.1 points of return.',
   colPayTable: 'Machine',
   colFullHouseFlush: 'Full house / flush',
-  colPayback: 'Payback',
+  colPayback: 'Return',
   colEdge: 'House edge',
-  colPer1000: 'Cost per 1,000 hands at 5 coins',
+  colPer1000: 'Medals lost per 1,000 hands at 5 medals',
   holdTitle: 'How many cards perfect play keeps',
   holdIntro: 'Most of the time the right play is two cards — usually a pair or two high cards. Throwing all five away is right about one hand in thirty.',
   holdLabel: (n) => (n === 0 ? 'None' : n === 5 ? 'All five' : String(n)),
@@ -235,7 +262,7 @@ const en: VideoPokerStrings = {
   handsPerSessionLabel: 'Hands per session',
   stratTitle: 'Perfect play against two habits, on the same deals',
   stratIntro:
-    'Every strategy gets the same five cards and the same replacement cards on a 9/6 machine, betting five coins a hand. Payback is shown per coin bet, so a royal flush counts as 800 per coin. The dashed lines are each strategy’s exact payback.',
+    'Every strategy gets the same five cards and the same replacement cards on a 9/6 machine, betting five medals a hand. The return is shown per medal bet, so a royal flush counts as 800 per medal. The dashed lines are each strategy’s exact return. Nothing here touches your medals.',
   strategyName: { optimal: 'Perfect play', simple: 'Common-sense rules', madeOnly: 'Keep only what already pays' },
   strategyRule: {
     optimal: 'The hold with the highest exact expectation, every hand.',
@@ -243,15 +270,15 @@ const en: VideoPokerStrings = {
     madeOnly: 'Hold a paying hand if you are dealt one; otherwise throw all five away.',
   },
   colStrategy: 'Strategy',
-  colExact: 'Exact payback',
+  colExact: 'Exact return',
   colSimulated: (hands) => `Simulated (${hands} hands)`,
   colDiffered: 'Hands played differently',
   colRoyals: 'Royals',
   stratNote:
-    'The ± is a 95% range. A single royal flush moves the payback of 100,000 hands by 0.8 points, which is why video poker results take so long to settle.',
+    'The ± is a 95% range. A single royal flush moves the return of 100,000 hands by 0.8 points, which is why video poker results take so long to settle.',
   sessionTitle: 'One evening at the machine',
   sessionIntro:
-    'Sessions of perfect play at five coins a hand on a 9/6 machine. On average a session loses exactly what the payback says — but that average is propped up by rare royal flushes, so the typical session does worse.',
+    'Sessions of perfect play at five medals a hand on a 9/6 machine, played here with simulated medals. On average a session loses exactly what the return says — but that average is propped up by rare royal flushes, so the typical session does worse.',
   sessExpected: 'Exact expectation',
   sessMean: 'Average result',
   sessMedian: 'Typical (median) result',
@@ -259,30 +286,32 @@ const en: VideoPokerStrings = {
   sessRoyal: 'Sessions with a royal',
   sessRoyalExact: (pct) => `exact: ${pct}`,
   sessMedianNoRoyal: 'Median without a royal',
-  sessAxis: 'Net coins at the end of the session',
+  sessAxis: 'Net medals at the end of the session',
   sessOffChart: (count, cap) => `${count} sessions finished above +${cap} and are gathered in the last bar.`,
-  sessTableCaption: (expected) => `Sessions by net coins at the end. The exact expectation is ${expected} coins.`,
-  sessColRange: 'Net coins',
+  sessTableCaption: (expected) => `Sessions by net medals at the end. The exact expectation is ${expected} medals.`,
+  sessColRange: 'Net medals',
   sessColCount: 'Sessions',
   sessRange: (from, to) => (from === to ? from : `${from} to ${to}`),
   sessRangeOver: (cap) => `Above +${cap}`,
   sessionNote:
-    'Results are in coins. Take the royal flush away and the same play returns about 97.6%: two points of the payback sit in a hand you may not see for 40,000 deals.',
+    'Results are in medals. Take the royal flush away and the same play returns about 97.6%: two points of the return sit in a hand you may not see for 40,000 deals.',
 };
 
 const ja: VideoPokerStrings = {
   title: 'ビデオポーカー',
   subtitle:
-    'ジャックス・オア・ベター。あなたの選択で結果が変わる唯一のマシンです。すべての残し方の正確な期待値を見ながら遊び、「9/6」機の還元率99.54%と、配当表が下がるごとの差を確認できます。',
+    'ジャックス・オア・ベター。あなたの選択で結果が変わる唯一のマシンです。メダルゲームセンターの持ちメダルで、すべての残し方の正確な期待値を見ながら遊び、「9/6」機の還元率99.54%と、配当表が下がるごとの差を確認できます。',
   tabPlay: 'マシン',
   tabOdds: '確率',
   tabSim: 'シミュレーション',
   howToPlay: '遊び方',
   infoBody: [
-    '1〜5コインを賭けて「ディール」を押すと、52枚のデッキから5枚が配られます。',
-    '残したいカードをタップして（HELD）、「ドロー」を押します。残さなかったカードは同じデッキから1回だけ引き直され、最終的な手が上の配当表で払われます。',
-    'ジャック以上のワンペアが最低の当たりです。ロイヤルフラッシュは1コインあたり250ですが、5コイン賭けたときだけ4,000になります。だから5コイン賭けるのが基本です。',
+    'このマシンは、メダルゲームセンターの持ちメダルで遊びます。ほかのマシンと同じメダルです。1〜5枚ベットして「ディール」を押すと、52枚のデッキから5枚が配られます。ベットしたメダルは、配られたときに持ちメダルから減ります。',
+    '残したいカードをタップして（HELD）、「ドロー」を押します。残さなかったカードは同じデッキから1回だけ引き直され、最終的な手で獲得したメダル（上の配当表のとおり）が持ちメダルに加わります。',
+    'ジャック以上のワンペアが最低の当たりです。ロイヤルフラッシュは1枚ベットあたり250枚ですが、5枚ベットのときだけ4,000枚になります。だから5枚ベットが基本です。',
+    '配られた手はそのまま残ります。ページを読み込み直しても、別のタブで開いても、同じ5枚と、同じ引き直しのカードが待っています。',
     'どの配り方にも32通りの残し方があります。「最善手」パネルには、そのうち上位5通りと自分が選んだ残し方が、引く可能性のあるカードをすべて数えた正確な期待値つきで表示されます。',
+    'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
   ],
   hand: {
     nothing: 'ハズレ',
@@ -296,10 +325,23 @@ const ja: VideoPokerStrings = {
     straightFlush: 'ストレートフラッシュ',
     royalFlush: 'ロイヤルフラッシュ',
   },
-  credits: 'クレジット',
+  centerLink: 'メダルゲームセンター',
+  notMoney: 'メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。',
+  noticeTitle: 'ビデオポーカーは持ちメダルで遊ぶようになりました',
+  noticeBody:
+    'このマシンは、メダルゲームセンターの持ちメダルで遊ぶようになりました。ほかのマシンと同じメダルです。これまで毎回最初にあった1,000はなくなり、持ちメダルには加わりません。',
+  noticeLink: 'メダルゲームセンターへ',
+  noticeDismiss: 'OK',
+  cardAway: 'メダルは別のタブのマシンで遊ばれています。このマシンはそのまま待っています。',
+  playHere: 'ここで遊ぶ',
+  findingMedals: '持ちメダルを確認しています…',
+  refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
+  sayRefill: (medals) => `${medals}枚もらいました。`,
+  sayReset: 'メダルゲームセンターでメダルがリセットされました。このマシンも最初からになり、遊んでいた手はなくなりました。',
+  medals: 'メダル',
   bet: 'ベット',
-  win: '配当',
-  net: '収支',
+  win: '獲得',
+  net: 'メダル増減',
   betOne: '1枚追加',
   betMax: 'マックスベット',
   deal: 'ディール',
@@ -309,15 +351,14 @@ const ja: VideoPokerStrings = {
   holdAria: (card, held) => `${card}${held ? '（ホールド中）' : ''}`,
   cardBack: '伏せたカード',
   payTableLabel: '配当表',
-  coinColumn: (coins, current) => `${coins}コイン${current ? '（現在のベット）' : ''}`,
+  coinColumn: (coins, current) => `${coins}枚${current ? '（現在のベット）' : ''}`,
   payTableOption: (id, payback) => `${id}・${payback}`,
-  coins: (n) => `${n}コイン`,
+  coins: (n) => `${n}枚`,
   pressDeal: '「ディール」を押してスタート。',
-  chooseHolds: '残すカードをタップして「ドロー」。',
-  resultWin: (hand, amount) => `${hand}！ +${amount}`,
+  chooseHolds: (bet) => `${bet}枚ベット。残すカードをタップして「ドロー」。`,
+  resultWin: (hand, _won, amount) => `${hand}！ ${amount}枚獲得`,
   resultLose: 'ハズレ。',
-  noCredits: 'クレジットが足りません。',
-  reset: 'リセット',
+  noMedals: 'メダルが足りません。',
   bestTitle: '最善手',
   bestToggle: '最善手を表示',
   holdBest: '最善手でホールド',
@@ -326,7 +367,7 @@ const ja: VideoPokerStrings = {
   holdAll: '5枚とも残す',
   yourHold: 'あなたの選択',
   evUnit: '倍',
-  bestNote: 'ベットに対する期待配当の倍率（厳密値）。引く可能性のあるカードをすべて数えています（最大1,533,939通り）。',
+  bestNote: 'ベット1枚あたりに戻ると期待できるメダルの倍率（厳密値）。引く可能性のあるカードをすべて数えています（最大1,533,939通り）。',
   mistake: (cost) => `その残し方は平均でベットの${cost}倍ぶん損です。`,
   perfect: 'それが最善手です。',
   statsTitle: 'このセッション',
@@ -335,35 +376,35 @@ const ja: VideoPokerStrings = {
   statPerfect: '最善手の回数',
   statMistakeCost: '最善手以外で失った期待値',
   hint: [
-    'メーターの単位はコインです。4,000コインのロイヤルは5コイン賭けたときだけです。',
+    'メーターの単位はメダル（枚）です。4,000枚のロイヤルは5枚ベットのときだけです。',
     'ペアにキッカーは付けない、当たりのペアはまず崩さない。パネルの数字が理由です。',
     '配当表で最善手が変わるのは、僅差のごく一部の手だけです。',
   ],
   oddsIntro:
-    'ビデオポーカーは本物の52枚デッキから配るので、すべて数え上げられます。2,598,960通りの配り方、それぞれ32通りの残し方、引く可能性のあるすべてのカード。配り方ごとに最善の残し方を選べば、マシンの正確な還元率が出ます。このタブの数字はシミュレーションではありません。',
+    'ビデオポーカーは本物の52枚デッキから配るので、すべて数え上げられます。2,598,960通りの配り方、それぞれ32通りの残し方、引く可能性のあるすべてのカード。配り方ごとに最善の残し方を選べば、マシンの正確な還元率が出ます。このタブの数字はシミュレーションではなく、持ちメダルも使いません。',
   paybackTitle: '完璧にプレイしたときの還元率',
   paybackNote: (classes, deals) =>
-    `5コインのとき。スートの違いを除いた${classes}通りの配り方それぞれで32通りの残し方から最善を選び、全${deals}通りに重み付けして計算しています。`,
+    `5枚ベットのとき。スートの違いを除いた${classes}通りの配り方それぞれで32通りの残し方から最善を選び、全${deals}通りに重み付けして計算しています。`,
   statHouseEdge: 'ハウスエッジ',
   statVariance: '分散',
-  statShortCoin: '1〜4コインのときの還元率',
+  statShortCoin: '1〜4枚ベットのときの還元率',
   statRoyalEvery: 'ロイヤルフラッシュ1回までの平均ハンド数',
   finalTitle: '還元率の内訳',
   finalIntro:
     '完璧にプレイしたときに各役で終わる確率と、還元率に占める割合です。ロイヤルフラッシュは約4万回に1回ですが、還元率の2%を担っています。短い時間では、表示されている数字より悪いゲームを遊んでいることになります。',
   colHand: '役',
-  colPays: '配当',
+  colPays: '1枚あたりの配当',
   colProbability: 'ドロー後',
   colOneIn: '何回に1回',
   colContribution: '還元率に占める割合',
   colDealt: '配られた時点',
   tablesTitle: '同じゲームの6つの値段',
-  tablesIntro: 'カジノが変えるのは、フルハウスとフラッシュの配当の2行だけです。その行から1コイン減るごとに、還元率は約1.1ポイント下がります。',
+  tablesIntro: 'マシンごとに違うのは、フルハウスとフラッシュの配当の2行だけです。その行から1枚減るごとに、還元率は約1.1ポイント下がります。',
   colPayTable: 'マシン',
   colFullHouseFlush: 'フルハウス / フラッシュ',
   colPayback: '還元率',
   colEdge: 'ハウスエッジ',
-  colPer1000: '5コインで1,000回遊んだときの損',
+  colPer1000: '5枚ベットで1,000回遊んだときに減るメダル',
   holdTitle: '最善手で残す枚数',
   holdIntro: 'ほとんどの場合、正解は2枚（たいていペアかハイカード2枚）です。5枚とも捨てるのが正解なのは、およそ30回に1回です。',
   holdLabel: (n) => (n === 0 ? '0枚' : n === 5 ? '5枚とも' : `${n}枚`),
@@ -383,7 +424,7 @@ const ja: VideoPokerStrings = {
   handsPerSessionLabel: '1セッションのハンド数',
   stratTitle: '最善手と2つの「ありがちな遊び方」を同じ配りで比べる',
   stratIntro:
-    'どの戦略にも同じ5枚と同じ引き直しのカードが配られます。9/6機で1ハンド5コイン賭けたときの還元率を、賭けた1コインあたりで表しています（ロイヤルフラッシュは1コインあたり800）。点線は各戦略の正確な還元率です。',
+    'どの戦略にも同じ5枚と同じ引き直しのカードが配られます。9/6機で1ハンド5枚ベットしたときの還元率を、ベット1枚あたりで表しています（ロイヤルフラッシュは1枚あたり800）。点線は各戦略の正確な還元率です。ここでは持ちメダルは使いません。',
   strategyName: { optimal: '最善手', simple: '常識的なルール', madeOnly: '当たっている役だけ残す' },
   strategyRule: {
     optimal: '毎回、正確な期待値が最も高い残し方。',
@@ -398,7 +439,7 @@ const ja: VideoPokerStrings = {
   stratNote: '± は95%の幅です。ロイヤルフラッシュ1回で10万ハンドの還元率が0.8ポイント動きます。ビデオポーカーの結果がなかなか収束しないのはそのためです。',
   sessionTitle: 'マシンで過ごす一晩',
   sessionIntro:
-    '9/6機で1ハンド5コイン、最善手でプレイしたセッションです。平均すれば還元率どおりの損で済みますが、その平均はまれなロイヤルフラッシュに支えられています。ふつうのセッションはそれより悪くなります。',
+    '9/6機で1ハンド5枚ベット、最善手でプレイしたセッションを、シミュレーション上のメダルで試します。平均すれば還元率どおりの減りで済みますが、その平均はまれなロイヤルフラッシュに支えられています。ふつうのセッションはそれより悪くなります。',
   sessExpected: '正確な期待値',
   sessMean: '平均の結果',
   sessMedian: 'ふつうの（中央値の）結果',
@@ -406,14 +447,14 @@ const ja: VideoPokerStrings = {
   sessRoyal: 'ロイヤルが出たセッション',
   sessRoyalExact: (pct) => `理論値：${pct}`,
   sessMedianNoRoyal: 'ロイヤルなしの中央値',
-  sessAxis: 'セッション終了時の収支（コイン）',
+  sessAxis: 'セッション終了時のメダル増減（枚）',
   sessOffChart: (count, cap) => `${count}セッションは+${cap}を超えており、右端の棒にまとめています。`,
-  sessTableCaption: (expected) => `セッション終了時の収支（コイン）ごとのセッション数。正確な期待値は${expected}コインです。`,
-  sessColRange: '収支（コイン）',
+  sessTableCaption: (expected) => `セッション終了時のメダル増減（枚）ごとのセッション数。正確な期待値は${expected}枚です。`,
+  sessColRange: 'メダル増減（枚）',
   sessColCount: 'セッション数',
   sessRange: (from, to) => (from === to ? from : `${from}〜${to}`),
   sessRangeOver: (cap) => `+${cap}超`,
-  sessionNote: '単位はコインです。ロイヤルフラッシュを除くと、同じプレイでも還元率は約97.6%です。還元率のうち2ポイントは、4万回配られても出ないかもしれない1つの役の中にあります。',
+  sessionNote: '単位はメダル（枚）です。ロイヤルフラッシュを除くと、同じプレイでも還元率は約97.6%です。還元率のうち2ポイントは、4万回配られても出ないかもしれない1つの役の中にあります。',
 };
 
 export const getStrings = (language: GameLanguage): VideoPokerStrings => (language === 'ja' ? ja : en);

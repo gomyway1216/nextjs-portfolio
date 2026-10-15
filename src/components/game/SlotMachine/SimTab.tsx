@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { REFILL } from '../MedalCenter/ledger';
 import {
   analyzeMachine,
   simulateConvergence,
@@ -12,12 +13,15 @@ import {
 } from './engine';
 import { ConvergenceChart, Histogram, TrajectoryChart } from './charts';
 import { getStrings } from './i18n';
+import { BET_OPTIONS } from './medals';
 import styles from './SlotMachine.module.css';
 
 const ODDS = analyzeMachine();
 export const CONVERGENCE_SPINS = [10_000, 100_000, 1_000_000, 10_000_000] as const;
-const SESSION_BETS = [1, 2, 5, 10] as const;
-const DEFAULT_SESSION: SessionConfig = { bankroll: 100, bet: 1, maxSpins: 500 };
+/** The medals a session bets a spin: the same choice the machine offers. */
+const SESSION_BETS = BET_OPTIONS;
+/** A session starts with the medal center's free cupful. */
+const DEFAULT_SESSION: SessionConfig = { bankroll: REFILL, bet: 1, maxSpins: 500 };
 const DEFAULT_TRIALS = 2_000;
 const LIMITS = { bankroll: [1, 100_000], maxSpins: [1, 20_000], trials: [1, 20_000] } as const;
 
@@ -226,7 +230,7 @@ export const SimTab = () => {
               </div>
             </div>
             <h4 className={styles.subTitle}>{t.finalDist}</h4>
-            <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.credits} />
+            <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.medals} />
             <h4 className={styles.subTitle}>{t.sampleSession}</h4>
             <TrajectoryChart trajectory={summary.sampleTrajectory} start={summaryConfig.bankroll} xLabel={t.spinsAxis} />
           </div>

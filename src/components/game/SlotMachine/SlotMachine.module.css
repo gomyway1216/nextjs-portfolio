@@ -42,6 +42,59 @@
   gap: 0.5rem;
 }
 
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.centerLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+
+/* The one-time note that the machine plays with the player's medals now. */
+.notice {
+  margin: 1rem 0 0;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid var(--games-route-border);
+  border-left: 5px solid var(--slot-gold-deep);
+  background: var(--games-route-surface);
+  color: var(--games-route-fg);
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+.notice p {
+  margin: 0 0 0.5rem;
+}
+.noticeTitle {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.noticeLink {
+  color: var(--games-route-fg);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.noticeLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+
 .subtitle {
   margin: 0.4rem 0 0;
   color: var(--games-route-muted);
@@ -397,9 +450,12 @@
 }
 
 /* ---------- Meters & controls ---------- */
+/* The medals, the bet and the win on seven-segment LED displays, as a medal machine shows them (the Medal Pusher's
+   own displays, MedalPusher/SegmentDisplay.tsx). The number is in type beside each display for a screen reader; where
+   the page's colours are overridden the displays are put away and the type is shown instead. */
 .meters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 2fr) minmax(0, 0.8fr) minmax(0, 1.3fr);
   gap: 0.5rem;
   margin-top: 0.9rem;
 }
@@ -407,30 +463,68 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.35rem 0.25rem;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.35rem 0.25rem 0.4rem;
   border-radius: 9px;
   background: #0a0a0a;
   border: 1px solid #3f3f46;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .meterLabel {
-  font-size: 0.64rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--slot-gold);
+  white-space: nowrap;
+}
+.meterMedal {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 .meterValue {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: clamp(1.1rem, 3.5vw, 1.45rem);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: #f87171;
-  text-shadow: 0 0 8px rgba(248, 113, 113, 0.75);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(22px, 6.4vw, 30px);
 }
 .meterWin {
-  color: #fde047;
-  text-shadow: 0 0 10px rgba(253, 224, 71, 0.9);
+  border-color: #fde047;
+  box-shadow:
+    inset 0 0 10px rgba(0, 0, 0, 0.8),
+    0 0 12px rgba(253, 224, 71, 0.55);
+}
+@media (forced-colors: active) {
+  .meterValue {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    font-weight: 800;
+    font-size: 1.2rem;
+  }
 }
 .resultLine {
   margin: 0.6rem 0 0.2rem;
@@ -438,6 +532,12 @@
   text-align: center;
   font-weight: 800;
   color: #fde68a;
+}
+.resumedLine {
+  margin: 0 0 0.2rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #fef3c7;
 }
 
 .controls {
@@ -450,32 +550,37 @@
 }
 .betRow {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
-.betChip {
+/* The bet buttons are medals: copper-nickel with a raised rim, in the medal center's own silver (medalLook.ts). */
+.betMedal {
   appearance: none;
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  border: 3px dashed rgba(255, 255, 255, 0.75);
-  background: radial-gradient(circle at 50% 38%, #fde68a 0%, #f4c542 60%, #a16207 100%);
-  color: #1a1200;
+  border: 2px solid #44474c;
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, #eff0f2 20%, #bbbec3 58%, #80848a 100%);
+  box-shadow:
+    inset 0 0 0 4px rgba(105, 109, 115, 0.5),
+    inset 0 0 0 5px rgba(239, 240, 242, 0.85),
+    0 3px 6px rgba(0, 0, 0, 0.45);
+  color: #1d1f23;
+  font-size: 1.1rem;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
   transition: transform 0.12s;
 }
-.betChip[aria-checked='true'] {
-  outline: 3px solid #fff;
+.betMedal[aria-checked='true'] {
+  outline: 3px solid #fde047;
   outline-offset: 2px;
   transform: translateY(-2px) scale(1.06);
 }
-.betChip:disabled {
+.betMedal:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
-.betChip:focus-visible {
-  outline: 3px solid #fde047;
+.betMedal:focus-visible {
+  outline: 3px solid #ffffff;
   outline-offset: 2px;
 }
 .spinButton {
@@ -517,6 +622,89 @@
   gap: 0.5rem;
   width: 100%;
   justify-content: flex-end;
+}
+
+/* The attendant's free cupful, for a player with no medals left. */
+.refill {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.8rem;
+  padding: 0.55rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #fcd34d;
+  background: #fef3c7;
+  color: #451a03;
+  font-weight: 800;
+  cursor: pointer;
+}
+.refill:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* What the medals are, and where they are kept. */
+.medalNotes {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(253, 230, 138, 0.3);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #fdf2f2;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.medalNotes p:last-child {
+  margin-bottom: 0;
+}
+.cabinetLink {
+  color: #fde68a;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cabinetLink:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* The medals are being played in another tab: this machine waits, and says so over its reels. */
+.cardAway {
+  position: absolute;
+  inset: 22% 6% auto 6%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #fcd34d;
+  background: rgba(20, 4, 4, 0.94);
+  color: #fff7e0;
+  line-height: 1.45;
+  text-align: center;
+  font-size: 0.92rem;
+}
+.cardAway p {
+  margin: 0;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #fcd34d;
+  background: #fcd34d;
+  color: #2a0505;
+  font-weight: 800;
+  cursor: pointer;
+}
+.cardAwayButton:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
 }
 
 /* ---------- Side panel ---------- */
@@ -1002,7 +1190,7 @@
   .leverKnob,
   .btn,
   .spinButton,
-  .betChip {
+  .betMedal {
     transition: none;
   }
 }

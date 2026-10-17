@@ -1076,6 +1076,17 @@
   margin-top: 0.85rem;
   flex-wrap: wrap;
 }
+/* At a phone's width the four buttons stand two by two, SPIN and Rebet on top, each half the felt wide. */
+@media (max-width: 520px) {
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .actions > .btn {
+    min-height: 44px;
+    padding-inline: 0.6rem;
+  }
+}
 .btn {
   appearance: none;
   border: 1px solid var(--games-route-border);

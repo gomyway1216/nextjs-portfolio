@@ -72,6 +72,12 @@ export interface RouletteStrings {
   spinning: string;
   clear: string;
   undo: string;
+  /** Puts the last spin's bets back on the felt, as they were: the button, with how many medals that is. */
+  rebet: (medals: number) => string;
+  /** Said when the medals do not cover the last spin's bets. */
+  rebetShort: (medals: number) => string;
+  /** What a screen reader hears when the last bets are back on the felt. */
+  sayRebet: (medals: number) => string;
   recentResults: string;
   none: string;
   betHistory: string;
@@ -245,6 +251,9 @@ const EN: RouletteStrings = {
   spinning: 'Spinning…',
   clear: 'Clear',
   undo: 'Undo',
+  rebet: (medals) => (medals > 0 ? `Rebet ${medals}` : 'Rebet'),
+  rebetShort: (medals) => `Not enough medals to repeat the last bets (${medalsEn(medals)}).`,
+  sayRebet: (medals) => `The last bets are back on the felt: ${medalsEn(medals)}.`,
   recentResults: 'Winning numbers',
   none: '(none yet)',
   betHistory: 'Spin history',
@@ -375,6 +384,9 @@ const JA: RouletteStrings = {
   spinning: 'スピン中…',
   clear: 'クリア',
   undo: '取り消し',
+  rebet: (medals) => (medals > 0 ? `前回と同じ ${medals.toLocaleString('ja-JP')}枚` : '前回と同じ'),
+  rebetShort: (medals) => `前回のベット（${medals.toLocaleString('ja-JP')}枚）に足りるメダルがありません。`,
+  sayRebet: (medals) => `前回と同じベット（${medals.toLocaleString('ja-JP')}枚）をテーブルに置きました。`,
   recentResults: '出目履歴',
   none: '（まだなし）',
   betHistory: 'スピン履歴',

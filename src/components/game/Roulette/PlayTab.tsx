@@ -109,6 +109,14 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
   const [winning, setWinning] = useState<number | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const historyId = useRef(0);
+  // The bets of the last spin, for Rebet: put back on the felt as they were, as a table's repeat-bet button does.
+  const [lastBets, setLastBets] = useState<PlacedBet[]>([]);
+  const lastBetsRef = useRef<PlacedBet[]>([]);
+  const rememberBets = useCallback((placed: PlacedBet[]) => {
+    const copy = placed.map((pb) => ({ bet: pb.bet, amount: pb.amount }));
+    lastBetsRef.current = copy;
+    setLastBets(copy);
+  }, []);
   const wheelAreaRef = useRef<HTMLDivElement>(null);
 
   // Refs guard against state-lag races: setSpinning(true) doesn't take effect
@@ -200,6 +208,24 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     setFelt({});
   };
 
+  /** Puts the last spin's bets back on an empty felt, all of them or none: each spot as it was, Undo taking them off again one by one. */
+  const rebet = () => {
+    const last = lastBetsRef.current;
+    if (spinningRef.current || !canBetRef.current || last.length === 0 || sumOf(betsRef.current) > 0) return;
+    const total = last.reduce((sum, pb) => sum + pb.amount, 0);
+    if (total > medalBank().balance()) {
+      setMessage(t.rebetShort(total));
+      return;
+    }
+    setMessage('');
+    const nextBets = Object.fromEntries(last.map((pb) => [keyOf(pb.bet), { bet: pb.bet, amount: pb.amount }]));
+    betsRef.current = nextBets;
+    setBets(nextBets);
+    undoStack.current = last.map((pb) => ({ key: keyOf(pb.bet), amount: pb.amount }));
+    setPlaceOrder(last.map((pb) => keyOf(pb.bet)));
+    setAnnouncement(t.sayRebet(total));
+  };
+
   /** Sets the wheel going to a spin's number: one bet now, or one this device left unfinished. */
   const roll = useCallback((spun: InFlight) => {
     inFlight.current = spun;
@@ -223,6 +249,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     }
     setMessage('');
     putNoticeAway();
+    rememberBets(staked.record.bets);
     setAnnouncement(t.sayStake(staked.record.wagered));
     roll(Object.assign(staked, { boarded: false }));
   };
@@ -271,10 +298,11 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
       setOutcome(null);
       setWinning(null);
       setMessage('');
+      rememberBets([]);
       medalBank().restarted(ROULETTE_GAME);
       if (said) setAnnouncement(live.current.t.sayReset);
     },
-    [setFelt],
+    [setFelt, rememberBets],
   );
 
   // The table's place at the medal center. It asks for the card as it is set up, and bets the player's medals while it
@@ -328,6 +356,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
           const left = tab.leftover();
           if (left) {
             setAnnouncement(live.current.t.sayResumed);
+            rememberBets(left.bets);
             setFelt(Object.fromEntries(left.bets.map((pb) => [keyOf(pb.bet), pb])));
             roll({ record: left, stored: true, paid: false, void: false, boarded: false });
             break;
@@ -335,6 +364,8 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
           const last: SpinRecord | null = tab.last();
           if (last && shownLast.current !== last.id && !spinningRef.current) {
             shownLast.current = last.id;
+            // The last spin's bets can be made again, after a reload as before it.
+            rememberBets(last.bets);
             setOutcome({ result: last.result, won: last.won, wagered: last.wagered, earlier: true });
             setWinning(last.result);
           }
@@ -358,7 +389,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
       if (syncNow.current === sync) syncNow.current = null;
       table.current = null;
     };
-  }, [roll, setFelt, startOver]);
+  }, [roll, setFelt, startOver, rememberBets]);
 
   // The medals on the table have become this player's (the site has found out who is playing), or the card has come:
   // whatever the bank holds for the table is looked at again.
@@ -649,6 +680,15 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
               className={`${styles.btn} ${styles.btnPrimary}`}
             >
               {spinning ? t.spinning : t.spin}
+            </button>
+            <button
+              type="button"
+              onClick={rebet}
+              disabled={!canBet || lastBets.length === 0 || totalWagered > 0}
+              className={styles.btn}
+              data-testid="roulette-rebet"
+            >
+              {t.rebet(lastBets.reduce((sum, pb) => sum + pb.amount, 0))}
             </button>
             <button type="button" onClick={undoTracked} disabled={spinning || placeOrder.length === 0} className={styles.btn}>
               {t.undo}

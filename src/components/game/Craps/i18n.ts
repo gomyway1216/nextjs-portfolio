@@ -4,7 +4,7 @@
 
 import type { GameLanguage } from '../constants/gameTranslations';
 import { NOT_MONEY } from '../MedalCenter/strings';
-import type { BetId, RollEvent } from './engine';
+import { POINT_NUMBERS, type BetId, type ComePointBetId, type PointNumber, type RollEvent } from './engine';
 import type { TableError } from './medalTable';
 import type { StrategyId } from './sim';
 
@@ -23,6 +23,8 @@ export interface CrapsStrings {
   unit: string;
   /** What a roll brought back: the medals bet on what won, and what they won. */
   wonMedals: (medals: number) => string;
+  /** A Come or Don't Come bet moved to its number. */
+  comeMove: (bet: string, to: number) => string;
   onTable: string;
   net: string;
   /** The owner's note, shown wherever medals are played: they are not money. */
@@ -63,6 +65,8 @@ export interface CrapsStrings {
   upTo: (bet: string, max: number) => string;
   betAria: (name: string, pays: string, amount: number, step: number) => string;
   stepTag: (step: number) => string;
+  /** A Come or Don't Come bet on its number, and what a press of it does: put odds behind it. */
+  comePointAria: (bet: string, medals: number, odds: string) => string;
   oddsMax: (max: number) => string;
   /** The odds behind the line, as the felt prints them. */
   oddsShort: string;
@@ -161,11 +165,30 @@ export interface CrapsStrings {
   handsResult: (hands: string, mean: string, exact: string, longest: number) => string;
 }
 
+/** The names of the bets on come points, number by number. */
+const comePointNames = (name: { come: (n: PointNumber) => string; comeOdds: (n: PointNumber) => string; dontCome: (n: PointNumber) => string; dontComeOdds: (n: PointNumber) => string }) =>
+  Object.fromEntries(
+    POINT_NUMBERS.flatMap((n) => [
+      [`come${n}`, name.come(n)],
+      [`comeOdds${n}`, name.comeOdds(n)],
+      [`dontCome${n}`, name.dontCome(n)],
+      [`dontComeOdds${n}`, name.dontComeOdds(n)],
+    ]),
+  ) as Record<ComePointBetId, string>;
+
 const BET_EN: Record<BetId, string> = {
   pass: 'Pass Line',
   dontPass: "Don't Pass",
   passOdds: 'Pass odds',
   dontPassOdds: 'Lay odds',
+  come: 'Come',
+  dontCome: "Don't Come",
+  ...comePointNames({
+    come: (n) => `Come ${n}`,
+    comeOdds: (n) => `Odds on Come ${n}`,
+    dontCome: (n) => `Don't Come ${n}`,
+    dontComeOdds: (n) => `Lay on Don't Come ${n}`,
+  }),
   place4: 'Place 4',
   place5: 'Place 5',
   place6: 'Place 6',
@@ -189,6 +212,14 @@ const BET_JA: Record<BetId, string> = {
   dontPass: 'ドントパス',
   passOdds: 'パスのオッズ',
   dontPassOdds: 'レイオッズ',
+  come: 'カム',
+  dontCome: 'ドントカム',
+  ...comePointNames({
+    come: (n) => `カム ${n}`,
+    comeOdds: (n) => `カム ${n} のオッズ`,
+    dontCome: (n) => `ドントカム ${n}`,
+    dontComeOdds: (n) => `ドントカム ${n} のレイ`,
+  }),
   place4: 'プレイス 4',
   place5: 'プレイス 5',
   place6: 'プレイス 6',
@@ -228,6 +259,7 @@ const EN: CrapsStrings = {
   yourMedals: 'YOUR MEDALS',
   unit: 'medals',
   wonMedals: (medals) => `Won ${medals} ${medals === 1 ? 'medal' : 'medals'}`,
+  comeMove: (bet, to) => `${bet} goes to the ${to}`,
   onTable: 'On the table',
   net: 'Net medals',
   notMoney: NOT_MONEY.en,
@@ -250,7 +282,8 @@ const EN: CrapsStrings = {
   clear: 'Clear',
   repeat: 'Repeat bets',
   takeDown: 'Take down',
-  printedNote: 'COME and DON’T COME are printed as on a real felt; this table does not take them. The odds go behind the line bet, on ODDS and LAY.',
+  printedNote:
+    'COME and DON’T COME are bet once a point is on, as a line bet for the next roll: a number other than 7, 11, 2, 3 or 12 moves the bet to that number, where its own odds can be put on (tap it there). The line’s odds go behind the line bet, on ODDS and LAY.',
   soundOn: 'Sound: on',
   soundOff: 'Sound: off',
   quickRoll: 'Quick roll',
@@ -282,6 +315,9 @@ const EN: CrapsStrings = {
       needsPoint: 'Odds can be taken only after a point is set.',
       needsLineBet: 'Put a bet on the line first, then back it with odds.',
       oddsLimit: `That is over the odds limit (max ${max} medals).`,
+      comeNeedsPoint: 'Come and Don’t Come are made once a point is on. On the come-out roll, bet the Pass Line or Don’t Pass.',
+      needsComeBet: 'Odds go on a Come or Don’t Come bet that has moved to its number.',
+      comeTravels: 'A Come bet moves to its number by itself, after the roll.',
       spotLimit: `A spot holds at most ${max} medals.`,
       step: 'That bet would not pay whole medals.',
       noMedals: 'Not enough medals for that bet.',
@@ -294,6 +330,7 @@ const EN: CrapsStrings = {
   betAria: (name, pays, amount, step) =>
     `${name} (${pays})${step > 1 ? `, in ${step}s` : ''}${amount > 0 ? ` — ${amount} ${amount === 1 ? 'medal' : 'medals'} on it` : ''}`,
   stepTag: (step) => `in ${step}s`,
+  comePointAria: (bet, medals, odds) => `${bet}: ${medals} ${medals === 1 ? 'medal' : 'medals'}. Press to add ${odds}`,
   oddsMax: (max) => `max ${max}`,
   oddsShort: 'ODDS',
   layShort: 'LAY',
@@ -333,14 +370,15 @@ const EN: CrapsStrings = {
   colEdge: 'House edge',
   colRolls: 'Rolls per decision',
   trueOdds: 'true odds',
-  edgeNote: 'Odds bets pay exactly what they are worth, so their edge is zero. The flashier the win in the center, the bigger the edge.',
+  edgeNote:
+    'Odds bets pay exactly what they are worth, so their edge is zero — behind a come point too. Come and Don’t Come are Pass and Don’t Pass made once a point is on, with the same edges. The flashier the win in the center, the bigger the edge.',
   wholeTitle: 'Every win in whole medals',
   wholeIntro:
     'A medal cannot be cut, so a bet that pays a fraction takes medals only in amounts it pays in whole medals, as a dealer asks for 6 on the 6. These are the steps:',
   colStep: 'Medals at a time',
   stepCell: (step) => `${step}s`,
   wholeRow: (kind, a, b) =>
-    kind === 'place' ? `Place ${a} and ${b}` : kind === 'passOdds' ? `Pass odds on ${a} and ${b}` : `Lay odds against ${a} and ${b}`,
+    kind === 'place' ? `Place ${a} and ${b}` : kind === 'passOdds' ? `Pass or Come odds on ${a} and ${b}` : `Lay odds against ${a} and ${b}`,
   wholeNote:
     'Nothing is ever rounded, so every edge on this page is exactly the edge on the table. A table that rounds a win down instead (5 medals on the 6 winning 5, not 5⅚) would cost the player more than these figures say.',
   passTitle: 'Where 244 / 495 comes from',
@@ -431,6 +469,7 @@ const JA: CrapsStrings = {
   yourMedals: '持ちメダル',
   unit: '枚',
   wonMedals: (medals) => `${medals}枚獲得`,
+  comeMove: (bet, to) => `${bet}は ${to} へ`,
   onTable: 'テーブル上',
   net: '差枚',
   notMoney: NOT_MONEY.ja,
@@ -453,7 +492,8 @@ const JA: CrapsStrings = {
   clear: 'クリア',
   repeat: '前回と同じ賭け',
   takeDown: '引き上げる',
-  printedNote: 'カム・ドントカムは本物のテーブルと同じく印刷してありますが、このテーブルでは置けません。オッズはラインベットの後ろの ODDS・LAY に置きます。',
+  printedNote:
+    'カム・ドントカムはポイントが決まってから置く、次の1投のためのラインベットです。7・11・2・3・12 以外の目が出るとその数字に移り、そこでオッズを付けられます（数字の上のベットをタップ）。ラインのオッズはラインベットの後ろの ODDS・LAY に置きます。',
   soundOn: '音: オン',
   soundOff: '音: オフ',
   quickRoll: 'クイックロール',
@@ -485,6 +525,9 @@ const JA: CrapsStrings = {
       needsPoint: 'オッズはポイントが決まってから付けられます。',
       needsLineBet: '先にラインにベットしてから、その後ろにオッズを付けます。',
       oddsLimit: `オッズの上限を超えています（最大${max}枚）。`,
+      comeNeedsPoint: 'カム・ドントカムはポイントが決まってから置けます。カムアウトではパスラインかドントパスに置きます。',
+      needsComeBet: 'オッズは、数字に移ったカム・ドントカムのベットに付けます。',
+      comeTravels: 'カムのベットは、投げた後で自分の数字に移ります。',
       spotLimit: `1 か所に置けるのは${max}枚までです。`,
       step: 'そのベットでは配当が整数枚になりません。',
       noMedals: '持ちメダルが足りません。',
@@ -496,6 +539,7 @@ const JA: CrapsStrings = {
   upTo: (bet, max) => `${bet}は上限の${max}枚になりました。`,
   betAria: (name, pays, amount, step) => `${name}（${pays}）${step > 1 ? `・${step}枚単位` : ''}${amount > 0 ? ` — ${amount}枚ベット中` : ''}`,
   stepTag: (step) => `${step}枚単位`,
+  comePointAria: (bet, medals, odds) => `${bet}：${medals}枚。押すと次を追加：${odds}`,
   oddsMax: (max) => `最大 ${max}`,
   oddsShort: 'オッズ',
   layShort: 'レイ',
@@ -535,13 +579,13 @@ const JA: CrapsStrings = {
   colEdge: 'ハウスエッジ',
   colRolls: '決着までの平均投数',
   trueOdds: '真の確率',
-  edgeNote: 'オッズは価値どおりの配当なのでエッジは 0 です。中央の派手な配当ほどエッジは大きくなります。',
+  edgeNote: 'オッズは価値どおりの配当なのでエッジは 0 です（カムのポイントのオッズも同じ）。カム・ドントカムはポイント中に置くパス・ドントパスで、エッジも同じです。中央の派手な配当ほどエッジは大きくなります。',
   wholeTitle: '配当はいつも整数枚',
   wholeIntro: 'メダルは割れないので、端数の出る配当のベットは、配当が整数枚になる単位でだけ置けます。ディーラーが「6 には 6 枚で」と頼むのと同じです。単位は次のとおりです:',
   colStep: '1 回の単位',
   stepCell: (step) => `${step}枚`,
   wholeRow: (kind, a, b) =>
-    kind === 'place' ? `プレイス ${a}・${b}` : kind === 'passOdds' ? `パスのオッズ（ポイント ${a}・${b}）` : `レイオッズ（ポイント ${a}・${b}）`,
+    kind === 'place' ? `プレイス ${a}・${b}` : kind === 'passOdds' ? `パス・カムのオッズ（${a}・${b}）` : `レイオッズ（${a}・${b}）`,
   wholeNote:
     '端数を切り捨てることは一切ないので、このページのエッジはすべてテーブルのエッジそのものです。単位に合わない額を受けて配当を切り捨てるテーブル（6 に 5 枚で、当たりが 5⅚ 枚ではなく 5 枚）なら、プレイヤーの損はこの数字より大きくなります。',
   passTitle: '244 / 495 の内訳',

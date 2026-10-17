@@ -413,6 +413,12 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
                   {t.wonMedals(lastRes.returned)}
                 </span>
               )}
+              {/* A Come or Don't Come bet that moved to its number on this roll, as the dealer moves it. */}
+              {lastRes.moves.map((move) => (
+                <span key={move.id} className={styles.calloutMove} data-testid="craps-come-move">
+                  {t.comeMove(t.betName[move.id], move.to)}
+                </span>
+              ))}
             </>
           ) : (
             <span>{t.comeOut}</span>

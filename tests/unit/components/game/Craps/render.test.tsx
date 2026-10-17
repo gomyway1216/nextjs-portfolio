@@ -9,7 +9,7 @@ import { TABLES, liveAreas } from '@/components/game/Craps/tableLayout';
 import { OddsTab } from '@/components/game/Craps/OddsTab';
 import { PlayTab } from '@/components/game/Craps/PlayTab';
 import { SimTab } from '@/components/game/Craps/SimTab';
-import { BET_IDS } from '@/components/game/Craps/engine';
+import { LAYOUT_BET_IDS } from '@/components/game/Craps/engine';
 import { getStrings } from '@/components/game/Craps/i18n';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { BET_SIZES } from '@/components/game/Craps/medalTable';
@@ -53,7 +53,7 @@ describe('the table', () => {
     expect(markup.indexOf('data-table-kind="half"')).toBeLessThan(split);
     for (const kind of ['full', 'half'] as const) {
       const view = kind === 'half' ? markup.slice(0, split) : markup.slice(split);
-      expect([...view.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...BET_IDS].sort());
+      expect([...view.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...LAYOUT_BET_IDS].sort());
       expect(view.match(/data-die="\d"/g)).toHaveLength(2);
       expect(view.match(/data-value="\d"/g)?.length).toBeGreaterThanOrEqual(12);
       expect(view).toContain(`craps-rubber-${kind}`);
@@ -78,7 +78,8 @@ describe('the table', () => {
   it('adds Japanese help under the English words', () => {
     const markup = felt('ja');
     expect(markup).toContain('パスライン');
-    expect(markup).toContain('カム（このテーブルではなし）');
+    expect(markup).toContain('カム');
+    expect(markup).not.toContain('このテーブルではなし');
     expect(markup).toContain('2 は 2 倍 · 12 は 3 倍');
     expect(markup).toContain('PASS LINE');
   });
@@ -102,7 +103,7 @@ describe('the table', () => {
             expect(apart, `${kind}: ${JSON.stringify(a)} and ${JSON.stringify(b)}`).toBe(true);
           }
       }
-      expect(liveAreas(layout).map((area) => area.id).sort()).toEqual([...BET_IDS].sort());
+      expect(liveAreas(layout).map((area) => area.id).sort()).toEqual([...LAYOUT_BET_IDS].sort());
     }
   });
 });
@@ -116,7 +117,7 @@ describe('PlayTab', () => {
     expect(markup).toContain('data-testid="craps-on-table">0<');
     expect(markup).toContain('>YOUR MEDALS<');
     // Every bet is on the layout of both tables, the full one and the half one, and none can be pressed yet.
-    expect([...markup.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...BET_IDS, ...BET_IDS].sort());
+    expect([...markup.matchAll(/data-bet="([a-zA-Z0-9]+)"/g)].map((m) => m[1]).sort()).toEqual([...LAYOUT_BET_IDS, ...LAYOUT_BET_IDS].sort());
     expect(markup.match(/<button[^>]*data-bet="[a-zA-Z0-9]+"[^>]*>/g)?.every((tag) => tag.includes('disabled=""'))).toBe(true);
     expect(markup).toContain('>OFF<');
     expect(markup).not.toContain('data-testid="craps-puck"');

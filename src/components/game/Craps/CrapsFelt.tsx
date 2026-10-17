@@ -3,7 +3,22 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import { MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { DieFace } from './Dice';
-import { HARD_PAYS, LAY_ODDS, ONE_ROLL_PAYS, PLACE_PAYS, TRUE_ODDS, hardNumber, maxOdds, placeNumber, type BetId, type Bets, type PointNumber, type Ratio } from './engine';
+import {
+  HARD_PAYS,
+  LAY_ODDS,
+  ONE_ROLL_PAYS,
+  PLACE_PAYS,
+  TRUE_ODDS,
+  comePoint,
+  comePointBet,
+  hardNumber,
+  maxOdds,
+  placeNumber,
+  type BetId,
+  type Bets,
+  type PointNumber,
+  type Ratio,
+} from './engine';
 import type { CrapsStrings } from './i18n';
 import { pressAmount, stakeStep } from './medalTable';
 import { TABLES, mirrored, share, type Box, type Felt, type LiveArea, type TableKind, type TableLayout } from './tableLayout';
@@ -52,6 +67,9 @@ function paysOf(id: BetId, point: PointNumber | null, t: CrapsStrings): string {
   if (place !== null) return ratioText(PLACE_PAYS[place]);
   const hard = hardNumber(id);
   if (hard !== null) return ratioText(HARD_PAYS[hard]);
+  const come = comePoint(id);
+  if (come?.kind === 'comeOdds') return ratioText(TRUE_ODDS[come.n]);
+  if (come?.kind === 'dontComeOdds') return ratioText(LAY_ODDS[come.n]);
   switch (id) {
     case 'passOdds':
       return point === null ? t.trueOdds : ratioText(TRUE_ODDS[point]);
@@ -60,6 +78,7 @@ function paysOf(id: BetId, point: PointNumber | null, t: CrapsStrings): string {
     case 'field':
       return t.fieldNote;
     case 'dontPass':
+    case 'dontCome':
       return '1:1 · Bar 12';
     case 'any7':
     case 'anyCraps':
@@ -259,6 +278,25 @@ function AreaArt({ area, layout, t, language, stroke, muted = false }: { area: L
         </g>
       );
     }
+    case 'come':
+      return (
+        <g>
+          {outline}
+          <Words box={box} main="COME" help="カム" language={language} size={label * 2.1} color={RED} helpSize={small} />
+        </g>
+      );
+    case 'dontCome': {
+      const die = box.h * 0.6;
+      return (
+        <g>
+          {outline}
+          <text x={box.x + box.w * 0.42} y={box.y + box.h / 2} fontSize={small * 1.05} fill="#ffffff" fontWeight={850} textAnchor="middle" dominantBaseline="middle" letterSpacing="0.06em">
+            DON&apos;T COME BAR
+          </text>
+          <PrintedPair cx={box.x + box.w * 0.78} y={box.y + (box.h - die) / 2} size={die} values={[6, 6]} />
+        </g>
+      );
+    }
     case 'passOdds':
     case 'dontPassOdds':
       return (
@@ -301,29 +339,6 @@ function AreaArt({ area, layout, t, language, stroke, muted = false }: { area: L
     default:
       return outline;
   }
-}
-
-/** What a real felt has printed that this table does not take: Come and Don't Come. */
-function PrintedArt({ id, box, layout, language, stroke }: { id: 'come' | 'dontCome'; box: Box; layout: Felt; language: 'en' | 'ja'; stroke: number }) {
-  const { label, small } = layout.type;
-  if (id === 'come') {
-    return (
-      <g>
-        <rect x={box.x} y={box.y} width={box.w} height={box.h} fill="none" stroke={LINE} strokeWidth={stroke} />
-        <Words box={box} main="COME" help="カム（このテーブルではなし）" language={language} size={label * 2.1} color={RED} helpSize={small} />
-      </g>
-    );
-  }
-  const die = box.h * 0.6;
-  return (
-    <g>
-      <rect x={box.x} y={box.y} width={box.w} height={box.h} fill="none" stroke={LINE} strokeWidth={stroke} />
-      <text x={box.x + box.w * 0.42} y={box.y + box.h / 2} fontSize={small * 1.05} fill="#ffffff" fontWeight={850} textAnchor="middle" dominantBaseline="middle" letterSpacing="0.06em">
-        DON&apos;T COME BAR
-      </text>
-      <PrintedPair cx={box.x + box.w * 0.78} y={box.y + (box.h - die) / 2} size={die} values={[6, 6]} />
-    </g>
-  );
 }
 
 /** The rubber that lines an end wall: rows of small pyramids, lit from the top left. */
@@ -370,9 +385,6 @@ const TubArt = memo(function TubArt({ layout, t, language }: { layout: TableLayo
       <rect x={rail} y={rail} width={width - 2 * rail} height={height - 2 * rail} rx={rail * 0.5} fill={`url(#${gradient})`} />
       <Rubber box={layout.rubber} id={`craps-rubber-${layout.kind}`} />
       {layout.nearRubber && <Rubber box={layout.nearRubber} id={`craps-rubber-near-${layout.kind}`} />}
-      {layout.printed.map((area) => (
-        <PrintedArt key={area.id} id={area.id} box={area.box} layout={layout} language={language} stroke={stroke} />
-      ))}
       {layout.live.map((area) => (
         <AreaArt key={area.id} area={area} layout={layout} t={t} language={language} stroke={stroke} />
       ))}
@@ -390,9 +402,6 @@ const TubArt = memo(function TubArt({ layout, t, language }: { layout: TableLayo
       {layout.mirror && (
         /* The other end: the same layout, for the players who stand there. Nothing is bet on it here. */
         <g opacity={0.5} data-testid="craps-other-end">
-          {layout.printed.map((area) => (
-            <PrintedArt key={area.id} id={area.id} box={mirrored(layout, area.box)} layout={layout} language="en" stroke={stroke} />
-          ))}
           {layout.live
             .filter((area) => !layout.middle || area.box.x + area.box.w <= layout.middle.x)
             .map((area) => (
@@ -448,6 +457,43 @@ const MedalPile = ({ count }: { count: number }) => {
   );
 };
 
+/**
+ * A Come or Don't Come bet that has moved to its number, drawn in that number's box as a dealer moves it there: a
+ * Come bet in the lower part, a Don't Come bet in the top strip (the Don't Come box over the number). It is a button:
+ * a press puts odds behind it (lay odds behind a Don't Come bet), the BET size rounded to the steps they pay whole
+ * medals in, as on ODDS and LAY behind the line.
+ */
+function ComePoint({ felt, box, n, kind, medals, props }: { felt: Felt; box: Box; n: PointNumber; kind: 'come' | 'dontCome'; medals: number; props: CrapsFeltProps }) {
+  const { bets, point, size, canPlay, onPress, t } = props;
+  const oddsId = comePointBet(kind === 'come' ? 'comeOdds' : 'dontComeOdds', n);
+  const odds = bets[oddsId] ?? 0;
+  const step = stakeStep(oddsId, point);
+  const full = 'error' in pressAmount(oddsId, size, point, bets);
+  const place: Box = kind === 'come' ? { x: box.x, y: box.y + box.h * 0.56, w: box.w * 0.62, h: box.h * 0.44 } : { x: box.x, y: box.y, w: box.w, h: box.h * 0.36 };
+  return (
+    <button
+      type="button"
+      className={`${styles.comePoint} ${full ? styles.areaUnavailable : ''}`}
+      style={share(felt, place)}
+      onClick={() => onPress(oddsId)}
+      disabled={!canPlay}
+      aria-label={t.comePointAria(t.betName[comePointBet(kind, n)], medals, t.betAria(t.betName[oddsId], paysOf(oddsId, point, t), odds, step))}
+      data-come-point={`${kind}${n}`}
+      data-odds-bet={oddsId}
+    >
+      <span className={styles.areaMedals} data-amount={medals}>
+        <MedalPile count={medals} />
+        <span className={styles.areaCount}>{medals}</span>
+        {odds > 0 && (
+          <span className={styles.comeOdds} data-odds={odds}>
+            +{odds}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
 interface AreasProps {
   felt: Felt;
   areas: LiveArea[];
@@ -466,6 +512,9 @@ function Areas({ felt, areas, props }: AreasProps) {
         const unavailable = 'error' in pressAmount(area.id, size, point, bets);
         const off = amount > 0 && point === null && (placeNumber(area.id) !== null || hardNumber(area.id) !== null);
         const odds = area.id === 'passOdds' || area.id === 'dontPassOdds' ? maxOdds(area.id, point, bets) : 0;
+        const number = placeNumber(area.id);
+        const come = number === null ? 0 : (bets[comePointBet('come', number)] ?? 0);
+        const dontCome = number === null ? 0 : (bets[comePointBet('dontCome', number)] ?? 0);
         return (
           <div key={area.id} className={styles.areaGroup}>
             <button
@@ -480,13 +529,15 @@ function Areas({ felt, areas, props }: AreasProps) {
             >
               {odds > 0 && <span className={styles.areaMax}>{t.oddsMax(odds)}</span>}
               {amount > 0 && (
-                <span className={styles.areaMedals} data-amount={amount}>
+                <span className={`${styles.areaMedals} ${come > 0 ? styles.areaMedalsAside : ''}`} data-amount={amount}>
                   <MedalPile count={amount} />
                   <span className={styles.areaCount}>{amount}</span>
                   {off && <span className={styles.areaOff}>{t.puckOff}</span>}
                 </span>
               )}
             </button>
+            {number !== null && come > 0 && <ComePoint felt={felt} box={area.box} n={number} kind="come" medals={come} props={props} />}
+            {number !== null && dontCome > 0 && <ComePoint felt={felt} box={area.box} n={number} kind="dontCome" medals={dontCome} props={props} />}
             {area.more?.map((box, i) => (
               /* The rest of the same area (the Pass Line's turn up the end): the same bet, by touch or mouse. */
               <button

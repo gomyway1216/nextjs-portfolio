@@ -329,6 +329,45 @@ test('says once that the machine plays with the player’s medals now, and fits 
   expect(errors).toEqual([]);
 });
 
+test('the pay glass shows each line at 1, 2 and 3 medals, with the column of the bet lit', async ({ page }) => {
+  await openSlots(page);
+  const glass = page.getByTestId('slot-paytable');
+  await expect(glass.locator('thead th')).toHaveText(['Line', 'BET 1', 'BET 2', 'BET 3']);
+  await expect(glass.locator('th[aria-current="true"]')).toHaveText('BET 1');
+  // The 7-7-7 row: 1,000, 2,000 and 3,000.
+  await expect(glass.locator('tbody tr').first().locator('td')).toHaveText(['1,000', '2,000', '3,000']);
+  await page.getByTestId('slot-bet-3').click();
+  await expect(glass.locator('th[aria-current="true"]')).toHaveText('BET 3');
+  await expect(glass.locator('tbody tr').last().locator('td')).toHaveText(['2', '4', '6']);
+});
+
+test('with fewer medals left than the bet, the machine says why SPIN cannot be pressed, under the last result', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await page.getByTestId('slot-bet-3').click();
+  // Losing spins at three medals until one is left.
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.999;
+  });
+  for (let left = WELCOME; left >= 3; left -= 3) {
+    await spinButton(page).click();
+    await expect(page.getByTestId('slot-medals')).toHaveText(count(left - 3));
+    await settledLine(page);
+  }
+  await unforce(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME % 3));
+  await expect(spinButton(page)).toBeDisabled();
+  await expect(page.getByTestId('slot-result')).toHaveText('No win');
+  await expect(page.getByTestId('slot-short')).toHaveText('Not enough medals to bet 3 — choose a smaller bet.');
+  // A bet the medals cover: the note goes, and the machine spins again.
+  await page.getByTestId('slot-bet-1').click();
+  await expect(page.getByTestId('slot-short')).toHaveCount(0);
+  await expect(spinButton(page)).toBeEnabled();
+});
+
 test('the exact odds tab shows the computed paytable and virtual reels', async ({ page }) => {
   await openSlots(page);
   await page.getByRole('tab', { name: 'Exact odds' }).click();

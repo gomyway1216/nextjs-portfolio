@@ -539,6 +539,15 @@
   font-size: 0.82rem;
   color: #fef3c7;
 }
+/* Under the last result, when the medals left are fewer than the bet: why SPIN cannot be pressed. */
+.shortLine {
+  margin: 0 auto 0.3rem;
+  max-width: 30ch;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fef3c7;
+}
 
 .controls {
   display: flex;
@@ -816,8 +825,40 @@
 .miniPaytable tr:last-child td {
   border-bottom: none;
 }
-.paytableHit td {
+.paytableHit td,
+.paytableHit th {
   background: rgba(244, 197, 66, 0.22);
+}
+/* The pay glass's head: the line, and BET 1 / 2 / 3, the column of the bet lit as a slot lights it. */
+.miniPaytable th {
+  padding: 0.25rem 0.3rem;
+  border-bottom: 1px solid var(--games-route-border);
+  font-weight: 400;
+  text-align: left;
+}
+.miniPaytable tbody tr:last-child th {
+  border-bottom: none;
+}
+.miniPaytable .paytableLineHead,
+.miniPaytable .paytableBetHead {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--games-route-muted);
+  white-space: nowrap;
+}
+.miniPaytable .paytableBetHead {
+  text-align: right;
+}
+.miniPaytable .paytableBetOn {
+  background: rgba(244, 197, 66, 0.3);
+  color: var(--games-route-fg);
+}
+.paytableHit .paytableBetOn {
+  background: rgba(244, 197, 66, 0.5);
+}
+.paytableLine {
+  font-weight: 400;
 }
 .paytableSymbols {
   display: inline-flex;

@@ -268,6 +268,8 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const lineSymbols = last ? last.line.map((s) => t.symbolName[s]) : null;
   const observed = stats.wagered > 0 ? stats.paid / stats.wagered : null;
   const outOfMedals = ready && !spinning && medals.balance === 0;
+  // Some medals left, but fewer than the bet: SPIN cannot be pressed, and the machine says why, under the last result.
+  const short = ready && !spinning && medals.balance > 0 && medals.balance < bet;
 
   return (
     <div className={styles.playGrid}>
@@ -340,10 +342,15 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
               : t.resultLose
             : outOfMedals
               ? t.outOfMedals
-              : ready && !spinning && medals.balance < bet
+              : short
                 ? t.notEnough(bet)
                 : ' '}
         </p>
+        {last && short && (
+          <p className={styles.shortLine} data-testid="slot-short">
+            {t.notEnough(bet)}
+          </p>
+        )}
         {lastResumed && (
           <p className={styles.resumedLine} data-testid="slot-resumed">
             {t.resumed}
@@ -475,11 +482,24 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
           <h2 id="slot-paytable-title" className={styles.panelTitle}>
             {t.paytable}
           </h2>
-          <table className={styles.miniPaytable}>
+          {/* As a slot's pay glass: what each line wins at 1, 2 and 3 medals, the column of the bet lit. */}
+          <table className={styles.miniPaytable} data-testid="slot-paytable">
+            <thead>
+              <tr>
+                <th scope="col" className={styles.paytableLineHead}>
+                  {t.payColLine}
+                </th>
+                {BET_OPTIONS.map((value) => (
+                  <th key={value} scope="col" className={`${styles.paytableBetHead} ${value === bet ? styles.paytableBetOn : ''}`} aria-current={value === bet ? 'true' : undefined}>
+                    {t.payColBet(value)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {PAY_RULES.map((rule) => (
                 <tr key={rule.id} className={last?.rule?.id === rule.id ? styles.paytableHit : undefined}>
-                  <td>
+                  <th scope="row" className={styles.paytableLine}>
                     <span className={styles.paytableSymbols}>
                       {rule.pattern.map((p, i) =>
                         p === 'any' ? (
@@ -492,8 +512,12 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
                       )}
                     </span>
                     <span className={styles.srOnly}>{t.ruleName[rule.id]}</span>
-                  </td>
-                  <td className={styles.paytablePays}>{rule.pays}</td>
+                  </th>
+                  {BET_OPTIONS.map((value) => (
+                    <td key={value} className={`${styles.paytablePays} ${value === bet ? styles.paytableBetOn : ''}`}>
+                      {fmt(rule.pays * value)}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

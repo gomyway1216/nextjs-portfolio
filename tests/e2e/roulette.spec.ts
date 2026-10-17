@@ -173,3 +173,43 @@ test('winning numbers are saved across reloads and tab switches, and can be clea
   await expect(page.getByRole('button', { name: 'Clear saved winning numbers' })).toBeDisabled();
   expect(await boardNumbers(page)).toEqual([]);
 });
+
+test('every bet on the felt is where it shows, at a phone’s width (upright) and on a desktop (wide)', async ({ page }) => {
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openRoulette(page);
+    // What a tap at the centre of each number, split, corner, street and line would press. On a phone the table stands
+    // upright (0 on top, 1 2 3 across the first row), so every number is a finger's width.
+    const missed = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label]')].filter((b) =>
+        /^(Straight up|Split|Corner|Street|Line) /.test(b.getAttribute('aria-label') ?? ''),
+      );
+      const wrong: string[] = [];
+      for (const button of buttons) {
+        button.scrollIntoView({ block: 'center', behavior: 'instant' });
+        const box = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button');
+        if (hit !== button) wrong.push(`${button.getAttribute('aria-label')} → ${hit?.getAttribute('aria-label') ?? 'nothing'}`);
+      }
+      return { wrong, count: buttons.length };
+    });
+    expect(missed.count).toBe(37 + 33 + 24 + 22 + 12 + 11);
+    expect(missed.wrong).toEqual([]);
+    const seventeen = page.getByRole('button', { name: 'Straight up (35:1) — 17', exact: true });
+    const box = (await seventeen.boundingBox())!;
+    if (width === 375) {
+      // Upright: 16 17 18 on one row, each at least 44 px wide.
+      const sixteen = (await page.getByRole('button', { name: 'Straight up (35:1) — 16', exact: true }).boundingBox())!;
+      expect(Math.abs(sixteen.y - box.y)).toBeLessThan(1);
+      expect(box.x).toBeGreaterThan(sixteen.x);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+    }
+    // A real tap on 17 puts a medal on 17, and one on the split 17–20 puts it there.
+    await placeFirstBet(page, /^Straight up \(35:1\) — 17$/);
+    await page.getByRole('button', { name: 'Split (17:1) — 17, 20', exact: true }).click();
+    await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-bet', '2');
+    await expect(page.getByRole('button', { name: 'Split (17:1) — 17, 20', exact: true })).toHaveText('1');
+    await expect(seventeen).toHaveText('171');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+});

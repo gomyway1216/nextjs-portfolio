@@ -12,6 +12,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { MedalMeter } from './MedalMeter';
 import { putNoticeAway } from './notice';
+import { CORNERS, LINES, SPLITS_ACROSS, SPLITS_ALONG, STREETS, cellPlace, stripPlace, zonePlace } from './feltLayout';
 import { BET_STEPS, ROULETTE_GAME, SPOT_MAX, createTable, spinId as newSpinId, tapAmount, type PlacedBet, type SpinRecord, type Staked, type Table } from './medalTable';
 import styles from './Roulette.module.css';
 
@@ -20,49 +21,6 @@ import styles from './Roulette.module.css';
  * away for a moment whenever another page takes the day's bonus or the like; nothing is said of that.
  */
 export const CARD_WAIT = 1.5;
-
-// Number-grid geometry: 12 cols × 3 rows. Row 0 is top (3, 6, 9, ...), row 2 is
-// bottom (1, 4, 7, ...). numberAt(col, row) returns the cell's number.
-const CELL_W = 100 / 12;
-const CELL_H = 100 / 3;
-const numberAt = (k: number, r: number) => 3 * k + (3 - r);
-
-// Precompute inside-bet metadata (number sets + grid positions). 0-involving
-// splits (0-1, 0-2, 0-3) and trios (0-1-2, 0-2-3) are intentionally omitted —
-// would need to bridge the standalone 0 cell to the main grid.
-const V_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
-for (let k = 0; k < 11; k++) {
-  for (let r = 0; r < 3; r++) {
-    V_SPLITS.push({ k, r, numbers: [numberAt(k, r), numberAt(k + 1, r)] });
-  }
-}
-const H_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
-for (let k = 0; k < 12; k++) {
-  for (let r = 0; r < 2; r++) {
-    // Bottom row first so numbers are ascending — lets keyOf skip a runtime sort.
-    H_SPLITS.push({ k, r, numbers: [numberAt(k, r + 1), numberAt(k, r)] });
-  }
-}
-const CORNERS: { k: number; r: number; numbers: [number, number, number, number] }[] = [];
-for (let k = 0; k < 11; k++) {
-  for (let r = 0; r < 2; r++) {
-    // Ascending order: bottom-left, top-left, bottom-right, top-right
-    // (e.g. for k=0,r=1 → [1, 2, 4, 5]).
-    CORNERS.push({
-      k,
-      r,
-      numbers: [numberAt(k, r + 1), numberAt(k, r), numberAt(k + 1, r + 1), numberAt(k + 1, r)],
-    });
-  }
-}
-const STREETS: { numbers: [number, number, number] }[] = [];
-for (let k = 0; k < 12; k++) {
-  STREETS.push({ numbers: [3 * k + 1, 3 * k + 2, 3 * k + 3] });
-}
-const LINES: { k: number; numbers: [number, number, number, number, number, number] }[] = [];
-for (let k = 0; k < 11; k++) {
-  LINES.push({ k, numbers: [3 * k + 1, 3 * k + 2, 3 * k + 3, 3 * k + 4, 3 * k + 5, 3 * k + 6] });
-}
 
 type BetKey = string;
 // All bet metadata is built with `numbers` already sorted ascending, so keyOf
@@ -521,8 +479,11 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
         {/* The felt and its buttons, with the plate that stands over them while the medals are in another tab. */}
         <div className={styles.tableArea} data-card={bankState.card}>
           <div className={styles.felt}>
-            {/* Number grid (0 + 1-36) with overlaid Split / Corner hit zones */}
-            <div className={styles.gridRow}>
+            {/* The zero, the numbers, the streets and the lines, with the Split / Corner hit zones over the numbers. One
+                grid, laid out as a casino table (numbers running across) where the felt is wide, and turned upright (0 on
+                top, three columns running down) where it is a phone's width. Every piece carries its place in both, so
+                the hit zones sit on the borders of the numbers they name either way (feltLayout.ts). */}
+            <div className={styles.feltBoard}>
               <BetCell
                 label="0"
                 variant="green"
@@ -532,114 +493,100 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
                 disabled={!canBet}
                 ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — 0`}
                 className={styles.zeroCell}
-                style={{ height: 'auto' }}
               />
-              <div className={styles.numGridWrap}>
-                <div className={styles.numGrid}>
-                  {numberGrid.map((n) => (
-                    <BetCell
-                      key={n}
-                      label={String(n)}
-                      variant={RED_NUMBERS.has(n) ? 'red' : 'black'}
-                      winning={winning === n}
-                      chips={bets[`straight:${n}`]?.amount}
-                      onClick={() => placeBetTracked({ kind: 'straight', number: n })}
-                      disabled={!canBet}
-                      ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — ${n}`}
-                    />
-                  ))}
-                </div>
+              {numberGrid.map((n) => (
+                <BetCell
+                  key={n}
+                  label={String(n)}
+                  variant={RED_NUMBERS.has(n) ? 'red' : 'black'}
+                  winning={winning === n}
+                  chips={bets[`straight:${n}`]?.amount}
+                  onClick={() => placeBetTracked({ kind: 'straight', number: n })}
+                  disabled={!canBet}
+                  ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — ${n}`}
+                  className={styles.numCell}
+                  style={cellPlace(n)}
+                />
+              ))}
 
-                <div className={styles.overlay}>
-                  {V_SPLITS.map(({ k, r, numbers }) => {
-                    const bet = { kind: 'split', numbers } as const;
-                    return (
-                      <HitZone
-                        key={keyOf(bet)}
-                        chips={bets[keyOf(bet)]?.amount}
-                        disabled={!canBet}
-                        onClick={() => placeBetTracked(bet)}
-                        title={numAria('split', BET_ODDS.split, numbers)}
-                        style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 0.5) * CELL_H}%`, width: 14, height: `${CELL_H * 0.55}%`, transform: 'translate(-50%, -50%)', borderRadius: 4 }}
-                      />
-                    );
-                  })}
-                  {H_SPLITS.map(({ k, r, numbers }) => {
-                    const bet = { kind: 'split', numbers } as const;
-                    return (
-                      <HitZone
-                        key={keyOf(bet)}
-                        chips={bets[keyOf(bet)]?.amount}
-                        disabled={!canBet}
-                        onClick={() => placeBetTracked(bet)}
-                        title={numAria('split', BET_ODDS.split, numbers)}
-                        style={{ left: `${(k + 0.5) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: `${CELL_W * 0.55}%`, height: 14, transform: 'translate(-50%, -50%)', borderRadius: 4 }}
-                      />
-                    );
-                  })}
-                  {CORNERS.map(({ k, r, numbers }) => {
-                    const bet = { kind: 'corner', numbers } as const;
-                    return (
-                      <HitZone
-                        key={keyOf(bet)}
-                        chips={bets[keyOf(bet)]?.amount}
-                        disabled={!canBet}
-                        onClick={() => placeBetTracked(bet)}
-                        title={numAria('corner', BET_ODDS.corner, numbers)}
-                        style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: 18, height: 18, borderRadius: '50%', transform: 'translate(-50%, -50%)' }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+              {/* Streets (one per three numbers, 11:1) */}
+              {STREETS.map(({ k, numbers }) => {
+                const bet = { kind: 'street', numbers } as const;
+                return (
+                  <BetCell
+                    key={keyOf(bet)}
+                    label={`${3 * k + 1}-${3 * k + 3}`}
+                    variant="outside"
+                    small
+                    chips={bets[keyOf(bet)]?.amount}
+                    onClick={() => placeBetTracked(bet)}
+                    disabled={!canBet}
+                    ariaLabel={numAria('street', BET_ODDS.street, numbers)}
+                    className={styles.streetCell}
+                    style={stripPlace(k)}
+                  />
+                );
+              })}
 
-            {/* Streets (1 per column, 11:1) */}
-            <div className={styles.gridRow}>
-              <div className={styles.zeroCell} />
-              <div className={styles.numGrid} style={{ flex: 1 }}>
-                {STREETS.map(({ numbers }, k) => {
-                  const bet = { kind: 'street', numbers } as const;
+              {/* Lines (two streets = six numbers, 5:1), each centred on the border between its two streets */}
+              {LINES.map(({ k, numbers }) => {
+                const bet = { kind: 'line', numbers } as const;
+                return (
+                  <BetCell
+                    key={keyOf(bet)}
+                    label={`${numbers[0]}-${numbers[5]}`}
+                    variant="outside"
+                    small
+                    chips={bets[keyOf(bet)]?.amount}
+                    onClick={() => placeBetTracked(bet)}
+                    disabled={!canBet}
+                    ariaLabel={numAria('line', BET_ODDS.line, numbers)}
+                    className={styles.lineCell}
+                    style={stripPlace(k)}
+                  />
+                );
+              })}
+
+              <div className={styles.overlay}>
+                {SPLITS_ALONG.map(({ numbers, at }) => {
+                  const bet = { kind: 'split', numbers } as const;
                   return (
-                    <BetCell
+                    <HitZone
                       key={keyOf(bet)}
-                      label={`${3 * k + 1}-${3 * k + 3}`}
-                      variant="outside"
-                      small
                       chips={bets[keyOf(bet)]?.amount}
-                      onClick={() => placeBetTracked(bet)}
                       disabled={!canBet}
-                      ariaLabel={numAria('street', BET_ODDS.street, numbers)}
+                      onClick={() => placeBetTracked(bet)}
+                      title={numAria('split', BET_ODDS.split, numbers)}
+                      className={styles.splitAlong}
+                      style={zonePlace(at)}
                     />
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Lines (2 streets = 6 nums, 5:1) — centered on column boundaries */}
-            <div className={styles.gridRow}>
-              <div className={styles.zeroCell} />
-              <div style={{ position: 'relative', flex: 1, height: 24 }}>
-                {LINES.map(({ k, numbers }) => {
-                  const bet = { kind: 'line', numbers } as const;
+                {SPLITS_ACROSS.map(({ numbers, at }) => {
+                  const bet = { kind: 'split', numbers } as const;
                   return (
-                    <BetCell
+                    <HitZone
                       key={keyOf(bet)}
-                      label={`${numbers[0]}-${numbers[5]}`}
-                      variant="outside"
-                      small
                       chips={bets[keyOf(bet)]?.amount}
-                      onClick={() => placeBetTracked(bet)}
                       disabled={!canBet}
-                      ariaLabel={numAria('line', BET_ODDS.line, numbers)}
-                      style={{
-                        position: 'absolute',
-                        left: `${(k + 1) * CELL_W}%`,
-                        top: 0,
-                        width: `${CELL_W}%`,
-                        height: '100%',
-                        transform: 'translateX(-50%)',
-                      }}
+                      onClick={() => placeBetTracked(bet)}
+                      title={numAria('split', BET_ODDS.split, numbers)}
+                      className={styles.splitAcross}
+                      style={zonePlace(at)}
+                    />
+                  );
+                })}
+                {CORNERS.map(({ numbers, at }) => {
+                  const bet = { kind: 'corner', numbers } as const;
+                  return (
+                    <HitZone
+                      key={keyOf(bet)}
+                      chips={bets[keyOf(bet)]?.amount}
+                      disabled={!canBet}
+                      onClick={() => placeBetTracked(bet)}
+                      title={numAria('corner', BET_ODDS.corner, numbers)}
+                      className={styles.cornerZone}
+                      style={zonePlace(at)}
                     />
                   );
                 })}
@@ -808,6 +755,8 @@ interface HitZoneProps {
   onClick: () => void;
   disabled?: boolean;
   title: string;
+  /** Its shape: a split along the table, a split across it, or a corner. */
+  className: string;
   style: React.CSSProperties;
 }
 
@@ -816,7 +765,7 @@ interface HitZoneProps {
  * Split / Corner bets. Becomes visible (gold tint) on hover/focus and stays
  * filled when medals have been placed on it.
  */
-const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
+const HitZone = ({ chips, onClick, disabled, title, className, style }: HitZoneProps) => {
   const isPlaced = chips !== undefined && chips > 0;
   return (
     <button
@@ -825,7 +774,7 @@ const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
       disabled={disabled}
       title={title}
       aria-label={title}
-      className={`${styles.hitZone} ${isPlaced ? styles.hitZonePlaced : ''}`}
+      className={`${styles.hitZone} ${className} ${isPlaced ? styles.hitZonePlaced : ''}`}
       style={style}
     >
       {isPlaced ? chips : ''}

@@ -271,9 +271,10 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     }
     setMessage('');
     putNoticeAway();
-    play('launch');
     setAnnouncement(t.sayStake(staked.record.wagered));
     roll(Object.assign(staked, { boarded: false }));
+    // The ball is launched round the wheel.
+    play('launch');
   };
 
   // The ball has dropped and the wheel has stopped: the spin is settled, if it was not settled already, and shown.

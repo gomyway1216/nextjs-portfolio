@@ -1,5 +1,6 @@
 'use client';
 
+import { countedLeds } from '../common/usePayoutCount';
 import { SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import type { BlackjackStrings } from './i18n';
@@ -40,6 +41,11 @@ export interface MedalCounterProps {
   /** Medals the last hand won, or null when there is nothing to show. */
   won: number | null;
   format: (n: number) => string;
+  /**
+   * A win being counted out (common/usePayoutCount.ts): `counted` of the `medals` the hand gave back so far. The LED
+   * digits run up with it; the numbers in type are the real ones throughout.
+   */
+  counting?: { counted: number; medals: number } | null;
   children?: React.ReactNode;
 }
 
@@ -50,53 +56,56 @@ export interface MedalCounterProps {
  * reader and for anything else that reads the page. Under it, always, the
  * note that medals are not money.
  */
-export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, children }: MedalCounterProps) => (
-  <section className={styles.cabinet} aria-labelledby="bj-medals-label" data-testid="bj-counter" data-loaded={loaded}>
-    <div className={styles.cabinetHead}>
-      <h2 id="bj-medals-label" className={styles.cabinetLabel}>
-        {t.medalsLabel}
-      </h2>
-      <p className={styles.cabinetCount}>
-        {loaded ? (
-          <>
-            <strong data-testid="bj-medals">{format(medals)}</strong>
-            <span>{t.medalUnit(medals)}</span>
-          </>
-        ) : (
-          <span data-testid="bj-medals-finding">{t.findingMedals}</span>
-        )}
+export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, counting = null, children }: MedalCounterProps) => {
+  const led = countedLeds(medals, won, counting);
+  return (
+    <section className={styles.cabinet} aria-labelledby="bj-medals-label" data-testid="bj-counter" data-loaded={loaded}>
+      <div className={styles.cabinetHead}>
+        <h2 id="bj-medals-label" className={styles.cabinetLabel}>
+          {t.medalsLabel}
+        </h2>
+        <p className={styles.cabinetCount}>
+          {loaded ? (
+            <>
+              <strong data-testid="bj-medals">{format(medals)}</strong>
+              <span>{t.medalUnit(medals)}</span>
+            </>
+          ) : (
+            <span data-testid="bj-medals-finding">{t.findingMedals}</span>
+          )}
+        </p>
+      </div>
+      <div className={styles.cabinetBody}>
+        <MedalStack count={stackFor(loaded ? medals : 0)} className={styles.cabinetStack} />
+        <div className={styles.cabinetLed}>
+          <SegmentDisplay value={loaded ? led.medals : ''} places={MEDAL_PLACES} />
+        </div>
+      </div>
+      <div className={styles.smallLeds}>
+        <div className={styles.smallLed}>
+          <span className={styles.smallLedLabel}>{t.betLabel}</span>
+          <strong className={styles.srOnly} data-testid="bj-on-table">
+            {onTable ?? ''}
+          </strong>
+          <SegmentDisplay value={onTable ?? ''} places={2} tone="amber" />
+        </div>
+        <div className={styles.smallLed}>
+          <span className={styles.smallLedLabel}>{t.winLabel}</span>
+          <strong className={styles.srOnly} data-testid="bj-won">
+            {won ?? 0}
+          </strong>
+          <SegmentDisplay value={led.won ?? ''} places={3} tone="amber" />
+        </div>
+      </div>
+      {children}
+      {loaded && !kept && (
+        <p className={styles.notKept} data-testid="bj-not-kept">
+          {t.notKept}
+        </p>
+      )}
+      <p className={styles.notMoney} data-testid="bj-not-money">
+        {t.notMoney}
       </p>
-    </div>
-    <div className={styles.cabinetBody}>
-      <MedalStack count={stackFor(loaded ? medals : 0)} className={styles.cabinetStack} />
-      <div className={styles.cabinetLed}>
-        <SegmentDisplay value={loaded ? medals : ''} places={MEDAL_PLACES} />
-      </div>
-    </div>
-    <div className={styles.smallLeds}>
-      <div className={styles.smallLed}>
-        <span className={styles.smallLedLabel}>{t.betLabel}</span>
-        <strong className={styles.srOnly} data-testid="bj-on-table">
-          {onTable ?? ''}
-        </strong>
-        <SegmentDisplay value={onTable ?? ''} places={2} tone="amber" />
-      </div>
-      <div className={styles.smallLed}>
-        <span className={styles.smallLedLabel}>{t.winLabel}</span>
-        <strong className={styles.srOnly} data-testid="bj-won">
-          {won ?? 0}
-        </strong>
-        <SegmentDisplay value={won ?? ''} places={3} tone="amber" />
-      </div>
-    </div>
-    {children}
-    {loaded && !kept && (
-      <p className={styles.notKept} data-testid="bj-not-kept">
-        {t.notKept}
-      </p>
-    )}
-    <p className={styles.notMoney} data-testid="bj-not-money">
-      {t.notMoney}
-    </p>
-  </section>
-);
+    </section>
+  );
+};

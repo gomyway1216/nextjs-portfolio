@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test';
 
 import { handValue, hiLo, type Card } from '../../src/components/game/Blackjack/engine';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
-import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, playByHint, shownNet } from './blackjackPage';
+import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, playByHint, seated, shownNet } from './blackjackPage';
+import { arrived } from './streamedPage';
+import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 import { bankBalance } from './medalCenterPage';
 
 // Rounds are random: each test reads the cards off the table and checks the
@@ -159,4 +161,87 @@ test('the Hi-Lo count follows every card a player can see', async ({ page }) => 
   await finishRound(page);
   count += await tableCount();
   await expect(page.getByTestId('bj-running-count')).toHaveText(signed(count));
+});
+
+test('on a phone the cards and the buttons that play them are on the screen together', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openBlackjack(page);
+  await page.getByTestId('bj-notice-dismiss').click();
+  // How far below the table's top the buttons start: the same before a deal, in a hand and after it, so nothing moves
+  // under the player's finger.
+  const buttonsDrop = () =>
+    page.evaluate(
+      () => document.querySelector('[data-testid="bj-buttons"]')!.getBoundingClientRect().top - document.querySelector('[data-testid="bj-table"]')!.getBoundingClientRect().top,
+    );
+  const idleDrop = await buttonsDrop();
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await dealButton(page).click();
+    await expect(async () => {
+      const acting = (await page.locator('button[data-action="stand"]:enabled').count()) > 0;
+      const insurance = await page.getByTestId('bj-insurance').isVisible();
+      expect(acting || insurance || (await dealButton(page).isEnabled())).toBe(true);
+    }).toPass({ timeout: 10_000 });
+    if ((await page.locator('button[data-action="stand"]:enabled').count()) > 0) break;
+    await finishRound(page);
+  }
+  // The table brought up to just under the site's header, as a player scrolls to it.
+  await bringUnderTopBar(page, '[data-testid="bj-table"]');
+  const header = await topBarBottom(page);
+  const box = (selector: string) => screenBox(page, selector);
+  const table = await box('[data-testid="bj-table"]');
+  const lastButton = await box('button[data-action="split"]');
+  const betButton = await box('[data-testid="bj-max-bet"]');
+  expect(table.top).toBeGreaterThanOrEqual(header);
+  expect(lastButton.bottom).toBeLessThanOrEqual(812);
+  expect(betButton.top).toBeGreaterThan(table.bottom);
+  // Every card on the table is on the screen with them.
+  const cards = await page
+    .locator('[data-area="player"] [data-rank], [data-area="dealer"] [data-rank], [data-hole]')
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().bottom));
+  expect(cards.length).toBeGreaterThanOrEqual(3);
+  for (const bottom of cards) expect(bottom).toBeLessThanOrEqual(lastButton.top);
+  expect(Math.abs((await buttonsDrop()) - idleDrop)).toBeLessThanOrEqual(1);
+  // Settled by standing: one hand, one line of results, and the buttons where they were.
+  await page.locator('button[data-action="stand"]').click();
+  await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+  await expect(page.getByTestId('bj-results').locator('li')).toHaveCount(1);
+  expect(Math.abs((await buttonsDrop()) - idleDrop)).toBeLessThanOrEqual(1);
+});
+
+test('a win is paid beside the stake and counted up on the counter, with the sound switched on and kept', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await openBlackjack(page);
+  await page.getByTestId('bj-notice-dismiss').click();
+  await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('bj-sound').click();
+  await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await arrived(page);
+  await seated(page);
+  await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'true');
+
+  for (let round = 0; round < 25; round++) {
+    await watchLed(page, '[data-testid="bj-counter"]');
+    const before = await medalsShown(page);
+    await playByHint(page);
+    const hands = await page.locator('[data-hand]').count();
+    const net = await shownNet(page);
+    if (hands !== 1 || net <= 0) continue;
+    // The dealer's payment lies beside the stake.
+    await expect(page.getByTestId('hand-paid-0')).toHaveText(`+${net}`);
+    // The counter ran up through the medals that came back, step by step, and ended on the medals the player holds.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="bj-counter"]'))[0]).toBe(before + net);
+    const seen = await watchedLed(page);
+    const climb = seen.slice(seen.indexOf(Math.min(...seen)));
+    expect(climb[climb.length - 1]).toBe(before + net);
+    expect(climb.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < climb.length; i++) expect(climb[i]).toBeGreaterThan(climb[i - 1]);
+    // The WIN digits end on the win.
+    expect((await ledNumbers(page, '[data-testid="bj-counter"]'))[2]).toBe(net);
+    expect(errors).toEqual([]);
+    return;
+  }
+  throw new Error('no single-hand win in 25 rounds');
 });

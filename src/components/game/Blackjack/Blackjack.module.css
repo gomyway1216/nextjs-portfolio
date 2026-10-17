@@ -133,18 +133,59 @@
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 900px) {
-  .playGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.panel {
+.panel,
+.front {
   min-width: 0;
   background: var(--games-route-surface);
   border: 1px solid var(--games-route-border);
   border-radius: 16px;
   padding: 1rem 1.1rem;
   box-shadow: var(--games-route-shadow);
+}
+.frontPart {
+  min-width: 0;
+}
+/*
+ * One column: the table, then the buttons straight under it, then the counter, then the rest. The front's three
+ * parts become panels of their own, so its buttons can sit next to the table while its counter follows them.
+ */
+@media (max-width: 900px) {
+  .playGrid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.9rem;
+  }
+  .front {
+    display: contents;
+  }
+  .frontPart {
+    background: var(--games-route-surface);
+    border: 1px solid var(--games-route-border);
+    border-radius: 16px;
+    padding: 0.8rem 1rem;
+    box-shadow: var(--games-route-shadow);
+  }
+  .buttonsPart {
+    order: 1;
+  }
+  .counterPart {
+    order: 2;
+  }
+  .morePart {
+    order: 3;
+  }
+  .buttonsPart > .betRow {
+    margin-top: 0;
+  }
+  .morePart > .hintRow:first-child {
+    margin-top: 0;
+  }
+}
+@media (max-width: 520px) {
+  .panel {
+    padding: 0.75rem 0.8rem;
+  }
 }
 .muted {
   color: var(--games-route-muted);
@@ -347,7 +388,10 @@
 }
 .refill {
   appearance: none;
+  display: block;
+  width: 100%;
   min-height: 44px;
+  margin: 0 0 0.6rem;
   padding: 0.5rem 1rem;
   border-radius: 999px;
   border: 2px solid #ffd65c;
@@ -357,7 +401,7 @@
   cursor: pointer;
 }
 .refill:focus-visible {
-  outline: 3px solid #ffffff;
+  outline: 3px solid var(--games-route-fg);
   outline-offset: 2px;
 }
 .counterLink {
@@ -671,14 +715,43 @@
 }
 
 /* ---------- The table ---------- */
+.tableTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
 .shoeBar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.8rem;
   font-size: 0.8rem;
   color: var(--games-route-muted);
-  margin-bottom: 0.55rem;
   min-height: 1.2rem;
+}
+.soundToggle {
+  appearance: none;
+  flex: none;
+  min-height: 36px;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.soundToggle[aria-pressed='true'] {
+  background: var(--bj-gold);
+  color: #1a1200;
+  border-color: transparent;
+}
+.soundToggle:focus-visible {
+  outline: 2px solid var(--bj-gold);
+  outline-offset: 2px;
 }
 .table {
   position: relative;
@@ -694,6 +767,14 @@
     0 8px 20px rgba(0, 0, 0, 0.25);
   color: #fff;
   min-height: 380px;
+}
+@media (max-width: 520px) {
+  /* Short enough on a phone for the buttons under it to be on the screen with the cards. */
+  .table {
+    min-height: 300px;
+    padding: 0.8rem 0.6rem 1.1rem;
+    border-width: 8px;
+  }
 }
 .shoeBox {
   position: absolute;
@@ -787,6 +868,9 @@
   flex-wrap: wrap;
   gap: 0.6rem 1rem;
   width: 100%;
+  /* As tall before a deal as one hand dealt (its padding, cards, total and stake), so the table does not grow under
+     the player's finger as the cards come out. */
+  min-height: calc(var(--ch) + 3.3rem + 38px);
 }
 .hand {
   display: flex;
@@ -817,22 +901,67 @@
   flex-wrap: wrap;
   justify-content: center;
 }
-/* The stake on a hand: a silver medal from the medal center's machines, with the number struck on it. */
-.handBet {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 5px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
+/* The betting spot's line under a hand's total: the stake, and the win paid beside it. */
+.stakes {
+  flex-basis: 100%;
+  display: flex;
   justify-content: center;
-  background: radial-gradient(circle at 42% 34%, #f6f7f9 0%, #d4d8de 45%, #959ca5 100%);
-  color: #14161a;
+  align-items: flex-end;
+  gap: 0.5rem;
+  min-height: 34px;
+}
+/* The stake on a hand: a stack of the medal center's silver medals, with the count beside it. */
+.stake {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+.stakeStack {
+  width: 30px;
+  height: 32px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
+}
+.stakeCount {
+  min-width: 1.5rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
   font-size: 0.74rem;
   font-weight: 900;
-  border: 2px solid #3a3e45;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45);
   font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* A win: the dealer slides the medals it pays out beside the stake. */
+.stakePaid {
+  animation: bjPaid 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.stakePaid .stakeCount {
+  background: #166534;
+}
+@keyframes bjPaid {
+  0% {
+    opacity: 0;
+    transform: translateY(-80px) scale(0.85);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* A loss: the dealer has taken the stake; what is left of it fades. */
+.stake[data-outcome='lose'],
+.stake[data-outcome='bust'] {
+  animation: bjTaken 0.5s ease-in 0.1s both;
+}
+@keyframes bjTaken {
+  100% {
+    opacity: 0.35;
+    filter: grayscale(1);
+  }
 }
 .outcomeTag {
   padding: 0.1rem 0.5rem;
@@ -851,8 +980,9 @@
   background: var(--bj-lose);
 }
 .waitingCircle {
-  width: calc(var(--ch) * 0.95);
-  height: calc(var(--ch) * 0.95);
+  align-self: center;
+  width: calc(var(--ch) * 1.15);
+  height: calc(var(--ch) * 1.15);
   border-radius: 50%;
   border: 2px dashed rgba(255, 255, 255, 0.6);
   display: flex;
@@ -889,6 +1019,10 @@
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--bj-gold);
+}
+.resultArea {
+  display: flow-root;
+  min-height: 2.4rem;
 }
 .resultList {
   list-style: none;
@@ -1350,5 +1484,46 @@
   }
   .hand {
     transition: none;
+  }
+}
+
+/* A hand's total appears as its last card shows its face (the delay is set where it is drawn). */
+.totalLate {
+  animation: bjTotalIn 0.18s ease-out both;
+}
+@keyframes bjTotalIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .totalLate,
+  .stakePaid {
+    animation: none;
+  }
+  .stake[data-outcome='lose'],
+  .stake[data-outcome='bust'] {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
+/* A little closer together on a phone, so a hand's cards and its last row of buttons fit a screen with room to spare.
+   (After the rules they adjust, which they would otherwise lose to.) */
+@media (max-width: 520px) {
+  .callout {
+    margin-top: 0.45rem;
+  }
+  .betNote {
+    margin-bottom: 0.45rem;
+  }
+  .actionBtn {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
   }
 }

@@ -1,0 +1,460 @@
+/* The medal floor played together: the live wins, the rankings and a player's place on the floor. Like the medal
+   center's front, the panels are arcade fittings in a fixed palette that reads in light and dark, and the text around
+   them follows the --games-route-* theme vars. Every text colour on a panel is at least 4.5:1 on what it stands on. */
+
+.together,
+.page,
+.place {
+  --fl-night: #120a2e;
+  --fl-panel: #1c1147;
+  --fl-edge: #3a2a7a;
+  --fl-gold: #ffd65c;
+  --fl-gold-deep: #f6b81c;
+  --fl-ink: #fff6d6;
+  --fl-ink-soft: #d9d2f5;
+  --fl-cyan: #7df0ff;
+  --fl-pink: #ff8cc4;
+  --fl-red: #ffb4b4;
+  --fl-lead: var(--games-route-muted);
+}
+
+.together {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.title {
+  margin: 0.4rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.lead,
+.note {
+  margin: 0;
+  color: var(--fl-lead);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.note {
+  font-size: 0.85rem;
+}
+.panel .note {
+  color: var(--fl-ink-soft);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.85rem clamp(0.75rem, 3vw, 1.1rem) 0.95rem;
+  border-radius: 14px;
+  border: 2px solid var(--fl-edge);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 30%),
+    linear-gradient(180deg, #24165c 0%, var(--fl-panel) 100%);
+  color: var(--fl-ink);
+  box-shadow: 0 8px 24px rgba(18, 10, 46, 0.3);
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.panelTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--fl-gold);
+}
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--fl-ink-soft);
+  color: var(--fl-ink-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.liveBadge[data-live='true'] {
+  border-color: var(--fl-pink);
+  color: var(--fl-pink);
+}
+.liveBadge[data-live='true']::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fl-pink);
+  box-shadow: 0 0 6px var(--fl-pink);
+  animation: fl-blink 1.6s ease-in-out infinite;
+}
+@keyframes fl-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.empty {
+  margin: 0;
+  color: var(--fl-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ---------- The moments on show ---------- */
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.moment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.15rem 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+}
+.moment[data-big='true'] {
+  border-color: var(--fl-gold);
+  background: rgba(255, 214, 92, 0.1);
+}
+.momentText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.who {
+  font-weight: 900;
+  color: var(--fl-cyan);
+}
+.moment[data-big='true'] .momentText span {
+  color: var(--fl-gold);
+  font-weight: 800;
+}
+.momentWhere {
+  color: var(--fl-ink-soft);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ---------- The boards ---------- */
+.tabs {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.page .tabs {
+  background: var(--fl-panel);
+}
+.tab {
+  appearance: none;
+  min-height: 36px;
+  padding: 0.25rem 0.9rem;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--fl-ink-soft);
+  font-weight: 800;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.tab[aria-pressed='true'] {
+  background: var(--fl-gold);
+  color: #2a1400;
+}
+.tab:focus-visible,
+.join:focus-visible,
+.leave:focus-visible,
+.ownerButton:focus-visible,
+.more:focus-visible,
+.link:focus-visible,
+.back:focus-visible,
+.placeInput:focus-visible {
+  outline: 3px solid var(--fl-cyan);
+  outline-offset: 2px;
+}
+.boards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 700px) {
+  .boards {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+}
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.boardTitle {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--fl-ink);
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-variant-numeric: tabular-nums;
+}
+.row[data-rank='1'] {
+  background: rgba(255, 214, 92, 0.14);
+}
+.row[data-hidden='true'] {
+  opacity: 0.6;
+  outline: 1px dashed var(--fl-red);
+}
+.rank {
+  min-width: 2.2em;
+  font-weight: 900;
+  color: var(--fl-gold);
+}
+/* The hub's biggest win at each machine: the machine's name over the player's name and the medals. */
+.bestRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 0.1rem;
+}
+.bestGame {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--fl-ink-soft);
+}
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+  color: var(--fl-cyan);
+}
+.score {
+  font-weight: 900;
+  color: var(--fl-ink);
+  white-space: nowrap;
+}
+.ownerButtons {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.ownerButton {
+  appearance: none;
+  min-height: 32px;
+  padding: 0.15rem 0.6rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--fl-red);
+  background: transparent;
+  color: var(--fl-red);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ownerBadge {
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--fl-red);
+  color: var(--games-route-fg);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.more {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--fl-gold);
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- A player's place ---------- */
+.place {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem clamp(0.75rem, 3vw, 1.1rem);
+  border-radius: 14px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface);
+}
+.placeTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+.placeText,
+.placeHint {
+  margin: 0;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+.placeHint {
+  color: var(--games-route-muted);
+  font-size: 0.85rem;
+}
+.placeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.placeLabel {
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+.placeInput {
+  min-height: 44px;
+  max-width: 20rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--games-route-border);
+  background: var(--games-route-surface-solid);
+  color: var(--games-route-fg);
+  font-size: 1rem;
+}
+.problem {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+:global(html.dark) .problem {
+  color: #f87171;
+}
+.placeButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.join,
+.leave {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.join {
+  border: 0;
+  background: linear-gradient(180deg, #ffe27a 0%, var(--fl-gold-deep) 100%);
+  color: #2a1400;
+  box-shadow: 0 3px 0 #a86a00;
+}
+.leave {
+  border: 2px solid var(--games-route-fg);
+  background: transparent;
+  color: var(--games-route-fg);
+}
+.join:disabled,
+.leave:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.link {
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.honesty {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--fl-gold-deep);
+  color: var(--fl-lead);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+/* ---------- The rankings page ---------- */
+.page {
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) max(16px, clamp(0.75rem, 3vw, 1.5rem)) 3rem;
+}
+.pageShell {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pageTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 6vw, 2.2rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.fullBoards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.gameBoards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 0.9rem 1rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveBadge[data-live='true']::before {
+    animation: none;
+  }
+}

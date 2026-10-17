@@ -37,6 +37,7 @@ import {
 import { START_CREDITS, advance, createSession, insert, pickChest, type ActiveRoulette, type Session, type SessionEvent } from './session';
 import { PUSHER, bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { GUEST, slotFor, type AccountStore, type Player, type Status, type Sync, type Why } from './account';
@@ -956,6 +957,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             playSound(event.jackpot ? 'jackpot' : 'prize', soundOn);
             if (!event.jackpot) playSound('tower', soundOn);
             setAnnouncement(event.jackpot ? strings.sayJackpot(event.payout, event.poured) : strings.sayHole(event.bowl + 1, event.payout, event.poured, event.total));
+            // The medal floor hears of the prize as it is announced; its medals count as won as they come over the front.
+            floorReport(PUSHER.game, { prize: { medals: event.payout, label: event.jackpot ? 'jackpot' : 'bowl' } });
             // A jackpot is not left to wait for the minute: it goes to the account now.
             if (event.jackpot) keep('moment');
             break;
@@ -1082,6 +1085,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       // medals won. Where it acts that out, the medals that came in are heard as each is seen to land in it
       // (`landInTray`); where it does not (less motion is asked for) they are heard as they always were, after the
       // fall from the front. Never both: a medal is one medal in the tray.
+      // The medal floor hears of the medals won (it adds them up, and is told about once a minute).
+      if (won > 0) floorReport(PUSHER.game, { won });
       if (fedNow.length > 0 || bonus > 0 || won > 0) {
         const arrived: { cause: TrayCause; count: number }[] = [];
         if (bonus > 0) arrived.push({ cause: 'bonus', count: bonus });

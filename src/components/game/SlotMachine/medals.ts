@@ -45,6 +45,7 @@
  */
 
 import type { Bank, Seat } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { PHYSICAL_STOPS, resolveSpin, type Stops } from './engine';
 
 /** The slot machine's name at the medal bank. */
@@ -281,7 +282,10 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
     // Paid under its receipt before it is written down as paid: should the page die between the two, the next page
     // that pays it finds the win in already, and does not pay it again.
     const win = winOf(round);
-    if (win > 0 && !move(round, PAY_STEP, win)) return null;
+    const moved = win > 0 ? move(round, PAY_STEP, win) : null;
+    if (win > 0 && !moved) return null;
+    // The medal floor hears of a win once, as it goes in (not when a later page finds it in already).
+    if (moved === 'applied') floorReport(SLOT_GAME, { won: win, prize: { medals: win, label: resolveSpin(round.stops, round.bet).rule?.id } });
     // Shown already (its reels stopped while it could not be paid): nothing more is to be done with it.
     if (seen.has(round.id)) clear(owner, round.id);
     else save({ ...round, paid: true });

@@ -58,6 +58,7 @@
  */
 
 import type { Move } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import {
   DECKS,
   MAX_HANDS,
@@ -681,7 +682,17 @@ export function createMedalTable({
           net: save.stats.net + result.net,
         },
       };
-      const given = step(next, result.returned > 0 ? () => bank.apply({ game: GAME, round: id, step: PAY_STEP, medals: result.returned, era: next.era }) !== null : null);
+      const given = step(
+        next,
+        result.returned > 0
+          ? () => {
+              const moved = bank.apply({ game: GAME, round: id, step: PAY_STEP, medals: result.returned, era: next.era });
+              // The medal floor hears of what the hand paid once, as it goes in.
+              if (moved === 'applied') floorReport(GAME, { won: result.returned, prize: { medals: result.returned } });
+              return moved !== null;
+            }
+          : null,
+      );
       // The medal center takes nothing back only when this page no longer holds the card.
       return !given.ok && given.why === 'short' ? no('away') : given;
     },

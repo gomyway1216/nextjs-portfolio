@@ -44,6 +44,7 @@
  */
 
 import type { Bank } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { isDevice } from '../MedalCenter/ledger';
 import { slotFor } from '../MedalPusher/account';
 import { MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, deal as dealCards, draw as drawCards, heldFromMask, payout, rankCards, type PayTableId } from './engine';
@@ -143,6 +144,8 @@ export const serializeHand = (h: SavedHand): string =>
 export const cardsOf = (h: SavedHand): number[] => (h.drawn ? drawCards({ hand: h.hand, stub: h.stub }, heldFromMask(h.held)) : h.hand);
 /** What a drawn hand won, in medals; nothing before the draw. Worked out from the cards, never read from storage. */
 export const wonBy = (h: SavedHand): number => (h.drawn ? payout(rankCards(cardsOf(h)), PAY_TABLES[h.payId], h.coins) : 0);
+/** The hands the medal floor names when they are won. */
+const FLOOR_HANDS: Partial<Record<number, string>> = { 9: 'royal', 8: 'straight-flush', 7: 'four-kind' };
 
 /** This device's storage, as the page has it. Every call may throw: storage can be blocked, full or switched off. */
 export interface HandStore {
@@ -457,7 +460,8 @@ export function createMedalPlay(env: MedalPlayEnv) {
       // Written down as drawn first, then the win in under its receipt: a browser that dies between the two leaves a hand
       // drawn whose win the next page holding the card pays (`square`), once.
       const won = wonBy(drawn);
-      if (won > 0) move(drawn, PAY_STEP, won);
+      // The medal floor hears of a win once, as it goes in.
+      if (won > 0 && move(drawn, PAY_STEP, won) === 'applied') floorReport(GAME, { won, prize: { medals: won, label: FLOOR_HANDS[rankCards(cardsOf(drawn))] } });
       return { kind: 'drawn', hand: drawn, won };
     },
   };

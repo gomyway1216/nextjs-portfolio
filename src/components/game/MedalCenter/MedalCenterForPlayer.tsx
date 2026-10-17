@@ -1,9 +1,11 @@
 'use client';
 
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { accountStoreFor } from '../MedalPusher/accountStore';
 import { BANK_GAME_KEY, PUSHER, bank as medalBank } from './bank';
+import { FloorTogether } from './floor/FloorTogether';
+import type { FloorMember } from './floor/useFloorPlace';
 import { MEDAL_CENTER_PATH } from './paths';
 import { MedalCenter } from './MedalCenter';
 
@@ -22,11 +24,14 @@ export const MedalCenterForPlayer = () => {
   // The bank is an account's. A visitor Firebase knows only as anonymous is a guest here.
   const uid = currentUser && !currentUser.isAnonymous ? currentUser.uid : null;
   const settled = uid !== null || !resolving;
+  // The same account for the floor: its place on it is asked with its own token.
+  const account = currentUser && !currentUser.isAnonymous ? currentUser : null;
+  const member = useMemo<FloorMember | null>(() => (account ? { uid: account.uid, token: () => account.getIdToken() } : null), [account]);
   // Told before anything on the page listens to the bank (a layout effect runs before the effects that listen), so the first bank it opens is theirs.
   useLayoutEffect(() => {
     medalBank().attend({ uid, settled, expected: presumedSignedIn }, BANK, { machines: PUSHER_MACHINE, books: PUSHER_BOOK });
   }, [uid, settled, presumedSignedIn]);
-  return <MedalCenter signInHref={SIGN_IN} />;
+  return <MedalCenter signInHref={SIGN_IN} together={<FloorTogether member={member} settled={settled} signInHref={SIGN_IN} />} />;
 };
 
 export default MedalCenterForPlayer;

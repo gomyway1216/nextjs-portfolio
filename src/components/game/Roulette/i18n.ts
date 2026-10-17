@@ -245,7 +245,7 @@ const EN: RouletteStrings = {
   betHistory: 'Spin history',
   noBets: 'No spins yet.',
   insideHint:
-    'Inside bets: tap a grid border = Split (17:1), an intersection = Corner (8:1), the row below the grid = Street (11:1) / Line (5:1).',
+    'Inside bets: tap the border between two numbers = Split (17:1), a point where four meet = Corner (8:1), the small boxes along the numbers = Street (11:1) / Line (5:1).',
   outsideHint: `Pick how many medals a tap adds, tap a betting area, then SPIN. The medals are taken when the wheel spins; at least 1 a bet and up to ${SPOT_MAX} on one spot.`,
   histBet: 'Bet',
   histNet: '+/−',
@@ -373,7 +373,7 @@ const JA: RouletteStrings = {
   betHistory: 'スピン履歴',
   noBets: 'まだスピンなし。',
   insideHint:
-    'インサイドベット: 数字グリッドの境界線をタップ = スプリット (17:1)、交点 = コーナー (8:1)、グリッド下の行 = ストリート (11:1) / ライン (5:1)。',
+    'インサイドベット: 2つの数字の境界線をタップ = スプリット (17:1)、4つの数字が接する点 = コーナー (8:1)、数字に沿った小さな枠 = ストリート (11:1) / ライン (5:1)。',
   outsideHint: `1回のベット枚数を選んでベットエリアをタップ→SPIN。メダルはホイールが回るときに使います。ベットは1枚から、1か所${SPOT_MAX}枚まで。`,
   histBet: 'ベット',
   histNet: '増減',

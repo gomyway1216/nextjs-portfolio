@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getGameCoverPath } from '../constants/games';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
@@ -55,6 +55,8 @@ const MedalStack = ({ count }: { count: number }) => (
 export interface MedalCenterProps {
   /** Where a guest goes to sign in, so that the bank is kept on an account. */
   signInHref?: string;
+  /** The floor played together (floor/FloorTogether.tsx): its live wins and rankings, under the machines. */
+  together?: ReactNode;
 }
 
 /**
@@ -62,7 +64,7 @@ export interface MedalCenterProps {
  * medals in the bank on a big LED counter, the daily bonus, the floor of
  * machines that play from the bank, and the one reset.
  */
-export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
+export const MedalCenter = ({ signInHref, together }: MedalCenterProps) => {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getCenterStrings(language);
@@ -252,6 +254,8 @@ export const MedalCenter = ({ signInHref }: MedalCenterProps) => {
             </>
           )}
         </section>
+
+        {together}
 
         {/* The plate by the counter that says how the bank works. */}
         <section className={styles.rules} aria-labelledby="center-rules-title">

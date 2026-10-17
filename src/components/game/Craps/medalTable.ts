@@ -59,6 +59,8 @@ import {
   PLACE_PAYS,
   TRUE_ODDS,
   canTakeDown,
+  comePoint,
+  isOddsBet,
   isPointNumber,
   maxOdds,
   placeNumber,
@@ -93,6 +95,8 @@ export const TABLE_VERSION = 1;
  * past a real table's limit: up to 3-4-5× the line bet, and 6× on the lay.
  */
 export const SPOT_MAX = 50;
+/** More medals than anyone puts on one spot. */
+const MOST = 1_000_000;
 /** The BET buttons: medals put on a spot by one press. The smallest bet is one medal. */
 export const BET_SIZES = [1, 5, 10, 50] as const;
 /** Rolls kept in the table's record. */
@@ -109,20 +113,34 @@ const wholeStep = ([num, den]: Ratio): number => den / gcd(num, den);
  * medals: Place 6 and 8 in 6s, Place 4, 5, 9 and 10 in 5s; the odds behind 5
  * and 9 in 2s and behind 6 and 8 in 5s; the lay against 4 and 10 in 2s, 5 and
  * 9 in 3s, 6 and 8 in 6s. Every other bet pays whole multiples of its stake.
+ * The odds behind a come point go by its own number, the line's by the point.
  */
 export function stakeStep(id: BetId, point: PointNumber | null): number {
   const place = placeNumber(id);
   if (place !== null) return wholeStep(PLACE_PAYS[place]);
   if (id === 'passOdds') return point === null ? 1 : wholeStep(TRUE_ODDS[point]);
   if (id === 'dontPassOdds') return point === null ? 1 : wholeStep(LAY_ODDS[point]);
+  const come = comePoint(id);
+  if (come?.kind === 'comeOdds') return wholeStep(TRUE_ODDS[come.n]);
+  if (come?.kind === 'dontComeOdds') return wholeStep(LAY_ODDS[come.n]);
   return 1;
 }
 
-const isOdds = (id: BetId): id is 'passOdds' | 'dontPassOdds' => id === 'passOdds' || id === 'dontPassOdds';
+const isOdds = isOddsBet;
 
-/** The most a spot can hold now: the spot limit, or for the odds 3-4-5× (lay 6×) the line bet. Always a whole number of steps. */
+/** A Come or Don't Come bet on its number: every Come bet that moves to it joins it, so it has no limit of its own. */
+const isComePoint = (id: BetId): boolean => {
+  const kind = comePoint(id)?.kind;
+  return kind === 'come' || kind === 'dontCome';
+};
+
+/**
+ * The most a spot can hold now: the spot limit, or for the odds 3-4-5× (lay 6×) the line bet or the come point.
+ * Always a whole number of steps.
+ */
 export function spotLimit(id: BetId, point: PointNumber | null, bets: Bets): number {
   if (isOdds(id)) return maxOdds(id, point, bets);
+  if (isComePoint(id)) return MOST;
   const step = stakeStep(id, point);
   return SPOT_MAX - (SPOT_MAX % step);
 }
@@ -270,8 +288,6 @@ function nextStats(stats: Stats, res: RollResolution): Stats {
 // ── Reading and writing a table ─────────────────────────────────────────────
 
 const LONGEST = 32_000;
-/** More medals than anyone puts on one spot. */
-const MOST = 1_000_000;
 const EVENTS: readonly RollEvent[] = ['natural', 'craps', 'pointSet', 'pointMade', 'sevenOut', 'noDecision'];
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -304,7 +320,12 @@ function standsUp(bets: Bets, point: PointNumber | null): boolean {
     const amount = bets[id];
     if (!amount) continue;
     if (amount % stakeStep(id, point) !== 0) return false;
-    if (isOdds(id) ? point === null || amount > maxOdds(id, point, bets) : amount > spotLimit(id, point, bets)) return false;
+    // Come and Don't Come wait in their boxes only while a point is on: the roll after they are made moves or decides
+    // them, and only a point made or a seven-out takes the point off.
+    if ((id === 'come' || id === 'dontCome') && point === null) return false;
+    // The line's odds need its point; a come point's odds stand on their own number, point or no point.
+    const lineOdds = id === 'passOdds' || id === 'dontPassOdds';
+    if (isOdds(id) ? (lineOdds && point === null) || amount > maxOdds(id, point, bets) : amount > spotLimit(id, point, bets)) return false;
   }
   return true;
 }
@@ -787,13 +808,19 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       return giveBack(table, { ...table, bets, placed: table.placed.filter(({ id }) => bets[id] !== undefined) }, medals) ? { ok: true, value: true } : fail('notKept');
     },
 
-    /** Puts back what was on the table at the last roll, where it is missing. Returns the last reason a bet could not be made, if one could not. */
+    /**
+     * Puts back what was on the table at the last roll, where it is missing. Returns the last reason a bet could not
+     * be made, if one could not. A come point is not put back (a Come bet gets there only by moving), nor the odds on
+     * one that is no longer there.
+     */
     repeat(): Done {
       if (!ready()) return fail('notHere');
       let result: Done = { ok: true, value: true };
       for (const id of BET_IDS) {
         const missing = (table.lastRound[id] ?? 0) - (table.bets[id] ?? 0);
         if (missing <= 0) continue;
+        const why = placementError(id, missing, table.point, table.bets);
+        if (comePoint(id) && why !== null) continue;
         const done = place(id, missing);
         if (!done.ok) result = done;
       }

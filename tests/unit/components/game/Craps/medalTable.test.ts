@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { type Seat } from '@/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
-import { BET_IDS, POINT_NUMBERS, maxOdds, resolveRoll, type BetId, type Bets, type Dice, type PointNumber } from '@/components/game/Craps/engine';
+import { BET_IDS, POINT_NUMBERS, comePoint, maxOdds, resolveRoll, type BetId, type Bets, type Dice, type PointNumber } from '@/components/game/Craps/engine';
 import {
   BET_SIZES,
   CRAPS_GAME,
@@ -117,6 +117,65 @@ describe('bets come out of the medals and go back into them, once each', () => {
     expect(table.table().stats.sevenOuts).toBe(1);
   });
 
+  it('takes a Come bet once a point is on, moves it to its number with no medals moving, and pays it and its odds there', async () => {
+    const { browser, page, table } = await opened();
+    // On the come-out roll there is no Come: it would be the Pass Line.
+    expect(table.place('come', 5)).toEqual({ ok: false, error: 'comeNeedsPoint' });
+    table.place('pass', 5);
+    table.roll([2, 4]); // the point is 6
+    expect(table.place('come', 5).ok).toBe(true);
+    expect(table.place('dontCome', 3).ok).toBe(true);
+    expect(page.bank.balance()).toBe(WELCOME - 13);
+    // A 9 moves both to the 9: nothing is decided and no medals move.
+    const moved = table.roll([4, 5]);
+    expect(moved.ok && moved.value.resolution.moves).toEqual([
+      { id: 'come', stake: 5, to: 9 },
+      { id: 'dontCome', stake: 3, to: 9 },
+    ]);
+    expect(page.bank.balance()).toBe(WELCOME - 13);
+    expect(table.table().bets).toEqual({ pass: 5, come9: 5, dontCome9: 3 });
+    expect(storedTable(browser)?.bets).toEqual({ pass: 5, come9: 5, dontCome9: 3 });
+    // Odds behind the Come 9 go in 2s (3:2), up to 4×; nothing goes on the come point itself.
+    expect(table.place('come9', 5)).toEqual({ ok: false, error: 'comeTravels' });
+    expect(pressAmount('comeOdds9', 1, 6, table.table().bets)).toEqual({ amount: 2 });
+    expect(table.place('comeOdds9', 3)).toEqual({ ok: false, error: 'step' });
+    expect(table.place('comeOdds9', 20).ok).toBe(true);
+    expect(pressAmount('comeOdds9', 1, 6, table.table().bets)).toEqual({ error: 'oddsLimit' });
+    // Take down leaves the Come 9 (a contract) and takes the rest that may come down: the Don't Come 9 and the odds.
+    expect(table.takeDown().ok).toBe(true);
+    expect(table.table().bets).toEqual({ pass: 5, come9: 5 });
+    expect(page.bank.balance()).toBe(WELCOME - 13 - 20 + 20 + 3);
+    table.place('comeOdds9', 20);
+    // The 9 again: the Come 9 wins 1:1 and its odds 3:2, and both come down.
+    const won = table.roll([5, 4]);
+    expect(won.ok && won.value.resolution.returned).toBe(5 + 5 + 20 + 30);
+    expect(table.table().bets).toEqual({ pass: 5 });
+    expect(everything(page, table)).toBe(WELCOME + 5 + 30);
+    expect(table.table().stats.net).toBe(5 + 30);
+  });
+
+  it('gives the odds behind a come point back when the come-out decides it, and Repeat bets puts back only what can be put on', async () => {
+    const { page, table } = await opened();
+    table.place('pass', 5);
+    table.roll([2, 4]); // the point is 6
+    table.place('come', 5);
+    table.roll([2, 2]); // the Come goes to the 4
+    table.place('comeOdds4', 15);
+    table.roll([3, 3]); // the point is made: the come-out is next
+    expect(table.table().point).toBeNull();
+    expect(table.table().bets).toEqual({ come4: 5, comeOdds4: 15 });
+    const before = page.bank.balance();
+    // A come-out 7: the Pass would win, the Come 4 loses, and its odds (off) come back.
+    table.place('pass', 5);
+    const seven = table.roll([3, 4]);
+    expect(seven.ok && seven.value.resolution.returned).toBe(10 + 15);
+    expect(page.bank.balance()).toBe(before - 5 + 10 + 15);
+    expect(table.table().bets).toEqual({});
+    // Repeat bets puts the Pass back; not the Come 4 (a Come bet gets there by moving), nor odds behind it.
+    expect(table.repeat().ok).toBe(true);
+    expect(table.table().bets).toEqual({ pass: 5 });
+  });
+
   it('gives back exactly what Undo, Clear and Take down take off the table, once', async () => {
     const { browser, page, table } = await opened();
     table.place('pass', 10);
@@ -197,7 +256,12 @@ describe('only stakes that pay whole medals', () => {
     let fractions = 0;
     for (const point of points) {
       for (const id of BET_IDS) {
-        const line: Bets = point === null ? {} : { pass: 5, dontPass: 5 };
+        // A Come bet gets to its number only by moving there; the odds behind one are tried with Come and Don't Come
+        // bets of 5 on every number.
+        const come = comePoint(id);
+        if (come?.kind === 'come' || come?.kind === 'dontCome') continue;
+        const comePoints: Bets = Object.fromEntries(POINT_NUMBERS.flatMap((n) => [[`come${n}`, 5], [`dontCome${n}`, 5]]));
+        const line: Bets = { ...(point === null ? {} : { pass: 5, dontPass: 5 }), ...(come ? comePoints : {}) };
         const most = spotLimit(id, point, line);
         for (let stake = stakeStep(id, point); stake <= most; stake += stakeStep(id, point)) {
           if (placeError(id, stake, point, id === 'pass' || id === 'dontPass' ? {} : line, 10_000) !== null) continue;
@@ -419,7 +483,14 @@ describe('old and unreadable tables', () => {
       wrong((raw) => (raw.point = 7)),
       wrong((raw) => (raw.bets = { pass: -5 })),
       wrong((raw) => (raw.bets = { pass: 2.5 })),
+      // Come waits in its box only while a point is on.
       wrong((raw) => (raw.bets = { come: 5 })),
+      wrong((raw) => (raw.bets = { dontCome: 5 })),
+      // Odds behind a come point that is not there, over the limit, or off the step.
+      wrong((raw) => (raw.bets = { comeOdds6: 5 })),
+      wrong((raw) => (raw.bets = { come6: 5, comeOdds6: 30 })),
+      wrong((raw) => (raw.bets = { come6: 5, comeOdds6: 4 })),
+      wrong((raw) => (raw.bets = { dontCome5: 5, dontComeOdds5: 4 })),
       // Place 6 with 5 medals on it would win 5⅚: never a table this game wrote.
       wrong((raw) => (raw.bets = { place6: 5 })),
       // More than a spot holds: this version could never have put them there.

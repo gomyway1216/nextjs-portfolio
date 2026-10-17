@@ -23,7 +23,9 @@
  * place numbers along the far side, then Come, the Field, the Don't Pass Bar,
  * and the Pass Line along the near side, turning up the end by the wall. The
  * odds have no box of their own on a real felt: they are put behind the line
- * bet, which is where the ODDS and LAY areas are.
+ * bet, which is where the ODDS and LAY areas are. A Come or Don't Come bet
+ * that moves to its number is drawn in that number's box (CrapsFelt.tsx), as a
+ * dealer moves it there: not an area of its own.
  */
 
 import type { BetId } from './engine';
@@ -45,19 +47,12 @@ export interface LiveArea {
   more?: Box[];
 }
 
-/** An area printed on the felt that this table does not take bets on. */
-export interface PrintedArea {
-  id: 'come' | 'dontCome';
-  box: Box;
-}
-
 /** One felt: a tub with dice in it, or the stickman's box. */
 export interface Felt {
   width: number;
   height: number;
   rail: number;
   live: LiveArea[];
-  printed: PrintedArea[];
   /** The text sizes the art is printed in. */
   type: { number: number; label: number; small: number };
 }
@@ -121,16 +116,14 @@ function half(): TableLayout {
     nearRubber: null,
     middle: null,
     live: [
+      { id: 'dontCome', box: { x: 48, y: 14, w: 298, h: 20 } },
       ...PLACE_IDS.map((id, i) => ({ id, box: places[i] })),
+      { id: 'come', box: { x: 48, y: 108, w: 298, h: 44 } },
       { id: 'field', box: { x: 48, y: 154, w: 298, h: 42 } },
       { id: 'dontPass', box: { x: 48, y: 198, w: 240, h: 26 } },
       { id: 'dontPassOdds', box: { x: 290, y: 198, w: 56, h: 26 } },
       { id: 'pass', box: { x: 22, y: 226, w: 266, h: 32 }, more: [{ x: 22, y: 14, w: 24, h: 210 }] },
       { id: 'passOdds', box: { x: 290, y: 226, w: 56, h: 32 } },
-    ],
-    printed: [
-      { id: 'dontCome', box: { x: 48, y: 14, w: 298, h: 20 } },
-      { id: 'come', box: { x: 48, y: 108, w: 298, h: 44 } },
     ],
     mirror: false,
     puckOff: { x: 60, y: 24 },
@@ -142,7 +135,6 @@ function half(): TableLayout {
       height: 186,
       rail,
       live: propositions(18, 18, 324, { seven: 30, hard: 48, ends: 36, craps: 30 }, 4, 4),
-      printed: [],
       type: { number: 18, label: 13, small: 9.5 },
     },
   };
@@ -163,17 +155,15 @@ function full(): TableLayout {
     nearRubber: { x: width - rail - 10, y: rail, w: 10, h: height - 2 * rail },
     middle,
     live: [
+      { id: 'dontCome', box: { x: 74, y: 24, w: 330, h: 32 } },
       ...PLACE_IDS.map((id, i) => ({ id, box: places[i] })),
+      { id: 'come', box: { x: 74, y: 156, w: 330, h: 86 } },
       { id: 'field', box: { x: 74, y: 244, w: 330, h: 60 } },
       { id: 'dontPass', box: { x: 74, y: 306, w: 262, h: 40 } },
       { id: 'dontPassOdds', box: { x: 338, y: 306, w: 66, h: 40 } },
       { id: 'pass', box: { x: 32, y: 348, w: 304, h: 68 }, more: [{ x: 32, y: 24, w: 40, h: 322 }] },
       { id: 'passOdds', box: { x: 338, y: 348, w: 66, h: 68 } },
       ...propositions(middle.x, 24, middle.w, { seven: 50, hard: 72, ends: 58, craps: 52 }, 2, 4),
-    ],
-    printed: [
-      { id: 'dontCome', box: { x: 74, y: 24, w: 330, h: 32 } },
-      { id: 'come', box: { x: 74, y: 156, w: 330, h: 86 } },
     ],
     mirror: true,
     puckOff: { x: 52, y: 40 },

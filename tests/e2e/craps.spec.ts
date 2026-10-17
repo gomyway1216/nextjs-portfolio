@@ -483,3 +483,58 @@ test('a half table on a phone and the full table on a desk, with no sideways scr
   await expect(shownTable(page)).toHaveAttribute('data-table-kind', 'full');
   await expect(shownTable(page).getByTestId('craps-other-end')).toBeAttached();
 });
+
+test('Come and Don’t Come: bet once a point is on, move to their number, take odds there, and pay there', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openCraps(page);
+  await firstBet(page); // Pass 5
+  // On the come-out roll there is no Come: it would be the Pass Line.
+  await betSpot(page, /^Come \(1:1\)/).click();
+  await expect(page.getByTestId('craps-message')).toContainText('once a point is on');
+  await forceNextRoll(page, [2, 4]);
+  await rollAndSettle(page); // the point is 6
+  await betSpot(page, /^Come \(1:1\)/).click(); // Come 5
+  await betSpot(page, /^Don't Come \(1:1/).click(); // Don't Come 5
+  await expect(medalsShown(page)).toHaveText(String(WELCOME - 15));
+
+  // A 9 moves both to the 9, as a dealer moves them: no medals move.
+  await forceNextRoll(page, [4, 5]);
+  await rollAndSettle(page);
+  await expect(page.getByTestId('craps-come-move')).toHaveText(['Come goes to the 9', "Don't Come goes to the 9"]);
+  await expect(medalsShown(page)).toHaveText(String(WELCOME - 15));
+  const come9 = shownTable(page).locator('[data-come-point="come9"]');
+  await expect(come9).toHaveAccessibleName('Come 9: 5 medals. Press to add Odds on Come 9 (3:2), in 2s');
+  await expect(shownTable(page).locator('[data-come-point="dontCome9"]')).toBeVisible();
+  expect((await storedTable(page))?.bets).toEqual({ pass: 5, come9: 5, dontCome9: 5 });
+
+  // A press on the Come 9 puts odds behind it: BET 5 rounded up to the 2s that 3:2 pays whole medals in.
+  await come9.click();
+  await expect(medalsShown(page)).toHaveText(String(WELCOME - 21));
+  await expect(come9.locator('[data-odds]')).toHaveText('+6');
+
+  // The 9 again: the Come 9 wins 5 and its odds 9; the Don't Come 9 loses; the Pass rides on.
+  await forceNextRoll(page, [5, 4]);
+  await rollAndSettle(page);
+  await expect(medalsShown(page)).toHaveText(String(WELCOME - 21 + 5 + 5 + 6 + 9));
+  expect((await storedTable(page))?.bets).toEqual({ pass: 5 });
+  await expect(shownTable(page).locator('[data-come-point]')).toHaveCount(0);
+});
+
+test('on a phone a come point is big enough to tap, inside its number’s box', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openCraps(page);
+  await firstBet(page);
+  await forceNextRoll(page, [2, 4]);
+  await rollAndSettle(page);
+  await betSpot(page, /^Come \(1:1\)/).click();
+  await forceNextRoll(page, [4, 5]);
+  await rollAndSettle(page);
+  const point = await shownTable(page).locator('[data-come-point="come9"]').boundingBox();
+  const box = await shownTable(page).locator('button[data-bet="place9"]').boundingBox();
+  expect(point && box).toBeTruthy();
+  expect(point!.width).toBeGreaterThanOrEqual(24);
+  expect(point!.height).toBeGreaterThanOrEqual(24);
+  expect(point!.x).toBeGreaterThanOrEqual(box!.x - 0.5);
+  expect(point!.y + point!.height).toBeLessThanOrEqual(box!.y + box!.height + 0.5);
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+});

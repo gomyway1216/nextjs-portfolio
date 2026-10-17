@@ -109,6 +109,11 @@ export function allBetOdds(): BetOdds[] {
   const dpLose = sub(sub(frac(1), dpWin), dpPush);
   odds.push(betOdds('dontPass', dpWin, dpLose, dpPush, dpWin, '1:1', lineRolls));
 
+  // Come and Don't Come: the line bets made once a point is on. Their next roll is their own come-out, so they are won,
+  // lost and barred exactly as Pass and Don't Pass are (7/495 and 3/220).
+  odds.push(betOdds('come', line.win, line.lose, frac(0), line.win, '1:1', lineRolls));
+  odds.push(betOdds('dontCome', dpWin, dpLose, dpPush, dpWin, '1:1', lineRolls));
+
   // Odds bets: priced at true odds, so zero edge. Averaged over which point is set.
   const pointProb = sum(POINT_NUMBERS.map(pRoll));
   const avg = (f: (p: PointNumber) => Fraction) => div(sum(POINT_NUMBERS.map((p) => mul(pRoll(p), f(p)))), pointProb);

@@ -1,8 +1,12 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GAME_COVER_SIZE, games, getGameCoverPath } from '@/components/game/constants/games';
+import { MY_PAGE_PATH } from '@/components/game/MedalCenter/paths';
 import { buildGameMetadata } from '@/lib/games/gameMetadata';
+
+// The medal center's my page is read for its metadata alone: the page it draws signs the player in, which is not this file's business.
+vi.mock('@/components/game/MedalCenter/MyPageForPlayer', () => ({ MyPageForPlayer: () => null }));
 
 describe('buildGameMetadata', () => {
   it('derives title, description, canonical and social card from the catalog', () => {
@@ -97,4 +101,21 @@ describe('every /games/<id> route exports its catalog metadata', () => {
       expect(sources.some((source) => call.test(source))).toBe(true);
     });
   }
+});
+
+describe('the medal center’s my page, a page of the medal center’s own', () => {
+  it('has a title and canonical of its own, under the site’s title template, and asks search engines not to list it', async () => {
+    const { metadata } = await import('@/app/games/medal-center/records/page');
+    expect(metadata.title).toBe('My Page · Medal Game Center');
+    expect(String(metadata.title)).not.toContain('Yudai Yaguchi');
+    expect(metadata.alternates?.canonical).toBe(MY_PAGE_PATH);
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+    expect(String(metadata.description)).toContain('not money');
+  });
+
+  it('is not a game of the catalog: the games list and the sitemap do not have it, and the medal center’s front links to it', () => {
+    expect(games.some((game) => game.path === MY_PAGE_PATH)).toBe(false);
+    expect(MY_PAGE_PATH.startsWith(`${games.find((game) => game.id === 'medal-center')?.path}/`)).toBe(true);
+    expect(readFileSync(join(process.cwd(), 'src', 'components', 'game', 'MedalCenter', 'MedalCenter.tsx'), 'utf8')).toContain('href={MY_PAGE_PATH}');
+  });
 });

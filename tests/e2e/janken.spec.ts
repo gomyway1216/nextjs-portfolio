@@ -89,6 +89,30 @@ test('a medal in takes one of your medals; a win gives the roulette’s lamp whe
   await expect(page.getByTestId('center-play-janken')).toHaveAttribute('href', '/games/janken');
 });
 
+test('the medals taken run into the counter one by one, the WIN counter running down as they go', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openJanken(page);
+  await insert(page);
+  // Rock against scissors, and the ring stops on the 10.
+  await cat(page, [CAT.choki, lamp(0)]);
+  await page.getByTestId('janken-hand-gu').click();
+  await expect(cabinet(page)).toHaveAttribute('data-phase', 'offer', { timeout: 15_000 });
+  const led = (id: string) => page.getByTestId(id).evaluate((el) => (el as HTMLElement).dataset.shown ?? '');
+  expect(await led('janken-win-led')).toBe('10');
+  await page.getByTestId('janken-collect').click();
+  // The medals are the player's at once (in type); on the LEDs they are still running in.
+  await expect(page.getByTestId('janken-medals')).toHaveText(String(WELCOME - 1 + 10));
+  // Both read in one look, so that the count cannot move between them.
+  const [medalsLed, winLed] = await page.evaluate(() =>
+    ['janken-medals-led', 'janken-win-led'].map((id) => Number((document.querySelector(`[data-testid="${id}"]`) as HTMLElement).dataset.shown || 0)),
+  );
+  expect(medalsLed).toBeLessThan(WELCOME - 1 + 10);
+  // What is on the medals' LEDs and what is still to come on WIN's always make the medals taken.
+  expect(medalsLed + winLed).toBe(WELCOME - 1 + 10);
+  await expect.poll(() => led('janken-medals-led'), { timeout: 3_000 }).toBe(String(WELCOME - 1 + 10));
+  expect(await led('janken-win-led')).toBe('');
+});
+
 test.describe('with less motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 

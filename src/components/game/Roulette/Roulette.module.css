@@ -493,6 +493,8 @@
    fixed palette that reads the same in the light and the dark theme; every text colour on it is at least 4.5:1 on
    the plate (gold #ffd65c and lilac #d9d2f5 on #1c1147 are over 10:1). */
 .meter {
+  /* The counters sit in one row where the plate is wide, and the medals on a row of their own where it is narrow. */
+  container: meter / inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -530,6 +532,28 @@
 }
 .meterBet {
   flex: 0 1 auto;
+}
+@container meter (max-width: 520px) {
+  .meterRow {
+    flex-wrap: wrap;
+    row-gap: 0.55rem;
+  }
+  /* The medals beside the medal on the first row; BET and WIN share the second. */
+  .meterMain {
+    flex: 1 1 calc(100% - 34px - 0.6rem);
+  }
+  .meterBet {
+    flex: 1 1 0;
+  }
+}
+/* The WIN counter lights up while it shows a win. */
+.meterWon .meterLed > span {
+  box-shadow:
+    0 0 0 1px #05040b,
+    0 0 0 2.5px #fde047,
+    0 0 0 3.5px #262838,
+    0 0 14px rgba(253, 224, 71, 0.55),
+    inset 0 2px 5px rgba(0, 0, 0, 0.9);
 }
 .meterLabel {
   font-size: 0.72rem;
@@ -750,6 +774,8 @@
 
 /* ---------- Betting table (felt) ---------- */
 .felt {
+  /* The board below is laid out by the felt's own width, not the window's: wide, as a casino table, or upright. */
+  container: felt / inline-size;
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
@@ -762,27 +788,86 @@
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
 }
 
-.gridRow {
-  display: flex;
-  gap: 0.25rem;
+/* The zero, the numbers, the streets and the lines on one grid (PlayTab.tsx says where each piece goes). Every number
+   column is exactly as wide as every other (minmax(0, 1fr): a column never grows to fit its label), so the hit zones,
+   placed by fractions of the number area, lie on the borders between the numbers they name.
+   Wide: [0][12 number columns] over [3 number rows][streets][lines]. */
+.feltBoard {
+  display: grid;
+  grid-template-columns: 34px repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(34px, auto)) auto 24px;
+  gap: 2px;
   margin-bottom: 0.35rem;
 }
 .zeroCell {
-  flex: 0 0 34px;
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  margin-right: 0.15rem;
 }
-.numGridWrap {
-  position: relative;
-  flex: 1;
+.numCell {
+  grid-column: var(--wide-col);
+  grid-row: var(--wide-row);
+  min-width: 0;
 }
-.numGrid {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 2px;
+.streetCell {
+  grid-column: var(--at);
+  grid-row: 4;
+  min-width: 0;
+  white-space: nowrap;
+  margin-top: 0.3rem;
+}
+.lineCell {
+  grid-column: var(--at) / span 2;
+  grid-row: 5;
+  justify-self: center;
+  width: 50%;
+  min-width: 0;
+  white-space: nowrap;
+  margin-top: 0.3rem;
 }
 .overlay {
-  position: absolute;
-  inset: 0;
+  grid-column: 2 / span 12;
+  grid-row: 1 / span 3;
+  position: relative;
   pointer-events: none;
+}
+
+/* Upright, where the felt is too narrow for twelve columns a finger can hit: 0 on top, then the numbers in twelve
+   rows of three (1 2 3 / 4 5 6 / …), the streets and the lines in two columns on the left. [lines][streets][3 number
+   columns] over [0][12 number rows]. */
+@container felt (max-width: 520px) {
+  .feltBoard {
+    grid-template-columns: 38px 44px repeat(3, minmax(0, 1fr));
+    /* Rows of one height, so that the hit zones, placed by twelfths, sit on the borders between them. */
+    grid-template-rows: 38px repeat(12, 36px);
+  }
+  .zeroCell {
+    grid-column: 3 / span 3;
+    grid-row: 1;
+    margin: 0 0 0.15rem;
+  }
+  .numCell {
+    grid-column: var(--up-col);
+    grid-row: var(--up-row);
+  }
+  .streetCell {
+    grid-column: 2;
+    grid-row: var(--at);
+    margin: 0 0.3rem 0 0;
+  }
+  .lineCell {
+    grid-column: 1;
+    grid-row: var(--at) / span 2;
+    justify-self: stretch;
+    align-self: center;
+    width: auto;
+    height: 50%;
+    margin: 0;
+  }
+  .overlay {
+    grid-column: 3 / span 3;
+    grid-row: 2 / span 12;
+  }
 }
 
 .betCell {
@@ -895,6 +980,41 @@
   border: 1px dashed transparent;
   transition: background 0.1s, border-color 0.1s;
   z-index: 2;
+  left: var(--wide-x);
+  top: var(--wide-y);
+  transform: translate(-50%, -50%);
+}
+/* A split of two numbers side by side along the table (a bar on the border between them), a split of two numbers in
+   one column of three (a bar across that border), and a corner of four. */
+.splitAlong {
+  width: 14px;
+  height: 18.3%;
+  border-radius: 4px;
+}
+.splitAcross {
+  width: 4.6%;
+  height: 14px;
+  border-radius: 4px;
+}
+.cornerZone {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+@container felt (max-width: 520px) {
+  .hitZone {
+    left: var(--up-x);
+    top: var(--up-y);
+  }
+  /* Upright, "along the table" runs down the felt: the bars turn with it. */
+  .splitAlong {
+    width: 18.3%;
+    height: 12px;
+  }
+  .splitAcross {
+    width: 14px;
+    height: 4.6%;
+  }
 }
 .hitZone:hover:not(:disabled) {
   background: rgba(224, 168, 60, 0.55);
@@ -955,6 +1075,17 @@
   gap: 0.5rem;
   margin-top: 0.85rem;
   flex-wrap: wrap;
+}
+/* At a phone's width the four buttons stand two by two, SPIN and Rebet on top, each half the felt wide. */
+@media (max-width: 520px) {
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .actions > .btn {
+    min-height: 44px;
+    padding-inline: 0.6rem;
+  }
 }
 .btn {
   appearance: none;

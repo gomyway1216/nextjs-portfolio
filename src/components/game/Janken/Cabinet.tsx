@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
+import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -90,6 +91,9 @@ export const Cabinet = ({ active }: CabinetProps) => {
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const medals = useBank();
+  // The medals taken run into the counter one by one, the WIN counter running down as they go (countUp.ts).
+  const medalMeter = useCountUp(medals.loaded ? medals.balance : null);
+  const { pay: payMedals } = medalMeter;
   // The machine is made in the browser only: on the server there are no medals to play with.
   const [machine] = useState<Machine | null>(() =>
     typeof window === 'undefined' ? null : createMachine({ bank: medalBank(), storage: browserStorage(), random: () => Math.random() }),
@@ -246,6 +250,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
         }
         case 'paid':
           // Paid as the page was hidden, the medals are in the tray when the player comes back; nothing is heard.
+          if (!happening.left) payMedals();
           setTray({ medals: happening.medals, key: Date.now() });
           setSaid({ paid: happening.medals });
           setAnnouncement(words.announcePaid(happening.medals));
@@ -274,7 +279,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
           return;
       }
     });
-  }, [machine, later, light, play, spin, stopActing]);
+  }, [machine, later, light, play, spin, stopActing, payMedals]);
 
   // Another tab's machine has the card: said a moment after, since the card goes away for a moment now and then.
   useEffect(() => {
@@ -394,6 +399,9 @@ export const Cabinet = ({ active }: CabinetProps) => {
                   : t.sayInsert;
 
   const winShown = phase === 'offer' ? (round?.win ?? 0) : phase === 'calling' && round?.kind === 'double' ? round.stake : null;
+  // While medals taken are running into the counter, the WIN counter shows those still to come.
+  const stillToCome = medalMeter.counting && medals.loaded && medalMeter.shown !== null ? medals.balance - medalMeter.shown : 0;
+  const winLed = winShown ?? (stillToCome > 0 ? stillToCome : '');
   const catState = acting || shown ? t.catStates.showing(t.hands[(acting ?? shown)!.machine]) : phase === 'calling' ? t.catStates.calling : phase === 'spinning' ? t.catStates.spinning : t.catStates.idle;
   const fmt = (n: number) => n.toLocaleString(locale);
 
@@ -486,8 +494,8 @@ export const Cabinet = ({ active }: CabinetProps) => {
         <div className={styles.counters}>
           <div className={styles.counter}>
             <span className={styles.counterLabel}>{t.counterLabel}</span>
-            <span className={styles.led}>
-              <SegmentDisplay value={medals.loaded ? medals.balance : ''} places={COUNTER_PLACES} />
+            <span className={styles.led} data-testid="janken-medals-led" data-shown={medalMeter.shown ?? ''}>
+              <SegmentDisplay value={medalMeter.shown ?? ''} places={COUNTER_PLACES} />
             </span>
             <span className={styles.counterText}>
               <b data-testid="janken-medals" data-loaded={medals.loaded}>
@@ -498,8 +506,8 @@ export const Cabinet = ({ active }: CabinetProps) => {
           </div>
           <div className={styles.counter}>
             <span className={styles.counterLabel}>{phase === 'calling' && round?.kind === 'double' ? t.stakeLabel : t.winLabel}</span>
-            <span className={styles.ledSmall}>
-              <SegmentDisplay value={winShown ?? ''} places={3} tone="amber" />
+            <span className={styles.ledSmall} data-testid="janken-win-led" data-shown={winLed}>
+              <SegmentDisplay value={winLed} places={3} tone="amber" />
             </span>
             <span className={styles.counterText}>
               <b data-testid="janken-win">{winShown ?? 0}</b> {t.unit}

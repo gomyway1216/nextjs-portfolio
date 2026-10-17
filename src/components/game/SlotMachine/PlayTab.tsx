@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
+import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -96,6 +97,12 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const [autoLeft, setAutoLeft] = useState(0);
   const [bigWin, setBigWin] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  // The meters as the machine shows them: a win runs into the medals, the WIN meter counting up beside them, as a
+  // medal slot pays (countUp.ts). The numbers in type are the medals as they are.
+  const medalMeter = useCountUp(medals.loaded ? medals.balance : null);
+  const winMeter = useCountUp(last ? last.win : 0);
+  const { pay: payMedals } = medalMeter;
+  const { pay: payWin } = winMeter;
 
   // Refs mirror what the spin / auto-spin callbacks must read synchronously
   // (a second click or the auto timer can fire before React re-renders).
@@ -144,9 +151,14 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     setSpinning(false);
     // A round the reset at the medal center made void is shown as nothing.
     if (!pending) return;
+    const { result } = pending;
+    // The win runs into the medals on the meters.
+    if (result.win > 0) {
+      payMedals();
+      payWin();
+    }
     // Paid now, if the card going had not paid it already (medals.ts).
     table.current?.finish(pending.round);
-    const { result } = pending;
     setLast(result);
     setLastResumed(pending.resumed);
     setBigWin(result.win >= result.bet * BIG_WIN_MULTIPLE);
@@ -161,7 +173,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     const entry = { id: recentId.current++, result };
     setRecent((r) => [entry, ...r].slice(0, RECENT_LIMIT));
     if (pending.resumed) setAnnouncement(live.current.t.resumed);
-  }, []);
+  }, [payMedals, payWin]);
 
   // The machine's place at the medal bank, while the page is open: the card is asked for at once, and a reset at the
   // medal center starts the machine over.
@@ -215,9 +227,11 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     roll(round, true);
   }, [medals.card, medals.loaded, medals.owner, era, roll]);
 
-  // Auto-spin: after each settled spin, start the next one while any remain and the medals allow.
+  // Auto-spin: after each settled spin (and its win has run into the medals), start the next one while any remain and
+  // the medals allow.
+  const counting = medalMeter.counting;
   useEffect(() => {
-    if (spinning || autoLeft <= 0) return;
+    if (spinning || counting || autoLeft <= 0) return;
     const timer = window.setTimeout(() => {
       if (!table.current?.holding() || !theirs(playerRef.current) || medalBank().balance() < betRef.current) {
         setAutoLeft(0);
@@ -227,7 +241,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
       doSpin();
     }, AUTO_GAP_MS);
     return () => window.clearTimeout(timer);
-  }, [spinning, autoLeft, doSpin]);
+  }, [spinning, counting, autoLeft, doSpin]);
 
   // While the card is in another tab's machine, the machine says so, a moment after (it is away for a moment whenever
   // another page takes the day's bonus or the like, and nothing need be said of that).
@@ -254,6 +268,8 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const lineSymbols = last ? last.line.map((s) => t.symbolName[s]) : null;
   const observed = stats.wagered > 0 ? stats.paid / stats.wagered : null;
   const outOfMedals = ready && !spinning && medals.balance === 0;
+  // Some medals left, but fewer than the bet: SPIN cannot be pressed, and the machine says why, under the last result.
+  const short = ready && !spinning && medals.balance > 0 && medals.balance < bet;
 
   return (
     <div className={styles.playGrid}>
@@ -295,8 +311,8 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
             <span className={styles.meterValue} data-testid="slot-medals" data-loaded={medals.loaded}>
               {medals.loaded ? fmt(medals.balance) : '—'}
             </span>
-            <span className={styles.led}>
-              <SegmentDisplay value={medals.loaded ? medals.balance : ''} places={MEDAL_PLACES} />
+            <span className={styles.led} data-testid="slot-medals-led" data-shown={medalMeter.shown ?? ''}>
+              <SegmentDisplay value={medalMeter.shown ?? ''} places={MEDAL_PLACES} />
             </span>
           </div>
           <div className={styles.meter}>
@@ -313,8 +329,8 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
             <span className={styles.meterValue} data-testid="slot-win">
               {last ? last.win : 0}
             </span>
-            <span className={styles.led}>
-              <SegmentDisplay value={last ? last.win : 0} places={WIN_PLACES} tone="amber" />
+            <span className={styles.led} data-testid="slot-win-led" data-shown={winMeter.shown ?? 0}>
+              <SegmentDisplay value={winMeter.shown ?? 0} places={WIN_PLACES} tone="amber" />
             </span>
           </div>
         </div>
@@ -326,10 +342,15 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
               : t.resultLose
             : outOfMedals
               ? t.outOfMedals
-              : ready && !spinning && medals.balance < bet
+              : short
                 ? t.notEnough(bet)
                 : ' '}
         </p>
+        {last && short && (
+          <p className={styles.shortLine} data-testid="slot-short">
+            {t.notEnough(bet)}
+          </p>
+        )}
         {lastResumed && (
           <p className={styles.resumedLine} data-testid="slot-resumed">
             {t.resumed}
@@ -461,11 +482,24 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
           <h2 id="slot-paytable-title" className={styles.panelTitle}>
             {t.paytable}
           </h2>
-          <table className={styles.miniPaytable}>
+          {/* As a slot's pay glass: what each line wins at 1, 2 and 3 medals, the column of the bet lit. */}
+          <table className={styles.miniPaytable} data-testid="slot-paytable">
+            <thead>
+              <tr>
+                <th scope="col" className={styles.paytableLineHead}>
+                  {t.payColLine}
+                </th>
+                {BET_OPTIONS.map((value) => (
+                  <th key={value} scope="col" className={`${styles.paytableBetHead} ${value === bet ? styles.paytableBetOn : ''}`} aria-current={value === bet ? 'true' : undefined}>
+                    {t.payColBet(value)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {PAY_RULES.map((rule) => (
                 <tr key={rule.id} className={last?.rule?.id === rule.id ? styles.paytableHit : undefined}>
-                  <td>
+                  <th scope="row" className={styles.paytableLine}>
                     <span className={styles.paytableSymbols}>
                       {rule.pattern.map((p, i) =>
                         p === 'any' ? (
@@ -478,8 +512,12 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
                       )}
                     </span>
                     <span className={styles.srOnly}>{t.ruleName[rule.id]}</span>
-                  </td>
-                  <td className={styles.paytablePays}>{rule.pays}</td>
+                  </th>
+                  {BET_OPTIONS.map((value) => (
+                    <td key={value} className={`${styles.paytablePays} ${value === bet ? styles.paytableBetOn : ''}`}>
+                      {fmt(rule.pays * value)}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

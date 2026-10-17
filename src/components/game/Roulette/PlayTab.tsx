@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
+import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
@@ -12,6 +13,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { MedalMeter } from './MedalMeter';
 import { putNoticeAway } from './notice';
+import { CORNERS, LINES, SPLITS_ACROSS, SPLITS_ALONG, STREETS, cellPlace, stripPlace, zonePlace } from './feltLayout';
 import { BET_STEPS, ROULETTE_GAME, SPOT_MAX, createTable, spinId as newSpinId, tapAmount, type PlacedBet, type SpinRecord, type Staked, type Table } from './medalTable';
 import styles from './Roulette.module.css';
 
@@ -20,49 +22,6 @@ import styles from './Roulette.module.css';
  * away for a moment whenever another page takes the day's bonus or the like; nothing is said of that.
  */
 export const CARD_WAIT = 1.5;
-
-// Number-grid geometry: 12 cols × 3 rows. Row 0 is top (3, 6, 9, ...), row 2 is
-// bottom (1, 4, 7, ...). numberAt(col, row) returns the cell's number.
-const CELL_W = 100 / 12;
-const CELL_H = 100 / 3;
-const numberAt = (k: number, r: number) => 3 * k + (3 - r);
-
-// Precompute inside-bet metadata (number sets + grid positions). 0-involving
-// splits (0-1, 0-2, 0-3) and trios (0-1-2, 0-2-3) are intentionally omitted —
-// would need to bridge the standalone 0 cell to the main grid.
-const V_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
-for (let k = 0; k < 11; k++) {
-  for (let r = 0; r < 3; r++) {
-    V_SPLITS.push({ k, r, numbers: [numberAt(k, r), numberAt(k + 1, r)] });
-  }
-}
-const H_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
-for (let k = 0; k < 12; k++) {
-  for (let r = 0; r < 2; r++) {
-    // Bottom row first so numbers are ascending — lets keyOf skip a runtime sort.
-    H_SPLITS.push({ k, r, numbers: [numberAt(k, r + 1), numberAt(k, r)] });
-  }
-}
-const CORNERS: { k: number; r: number; numbers: [number, number, number, number] }[] = [];
-for (let k = 0; k < 11; k++) {
-  for (let r = 0; r < 2; r++) {
-    // Ascending order: bottom-left, top-left, bottom-right, top-right
-    // (e.g. for k=0,r=1 → [1, 2, 4, 5]).
-    CORNERS.push({
-      k,
-      r,
-      numbers: [numberAt(k, r + 1), numberAt(k, r), numberAt(k + 1, r + 1), numberAt(k + 1, r)],
-    });
-  }
-}
-const STREETS: { numbers: [number, number, number] }[] = [];
-for (let k = 0; k < 12; k++) {
-  STREETS.push({ numbers: [3 * k + 1, 3 * k + 2, 3 * k + 3] });
-}
-const LINES: { k: number; numbers: [number, number, number, number, number, number] }[] = [];
-for (let k = 0; k < 11; k++) {
-  LINES.push({ k, numbers: [3 * k + 1, 3 * k + 2, 3 * k + 3, 3 * k + 4, 3 * k + 5, 3 * k + 6] });
-}
 
 type BetKey = string;
 // All bet metadata is built with `numbers` already sorted ascending, so keyOf
@@ -150,6 +109,14 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
   const [winning, setWinning] = useState<number | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const historyId = useRef(0);
+  // The bets of the last spin, for Rebet: put back on the felt as they were, as a table's repeat-bet button does.
+  const [lastBets, setLastBets] = useState<PlacedBet[]>([]);
+  const lastBetsRef = useRef<PlacedBet[]>([]);
+  const rememberBets = useCallback((placed: PlacedBet[]) => {
+    const copy = placed.map((pb) => ({ bet: pb.bet, amount: pb.amount }));
+    lastBetsRef.current = copy;
+    setLastBets(copy);
+  }, []);
   const wheelAreaRef = useRef<HTMLDivElement>(null);
 
   // Refs guard against state-lag races: setSpinning(true) doesn't take effect
@@ -178,6 +145,9 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
   const totalWagered = useMemo(() => sumOf(bets), [bets]);
   // The medals not on the felt: while the ball rolls, the bets on the felt have been taken out of them already.
   const medalsShown = mine ? Math.max(0, bankState.balance - (spinning ? 0 : totalWagered)) : null;
+  // On the counter's LEDs a win runs into the medals, as a medal machine pays it (countUp.ts).
+  const medalMeter = useCountUp(medalsShown);
+  const { pay: payMedals } = medalMeter;
 
   // Delta-aware placement + undo. betsRef mirrors the bets state synchronously
   // so rapid consecutive clicks (before React commits) validate against the
@@ -238,6 +208,24 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     setFelt({});
   };
 
+  /** Puts the last spin's bets back on an empty felt, all of them or none: each spot as it was, Undo taking them off again one by one. */
+  const rebet = () => {
+    const last = lastBetsRef.current;
+    if (spinningRef.current || !canBetRef.current || last.length === 0 || sumOf(betsRef.current) > 0) return;
+    const total = last.reduce((sum, pb) => sum + pb.amount, 0);
+    if (total > medalBank().balance()) {
+      setMessage(t.rebetShort(total));
+      return;
+    }
+    setMessage('');
+    const nextBets = Object.fromEntries(last.map((pb) => [keyOf(pb.bet), { bet: pb.bet, amount: pb.amount }]));
+    betsRef.current = nextBets;
+    setBets(nextBets);
+    undoStack.current = last.map((pb) => ({ key: keyOf(pb.bet), amount: pb.amount }));
+    setPlaceOrder(last.map((pb) => keyOf(pb.bet)));
+    setAnnouncement(t.sayRebet(total));
+  };
+
   /** Sets the wheel going to a spin's number: one bet now, or one this device left unfinished. */
   const roll = useCallback((spun: InFlight) => {
     inFlight.current = spun;
@@ -261,6 +249,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     }
     setMessage('');
     putNoticeAway();
+    rememberBets(staked.record.bets);
     setAnnouncement(t.sayStake(staked.record.wagered));
     roll(Object.assign(staked, { boarded: false }));
   };
@@ -271,6 +260,8 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     if (!spun) return;
     inFlight.current = null;
     if (!spun.void) {
+      // What it won runs into the medals on the counter (paid now, or as the card went for a moment).
+      if (spun.record.won > 0) payMedals();
       if (!spun.paid) table.current?.settle(spun);
       const { record } = spun;
       if (!spun.boarded) resultsStore.record(record.result);
@@ -288,7 +279,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     setFelt({});
     spinningRef.current = false;
     setSpinning(false);
-  }, [setFelt]);
+  }, [setFelt, payMedals]);
 
   /** The medals have been reset at the medal center: the table starts over, and so does this device's copy of it. */
   const startOver = useCallback(
@@ -307,10 +298,11 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
       setOutcome(null);
       setWinning(null);
       setMessage('');
+      rememberBets([]);
       medalBank().restarted(ROULETTE_GAME);
       if (said) setAnnouncement(live.current.t.sayReset);
     },
-    [setFelt],
+    [setFelt, rememberBets],
   );
 
   // The table's place at the medal center. It asks for the card as it is set up, and bets the player's medals while it
@@ -364,6 +356,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
           const left = tab.leftover();
           if (left) {
             setAnnouncement(live.current.t.sayResumed);
+            rememberBets(left.bets);
             setFelt(Object.fromEntries(left.bets.map((pb) => [keyOf(pb.bet), pb])));
             roll({ record: left, stored: true, paid: false, void: false, boarded: false });
             break;
@@ -371,6 +364,8 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
           const last: SpinRecord | null = tab.last();
           if (last && shownLast.current !== last.id && !spinningRef.current) {
             shownLast.current = last.id;
+            // The last spin's bets can be made again, after a reload as before it.
+            rememberBets(last.bets);
             setOutcome({ result: last.result, won: last.won, wagered: last.wagered, earlier: true });
             setWinning(last.result);
           }
@@ -394,7 +389,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
       if (syncNow.current === sync) syncNow.current = null;
       table.current = null;
     };
-  }, [roll, setFelt, startOver]);
+  }, [roll, setFelt, startOver, rememberBets]);
 
   // The medals on the table have become this player's (the site has found out who is playing), or the card has come:
   // whatever the bank holds for the table is looked at again.
@@ -492,7 +487,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
 
       {/* ---- Right column: the medals, the bet per tap, the felt, actions ---- */}
       <div className={styles.panel}>
-        <MedalMeter medals={medalsShown} bet={totalWagered} t={t}>
+        <MedalMeter medals={medalsShown} medalsShown={medalMeter.shown} bet={totalWagered} win={outcome && !spinning ? outcome.won : 0} t={t}>
           {outOfMedals && (
             <button type="button" className={styles.refill} data-testid="roulette-refill" onClick={() => medalBank().refill()}>
               {t.refill(REFILL)}
@@ -521,8 +516,11 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
         {/* The felt and its buttons, with the plate that stands over them while the medals are in another tab. */}
         <div className={styles.tableArea} data-card={bankState.card}>
           <div className={styles.felt}>
-            {/* Number grid (0 + 1-36) with overlaid Split / Corner hit zones */}
-            <div className={styles.gridRow}>
+            {/* The zero, the numbers, the streets and the lines, with the Split / Corner hit zones over the numbers. One
+                grid, laid out as a casino table (numbers running across) where the felt is wide, and turned upright (0 on
+                top, three columns running down) where it is a phone's width. Every piece carries its place in both, so
+                the hit zones sit on the borders of the numbers they name either way (feltLayout.ts). */}
+            <div className={styles.feltBoard}>
               <BetCell
                 label="0"
                 variant="green"
@@ -532,114 +530,100 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
                 disabled={!canBet}
                 ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — 0`}
                 className={styles.zeroCell}
-                style={{ height: 'auto' }}
               />
-              <div className={styles.numGridWrap}>
-                <div className={styles.numGrid}>
-                  {numberGrid.map((n) => (
-                    <BetCell
-                      key={n}
-                      label={String(n)}
-                      variant={RED_NUMBERS.has(n) ? 'red' : 'black'}
-                      winning={winning === n}
-                      chips={bets[`straight:${n}`]?.amount}
-                      onClick={() => placeBetTracked({ kind: 'straight', number: n })}
-                      disabled={!canBet}
-                      ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — ${n}`}
-                    />
-                  ))}
-                </div>
+              {numberGrid.map((n) => (
+                <BetCell
+                  key={n}
+                  label={String(n)}
+                  variant={RED_NUMBERS.has(n) ? 'red' : 'black'}
+                  winning={winning === n}
+                  chips={bets[`straight:${n}`]?.amount}
+                  onClick={() => placeBetTracked({ kind: 'straight', number: n })}
+                  disabled={!canBet}
+                  ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — ${n}`}
+                  className={styles.numCell}
+                  style={cellPlace(n)}
+                />
+              ))}
 
-                <div className={styles.overlay}>
-                  {V_SPLITS.map(({ k, r, numbers }) => {
-                    const bet = { kind: 'split', numbers } as const;
-                    return (
-                      <HitZone
-                        key={keyOf(bet)}
-                        chips={bets[keyOf(bet)]?.amount}
-                        disabled={!canBet}
-                        onClick={() => placeBetTracked(bet)}
-                        title={numAria('split', BET_ODDS.split, numbers)}
-                        style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 0.5) * CELL_H}%`, width: 14, height: `${CELL_H * 0.55}%`, transform: 'translate(-50%, -50%)', borderRadius: 4 }}
-                      />
-                    );
-                  })}
-                  {H_SPLITS.map(({ k, r, numbers }) => {
-                    const bet = { kind: 'split', numbers } as const;
-                    return (
-                      <HitZone
-                        key={keyOf(bet)}
-                        chips={bets[keyOf(bet)]?.amount}
-                        disabled={!canBet}
-                        onClick={() => placeBetTracked(bet)}
-                        title={numAria('split', BET_ODDS.split, numbers)}
-                        style={{ left: `${(k + 0.5) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: `${CELL_W * 0.55}%`, height: 14, transform: 'translate(-50%, -50%)', borderRadius: 4 }}
-                      />
-                    );
-                  })}
-                  {CORNERS.map(({ k, r, numbers }) => {
-                    const bet = { kind: 'corner', numbers } as const;
-                    return (
-                      <HitZone
-                        key={keyOf(bet)}
-                        chips={bets[keyOf(bet)]?.amount}
-                        disabled={!canBet}
-                        onClick={() => placeBetTracked(bet)}
-                        title={numAria('corner', BET_ODDS.corner, numbers)}
-                        style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: 18, height: 18, borderRadius: '50%', transform: 'translate(-50%, -50%)' }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+              {/* Streets (one per three numbers, 11:1) */}
+              {STREETS.map(({ k, numbers }) => {
+                const bet = { kind: 'street', numbers } as const;
+                return (
+                  <BetCell
+                    key={keyOf(bet)}
+                    label={`${3 * k + 1}-${3 * k + 3}`}
+                    variant="outside"
+                    small
+                    chips={bets[keyOf(bet)]?.amount}
+                    onClick={() => placeBetTracked(bet)}
+                    disabled={!canBet}
+                    ariaLabel={numAria('street', BET_ODDS.street, numbers)}
+                    className={styles.streetCell}
+                    style={stripPlace(k)}
+                  />
+                );
+              })}
 
-            {/* Streets (1 per column, 11:1) */}
-            <div className={styles.gridRow}>
-              <div className={styles.zeroCell} />
-              <div className={styles.numGrid} style={{ flex: 1 }}>
-                {STREETS.map(({ numbers }, k) => {
-                  const bet = { kind: 'street', numbers } as const;
+              {/* Lines (two streets = six numbers, 5:1), each centred on the border between its two streets */}
+              {LINES.map(({ k, numbers }) => {
+                const bet = { kind: 'line', numbers } as const;
+                return (
+                  <BetCell
+                    key={keyOf(bet)}
+                    label={`${numbers[0]}-${numbers[5]}`}
+                    variant="outside"
+                    small
+                    chips={bets[keyOf(bet)]?.amount}
+                    onClick={() => placeBetTracked(bet)}
+                    disabled={!canBet}
+                    ariaLabel={numAria('line', BET_ODDS.line, numbers)}
+                    className={styles.lineCell}
+                    style={stripPlace(k)}
+                  />
+                );
+              })}
+
+              <div className={styles.overlay}>
+                {SPLITS_ALONG.map(({ numbers, at }) => {
+                  const bet = { kind: 'split', numbers } as const;
                   return (
-                    <BetCell
+                    <HitZone
                       key={keyOf(bet)}
-                      label={`${3 * k + 1}-${3 * k + 3}`}
-                      variant="outside"
-                      small
                       chips={bets[keyOf(bet)]?.amount}
-                      onClick={() => placeBetTracked(bet)}
                       disabled={!canBet}
-                      ariaLabel={numAria('street', BET_ODDS.street, numbers)}
+                      onClick={() => placeBetTracked(bet)}
+                      title={numAria('split', BET_ODDS.split, numbers)}
+                      className={styles.splitAlong}
+                      style={zonePlace(at)}
                     />
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Lines (2 streets = 6 nums, 5:1) — centered on column boundaries */}
-            <div className={styles.gridRow}>
-              <div className={styles.zeroCell} />
-              <div style={{ position: 'relative', flex: 1, height: 24 }}>
-                {LINES.map(({ k, numbers }) => {
-                  const bet = { kind: 'line', numbers } as const;
+                {SPLITS_ACROSS.map(({ numbers, at }) => {
+                  const bet = { kind: 'split', numbers } as const;
                   return (
-                    <BetCell
+                    <HitZone
                       key={keyOf(bet)}
-                      label={`${numbers[0]}-${numbers[5]}`}
-                      variant="outside"
-                      small
                       chips={bets[keyOf(bet)]?.amount}
-                      onClick={() => placeBetTracked(bet)}
                       disabled={!canBet}
-                      ariaLabel={numAria('line', BET_ODDS.line, numbers)}
-                      style={{
-                        position: 'absolute',
-                        left: `${(k + 1) * CELL_W}%`,
-                        top: 0,
-                        width: `${CELL_W}%`,
-                        height: '100%',
-                        transform: 'translateX(-50%)',
-                      }}
+                      onClick={() => placeBetTracked(bet)}
+                      title={numAria('split', BET_ODDS.split, numbers)}
+                      className={styles.splitAcross}
+                      style={zonePlace(at)}
+                    />
+                  );
+                })}
+                {CORNERS.map(({ numbers, at }) => {
+                  const bet = { kind: 'corner', numbers } as const;
+                  return (
+                    <HitZone
+                      key={keyOf(bet)}
+                      chips={bets[keyOf(bet)]?.amount}
+                      disabled={!canBet}
+                      onClick={() => placeBetTracked(bet)}
+                      title={numAria('corner', BET_ODDS.corner, numbers)}
+                      className={styles.cornerZone}
+                      style={zonePlace(at)}
                     />
                   );
                 })}
@@ -696,6 +680,15 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
               className={`${styles.btn} ${styles.btnPrimary}`}
             >
               {spinning ? t.spinning : t.spin}
+            </button>
+            <button
+              type="button"
+              onClick={rebet}
+              disabled={!canBet || lastBets.length === 0 || totalWagered > 0}
+              className={styles.btn}
+              data-testid="roulette-rebet"
+            >
+              {t.rebet(lastBets.reduce((sum, pb) => sum + pb.amount, 0))}
             </button>
             <button type="button" onClick={undoTracked} disabled={spinning || placeOrder.length === 0} className={styles.btn}>
               {t.undo}
@@ -808,6 +801,8 @@ interface HitZoneProps {
   onClick: () => void;
   disabled?: boolean;
   title: string;
+  /** Its shape: a split along the table, a split across it, or a corner. */
+  className: string;
   style: React.CSSProperties;
 }
 
@@ -816,7 +811,7 @@ interface HitZoneProps {
  * Split / Corner bets. Becomes visible (gold tint) on hover/focus and stays
  * filled when medals have been placed on it.
  */
-const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
+const HitZone = ({ chips, onClick, disabled, title, className, style }: HitZoneProps) => {
   const isPlaced = chips !== undefined && chips > 0;
   return (
     <button
@@ -825,7 +820,7 @@ const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
       disabled={disabled}
       title={title}
       aria-label={title}
-      className={`${styles.hitZone} ${isPlaced ? styles.hitZonePlaced : ''}`}
+      className={`${styles.hitZone} ${className} ${isPlaced ? styles.hitZonePlaced : ''}`}
       style={style}
     >
       {isPlaced ? chips : ''}

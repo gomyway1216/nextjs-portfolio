@@ -279,8 +279,8 @@ export const OddsTab = () => {
                 <tr key={level} data-hurry={level}>
                   <th scope="row">{t.heldBehind(hurry.from, level + 1 < HURRY.length ? HURRY[level + 1].from - 1 : null)}</th>
                   <td className={styles.num}>{t.secondsShort(trim(hurry.reels))}</td>
-                  <td className={styles.num}>{t.ofUsual(tidyPercent(hurry.reach))}</td>
-                  <td className={styles.num}>{t.ofUsual(tidyPercent(hurry.pace))}</td>
+                  <td className={styles.num}>{tidyPercent(hurry.reach)}</td>
+                  <td className={styles.num}>{tidyPercent(hurry.pace)}</td>
                 </tr>
               ))}
             </tbody>

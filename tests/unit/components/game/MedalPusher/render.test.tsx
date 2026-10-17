@@ -1934,13 +1934,15 @@ describe('the page', () => {
       const behind = last ? `${hurry.from} or more` : hurry.from === HURRY[level + 1].from - 1 ? `${hurry.from}` : `${hurry.from} to ${HURRY[level + 1].from - 1}`;
       expect(rows[level]).toContain(`>${behind}<`);
       expect(rows[level]).toContain(`>${Number(hurry.reels.toFixed(2))} s<`);
-      expect(rows[level]).toContain(`>${Number((hurry.reach * 100).toFixed(2))}% of the usual time<`);
-      expect(rows[level]).toContain(`>${Number((hurry.pace * 100).toFixed(2))}% of the usual time<`);
+      expect(rows[level]).toContain(`>${Number((hurry.reach * 100).toFixed(2))}%<`);
+      expect(rows[level]).toContain(`>${Number((hurry.pace * 100).toFixed(2))}%<`);
     });
     // The first two rows are the spin and the quicker spin the screen always had.
     expect(rows[0]).toContain('>0 to 1<');
     expect(rows[0]).toContain('>1.6 s<');
     expect(rows[1]).toContain('>0.9 s<');
+    expect(table).toContain('>A reach<');
+    expect(html).toContain('the share of its usual time that a reach takes, and a winning line and the game it leads to');
     expect(html).toContain(`So a medal seldom finds all ${MAX_STOCK} held.`);
     expect(html).toContain('A ball’s roulette and the bowls are never hurried.');
     const ja = render(<OddsTab />, 'ja');

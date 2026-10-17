@@ -44,7 +44,6 @@ export interface PusherStrings {
   colLineTime: string;
   heldBehind: (from: number, to: number | null) => string;
   secondsShort: (seconds: string) => string;
-  ofUsual: (percent: string) => string;
   spinWin: (medals: number) => string;
   towerWin: (medals: number) => string;
   feverWin: (medals: number) => string;
@@ -356,15 +355,14 @@ const en: PusherStrings = {
   reachTrustNote: (long, normal, times, afterWin, afterMiss) =>
     `How far to trust a reach: a super reach goes on to hit ${long} of the time and an ordinary reach ${normal}, so the long one is about ${times} times as likely to hit. The reach is not changing your luck. It is a hint: a spin that has already won is played with the long reach ${afterWin} of the time, and a spin that has already lost with a reach only ${afterMiss} of the time, so a long reach is more often a win being acted out. These chances are exact.`,
   hurryIntro: (held) =>
-    `The more spins are held, the faster the screen plays them, as a real slot screen does when its hold is deep: the reels stop sooner, and a reach, a winning line and the game it leads to take less time. So a medal seldom finds all ${held} held. What a spin is drawn from and what it pays are the same at any speed, and so is the time you have to pick a chest. A ball’s roulette and the bowls are never hurried. How fast a spin is played is settled as it starts, by how many spins are held behind it then, and the game its line leads to by how many are held as that game starts.`,
+    `The more spins are held, the faster the screen plays them, as a real slot screen does when its hold is deep: the reels stop sooner, and a reach, a winning line and the game it leads to take less time. So a medal seldom finds all ${held} held. What a spin is drawn from and what it pays are the same at any speed, and so is the time you have to pick a chest. A ball’s roulette and the bowls are never hurried. How fast a spin is played is settled as it starts, by how many spins are held behind it then, and the game its line leads to by how many are held as that game starts. The table gives the seconds the reels run, and the share of its usual time that a reach takes, and a winning line and the game it leads to.`,
   hurryCaption: 'How fast the screen plays a spin, by how many spins are held behind it',
   colHeldBehind: 'Spins held behind it',
   colReels: 'Reels run',
-  colReachTime: 'A reach takes',
-  colLineTime: 'A line and its game take',
+  colReachTime: 'A reach',
+  colLineTime: 'A line, a game',
   heldBehind: (from, to) => (to === null ? `${from} or more` : from === to ? `${from}` : `${from} to ${to}`),
   secondsShort: (seconds) => `${seconds} s`,
-  ofUsual: (percent) => `${percent} of the usual time`,
   spinWin: (medals) => `+${medals} MEDALS`,
   towerWin: (medals) => `TOWER +${medals}`,
   feverWin: (medals) => `FEVER! +${medals}`,
@@ -699,15 +697,14 @@ const ja: PusherStrings = {
   reachTrustNote: (long, normal, times, afterWin, afterMiss) =>
     `リーチの信頼度（そのリーチが当たりになる確率）は、スーパーリーチが${long}、ノーマルリーチが${normal}です。スーパーリーチのほうが約${times}倍当たりやすくなっています。ただし、リーチが運を変えているわけではありません。結果のヒントが出ているだけです。当たりが決まった抽選の${afterWin}、リーチはずれが決まった抽選の${afterMiss}がスーパーリーチに発展するので、スーパーリーチが出たときは当たりである可能性が高くなります。どれも正確な値です。`,
   hurryIntro: (held) =>
-    `保留がたまるほど、画面は抽選を速く回します。実機のスロット画面が保留の多いときに速く回す「高速消化」と同じです。リールが早く止まり、リーチ、当たりの並び、そこから始まるゲームも短くなります。だから${held}回分の保留が満杯になることはめったにありません。抽選の確率と払い出しは、速さにかかわらず同じです。宝箱を選ぶ時間も変わりません。ボールのルーレットとクルーンは急ぎません。抽選の速さはその抽選が始まるときに、後ろに保留されている数で決まります。当たりから始まるゲームの速さは、そのゲームが始まるときの保留の数で決まります。`,
+    `保留がたまるほど、画面は抽選を速く回します。実機のスロット画面が保留の多いときに速く回す「高速消化」と同じです。リールが早く止まり、リーチ、当たりの並び、そこから始まるゲームも短くなります。だから${held}回分の保留が満杯になることはめったにありません。抽選の確率と払い出しは、速さにかかわらず同じです。宝箱を選ぶ時間も変わりません。ボールのルーレットとクルーンは急ぎません。抽選の速さはその抽選が始まるときに、後ろに保留されている数で決まります。当たりから始まるゲームの速さは、そのゲームが始まるときの保留の数で決まります。表は、リールが回る秒数と、リーチ、当たりの並びとそこから始まるゲームが、ふだんの何%の長さになるかです。`,
   hurryCaption: '後ろに保留されている数ごとの、抽選1回の速さ',
   colHeldBehind: '後ろの保留',
-  colReels: 'リールが回る時間',
-  colReachTime: 'リーチの長さ',
-  colLineTime: '当たりの並びとゲームの長さ',
+  colReels: 'リール',
+  colReachTime: 'リーチ',
+  colLineTime: '当たり・ゲーム',
   heldBehind: (from, to) => (to === null ? `${from}回分以上` : from === to ? `${from}回分` : `${from}〜${to}回分`),
   secondsShort: (seconds) => `${seconds}秒`,
-  ofUsual: (percent) => `ふだんの${percent}`,
   spinWin: (medals) => `${medals}枚 GET`,
   towerWin: (medals) => `タワー ${medals}枚`,
   feverWin: (medals) => `フィーバー！ ${medals}枚`,

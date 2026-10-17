@@ -132,7 +132,7 @@ export interface JankenStrings {
 const en: JankenStrings = {
   title: 'Calico Janken',
   subtitle: 'A candy-shop janken machine: put a medal in, beat the calico cat at rock, paper, scissors, and the ring of lamps decides how many medals you win.',
-  centerLink: 'Medal Center',
+  centerLink: 'Medal Game Center',
   howToPlay: 'How to play',
   tabMachine: 'Machine',
   tabOdds: 'Odds',
@@ -179,8 +179,8 @@ const en: JankenStrings = {
   soundOn: 'Sound on',
   soundOff: 'Sound off',
   notMoney: NOT_MONEY.en,
-  centerNote: 'Your medals are the same at every machine of the Medal Center, and are reset only there.',
-  centerNoteLink: 'Go to the Medal Center',
+  centerNote: 'Your medals are the same at every machine of the Medal Game Center, and are reset only there.',
+  centerNoteLink: 'Go to the Medal Game Center',
   announceInsert: 'A medal is in. Jan, ken… choose rock, scissors or paper.',
   announceThrow: (you, cat, outcome, kind) =>
     `You: ${you}. Cat: ${cat}. ` +
@@ -197,7 +197,7 @@ const en: JankenStrings = {
   announceDoubleWin: (medals, canDouble) => `${medals} medals. ${canDouble ? 'Take them, or double up again.' : 'That is as far as a double-up goes: they are yours.'}`,
   announcePaid: (medals) => `You took ${medals} medal${medals === 1 ? '' : 's'}.`,
   announceReturned: (medals) => `The medal${medals === 1 ? '' : 's'} not yet thrown went back to your medals.`,
-  announceRestarted: 'The medals were reset at the Medal Center: the machine has started over.',
+  announceRestarted: 'The medals were reset at the Medal Game Center: the machine has started over.',
   announceResumed: 'The machine carries on with the round it had.',
   announceDouble: (medals) => `Double up: ${medals} medals on one throw. Jan, ken… choose your hand.`,
   plateTitle: 'HOW TO PLAY',
@@ -219,7 +219,7 @@ const en: JankenStrings = {
     'After a win you can TAKE the medals (T), or DOUBLE UP (D): the medals go on one more throw, which doubles them on a win, is thrown again on a draw, and loses them on a loss. You can double up four times in a row, to sixteen times the lamp. A double-up is a fair bet: it does not change how much comes back on average, only how it is spread.',
     'On average 90 medals of every 100 put in come back: see the Odds tab for the exact sums.',
     'If you leave or reload the page in the middle of a round, a medal you put in and have not thrown yet is given back, and medals you have won are given to you. A throw you have made is never thrown again.',
-    'Your medals are the Medal Center’s: every machine there plays with the same medals, and they are reset only at the Medal Center. Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
+    'Your medals are the Medal Game Center’s: every machine there plays with the same medals, and they are reset only at the Medal Game Center. Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
   ],
   oddsIntro: [
     'Everything on this machine is drawn fairly, and so every chance below is exact. The cat’s hand is rock, scissors or paper a third each, drawn when you press yours, so no hand of yours is better or worse than another. The roulette stops on any of its 30 lamps as likely as any other.',

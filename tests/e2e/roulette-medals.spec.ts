@@ -370,4 +370,3 @@ test('the medal counter and the note that medals are not money, at a phone’s w
   await expect(page.getByRole('radiogroup', { name: '1回のベット枚数' })).toBeVisible();
   expect(await sideways(page)).toBeLessThanOrEqual(375);
 });
-

@@ -103,8 +103,8 @@ import { MEDAL_SHADE } from '@/components/game/MedalPusher/medalLook';
 import { MAX_STOCK, advance, createSession, insert, type SessionEvent } from '@/components/game/MedalPusher/session';
 import { SIDE_HOLE, acrossAt, holeFloor, railTop, railed, sinking } from '@/components/game/MedalPusher/sidehole';
 import { CHUTE, HEIGHT, HOLD_LAMPS, HOUSING, SCREEN, VIEW, chuteHeight, project, rise } from '@/components/game/MedalPusher/view';
-import { STACK, idleTube } from '@/components/game/MedalPusher/stacker';
-import { pourPose } from '@/components/game/MedalPusher/works';
+import { STACK, TUBE, idleTube } from '@/components/game/MedalPusher/stacker';
+import { WINDOW, pourPose } from '@/components/game/MedalPusher/works';
 
 import { aimBoth, aimSide, dropAt } from './feeding';
 
@@ -1514,8 +1514,16 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
 
   it('has a lamp in the hold for every spin the machine can hold', () => {
     fakeDocument();
+    expect(HOLD_LAMPS.count).toBe(MAX_STOCK);
     expect(HOLD_COUNT).toBe(MAX_STOCK);
     expect(createStage(1).holdGlow).toEqual(Array.from({ length: MAX_STOCK }, () => 0));
+    // The ten lamps and their word sit on the shelf between the two tube windows, which are cut through it, and
+    // lamps do not touch.
+    const bed = { left: HOLD_LAMPS.label - 6.2, right: HOLD_LAMPS.first + HOLD_LAMPS.step * (HOLD_LAMPS.count - 1) + HOLD_LAMPS.radius + 1.3 };
+    expect(bed.left).toBeGreaterThan(TUBE.x[0] + WINDOW.half + 1);
+    expect(bed.right).toBeLessThan(TUBE.x[1] - WINDOW.half - 1);
+    expect((bed.left + bed.right) / 2).toBeCloseTo((TUBE.x[0] + TUBE.x[1]) / 2, 9);
+    expect(HOLD_LAMPS.step).toBeGreaterThan(2 * HOLD_LAMPS.radius + 0.5);
   });
 
   it('says all of it in the frame the medal drops, which is the frame the machine takes it in: the slot bursts with light, a word stands over it, and a spark runs up to the hold and lights the lamp the spin is held as', () => {
@@ -1579,7 +1587,7 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(Math.abs(flown * FRAME - BURST.run)).toBeLessThan(FRAME + 1e-9);
     expect(away).toBeLessThan(30);
     // It is there: that lamp shines, and no other, and from now on the hold shows the spin.
-    expect(stage.holdGlow.map((glow) => glow > 0)).toEqual([false, false, true, false, false, false, false, false]);
+    expect(stage.holdGlow.map((glow) => glow > 0)).toEqual(Array.from({ length: HOLD_COUNT }, (_, lamp) => lamp === 2));
     expect(holdShown(stage, 3, 0)).toMatchObject({ stock: 3, gold: 0 });
     // The word outlasts the spark and is gone a moment later; the lamp's shine fades.
     expect(words(stage)).toHaveLength(1);
@@ -1667,7 +1675,7 @@ describe('what the cabinet says when a medal drops into a START slot', () => {
     expect(words(stage)[0]).toMatchObject({ text: ENTRY_WORDS.start, word: { size: BURST.plain, still: true } });
     // No spark sets out: the lamp shines at once, and the hold shows the spin.
     expect(stage.entries).toHaveLength(0);
-    expect(stage.holdGlow.map((glow) => glow > 0)).toEqual([true, false, false, false, false, false, false, false]);
+    expect(stage.holdGlow.map((glow) => glow > 0)).toEqual(Array.from({ length: HOLD_COUNT }, (_, lamp) => lamp === 0));
     expect(holdShown(stage, 1, 0)).toMatchObject({ stock: 1 });
     // The word stands where it was put and is the size it was given, for as long as it is up.
     const [word] = words(stage);

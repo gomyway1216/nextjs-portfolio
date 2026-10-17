@@ -432,14 +432,14 @@ function paintHousing(g: CanvasRenderingContext2D, ratio: number): void {
   path(g, front);
   g.fill();
   const middle = (shelf + foot) / 2;
-  const last = HOLD_LAMPS.first + HOLD_LAMPS.step * 7;
+  const last = HOLD_LAMPS.first + HOLD_LAMPS.step * (HOLD_LAMPS.count - 1);
   g.fillStyle = '#12082e';
   path(g, facing(HOLD_LAMPS.label - 6.2, last + HOLD_LAMPS.radius + 1.3, foot - 0.45, shelf + 0.45, ledge));
   g.fill();
   g.strokeStyle = 'rgba(255, 236, 170, 0.9)';
   g.lineWidth = 1;
   g.stroke();
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < HOLD_LAMPS.count; i++) {
     const socket = project(HOLD_LAMPS.first + HOLD_LAMPS.step * i, middle, ledge);
     const r = (HOLD_LAMPS.radius + 0.28) * socket.scale;
     g.fillStyle = '#05020f';
@@ -923,7 +923,7 @@ export function lightGate(stage: Stage, gate: number): void {
 }
 
 /** How many lamps the hold has: one for each spin the machine can hold. */
-export const HOLD_COUNT = 8;
+export const HOLD_COUNT = HOLD_LAMPS.count;
 
 /**
  * What the cabinet says when a medal drops into a START slot, which is when
@@ -2367,7 +2367,7 @@ export function drawField(g: CanvasRenderingContext2D, stage: Stage, machine: Ma
   // The hold: a lamp for each spin the machine is holding, lit from the left.
   const held = options.stock ?? 0;
   const gold = Math.min(held, options.gold ?? 0);
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < HOLD_LAMPS.count; i++) {
     const lamp = project(HOLD_LAMPS.first + HOLD_LAMPS.step * i, (HOUSING.shelf + SCREEN.foot) / 2, HOUSING.ledge);
     const r = HOLD_LAMPS.radius * lamp.scale;
     // A gold spin's lamp flashes by the stage's own clock, each a beat behind the one before it; with motion reduced it is steadily bright.

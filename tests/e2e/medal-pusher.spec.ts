@@ -151,7 +151,7 @@ test('a new machine is drawn, with a full purse and nothing played', async ({ pa
   await expect(machine(page).getByTestId('pusher-credits')).toHaveText(String(START_CREDITS));
   await expect(machine(page).getByTestId('pusher-jackpot')).toHaveText(String(JACKPOT_START));
   // The hold's lamps are drawn in the cabinet, under the screen. What says how many are lit is still on the page, by the name it had.
-  await expect(machine(page).getByRole('img', { name: '0 of 8 spins held' })).toBeAttached();
+  await expect(machine(page).getByRole('img', { name: '0 of 10 spins held' })).toBeAttached();
   await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('data-held', '0');
   // So are the jewel lamps, on the front of the lower table: none of them is lit yet.
   await expect(machine(page).getByTestId('pusher-jewels')).toHaveAttribute('data-lit', '0');
@@ -622,7 +622,7 @@ test('the screen stands in the back wall of the cabinet, behind the picture, exa
 /** Opens the game on a machine with a choice of three chests on its screen, saved as the game saves one, for the page to find. */
 async function openOnChests(page: Page) {
   const session = createSession(5);
-  session.bonus = { kind: 'chest', prizes: [...CHESTS], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+  session.bonus = { kind: 'chest', prizes: [...CHESTS], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 };
   const save = serialize(session);
   expect(restore(save, 1)).not.toBeNull();
   await page.addInitScript(
@@ -2204,23 +2204,23 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(lamp).toContainText('The lamp cannot be aimed at: a medal takes the best part of a minute to get from the rail to the lip');
   await expect(lamp).toContainText('Measured at up to two medals a second, the lamp makes about 33% of all spins gold');
 
-  // 55% into the tray and 0.15 spins a medal, each worth its 2.43558 medals and a third of the 1.532 that being gold
-  // adds, and the 0.05 of a medal that each medal grows the jackpot by: 0.55 × (1 + 0.15 × 2.94114 + 0.05).
+  // 55% into the tray and 0.16 spins a medal, each worth its 2.43558 medals and a third of the 1.532 that being gold
+  // adds, and the 0.05 of a medal that each medal grows the jackpot by: 0.55 × (1 + 0.16 × 2.94114 + 0.05).
   const result = odds(page).getByTestId('pusher-calc-return');
-  await expect(result).toHaveText('82.0%');
+  await expect(result).toHaveText('83.6%');
   await expect(result).toHaveAttribute('data-sign', 'neg');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('26%');
   // What it is set to give back, said where the sum is.
-  await expect(odds(page)).toContainText('about 82% of the medals come back. That is about what a real machine is set to give.');
+  await expect(odds(page)).toContainText('about 84% of the medals come back. That is about what a real machine is set to give.');
 
-  // The share goes from all of the medals into the tray down to three in ten: 1.4912 and 0.3 × 1.4912.
+  // The share goes from all of the medals into the tray down to three in ten: 1.5206 and 0.3 × 1.5206.
   const front = odds(page).getByRole('slider', { name: /reach your tray/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('149.1%');
+  await expect(result).toHaveText('152.1%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('44.7%');
+  await expect(result).toHaveText('45.6%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('78%');
 });
 
@@ -2342,11 +2342,11 @@ test('fits a phone without scrolling sideways', async ({ page }) => {
   const legend = await machine(page).getByTestId('pusher-legend').boundingBox();
   expect(legend?.y).toBeGreaterThanOrEqual(box.y + box.height);
 
-  // The hold's eight lamps are drawn in the cabinet, under the screen. The page still has one for each, under the
+  // The hold's ten lamps are drawn in the cabinet, under the screen. The page still has one for each, under the
   // name the hold always had, for whoever cannot see the picture: they take up no room on the screen.
   const lamps = machine(page).getByTestId('pusher-stock').locator('[data-lit]');
-  await expect(lamps).toHaveCount(8);
-  await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('aria-label', /of 8 spins held/);
+  await expect(lamps).toHaveCount(10);
+  await expect(machine(page).getByTestId('pusher-stock')).toHaveAttribute('aria-label', /of 10 spins held/);
   const held = await machine(page).getByTestId('pusher-stock').boundingBox();
   expect(held?.width ?? 0).toBeLessThan(2);
 

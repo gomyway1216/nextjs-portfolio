@@ -222,6 +222,7 @@ const IDLE_SCREEN: ScreenState = {
   chance: 0,
   golds: 0,
   gold: false,
+  pace: 1,
 };
 
 const sameHud = (a: Hud, b: Hud): boolean =>

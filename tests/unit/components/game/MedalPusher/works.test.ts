@@ -456,7 +456,7 @@ describe('what the session reports of the payout works', () => {
     const start = medalsOnField(session.machine);
     const roll = 6;
     session.square = FEVER_SQUARE - roll;
-    session.bonus = { kind: 'sugoroku', roll, from: session.square, elapsed: 0, duration: sugorokuDuration(roll), payout: -1 };
+    session.bonus = { kind: 'sugoroku', roll, from: session.square, elapsed: 0, duration: sugorokuDuration(roll), payout: -1, hurry: 0 };
     const events: SessionEvent[] = [];
     // Until the doors have opened for it and shut again. What its medals set going after that is another matter.
     for (let i = 0; i < 60 * 30 && of(events, 'pourEnd').length === 0; i++) advance(session, DT, events);
@@ -523,7 +523,7 @@ describe('what the session reports of the payout works', () => {
     const session = createSession(5, { balls: 0, quickPick: true });
     const start = medalsOnField(session.machine);
     const prize = Math.max(...CHESTS);
-    session.bonus = { kind: 'chest', prizes: [prize, prize, prize], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    session.bonus = { kind: 'chest', prizes: [prize, prize, prize], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 };
     const events: SessionEvent[] = [];
     for (let i = 0; i < 60 * (TIMING.choose + 30) && of(events, 'towerSet').length === 0; i++) advance(session, DT, events);
     expect(of(events, 'chestEnd')).toMatchObject([{ payout: prize }]);

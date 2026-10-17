@@ -949,7 +949,8 @@
 }
 /* A reach is cut in across the reels as it is called: a band that sweeps over them and is gone again, so that
    the centre reel can be watched. It takes 0.75 s of a reach's 1.3 s; a super reach's takes 1.1 s of its 2.9 s,
-   since its words are longer to read. Like the rest of a reach's dress, it is left out for a player who asked for less motion. */
+   since its words are longer to read. While the screen hurries through a deep hold a reach is shorter, and so is
+   its band, by the same share (--mp-pace). Like the rest of a reach's dress, it is left out for a player who asked for less motion. */
 .cutIn {
   display: none;
 }
@@ -970,6 +971,7 @@
     box-shadow: 0 0 3.4cqh rgba(255, 79, 125, 0.75);
     pointer-events: none;
     animation: mp-cut-in 0.75s ease-out both;
+    animation-duration: calc(0.75s * var(--mp-pace, 1));
   }
   .cutIn[data-kind='superReach'] {
     height: 38cqh;
@@ -977,7 +979,7 @@
     border-block-color: #ffffff;
     background: linear-gradient(90deg, #b8860b 0%, #ffd65c 22%, #fff7c2 50%, #ffd65c 78%, #b8860b 100%);
     box-shadow: 0 0 4.6cqh rgba(255, 226, 120, 0.9);
-    animation-duration: 1.1s;
+    animation-duration: calc(1.1s * var(--mp-pace, 1));
   }
 }
 .cutInText {
@@ -1282,7 +1284,7 @@
     animation: mp-tumble 0.44s linear infinite;
   }
   .die[data-rolling='false'] {
-    animation: mp-die-land 0.3s cubic-bezier(0.3, 1.5, 0.5, 1);
+    animation: mp-die-land calc(0.3s * var(--mp-pace, 1)) cubic-bezier(0.3, 1.5, 0.5, 1);
   }
 }
 /* In the air, turning over and over. */
@@ -1616,17 +1618,18 @@
   .pieceUp {
     transition: transform 0.55s cubic-bezier(0.3, 0.8, 0.3, 1);
   }
+  /* A hop and the step under it take less time while the screen hurries through a deep hold (--mp-pace). */
   .piece {
-    transition: transform 0.2s ease-in-out;
+    transition: transform calc(0.2s * var(--mp-pace, 1)) ease-in-out;
   }
   .square[data-fever='true']::after {
     animation: mp-glow 1.1s ease-in-out infinite alternate;
   }
   .pieceHop[data-hop='odd'] {
-    animation: mp-hop-odd 0.24s ease-out;
+    animation: mp-hop-odd calc(0.24s * var(--mp-pace, 1)) ease-out;
   }
   .pieceHop[data-hop='even'] {
-    animation: mp-hop-even 0.24s ease-out;
+    animation: mp-hop-even calc(0.24s * var(--mp-pace, 1)) ease-out;
   }
   .chestBox {
     transition: transform 0.25s ease-out;

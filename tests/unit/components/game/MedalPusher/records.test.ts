@@ -1065,7 +1065,7 @@ describe('the hold filling', () => {
   it('is said once as the hold fills, and not for a medal that finds it full', () => {
     const session = emptied();
     // The screen is busy with a chest nobody picks, so spins are held and not played.
-    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 };
     const events: SessionEvent[] = [];
     for (let medal = 0; medal < MAX_STOCK + 3; medal++) {
       throughPocket(session);
@@ -1093,7 +1093,7 @@ describe('the hold filling', () => {
 
   it('is said again when the hold has emptied a little and fills anew, and never while it only stands full or short', () => {
     const session = emptied();
-    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 };
     const fills = (): number => {
       const events: SessionEvent[] = [];
       throughPocket(session);
@@ -1115,7 +1115,7 @@ describe('the hold filling', () => {
   it('counts the spins that are gold from the start apart from the ones a full hold turned: the lit pocket’s, and those of open wings', () => {
     const session = emptied();
     // The screen is busy with a chest nobody picks, so spins are held and not played.
-    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 };
     const events: SessionEvent[] = [];
     /** Lays a medal on the pusher just past its lip at a pocket, and takes it through. */
     const through = (pocket: number): void => {

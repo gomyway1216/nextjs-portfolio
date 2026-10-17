@@ -58,6 +58,7 @@ import {
 } from '@/components/game/MedalPusher/lottery';
 import {
   BOWL_TIMES,
+  HURRY,
   MAX_STOCK,
   START_BALLS,
   START_CREDITS,
@@ -65,13 +66,18 @@ import {
   TIMING,
   advance,
   bowlShowTime,
+  celebrateTime,
   chanceLeft,
   createSession,
+  hurryFor,
   isBusy,
   insert,
   jewelsCollected,
+  openTime,
   pickChest,
+  prizeTime,
   reachTime,
+  reelTime,
   refill,
   sugorokuDuration,
   type Session,
@@ -152,7 +158,7 @@ function rideOut(session: Session, events: SessionEvent[] = []): SessionEvent[] 
   return events;
 }
 /** A chest nobody picks: it keeps the screen busy, so that spins are held and not played. */
-const CHEST = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 } as const;
+const CHEST = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 } as const;
 
 describe('a new session', () => {
   it('starts with a purse, a jackpot, the piece on the first square and one ball on the field', () => {
@@ -281,20 +287,95 @@ describe('the slot', () => {
     expect(session.spins).toBe(2);
   });
 
-  it('hurries the reels when spins are queueing behind', () => {
-    const session = withSpin();
-    session.stock = MAX_STOCK;
-    script(session, [0.5, 0.1, 0.9, 0.5, 0.5]);
-    advance(session, DT);
-    expect(session.spin?.duration).toBeCloseTo(TIMING.quickSpin, 9);
+  it('hurries the reels when spins are queueing behind, the harder the more there are', () => {
+    for (let held = 1; held <= MAX_STOCK; held++) {
+      const session = withSpin();
+      session.stock = held;
+      script(session, [0.5, 0.1, 0.9, 0.5, 0.5]);
+      advance(session, DT);
+      // The spin is taken off the hold as it starts: what is held behind it is the rest.
+      const hurry = hurryFor(held - 1);
+      expect(session.spin?.hurry, `${held} held`).toBe(hurry);
+      expect(session.spin?.duration, `${held} held`).toBe(HURRY[hurry].reels);
+    }
+    // With one held behind it or none, a spin takes the time a spin always took; with two or more, the quicker time it
+    // always took; and from there it hurries harder the deeper the hold, its reels never as quick as a moment.
+    expect([hurryFor(0), hurryFor(1), hurryFor(2)]).toEqual([0, 0, 1]);
+    expect(HURRY.slice(0, 2)).toEqual([
+      { from: 0, reels: TIMING.spin, reach: 1, pace: 1 },
+      { from: 2, reels: TIMING.quickSpin, reach: 1, pace: 1 },
+    ]);
+    expect(hurryFor(MAX_STOCK - 1)).toBe(HURRY.length - 1);
+    for (let level = 1; level < HURRY.length; level++) {
+      expect(HURRY[level].from).toBeGreaterThan(HURRY[level - 1].from);
+      expect(hurryFor(HURRY[level].from)).toBe(level);
+      expect(hurryFor(HURRY[level].from - 1)).toBe(level - 1);
+      expect(HURRY[level].reels).toBeLessThan(HURRY[level - 1].reels);
+      expect(HURRY[level].reach).toBeLessThanOrEqual(HURRY[level - 1].reach);
+      expect(HURRY[level].pace).toBeLessThanOrEqual(HURRY[level - 1].pace);
+    }
+    expect(Math.min(...HURRY.map((hurry) => hurry.reels))).toBeGreaterThanOrEqual(0.25);
+    expect(Math.min(...HURRY.map((hurry) => Math.min(hurry.reach, hurry.pace)))).toBeGreaterThanOrEqual(0.25);
   });
 
-  it('holds eight spins while the screen is busy, and wastes a medal through a pocket beyond that', () => {
-    expect(MAX_STOCK).toBe(8);
+  it('cuts a reach, a winning line and the game it leads to short by the hurry, and pays the same', () => {
+    const deepest = HURRY.length - 1;
+    const plays = (held: number) => {
+      const session = withSpin();
+      session.stock = held;
+      // A sugoroku line with an ordinary reach, then a roll of two.
+      script(session, [ROLL.small, 0, ORDINARY, 0.2]);
+      const events = until(session, () => session.bonus?.kind === 'sugoroku' && session.bonus.payout >= 0);
+      const start = events.find((event) => event.type === 'spinStart');
+      const roll = events.find((event) => event.type === 'sugorokuStart');
+      return { session, start, roll, events };
+    };
+    const calm = plays(1);
+    const deep = plays(MAX_STOCK);
+    const reach = { tier: 'small' as const, digits: [2, 2, 2] as [number, number, number], reach: true, reachKind: 'normal' as const };
+    expect(calm.start).toMatchObject({ result: reach, duration: TIMING.spin + TIMING.reach });
+    expect(deep.start).toMatchObject({ result: reach, duration: HURRY[deepest].reels + TIMING.reach * HURRY[deepest].reach });
+    expect(reachTime(reach, deepest)).toBe(TIMING.reach * HURRY[deepest].reach);
+    expect(celebrateTime(deepest)).toBe(TIMING.celebrate * HURRY[deepest].pace);
+    // The roll hurries as hard as the hold behind it says when it starts: one fewer than when the spin began, the
+    // spin itself having been taken off it.
+    expect(calm.session.bonus).toMatchObject({ kind: 'sugoroku', roll: 2, hurry: 0, duration: sugorokuDuration(2) });
+    const rollHurry = hurryFor(MAX_STOCK - 1);
+    expect(deep.session.bonus).toMatchObject({ kind: 'sugoroku', roll: 2, hurry: rollHurry, duration: sugorokuDuration(2, rollHurry) });
+    expect(sugorokuDuration(2, rollHurry)).toBeCloseTo(sugorokuDuration(2) * HURRY[rollHurry].pace, 12);
+    // The same square, and the same prize.
+    const paid = (events: SessionEvent[]) => events.find((event) => event.type === 'sugorokuEnd');
+    expect(paid(deep.events)).toEqual(paid(calm.events));
+    expect(deep.session.paidOut).toBe(calm.session.paidOut);
+    // Its prize stays up for the hurried time, and then the next spin starts.
+    const shown = secondsUntil(deep.session, () => deep.session.spin !== null);
+    expect(shown).toBeGreaterThan(prizeTime(rollHurry) - 2 * DT);
+    expect(shown).toBeLessThan(prizeTime(rollHurry) + 2 * DT);
+  });
+
+  it('opens a picked chest as quickly as the hurry has it, and gives the player the same time to pick', () => {
+    const session = withSpin();
+    session.stock = MAX_STOCK;
+    // A treasure line, the chests as they come, and the clock's pick.
+    script(session, [ROLL.big, 0, ORDINARY]);
+    until(session, () => session.bonus?.kind === 'chest');
+    const hurry = hurryFor(MAX_STOCK - 1);
+    expect(session.bonus).toMatchObject({ kind: 'chest', picked: -1, hurry });
+    // Nobody picks: the clock does, after the usual time to choose.
+    const waiting = secondsUntil(session, () => session.bonus?.kind === 'chest' && session.bonus.picked >= 0);
+    expect(waiting).toBeGreaterThan(TIMING.choose - 2 * DT);
+    const opening = secondsUntil(session, () => session.bonus?.kind === 'chest' && session.bonus.payout >= 0);
+    expect(opening).toBeLessThan(openTime(hurry) + 2 * DT);
+    expect(opening).toBeGreaterThan(openTime(hurry) - 2 * DT);
+    expect(openTime(hurry)).toBeLessThan(TIMING.open);
+  });
+
+  it('holds ten spins while the screen is busy, as the big station pushers do, and wastes a medal through a pocket beyond that', () => {
+    expect(MAX_STOCK).toBe(10);
     const session = emptied();
     session.bonus = { ...CHEST, prizes: [...CHEST.prizes] };
     const events: SessionEvent[] = [];
-    // Eleven medals go over the lip through the middle pocket, one after another. None is the machine's yet: each is on its way down the plate to the hole.
+    // Thirteen medals go over the lip through the middle pocket, one after another. None is the machine's yet: each is on its way down the plate to the hole.
     for (let medal = 0; medal < MAX_STOCK + 3; medal++) {
       overTheLip(session, CHECKERS.positions[1]);
       advance(session, DT, events);
@@ -307,7 +388,7 @@ describe('the slot', () => {
     const hits = pocketed(events);
     expect(hits).toHaveLength(MAX_STOCK + 3);
     expect(hits.every((event) => event.type === 'checker' && event.gate === 1)).toBe(true);
-    // The first eight are held, in the order they came; the three after them start nothing.
+    // The first ten are held, in the order they came; the three after them start nothing.
     expect(hits.map((event) => event.type === 'checker' && event.held)).toEqual([...Array(MAX_STOCK).fill(true), false, false, false]);
     expect(session.hits).toBe(MAX_STOCK + 3);
     expect(session.stock).toBe(MAX_STOCK);
@@ -1255,10 +1336,11 @@ describe('a session played for a while', () => {
     // Every medal through a pocket either started a spin, is held, or found the machine full.
     expect(session.hits).toBe(session.spins + session.stock + session.wasted);
     expect(pocketed(events)).toHaveLength(session.hits);
-    // From a new machine, something under the one medal in eight that goes through a slot once it has been fed for a while.
+    // From a new machine, about the one medal in five that goes through a slot once it has been fed for a while, what
+    // the screen pays going through them too.
     expect(session.hits).toBeGreaterThan(session.inserted / 16);
-    expect(session.hits).toBeLessThan(session.inserted / 5);
-    // At five a second the reels cannot keep up with a player who feeds the middle, even with eight held.
+    expect(session.hits).toBeLessThan(session.inserted / 3);
+    // At five a second the reels do not always keep up with a player who feeds the middle, even with ten held and hurrying.
     expect(session.wasted).toBeGreaterThan(0);
     expect(session.stock).toBeLessThanOrEqual(MAX_STOCK);
     // The gold spins add up too. Each was a medal that found the hold full and turned a held spin, or one that was
@@ -1345,6 +1427,15 @@ const until = (session: Session, done: () => boolean, limit = 30): SessionEvent[
 const count = (events: SessionEvent[], type: SessionEvent['type']) => events.filter((event) => event.type === type).length;
 /** The draws of a spin that stops on three even digits, with an ordinary reach, and of the die that follows: a two. */
 const SMALL = [ROLL.small, 0.3, ORDINARY, 0.2];
+/** Runs the session until `done` says so, half a minute at most, and says how many seconds that took. */
+const secondsUntil = (session: Session, done: () => boolean): number => {
+  let steps = 0;
+  for (; steps < 30 * 60 && !done(); steps++) advance(session, DT);
+  expect(done()).toBe(true);
+  return steps * DT;
+};
+/** The time the reels of a spin get when it starts with `held` spins held behind it: a gold one's, or an ordinary one's. */
+const quick = (held: number, gold = false): number => reelTime(hurryFor(held), gold);
 /** How long each spin that started was given, in the order they started. */
 const spinTimes = (events: SessionEvent[]): number[] => events.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []));
 
@@ -1411,10 +1502,13 @@ describe('chance time', () => {
     const events = until(session, () => session.stock === 0 && session.spin === null);
     const starts = events.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []));
     expect(starts).toHaveLength(MAX_STOCK);
-    // Three gold spins, each in half the time of a hurried one; then the five that were not turned, at their own pace.
+    // Three gold spins, each as quick as a gold spin is, or quicker while the hold behind it is deep; then the seven
+    // that were not turned, at their own pace, which slows as the hold drains.
     expect(TIMING.chanceSpin).toBe(TIMING.quickSpin / 2);
-    expect(starts.slice(0, 3)).toEqual([TIMING.chanceSpin, TIMING.chanceSpin, TIMING.chanceSpin]);
-    expect(starts.slice(3)).toEqual([TIMING.quickSpin, TIMING.quickSpin, TIMING.quickSpin, TIMING.spin, TIMING.spin]);
+    expect(starts).toEqual(starts.map((_, index) => quick(MAX_STOCK - 1 - index, index < 3)));
+    expect(starts.slice(0, 3).every((time) => time <= TIMING.chanceSpin)).toBe(true);
+    expect(starts.slice(3)).toEqual([...starts.slice(3)].sort((a, b) => a - b));
+    expect(starts.slice(-2)).toEqual([TIMING.spin, TIMING.spin]);
     // Chance time was on already, and ended once: between the third spin's end and the fourth's start.
     expect(count(events, 'chanceStart')).toBe(0);
     expect(count(events, 'chanceEnd')).toBe(1);
@@ -1432,9 +1526,9 @@ describe('chance time', () => {
     script(session, SMALL);
     const start = play(session, DT);
     const [spin] = start.flatMap((event) => (event.type === 'spinStart' ? [event] : []));
-    // The same draw as any spin, and its reach as long as any reach: only the reels are quicker.
+    // The same draw as any spin, and its reach as long as any spin's at its hurry: only the reels can be quicker.
     expect(spin.result).toMatchObject({ tier: 'small', reach: true, reachKind: 'normal' });
-    expect(spin.duration).toBe(TIMING.chanceSpin + TIMING.reach);
+    expect(spin.duration).toBe(quick(MAX_STOCK - 1, true) + reachTime(spin.result, hurryFor(MAX_STOCK - 1)));
     expect([session.chance, session.gold, session.stock]).toEqual([true, 0, MAX_STOCK - 1]);
     const events = until(session, () => session.bonus?.kind === 'sugoroku' && session.bonus.payout >= 0);
     // What is on the screen stays gold from the spin through the game its line leads to.
@@ -1448,7 +1542,7 @@ describe('chance time', () => {
     const after = until(session, () => session.spin !== null);
     expect(count(after, 'chanceEnd')).toBe(1);
     expect(session.chance).toBe(false);
-    expect(after.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []))).toEqual([TIMING.quickSpin]);
+    expect(after.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []))).toEqual([quick(MAX_STOCK - 2)]);
   });
 
   it('pays a gold spin’s chest twice over, as towers', () => {
@@ -1540,7 +1634,7 @@ describe('chance time', () => {
     expect(session.paidOut).toBe(BOARD[square]);
     // The gold spins come next.
     const next = until(session, () => session.spin !== null);
-    expect(next.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []))).toEqual([TIMING.chanceSpin]);
+    expect(next.flatMap((event) => (event.type === 'spinStart' ? [event.duration] : []))).toEqual([quick(MAX_STOCK - 1, true)]);
     expect([session.chance, session.gold]).toEqual([true, 2]);
   });
 
@@ -1631,7 +1725,7 @@ describe('the lucky lamp and the wings', () => {
     // The four that found the hold full found every held spin gold already: there was none left to turn, and with none turned chance time does not begin.
     expect(hits.some((event) => event.type === 'checker' && event.gold)).toBe(false);
     expect(count(events, 'chanceStart')).toBe(0);
-    // The screen was free, so the first of the eight is on it already.
+    // The screen was free, so the first of the ten is on it already.
     expect([session.spins, session.stock, session.gold, session.lucky, session.gilded, session.wasted]).toEqual([1, MAX_STOCK - 1, MAX_STOCK - 1, MAX_STOCK, 0, 4]);
     expect([session.chance, session.rush, chanceLeft(session)]).toEqual([true, false, MAX_STOCK]);
   });
@@ -1646,8 +1740,8 @@ describe('the lucky lamp and the wings', () => {
     expect(riders(play(session, DT))).toEqual([]);
     expect(pocketed(play(session, START_RIDE))).toEqual([]);
     expect([session.hits, session.riding.length]).toEqual([0, 0]);
-    // Eight through the middle slot fill the hold, and the ninth finds it full: chance time, with one spin gold. It
-    // begins as the ninth drops into the slot, which is when the machine takes it, and not as it comes over the lip.
+    // Ten through the middle slot fill the hold, and the eleventh finds it full: chance time, with one spin gold. It
+    // begins as the eleventh drops into the slot, which is when the machine takes it, and not as it comes over the lip.
     const filling: SessionEvent[] = [];
     for (let i = 0; i < MAX_STOCK + 1; i++) {
       overTheLip(session, CHECKERS.positions[1]);
@@ -1662,7 +1756,7 @@ describe('the lucky lamp and the wings', () => {
     // with no reach. Another chest holds the reels where they are while the next medals slide down to their holes.
     free();
     const first = play(session, DT);
-    expect(spinTimes(first)).toEqual([TIMING.chanceSpin]);
+    expect(spinTimes(first)).toEqual([quick(MAX_STOCK - 1, true)]);
     expect([session.rush, session.chance, session.stock, session.gold]).toEqual([true, true, MAX_STOCK - 1, 0]);
     hold();
 
@@ -1681,7 +1775,7 @@ describe('the lucky lamp and the wings', () => {
     // as it came over.
     free();
     const second = until(session, () => session.spins === 2);
-    expect(spinTimes(second)).toEqual([TIMING.chanceSpin]);
+    expect(spinTimes(second)).toEqual([quick(MAX_STOCK - 1, true)]);
     expect(count(second, 'chanceEnd')).toBe(0);
     hold();
     expect(luckySlot(session.machine.time + DT)).not.toBe(2);
@@ -1695,12 +1789,12 @@ describe('the lucky lamp and the wings', () => {
     const rest = until(session, () => !session.rush);
     expect(count(rest, 'chanceEnd')).toBe(1);
     expect(rest[rest.length - 1]).toEqual({ type: 'chanceEnd' });
-    expect(spinTimes(rest)).toEqual([TIMING.chanceSpin, TIMING.chanceSpin]);
+    expect(spinTimes(rest)).toEqual([quick(MAX_STOCK - 1, true), quick(MAX_STOCK - 2, true)]);
     expect([session.gold, session.chance, chanceLeft(session), session.spin]).toEqual([0, false, 0, null]);
     expect([session.spins, session.stock]).toEqual([4, MAX_STOCK - 2]);
     // The spins that were never gold come next, at their own pace, and the wings are shut: beside the slot is beside it again.
     const next = play(session, DT);
-    expect(spinTimes(next)).toEqual([TIMING.quickSpin]);
+    expect(spinTimes(next)).toEqual([quick(MAX_STOCK - 3)]);
     expect(count(next, 'chanceStart')).toBe(0);
     overTheLip(session, BESIDE);
     expect(riders(play(session, DT))).toEqual([]);

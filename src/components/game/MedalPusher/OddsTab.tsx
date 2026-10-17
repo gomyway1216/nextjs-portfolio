@@ -55,7 +55,7 @@ import {
 } from './lottery';
 import { LUCKY, towerSizes } from './engine';
 import { ReelSymbol } from './ReelSymbols';
-import { MAX_STOCK, START_JEWELS, TIMING } from './session';
+import { HURRY, MAX_STOCK, START_JEWELS, TIMING } from './session';
 import styles from './MedalPusher.module.css';
 
 /** The slot's lines, best first. */
@@ -65,7 +65,7 @@ export const REACH_ROWS: ReachShown[] = ['long', 'normal', 'any'];
 /** Jackpot sizes the value table is worked out for: where it starts, and two it grows to. */
 export const JACKPOT_LEVELS = [JACKPOT_START, 1000, 2000] as const;
 /** What the calculator starts from: about what feeding both rails down the middle of the pusher, two medals a second between them, measures on the Simulation tab. */
-export const CALC_DEFAULT = { front: 55, spins: 15 } as const;
+export const CALC_DEFAULT = { front: 55, spins: 16 } as const;
 /** The least and the most the calculator's share into the tray goes to, as percentages: fed at the edges the field gives back less than half. */
 export const CALC_FRONT = { min: 30, max: 100 } as const;
 /**
@@ -256,6 +256,36 @@ export const OddsTab = () => {
             tidyPercent(LONG_REACH.miss),
           )}
         </p>
+        <p className={styles.note}>{t.hurryIntro(MAX_STOCK)}</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="pusher-hurry-table">
+            <caption className={styles.srOnly}>{t.hurryCaption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.colHeldBehind}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colReels}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colReachTime}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colLineTime}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {HURRY.map((hurry, level) => (
+                <tr key={level} data-hurry={level}>
+                  <th scope="row">{t.heldBehind(hurry.from, level + 1 < HURRY.length ? HURRY[level + 1].from - 1 : null)}</th>
+                  <td className={styles.num}>{t.secondsShort(trim(hurry.reels))}</td>
+                  <td className={styles.num}>{tidyPercent(hurry.reach)}</td>
+                  <td className={styles.num}>{tidyPercent(hurry.pace)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className={styles.panelBox}>

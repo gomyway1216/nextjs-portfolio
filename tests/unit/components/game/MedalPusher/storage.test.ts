@@ -65,6 +65,7 @@ import {
 } from '@/components/game/MedalPusher/lottery';
 import {
   BOWL_TIMES,
+  HURRY,
   MAX_STOCK,
   START_BALLS,
   START_CREDITS,
@@ -74,20 +75,24 @@ import {
   bowlShowTime,
   chanceLeft,
   createSession,
+  hurryFor,
   insert,
   pickChest,
   reachTime,
+  reelTime,
   refill,
   sugorokuDuration,
   type Session,
   type SessionEvent,
 } from '@/components/game/MedalPusher/session';
 import {
+  HOLD_BEFORE,
   LIMITS,
   PAID_BEFORE,
   STORAGE_KEY,
   STORAGE_VERSION,
   VERSION_BEFORE_ARMS,
+  VERSION_BEFORE_HURRY,
   VERSION_BEFORE_PLATE,
   VERSION_BEFORE_CHANCE,
   VERSION_BEFORE_JEWELS,
@@ -114,6 +119,7 @@ import dayBeforeLamp from './fixtures/save-before-the-lucky-lamp-with-the-payout
 import beforeRide from './fixtures/save-before-the-ride.json';
 import beforeTubes from './fixtures/save-before-the-tubes.json';
 import beforePlate from './fixtures/save-before-the-plate.json';
+import beforeHurry from './fixtures/save-before-the-hurry.json';
 import beforeJewels from './fixtures/save-before-jewels.json';
 import threeBowlsBeforeJewels from './fixtures/save-with-the-three-bowls-before-jewels.json';
 import beforeThreeBowls from './fixtures/save-before-the-three-bowls.json';
@@ -619,20 +625,50 @@ const numbersWithLamp = (session: Row): Row => {
 const LAMP_NUMBERS = ['lucky', 'rush'];
 /** What no save from before the lamp holds of a session: those two, and the medals on their tongues, which came after them. */
 const SINCE_LAMP = [...LAMP_NUMBERS, 'riding'];
-/** A save of today's less its list of riders: what the version before the ride wrote of the same machine, but for its number. */
+/**
+ * A save of today's less what its screen says of the hurry: what the version before the hurry wrote of the same
+ * machine, but for its number, if the screen hurried no harder than that game's quicker spin.
+ */
+const withoutHurry = (save: Save): Save => {
+  const unhurried = (thing: unknown): unknown => {
+    if (thing === null || typeof thing !== 'object') return thing;
+    const { hurry: _hurry, ...rest } = thing as Row;
+    return rest;
+  };
+  return { ...save, screen: { ...save.screen, spin: unhurried(save.screen.spin), bonus: unhurried(save.screen.bonus) } };
+};
+/** A save of today's less its list of riders and its hurry: what the version before the ride wrote of the same machine, but for its number. */
 const withoutRide = (save: Save): Save => {
-  const { riding: _riding, ...session } = save.session;
-  return { ...save, session: session as Save['session'] };
+  const { riding: _riding, ...session } = withoutHurry(save).session;
+  return { ...withoutHurry(save), session: session as Save['session'] };
 };
 /** A save of today's less those two numbers and the riders: what the version before the lamp wrote of the same machine, but for its number. */
 const withoutLamp = (save: Save): Save => {
   const { lucky: _lucky, rush: _rush, ...session } = withoutRide(save).session;
-  return { ...save, session: session as Save['session'] };
+  return { ...withoutRide(save), session: session as Save['session'] };
 };
-/** A whole save of version 2 or 3 as versions 7 to 9 wrote the same machine, but for the version they said they were. */
+/** The spins every version before the hurry held: eight, where today's machine holds ten. Their full hold was eight. */
+const HOLD_THEN = 8;
+/**
+ * What the screen of a save from before the hurry comes back as: a spin at the hurry its own time agrees with, the
+ * quicker spin's hurry if it was one of those and the first otherwise, and a bonus game at the first, which is
+ * the usual pace those games always had. What is not on it stays not on it.
+ */
+const screenNow = (screen: Row): Row => {
+  const spin = screen.spin as (Row & { duration: number; result: SpinResult }) | null;
+  const bonus = screen.bonus as Row | null;
+  const quick = spin !== null && spin.duration === TIMING.quickSpin + reachTime(spin.result);
+  return { ...screen, spin: spin && { ...spin, hurry: quick ? 1 : 0 }, bonus: bonus && { ...bonus, hurry: 0 } };
+};
+/** A whole save of version 2 or 3 as versions 7 to 9 wrote the same machine, but for the version they said they were, with its screen as today's game reads it. */
 const writtenThen = (text: string): Save => {
   const save = JSON.parse(text) as Save;
-  return { ...save, machine: (save.version === VERSION_WITH_ONE_AIM ? asNine(save.machine) : withWorks(save.machine)) as Save['machine'], session: numbersToday(save.session) as Save['session'] };
+  return {
+    ...save,
+    machine: (save.version === VERSION_WITH_ONE_AIM ? asNine(save.machine) : withWorks(save.machine)) as Save['machine'],
+    session: numbersToday(save.session) as Save['session'],
+    screen: screenNow(save.screen),
+  };
 };
 
 /** What a save written back from an older one says, but for its field: today's version, and the numbers and the screen as they came back. */
@@ -1438,7 +1474,7 @@ describe('a save written before the machine had its feed arms', () => {
     // So are the purse and the counters, and the spin it was in the middle of.
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
   });
 
   it('has its medals in the air already in their fall: each lands where and when it was going to', () => {
@@ -1611,7 +1647,7 @@ describe('a save written while the START gates still swept the back panel', () =
     expectANewHeap(asNine(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     // Its arms are where they were, as far across, the one with medals on its rail over the aim and the other at the rest
     // it had then. Each is pointed at that one aim now, so the first stays and the second swings over.
     expect(back.machine.tips).toEqual(armsNow(save.machine.tips as number[]));
@@ -1729,7 +1765,7 @@ describe('a save written while both rails shared one slot and one aim', () => {
     expectANewHeap(asNine(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     // Both arms were following the aim, so both tips are over their aims already: nothing swings when it starts up again.
     expect([armGoal(back.machine, 0), armGoal(back.machine, 1)]).toEqual(back.machine.tips);
   });
@@ -1830,11 +1866,11 @@ describe('a save written while both rails shared one slot and one aim', () => {
 
 describe('a screen that has been damaged', () => {
   // Each of these is written by hand, at a moment the machine does pass through.
-  const SPIN = { result: { tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'normal' }, elapsed: 0.5, duration: TIMING.spin + TIMING.reach, done: false };
+  const SPIN = { result: { tier: 'small', digits: [4, 4, 4], reach: true, reachKind: 'normal' }, elapsed: 0.5, duration: TIMING.spin + TIMING.reach, done: false, hurry: 0 };
   const MISS = { tier: 'miss', digits: [5, 5, 6], reach: false, reachKind: 'none' };
   // Rolled from the square the good save's piece is on.
-  const SUGOROKU = { kind: 'sugoroku', roll: 3, from: good().session.square as number, elapsed: 0.4, duration: sugorokuDuration(3), payout: -1 };
-  const CHEST = { kind: 'chest', prizes: [CHESTS[1], CHESTS[0], CHESTS[2]], fallback: 2, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1 };
+  const SUGOROKU = { kind: 'sugoroku', roll: 3, from: good().session.square as number, elapsed: 0.4, duration: sugorokuDuration(3), payout: -1, hurry: 0 };
+  const CHEST = { kind: 'chest', prizes: [CHESTS[1], CHESTS[0], CHESTS[2]], fallback: 2, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1, hurry: 0 };
   const PICKED = { ...CHEST, picked: 0, pickedAt: 0.5, told: true, elapsed: 3, payout: CHESTS[1] };
   const TURN = { pocket: 1, from: 0, elapsed: 0.2, duration: 2.8, landed: false, level: 0, total: 0, gain: 0, over: false, jackpot: false, bowl: null };
   const ENDED = { ...TURN, elapsed: 3, landed: true, over: true, pocket: 0, from: 2, level: 2, total: 30 };
@@ -2152,7 +2188,7 @@ describe('a screen caught at each of its phases', () => {
     expect(at('a piece on its way').screen.bonus).toMatchObject({ kind: 'sugoroku', payout: -1 });
     expect(at('a square that has paid').screen.bonus).toMatchObject({ kind: 'sugoroku', payout: BOARD[4] });
     expect(at('a square that has paid').session.square).toBe(4);
-    expect(at('chests to choose from').screen.bonus).toMatchObject({ kind: 'chest', picked: -1, told: false, payout: -1 });
+    expect(at('chests to choose from').screen.bonus).toMatchObject({ kind: 'chest', picked: -1, told: false, payout: -1, hurry: 0 });
     const clock = at('a chest the clock picked').screen.bonus as Row;
     expect(clock).toMatchObject({ picked: clock.fallback, told: true, payout: -1 });
     expect(clock.pickedAt).toBeGreaterThanOrEqual(TIMING.choose);
@@ -2959,14 +2995,14 @@ describe('the versions a save can carry', () => {
     const noJewel = (medal: Row): boolean => medal.jewel !== true;
     if (save.session.chance !== false) throw new Error('a gold spin on the screen may be the lamp’s, and that game could not show it');
     return {
-      ...save,
+      ...withoutLamp(save),
       version: VERSION_BEFORE_JEWELS,
       machine: { ...field, medals: (field.medals as Row[]).filter(noJewel), falling: (field.falling as Row[]).filter(noJewel) } as Save['machine'],
       session: { ...session, gold: Math.min(session.gold as number, session.gilded as number) } as Save['session'],
     };
   };
 
-  it('are eleven: the arms, an aim for each, chance time, the three bowls, the jewels, the payout works, the lucky lamp, the ride to the pocket, today’s medals with the tubes, and the narrower field with the START plate each took one', () => {
+  it('are twelve: the arms, an aim for each, chance time, the three bowls, the jewels, the payout works, the lucky lamp, the ride to the pocket, today’s medals with the tubes, the narrower field with the START plate, and the screen’s hurry each took one', () => {
     expect([
       VERSION_BEFORE_ARMS,
       VERSION_WITH_ONE_AIM,
@@ -2978,9 +3014,12 @@ describe('the versions a save can carry', () => {
       VERSION_BEFORE_RIDE,
       VERSION_BEFORE_TUBES,
       VERSION_BEFORE_PLATE,
+      VERSION_BEFORE_HURRY,
       STORAGE_VERSION,
-    ]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    expect(JSON.parse(serialize(createSession(1))).version).toBe(11);
+    ]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(JSON.parse(serialize(createSession(1))).version).toBe(12);
+    // And every one of them before the hurry held eight spins at most.
+    expect([HOLD_THEN, HOLD_BEFORE, MAX_STOCK]).toEqual([8, 8, 10]);
   });
 
   it('do not take a save of this version for one of the version before it, nor one of that version for this', () => {
@@ -3077,7 +3116,7 @@ describe('the versions a save can carry', () => {
       expect(back, phase).not.toBeNull();
       if (!back) continue;
       expect([jewelsOnField(back.machine), back.jewels, back.jewelBonuses], phase).toEqual([0, 0, 0]);
-      expect(withoutField(serialize(back)), phase).toEqual(withoutField(JSON.stringify({ ...before, version: STORAGE_VERSION, session: numbersWithLamp(before.session) })));
+      expect(withoutField(serialize(back)), phase).toEqual(withoutField(JSON.stringify({ ...before, version: STORAGE_VERSION, screen: screenNow(before.screen), session: numbersWithLamp(before.session) })));
       expectANewHeap(withWorks(before.machine), back, 1);
       // Called a save of this version, it has not this version's numbers.
       expect(restore(JSON.stringify({ ...before, version: STORAGE_VERSION }), 1), phase).toBeNull();
@@ -3186,7 +3225,7 @@ describe.each(ONE_BOWL_SAVES)('a save written when a full run ended in one bowl,
     expect(then.end.payout).toBeGreaterThan(PAID_BEFORE.jackpotStart);
     expect(then.end).toMatchObject({ type: 'bowlEnd', jackpot: true, total: RUN + then.end.payout });
     // With chance time it was caught with the hold full and all but one of the held spins gold, none of them on the screen.
-    if (withChance) expect(save.session).toMatchObject({ stock: MAX_STOCK, gold: MAX_STOCK - 1, gilded: MAX_STOCK - 1, chance: false });
+    if (withChance) expect(save.session).toMatchObject({ stock: HOLD_THEN, gold: HOLD_THEN - 1, gilded: HOLD_THEN - 1, chance: false });
     // The top bowl of the three is as long as that one bowl was, which is why the ball can be as far into it.
     expect(BOWL_TIMES[0]).toBe(ONE_BOWL.time);
     expect(TIMING.bowl).toBe(ONE_BOWL.time);
@@ -3281,7 +3320,7 @@ describe.each(ONE_BOWL_SAVES)('a save written when a full run ended in one bowl,
     // Then the screen is free, and the gold spins it held are still held and still gold.
     expect(back.chance).toBe(false);
     expect(chanceLeft(back)).toBeGreaterThanOrEqual(held);
-    if (withChance) expect(held).toBe(MAX_STOCK - 1);
+    if (withChance) expect(held).toBe(HOLD_THEN - 1);
   });
 
   const holes: [string, number][] = BOWL.map((hole, index) => [hole === 'jackpot' ? 'the jackpot' : `${hole} medals`, index]);
@@ -3658,7 +3697,7 @@ describe('a save written before chance time', () => {
     expect(save.version).toBe(VERSION_BEFORE_CHANCE);
     expect(save.version).not.toBe(STORAGE_VERSION);
     for (const key of ['gold', 'gilded', 'chance']) expect(save.session).not.toHaveProperty(key);
-    expect(save.session.stock).toBe(MAX_STOCK);
+    expect(save.session.stock).toBe(HOLD_THEN);
     expect(save.session.wasted).toBeGreaterThan(50);
     // A roll on the board is on its screen and has not paid yet, and both rails have medals on them.
     expect(save.screen.bonus).toMatchObject({ kind: 'sugoroku', payout: -1 });
@@ -3681,7 +3720,7 @@ describe('a save written before chance time', () => {
     expectANewHeap(withWorks(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
   });
 
   it('is written back as a save of this version, which reads back the same', () => {
@@ -3696,25 +3735,34 @@ describe('a save written before chance time', () => {
     expect(serialize(twice as Session)).toBe(text);
   });
 
-  it('plays on by today’s rule: the next medal to find its hold full turns a held spin gold, and chance time begins', () => {
+  it('plays on by today’s rule: its full hold of eight has room for two more, and the next medal to find it full turns a held spin gold, and chance time begins', () => {
     const back = restore(OLD, then.seed) as Session;
     const at = { hits: back.hits, spins: back.spins, stock: back.stock, wasted: back.wasted };
     // Then, the medals that went through a pocket in these twelve seconds all found the hold full and were wasted.
     expect(then.pockets.length).toBeGreaterThan(0);
     expect(then.pockets.every((pocket) => !pocket.held)).toBe(true);
-    // Now the first medal to go through one turns a held spin gold as it drops in, a ride after it came over, and
-    // with that chance time begins and the wings open. The heap is a new one, so it is not the medal that went through
-    // first then: this one is put over the lip in line with the middle slot, on top of the pile, the moment it starts.
-    expect(back.stock).toBe(MAX_STOCK);
+    // Now its eight are two short of a full hold. The next two medals through a pocket are held, and the one after
+    // them turns a held spin gold as it drops in, a ride after it came over, and with that chance time begins and the
+    // wings open. The heap is a new one, so they are not the medals that went through first then: these are put over
+    // the lip in line with the middle slot, on top of the pile, one a step from the moment it starts.
+    expect(back.stock).toBe(HOLD_THEN);
     const { machine } = back;
-    machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.01, level: 1, tier: 1, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
     const events: SessionEvent[] = [];
-    for (let i = 0; i < then.steps; i++) advance(back, DT, events);
+    for (let i = 0; i < then.steps; i++) {
+      if (i <= MAX_STOCK - HOLD_THEN) {
+        machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[1], y: pusherFront(machine.time) + 0.01, level: 1, tier: 1, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
+      }
+      advance(back, DT, events);
+    }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(pockets[0]).toEqual({ type: 'checker', gate: 1, held: false, gold: true, lucky: false });
+    expect(pockets.slice(0, 3)).toEqual([
+      { type: 'checker', gate: 1, held: true, gold: false, lucky: false },
+      { type: 'checker', gate: 1, held: true, gold: false, lucky: false },
+      { type: 'checker', gate: 1, held: false, gold: true, lucky: false },
+    ]);
     expect(events.filter((event) => event.type === 'chanceStart')).toHaveLength(1);
-    expect(events.findIndex((event) => event.type === 'chanceStart')).toBeGreaterThan(events.indexOf(pockets[0]));
+    expect(events.findIndex((event) => event.type === 'chanceStart')).toBeGreaterThan(events.indexOf(pockets[2]));
     expect(back.gilded).toBe(pockets.filter((event) => event.gold).length);
     expect(back.gilded).toBeGreaterThanOrEqual(1);
     expect(back.lucky).toBe(pockets.filter((event) => event.lucky).length);
@@ -3739,7 +3787,7 @@ describe('a save written before chance time', () => {
     ['given the lamp’s count of gold spins, which that game did not have', (save) => (save.session.lucky = 0)],
     ['given all five of today’s numbers for gold spins, under its old version', (save) => Object.assign(save.session, { gold: 0, gilded: 0, lucky: 0, rush: false, chance: false })],
     ['left without its count of wasted medals', (save) => delete save.session.wasted],
-    ['holding more spins than the hold has room for', (save) => (save.session.stock = MAX_STOCK + 1)],
+    ['holding more spins than its hold had room for', (save) => (save.session.stock = HOLD_THEN + 1)],
   ];
 
   it.each(spoilt)('is refused when it is %s', (_name, spoil) => {
@@ -3773,8 +3821,8 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     for (const key of ['hopper', 'lifts']) expect(save.machine).not.toHaveProperty(key);
     expect(Object.keys(withWorks(save.machine))).toEqual(FIELD_THEN);
     expect([...save.machine.medals, ...save.machine.falling].some((medal) => 'jewel' in medal)).toBe(false);
-    expect(save.session).toMatchObject({ stock: MAX_STOCK, gold: MAX_STOCK - 1, gilded: MAX_STOCK, chance: true });
-    expect(save.session.wasted as number).toBeGreaterThan(MAX_STOCK);
+    expect(save.session).toMatchObject({ stock: HOLD_THEN, gold: HOLD_THEN - 1, gilded: HOLD_THEN, chance: true });
+    expect(save.session.wasted as number).toBeGreaterThan(HOLD_THEN);
     const spin = save.screen.spin as { duration: number; done: boolean; result: SpinResult };
     expect(spin.done).toBe(false);
     expect(spin.duration).toBe(TIMING.chanceSpin + reachTime(spin.result));
@@ -3791,7 +3839,7 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     // gold spins held and one on its reels, so it is in chance time now, and its wings are open.
     expect([back.lucky, back.rush]).toEqual([0, true]);
     expect([back.stock, back.gold, back.gilded, back.chance]).toEqual([save.session.stock, save.session.gold, save.session.gilded, true]);
-    expect(chanceLeft(back)).toBe(MAX_STOCK);
+    expect(chanceLeft(back)).toBe(HOLD_THEN);
     // Everything else is what was written, to the last digit, on a new heap with the payout works at rest: no tower
     // was going up, so the tubes are empty. No jewel is laid on a machine that was already in play, and no jewel lamp is lit.
     expectANewHeap(withWorks(save.machine), back, 1);
@@ -3800,7 +3848,7 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect(JSON.stringify(numbers)).toBe(JSON.stringify({ ...numbersWithLamp(save.session), lucky: 0, rush: true }));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
   });
 
   it('is written back as a save of this version, which reads back the same', () => {
@@ -3808,7 +3856,7 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     const text = serialize(back);
     // The same text but for the version's number, its field on a new heap, and the numbers it lacked where a session
     // holds them: the two the lamp added, and the jewel lamps.
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, screen: screenNow(old().screen), session: numbersWithLamp(old().session) })));
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(again.session).toMatchObject({ lucky: 0, rush: true });
@@ -3824,16 +3872,16 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     // Then, a medal that was held held an ordinary spin.
     expect(then.pockets.filter((pocket) => pocket.held).every((pocket) => !pocket.gold)).toBe(true);
     // Now it holds a gold one, as every medal does while chance time lasts. The heap is a new one, so the medals that
-    // went through a pocket then are not there to: three are put over the lip half way through, one in line with each
-    // slot, by when the screen has played gold spins enough to make room for some of them.
+    // went through a pocket then are not there to: three are put over the lip at once, one in line with each slot.
+    // Its full hold of eight has room for two more in today's hold of ten, and the screen hurries through the rest.
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps; i++) {
-      if (i === then.steps / 2) for (const x of CHECKERS.positions) overTheLip(back, x);
+      if (i === 0) for (const x of CHECKERS.positions) overTheLip(back, x);
       advance(back, DT, events);
     }
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     const pockets = events.flatMap((event) => (event.type === 'checker' ? [event] : []));
-    expect(pockets.map((event) => event.gate)).toEqual(expect.arrayContaining([0, 1, 2]));
+    expect(new Set(pockets.map((event) => event.gate)).size).toBeGreaterThanOrEqual(2);
     expect(pockets.some((event) => event.held)).toBe(true);
     expect(pockets.every((event) => event.lucky === event.held)).toBe(true);
     expect(back.lucky).toBe(pockets.filter((event) => event.held).length);
@@ -3851,12 +3899,12 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     const played = old();
     Object.assign(played.session, { gold: 0, chance: false });
     played.screen = { ...NOTHING };
-    expect(restore(JSON.stringify(played), 1)).toMatchObject({ rush: false, lucky: 0, gold: 0, gilded: MAX_STOCK, chance: false, spin: null });
+    expect(restore(JSON.stringify(played), 1)).toMatchObject({ rush: false, lucky: 0, gold: 0, gilded: HOLD_THEN, chance: false, spin: null });
     // With gold spins held and none on the screen, it is.
     const held = old();
     held.session.chance = false;
     held.screen = { ...NOTHING };
-    expect(restore(JSON.stringify(held), 1)).toMatchObject({ rush: true, lucky: 0, gold: MAX_STOCK - 1, chance: false });
+    expect(restore(JSON.stringify(held), 1)).toMatchObject({ rush: true, lucky: 0, gold: HOLD_THEN - 1, chance: false });
     // With none held and the last of them on the reels, it is.
     const reels = old();
     reels.session.gold = 0;
@@ -3864,7 +3912,7 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     expect(restore(JSON.stringify(reels), 1)?.spin).not.toBeNull();
     // And if that last spin's screen has gone wrong, the spin is left off with its gold, and chance time is over with it.
     (reels.screen.spin as Row).duration = TIMING.spin + reachTime((reels.screen.spin as { result: SpinResult }).result);
-    expect(restore(JSON.stringify(reels), 1)).toMatchObject({ rush: false, gold: 0, chance: false, spin: null, gilded: MAX_STOCK });
+    expect(restore(JSON.stringify(reels), 1)).toMatchObject({ rush: false, gold: 0, chance: false, spin: null, gilded: HOLD_THEN });
   });
 
   // That version's numbers are held to that version's shape.
@@ -3878,8 +3926,8 @@ describe('a save written in chance time before the lucky lamp, the jewels and th
     ['told whether it is in chance time, which that game did not write down', (save) => (save.session.rush = true)],
     ['given both of the lamp’s numbers, under its old version', (save) => Object.assign(save.session, { lucky: 0, rush: true })],
     ['given both of the lamp’s numbers where a session holds them', (save) => (save.session = numbersWithLamp(save.session) as Save['session'])],
-    ['holding more gold spins than its full hold has turned', (save) => (save.session.gilded = MAX_STOCK - 1)],
-    ['holding more gold spins than spins', (save) => (save.session.stock = MAX_STOCK - 2)],
+    ['holding more gold spins than its full hold has turned', (save) => (save.session.gilded = HOLD_THEN - 1)],
+    ['holding more gold spins than spins', (save) => (save.session.stock = HOLD_THEN - 2)],
     ['left without its count of gold spins', (save) => delete save.session.gold],
     ['left without its count of the spins it has turned gold', (save) => delete save.session.gilded],
     ['left without a word of whether its screen is gold', (save) => delete save.session.chance],
@@ -3920,8 +3968,8 @@ describe('a save written the day before the lucky lamp', () => {
     expect(Object.keys(save.machine)).toEqual(FIELD_THEN);
     // Chance time as that game had it: the hold full, seven of its spins gold and the eighth gold spin on the reels,
     // a tenth of a second into them.
-    expect(save.session).toMatchObject({ stock: MAX_STOCK, gold: MAX_STOCK - 1, chance: true });
-    expect(save.session.gilded as number).toBeGreaterThan(MAX_STOCK);
+    expect(save.session).toMatchObject({ stock: HOLD_THEN, gold: HOLD_THEN - 1, chance: true });
+    expect(save.session.gilded as number).toBeGreaterThan(HOLD_THEN);
     expect(save.session.wasted as number).toBeGreaterThanOrEqual(save.session.gilded as number);
     const spin = save.screen.spin as { elapsed: number; duration: number; done: boolean; result: SpinResult };
     expect(spin.done).toBe(false);
@@ -3956,14 +4004,14 @@ describe('a save written the day before the lucky lamp', () => {
     // gold spins held and one on its reels, so it is in chance time now, and its wings are open.
     expect([back.lucky, back.rush]).toEqual([0, true]);
     expect([back.stock, back.gold, back.gilded, back.chance]).toEqual([save.session.stock, save.session.gold, save.session.gilded, true]);
-    expect(chanceLeft(back)).toBe(MAX_STOCK);
+    expect(chanceLeft(back)).toBe(HOLD_THEN);
     // Everything else is what was written, to the last digit: the numbers with their jewel bonus, and the spin on the
     // reels. The field is on a new heap, and the tower that was coming up on its lift is in a tube, to be stacked again.
     expectANewHeap(save.machine, back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect(JSON.stringify(numbers)).toBe(JSON.stringify({ ...numbersWithLamp(save.session), lucky: 0, rush: true }));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     expect([back.jewels, back.jewelBonuses]).toEqual([0, 1]);
     expect(back.machine.stacker.tubes.map((tube) => tube.size).sort()).toEqual([0, 3]);
   });
@@ -3973,7 +4021,7 @@ describe('a save written the day before the lucky lamp', () => {
     const text = serialize(back);
     // The same text but for the version's number, its field on a new heap, and the two numbers the lamp added, where a
     // session holds them.
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, screen: screenNow(old().screen), session: numbersWithLamp(old().session) })));
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(again.session).toMatchObject({ lucky: 0, rush: true });
@@ -4014,10 +4062,10 @@ describe('a save written the day before the lucky lamp', () => {
   it('holds a gold spin for every medal that is held while its chance time lasts, which is today’s rule and was not that game’s', () => {
     // The same machine with room for two more spins in its hold, as that game would have written it.
     const save = old();
-    save.session.stock = MAX_STOCK - 2;
-    save.session.gold = MAX_STOCK - 2;
+    save.session.stock = HOLD_THEN - 2;
+    save.session.gold = HOLD_THEN - 2;
     const back = restore(JSON.stringify(save), then.seed) as Session;
-    expect(back).toMatchObject({ rush: true, lucky: 0, stock: MAX_STOCK - 2, gold: MAX_STOCK - 2 });
+    expect(back).toMatchObject({ rush: true, lucky: 0, stock: HOLD_THEN - 2, gold: HOLD_THEN - 2 });
     overTheLip(back, CHECKERS.positions[1]);
     const events: SessionEvent[] = [];
     for (let i = 0; i < then.steps && !events.some((event) => event.type === 'checker'); i++) advance(back, DT, events);
@@ -4041,7 +4089,7 @@ describe('a save written the day before the lucky lamp', () => {
     const held = old();
     held.session.chance = false;
     held.screen = { ...NOTHING };
-    expect(restore(JSON.stringify(held), 1)).toMatchObject({ rush: true, lucky: 0, gold: MAX_STOCK - 1, chance: false });
+    expect(restore(JSON.stringify(held), 1)).toMatchObject({ rush: true, lucky: 0, gold: HOLD_THEN - 1, chance: false });
     // With none held and the last of them on the reels, it is.
     const reels = old();
     reels.session.gold = 0;
@@ -4062,8 +4110,8 @@ describe('a save written the day before the lucky lamp', () => {
     ['told whether it is in chance time, which that game did not write down', (save) => (save.session.rush = true)],
     ['given both of the lamp’s numbers, under its old version', (save) => Object.assign(save.session, { lucky: 0, rush: true })],
     ['given both of the lamp’s numbers where a session holds them', (save) => (save.session = numbersWithLamp(save.session) as Save['session'])],
-    ['holding more gold spins than its full hold has turned', (save) => (save.session.gilded = MAX_STOCK - 1)],
-    ['holding more gold spins than spins', (save) => (save.session.stock = MAX_STOCK - 2)],
+    ['holding more gold spins than its full hold has turned', (save) => (save.session.gilded = HOLD_THEN - 1)],
+    ['holding more gold spins than spins', (save) => (save.session.stock = HOLD_THEN - 2)],
     ['left without its count of gold spins', (save) => delete save.session.gold],
     ['left without its jewel lamps', (save) => delete save.session.jewels],
     ['left without its lifts', (save) => delete save.machine.lifts],
@@ -4184,8 +4232,8 @@ describe('chance time and the lucky lamp in a save', () => {
     expect(bonus.payout).toBe(BOARD[paid.session.square as number] * CHANCE.multiplier);
     expect(paid.session.chance).toBe(true);
     const reels = saved('a gold spin on the reels');
-    const spin = reels.screen.spin as { duration: number; result: SpinResult };
-    expect(spin.duration).toBe(TIMING.chanceSpin + reachTime(spin.result));
+    const spin = reels.screen.spin as { duration: number; result: SpinResult; hurry: number };
+    expect(spin.duration).toBe(reelTime(spin.hurry, true) + reachTime(spin.result, spin.hurry));
     expect(saved('every held spin gold').session).toMatchObject({ gold: MAX_STOCK, stock: MAX_STOCK });
     // Medals held while the wings were open are among the ones that hold a gold spin from the start.
     expect(saved('a gold spin’s roll on the board, paid').session.lucky as number).toBeGreaterThan(begun.session.lucky as number);
@@ -4255,11 +4303,24 @@ describe('chance time and the lucky lamp in a save', () => {
       Object.assign(save.session, { gilded: turned, wasted: Math.max(save.session.wasted as number, turned), hits: (save.session.hits as number) + turned });
       return save;
     };
+    let read = 0;
     for (const name of Object.keys(AT)) {
       const save = before(name);
       for (const key of LAMP_NUMBERS) expect(save.session, name).not.toHaveProperty(key);
       const back = restore(JSON.stringify(save), 1);
+      // One that holds more than that game's hold had room for is no save of that game.
+      if ((save.session.stock as number) > HOLD_THEN || (save.session.gold as number) > HOLD_THEN) {
+        expect(back, name).toBeNull();
+        continue;
+      }
       expect(back, name).not.toBeNull();
+      // Nor did that game ever hurry harder than its quicker spin: a screen that did is left off, with its gold.
+      const today = saved(name).screen;
+      if ([today.spin, today.bonus].some((thing) => thing !== null && ((thing as Row).hurry as number) > 1)) {
+        expect([back?.spin, back?.bonus, back?.chance], name).toEqual([null, null, false]);
+        continue;
+      }
+      read += 1;
       // None of its gold spins was gold from the start, and it is in chance time if it has one still to play.
       expect(back?.lucky, name).toBe(0);
       expect(back?.rush, name).toBe(left(save) > 0);
@@ -4269,7 +4330,7 @@ describe('chance time and the lucky lamp in a save', () => {
       expect(again.version, name).toBe(STORAGE_VERSION);
       expect(again.session, name).toEqual(numbersWithLamp(save.session));
       expect(JSON.stringify(again.session), name).toBe(JSON.stringify(numbersWithLamp(save.session)));
-      expect(again.screen, name).toEqual(save.screen);
+      expect(again.screen, name).toEqual(screenNow(save.screen));
       expectANewHeap(save.machine, back as Session, 1);
       expect(serialize(restore(JSON.stringify(again), 1) as Session), name).toBe(JSON.stringify(again));
       // Given either of the lamp's numbers under its own version, it is no save of that version.
@@ -4277,12 +4338,26 @@ describe('chance time and the lucky lamp in a save', () => {
         expect(restore(JSON.stringify({ ...save, session: { ...save.session, ...extra } }), 1), name).toBeNull();
       }
     }
+    // Most of them were caught with the hold deeper than that game's, or the screen hurrying harder: a few are left.
+    expect(read).toBeGreaterThanOrEqual(3);
+    /** One of them with no more held than that game's hold had room for: any it held beyond eight taken off it, the gold ones last. */
+    const inEight = (name: string): Save => {
+      const save = before(name);
+      const stock = Math.min(save.session.stock as number, HOLD_THEN);
+      Object.assign(save.session, { stock, gold: Math.min(save.session.gold as number, stock) });
+      return save;
+    };
     // Not in chance time: nothing gold held or playing, whatever it has turned gold before.
-    expect(restore(JSON.stringify(before('chance time over')), 1)).toMatchObject({ rush: false, lucky: 0 });
+    expect(restore(JSON.stringify(inEight('chance time over')), 1)).toMatchObject({ rush: false, lucky: 0 });
     expect(before('chance time over').session.gilded as number).toBeGreaterThanOrEqual(1);
-    // In it: with gold spins held, and with the last of them on the reels.
-    expect(restore(JSON.stringify(before('every held spin gold')), 1)).toMatchObject({ rush: true, lucky: 0, gold: MAX_STOCK });
-    expect(restore(JSON.stringify(before('the last gold spin on the reels')), 1)).toMatchObject({ rush: true, lucky: 0, gold: 0, chance: true });
+    // In it: with the last of its gold spins on the reels, if that game could have shown that spin; one it played
+    // faster than that game's quicker spin is left off, and chance time ends with it. A hold of ten all gold is more
+    // than that game held.
+    expect(restore(JSON.stringify(before('every held spin gold')), 1)).toBeNull();
+    const shown = (((saved('the last gold spin on the reels').screen.spin as Row).hurry as number) ?? 0) <= 1;
+    expect(restore(JSON.stringify(inEight('the last gold spin on the reels')), 1)).toMatchObject(
+      shown ? { rush: true, lucky: 0, gold: 0, chance: true } : { rush: false, lucky: 0, gold: 0, chance: false, spin: null },
+    );
   });
 
   it('loses a gold spin whose screen has gone wrong, with its gold, and keeps the machine and the gold spins still held', { timeout: LONG }, () => {
@@ -4544,7 +4619,7 @@ describe('a save written before the machine had jewels, chance time or the three
     expect([back.machine.hopper, back.machine.stacker]).toEqual([shutHopper(), idleStacker()]);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersToday(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     // The two jewels a new machine has are not laid on a machine that was already in play.
     expect(jewelsOnField(back.machine)).toBe(0);
     expect([back.jewels, back.jewelBonuses]).toEqual([0, 0]);
@@ -4555,7 +4630,7 @@ describe('a save written before the machine had jewels, chance time or the three
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersToday(old().session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, screen: screenNow(old().screen), session: numbersToday(old().session) })));
     expect(withoutField(text)).toEqual({ ...withoutField(JSON.stringify(writtenThen(OLD))), version: STORAGE_VERSION });
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
@@ -4640,8 +4715,8 @@ describe('a save written the day before the machine had jewels', () => {
     expect((run.bowl as Row).elapsed).toBeGreaterThan(1.5);
     expect((run.bowl as Row).elapsed).toBeLessThan(BOWL_TIMES[1]);
     // The hold is full and every spin in it is gold. None of them is on the screen, which is the ball's.
-    expect(save.session).toMatchObject({ stock: MAX_STOCK, gold: MAX_STOCK, chance: false });
-    expect(save.session.gilded).toBeGreaterThanOrEqual(MAX_STOCK);
+    expect(save.session).toMatchObject({ stock: HOLD_THEN, gold: HOLD_THEN, chance: false });
+    expect(save.session.gilded).toBeGreaterThanOrEqual(HOLD_THEN);
     expect([save.screen.spin, save.screen.bonus]).toEqual([null, null]);
     // It was caught in the middle of play: medals on both rails and in the air, and the jackpot grown past where one starts.
     expect(new Set(save.machine.rolling.map((medal) => medal.arm)).size).toBe(2);
@@ -4660,19 +4735,19 @@ describe('a save written the day before the machine had jewels', () => {
     expect([back.machine.hopper, back.machine.stacker]).toEqual([shutHopper(), idleStacker()]);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     // The two jewels a new machine has are not laid on a machine that was already in play.
     expect(jewelsOnField(back.machine)).toBe(0);
     expect([back.jewels, back.jewelBonuses]).toEqual([0, 0]);
     // Its gold spins are still held, and still gold: none of them the lucky lamp's, and chance time on, as it was then.
-    expect(chanceLeft(back)).toBe(MAX_STOCK);
+    expect(chanceLeft(back)).toBe(HOLD_THEN);
     expect([back.lucky, back.rush]).toEqual([0, true]);
   });
 
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: numbersWithLamp(old().session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, screen: screenNow(old().screen), session: numbersWithLamp(old().session) })));
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
@@ -4711,7 +4786,10 @@ describe('a save written the day before the machine had jewels', () => {
     // gold spins are all still held. The jackpot's towers are in the tubes, and three tenths of it is to be poured.
     expect(then.jackpot).toBe(PAID_BEFORE.jackpotStart);
     expect([back.paidOut, back.jackpots, back.jackpot]).toEqual([then.paidOut + owed - then.end.payout, then.jackpots, JACKPOT_START]);
-    expect([back.stock, back.gold, back.chance]).toEqual([then.stock, then.gold, then.chance]);
+    // Its hold of eight was full then, and every medal that went through a pocket meanwhile found it so; today's hold
+    // of ten took two of them, gold as every medal held in chance time is.
+    expect([then.stock, then.gold, then.chance]).toEqual([HOLD_THEN, HOLD_THEN, false]);
+    expect([back.stock, back.gold, back.chance]).toEqual([MAX_STOCK, MAX_STOCK, false]);
     expect([back.jewels, back.jewelBonuses]).toEqual([0, 0]);
     expect(medalsInTubes(back.machine.stacker)).toBeGreaterThanOrEqual(owed - pouredOf(owed));
     expect(back.machine.payoutQueue).toBeGreaterThanOrEqual(pouredOf(owed));
@@ -4739,7 +4817,7 @@ describe('a save written the day before the machine had jewels', () => {
     expect(back?.roulette).toBeNull();
     expect(plain(back as Session)).toEqual(leftOff(save));
     expect(back?.balls).toBe((old().session.balls as number) + 1);
-    expect(chanceLeft(back as Session)).toBe(MAX_STOCK);
+    expect(chanceLeft(back as Session)).toBe(HOLD_THEN);
   });
 
   const refused: [string, (save: Save) => void][] = [
@@ -4753,7 +4831,7 @@ describe('a save written the day before the machine had jewels', () => {
     ['with the jewel lamps among its numbers, as the version after it had them', (save) => (save.session = withJewels(save.session) as Save['session'])],
     ['with today’s numbers', (save) => (save.session = numbersWithLamp(save.session) as Save['session'])],
     ['with a number missing', (save) => delete save.session.refills],
-    ['with more gold spins than it holds', (save) => (save.session.stock = MAX_STOCK - 1)],
+    ['with more gold spins than it holds', (save) => (save.session.stock = HOLD_THEN - 1)],
   ];
 
   it.each(refused)('is refused %s', (_name, damage) => {
@@ -4807,7 +4885,7 @@ describe('a save written before the payout works, the three bowls and the jewels
     expectANewHeap(withWorks(save.machine), back, 1);
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     expect(jewelsOnField(back.machine)).toBe(0);
   });
 
@@ -4815,7 +4893,7 @@ describe('a save written before the payout works, the three bowls and the jewels
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
     const save = old();
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...save, version: STORAGE_VERSION, session: numbersWithLamp(save.session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...save, version: STORAGE_VERSION, screen: screenNow(save.screen), session: numbersWithLamp(save.session) })));
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
@@ -4937,7 +5015,7 @@ describe('a save written the day before the payout works', () => {
     const { machine: _machine, spin, bonus, roulette, ...numbers } = back;
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(numbersWithLamp(save.session)));
     expect([back.lucky, back.rush]).toEqual([0, false]);
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     expect(jewelsOnField(back.machine)).toBe(1);
     expect([back.jewels, back.jewelBonuses]).toEqual([1, 0]);
   });
@@ -4946,7 +5024,7 @@ describe('a save written the day before the payout works', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
     const save = old();
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...save, version: STORAGE_VERSION, session: numbersWithLamp(save.session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...save, version: STORAGE_VERSION, screen: screenNow(save.screen), session: numbersWithLamp(save.session) })));
     const twice = restore(text, 1);
     expect(twice).not.toBeNull();
     expect(serialize(twice as Session)).toBe(text);
@@ -5060,8 +5138,10 @@ describe('every version before the payout works', () => {
     const text = serialize(back);
     expect((JSON.parse(text) as Save).version).toBe(STORAGE_VERSION);
     expect(serialize(restore(text, 7) as Session)).toBe(text);
-    // Played on, the forty that were waiting are poured at once, and the towers are stacked and pushed out: not a medal lost or made.
+    // Played on, the forty that were waiting are poured at once, and the towers are stacked and pushed out: not a medal
+    // lost or made, but for what the screen pays meanwhile for the spins it holds.
     const start = medalsOnField(back.machine);
+    const paidBefore = back.paidOut;
     const events: SessionEvent[] = [];
     advance(back, DT, events);
     expect(events.filter((event) => event.type === 'pourStart')).toEqual([{ type: 'pourStart', medals: 40 }]);
@@ -5070,7 +5150,7 @@ describe('every version before the payout works', () => {
     expect(events.flatMap((event) => (event.type === 'towerOut' ? [event.medals] : []))).toEqual([20, 20, 20]);
     expect(back.machine.hopper).toEqual({ phase: 'shut', clock: 0, pours: 1, poured: 40 });
     const gone = events.reduce((sum, event) => sum + (event.type === 'won' || event.type === 'lost' ? event.count : 0), 0);
-    expect(medalsOnField(back.machine) + gone).toBe(start);
+    expect(medalsOnField(back.machine) + gone).toBe(start + back.paidOut - paidBefore);
   });
 });
 
@@ -5262,8 +5342,8 @@ describe('a save written the day before the tubes, with towers going up on their
     expect(back.machine.stacker.tubes.map(towersIn).sort()).toEqual([2, 3]);
     expect(back.machine.payoutQueue).toBe(facts.payoutQueue);
     expect(back.machine.hopper).toEqual(save.machine.hopper);
-    // The numbers and the screen are what was written.
-    expect(withoutField(serialize(back))).toEqual({ ...withoutField(OLD), version: STORAGE_VERSION });
+    // The numbers and the screen are what was written, the screen at the hurry its own times agree with.
+    expect(withoutField(serialize(back))).toEqual({ ...withoutField(OLD), version: STORAGE_VERSION, screen: screenNow(old().screen) });
   });
 
   it('plays on: what was pouring is poured, the towers are stacked and pushed out, and not a medal that was the player’s is lost or made', { timeout: LONG }, () => {
@@ -5344,7 +5424,7 @@ describe('the medals on their tongues in a save', () => {
   const riding = (): Session => {
     const session = createSession(5, { balls: 0 });
     session.machine.medals = [];
-    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+    session.bonus = { kind: 'chest', prizes: [10, 20, 30], fallback: 0, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: 0 };
     for (const slot of [0, 1, 2]) {
       const { machine } = session;
       machine.medals.push({ id: machine.nextId++, x: CHECKERS.positions[slot], y: pusherFront(machine.time) + 0.5, level: 1, tier: 0, sinceDrop: -1, stack: 1, ball: false, grown: 1 });
@@ -5519,14 +5599,14 @@ describe('a save written before a medal rode to its pocket', () => {
     expect(save.session.jackpot as number).toBeLessThan(JACKPOT_START);
     expect(back.jackpot).toBe(JACKPOT_START + Math.floor((save.session.jackpotProgress as number) / JACKPOT_STEP));
     expect(JSON.stringify(numbers)).toBe(JSON.stringify(withRide(save.session)));
-    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(save.screen));
+    expect(JSON.stringify({ spin, bonus, roulette })).toBe(JSON.stringify(screenNow(save.screen)));
     expect([back.hits, back.stock, back.gold, back.lucky]).toEqual([at.hits, at.stock, at.gold, at.lucky]);
   });
 
   it('is written back as a save of this version, which reads back the same', () => {
     const back = restore(OLD, 1) as Session;
     const text = serialize(back);
-    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, session: withRide(old().session) })));
+    expect(withoutField(text)).toEqual(withoutField(JSON.stringify({ ...old(), version: STORAGE_VERSION, screen: screenNow(old().screen), session: withRide(old().session) })));
     const again = JSON.parse(text) as Save;
     expect(again.version).toBe(STORAGE_VERSION);
     expect(Object.keys(again.session)).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session));
@@ -5655,7 +5735,7 @@ describe('a save written before the lottery was made richer', () => {
     const [roll, from] = [2, 5];
     const square = squareAfter(from, roll);
     expect([PAID_BEFORE.board[square], BOARD[square]]).toEqual([30, 40]);
-    const landed = (payout: number) => ({ kind: 'sugoroku', roll, from, elapsed: sugorokuDuration(roll) + 0.5, duration: sugorokuDuration(roll), payout });
+    const landed = (payout: number) => ({ kind: 'sugoroku', roll, from, elapsed: sugorokuDuration(roll) + 0.5, duration: sugorokuDuration(roll), payout, hurry: 0 });
     const withRoll = (payout: number, gold = false) =>
       then((save) => {
         save.session.square = square;
@@ -5688,7 +5768,7 @@ describe('a save written before the lottery was made richer', () => {
   });
 
   it('keeps chests that hold what they held then, and pays the one picked what it held', () => {
-    const offered = { kind: 'chest', prizes: [20, 10, 30], fallback: 2, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1 };
+    const offered = { kind: 'chest', prizes: [20, 10, 30], fallback: 2, picked: -1, elapsed: 1, pickedAt: -1, told: false, payout: -1, hurry: 0 };
     expect([...offered.prizes].sort((a, b) => a - b)).toEqual([...PAID_BEFORE.chests]);
     const back = then((save) => (save.screen = { spin: null, bonus: offered, roulette: null }));
     expect(back?.bonus).toEqual(offered);
@@ -5887,5 +5967,122 @@ describe('something on its way down the START plate in a save', () => {
       prize.y = pusherFront(save.machine.time as number) + MEDAL_RADIUS;
       expect(restore(JSON.stringify(save), 1)).toBeNull();
     }
+  });
+});
+
+describe('a save written the day before the screen hurried', () => {
+  // Written by main's own `serialize` the day before the hurry: see the fixture's `about`.
+  const OLD = beforeHurry.save;
+  const old = (): Save => JSON.parse(OLD);
+  const { facts, then } = beforeHurry;
+
+  it('is a save of version 11: a sugoroku line on its reels at the quicker spin’s time, spins held, and no word of the hurry', () => {
+    const save = old();
+    expect(save.version).toBe(VERSION_BEFORE_HURRY);
+    expect(save.version).toBe(11);
+    expect(facts.hold).toBe(HOLD_THEN);
+    // Today's field and today's numbers: only the screen is written another way.
+    expect(Object.keys(save.machine)).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).machine));
+    expect(Object.keys(save.session)).toEqual(Object.keys(JSON.parse(serialize(createSession(1))).session));
+    const spin = save.screen.spin as Row & { result: SpinResult; duration: number };
+    expect(spin).not.toHaveProperty('hurry');
+    expect(spin.result).toMatchObject({ tier: 'small', reachKind: 'long' });
+    expect(spin.duration).toBe(TIMING.quickSpin + reachTime(spin.result));
+    expect(save.session.stock).toBe(facts.stock);
+    expect(save.session.stock as number).toBeGreaterThanOrEqual(3);
+  });
+
+  it('reads back as the machine it was, its spin at the quicker spin’s hurry, and is written back as a save of this version which reads back the same', () => {
+    const back = restore(OLD, 1);
+    expect(back).not.toBeNull();
+    if (!back) return;
+    const save = old();
+    expect(back.spin).toEqual({ ...(save.screen.spin as Row), hurry: 1 });
+    expect(HURRY[1]).toEqual({ from: 2, reels: TIMING.quickSpin, reach: 1, pace: 1 });
+    // The field and the numbers are what was written, to the last digit: the same machine, not a new heap.
+    const text = serialize(back);
+    const again = JSON.parse(text) as Save;
+    expect(again.version).toBe(STORAGE_VERSION);
+    expect(JSON.stringify(again.machine)).toBe(JSON.stringify(save.machine));
+    expect(JSON.stringify(again.session)).toBe(JSON.stringify(save.session));
+    expect(again.screen).toEqual(screenNow(save.screen));
+    expect(serialize(restore(text, 1) as Session)).toBe(text);
+  });
+
+  it('plays on as that game did until the game its line leads to, which hurries as the hold behind it says', () => {
+    const back = restore(OLD, then.seed) as Session;
+    const events: SessionEvent[] = [];
+    let lineAt = -1;
+    let gameAt = -1;
+    let gameEnd = -1;
+    let hurry = -1;
+    let heldThen = -1;
+    for (let step = 1; step <= 60 * 60 && gameEnd < 0; step++) {
+      events.length = 0;
+      advance(back, DT, events);
+      for (const event of events) {
+        if (event.type === 'spinEnd' && lineAt < 0) lineAt = step;
+        if (event.type === 'sugorokuStart' && gameAt < 0) {
+          gameAt = step;
+          hurry = back.bonus?.hurry ?? -1;
+          heldThen = back.stock;
+        }
+      }
+      if (gameAt >= 0 && back.bonus === null && gameEnd < 0) gameEnd = step;
+    }
+    // The line comes up when it did, and stays up as long: that game's quicker spin is today's second hurry.
+    expect([lineAt, gameAt]).toEqual([then.lineAt, then.gameAt]);
+    // Its roll hurries as the spins held behind it then say, which that game never did.
+    expect(hurry).toBe(hurryFor(heldThen));
+    expect(heldThen).toBeGreaterThanOrEqual(HURRY[2].from);
+    expect(gameEnd).toBeLessThan(then.gameEnd);
+  });
+
+  it('takes a save of today’s less its hurry for one of this version, if its screen hurried no harder than that game’s quicker spin and its hold is no deeper than eight', () => {
+    const seen = { same: 0, leftOff: 0, refused: 0 };
+    for (const phase of Object.keys(PHASES)) {
+      const today = JSON.parse(PHASES[phase]) as Save;
+      const before = { ...withoutHurry(today), version: VERSION_BEFORE_HURRY };
+      const back = restore(JSON.stringify(before), 1);
+      const hurried = [today.screen.spin, today.screen.bonus].some((thing) => thing !== null && ((thing as Row).hurry as number) > 1);
+      if ((today.session.stock as number) > HOLD_THEN) {
+        seen.refused += 1;
+        expect(back, phase).toBeNull();
+      } else if (hurried) {
+        seen.leftOff += 1;
+        expect([back?.spin, back?.bonus], phase).toEqual([null, null]);
+      } else {
+        seen.same += 1;
+        expect(serialize(back as Session), phase).toBe(PHASES[phase]);
+      }
+      // Called a save of this version without its hurry, its spin and its bonus game are no screen of this version.
+      const lacking = restore(JSON.stringify({ ...withoutHurry(today), version: STORAGE_VERSION }), 1);
+      if ((today.screen.spin ?? today.screen.bonus) !== null) expect([lacking?.spin, lacking?.bonus], phase).toEqual([null, null]);
+    }
+    expect(seen.same).toBeGreaterThan(Object.keys(PHASES).length / 2);
+  });
+
+  // That version's screen and numbers are held to that version's shape.
+  const spoilt: [string, (save: Save) => boolean][] = [
+    ['holding more spins than its hold of eight had room for', (save) => ((save.session.stock = HOLD_THEN + 1), true)],
+    ['holding more gold spins than its hold of eight had room for', (save) => (Object.assign(save.session, { stock: HOLD_THEN, gold: HOLD_THEN + 1 }), true)],
+  ];
+
+  it.each(spoilt)('is refused when it is %s', (_name, spoil) => {
+    const save = old();
+    spoil(save);
+    expect(restore(JSON.stringify(save), 1)).toBeNull();
+  });
+
+  it('leaves off a spin that claims a hurry under its old version, or a time no hurry of that game had', () => {
+    const claimed = old();
+    (claimed.screen.spin as Row).hurry = 1;
+    expect(restore(JSON.stringify(claimed), 1)?.spin).toBeNull();
+    const deep = old();
+    const spin = deep.screen.spin as Row & { result: SpinResult };
+    spin.duration = HURRY[HURRY.length - 1].reels + reachTime(spin.result, HURRY.length - 1);
+    expect(restore(JSON.stringify(deep), 1)?.spin).toBeNull();
+    // And the machine is kept: only the screen is left off.
+    expect(restore(JSON.stringify(deep), 1)?.credits).toBe(old().session.credits);
   });
 });

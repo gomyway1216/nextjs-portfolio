@@ -5,7 +5,7 @@
  */
 
 import { BOARD, BOWLS, CHAIN_GOAL, CHEST_TOWERS_FROM, FEVER_SQUARE, ROULETTE, squareAfter, type Tier } from './lottery';
-import { TIMING, chanceLeft, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
+import { HURRY, TIMING, chanceLeft, diceTime, hopTime, reachTime, type ActiveBowl, type ActiveRoulette, type ActiveSpin, type ActiveSugoroku, type Session } from './session';
 
 /** The digits on a reel, in the order they come round. */
 export const REEL_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -29,7 +29,7 @@ const BLUR_FROM = 10;
 
 /** The moment each reel stops, in seconds from the start of the spin: left, centre, right. */
 export function stopTimes(spin: ActiveSpin): [number, number, number] {
-  const plain = spin.duration - reachTime(spin.result);
+  const plain = spin.duration - reachTime(spin.result, spin.hurry);
   return [plain * STOP.left, spin.duration, plain * STOP.right];
 }
 
@@ -87,7 +87,7 @@ function reelRun(spin: ActiveSpin, reel: number): Run {
   // It never arrives with more than half the speed it came at, so a slow reel swings less far past.
   const kick = Math.min(KICK, SPEED[last] / 2);
   const stretches: Stretch[] = [{ from: 0, ease: EASE[last], gain: SPEED[last] - kick }];
-  if (long) stretches.push({ from: TIMING.longReach - SWING.time - SHIFT, ease: SHIFT, gain: SPEED.slow - SPEED.crawl });
+  if (long) stretches.push({ from: TIMING.longReach * HURRY[spin.hurry].reach - SWING.time - SHIFT, ease: SHIFT, gain: SPEED.slow - SPEED.crawl });
   if (held) stretches.push({ from: land - stops[2] - SHIFT, ease: SHIFT, gain: SPEED.fast - SPEED.slow });
   return { kick, stretches, left: land - spin.elapsed };
 }
@@ -508,6 +508,12 @@ export interface ScreenState {
   golds: number;
   /** Whether what is on the screen now is a gold spin, or the game its line led to: its square or its chest pays over. */
   gold: boolean;
+  /**
+   * The share of its usual time what is on the screen takes: less than 1 while the screen hurries through a deep
+   * hold. A reach's share while it is called, and the board's while it is on. The stylesheet times a reach's cut-in,
+   * the die and the piece's hops by it.
+   */
+  pace: number;
 }
 
 /** How long the die tumbles before it shows what was rolled, as a share of its time on screen. */
@@ -518,7 +524,7 @@ const TUMBLE_RATE = 13;
 /** The square the piece has hopped to so far. */
 export function sugorokuSquare(bonus: ActiveSugoroku): number {
   if (bonus.payout >= 0) return squareAfter(bonus.from, bonus.roll);
-  const hops = Math.min(bonus.roll, Math.max(0, Math.floor((bonus.elapsed - TIMING.dice) / TIMING.hop + 1e-9)));
+  const hops = Math.min(bonus.roll, Math.max(0, Math.floor((bonus.elapsed - diceTime(bonus.hurry)) / hopTime(bonus.hurry) + 1e-9)));
   return squareAfter(bonus.from, hops);
 }
 
@@ -555,6 +561,7 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     chance: session.rush ? chanceLeft(session) : 0,
     golds: session.gold,
     gold: session.chance,
+    pace: 1,
   };
   const { roulette, bonus, spin } = session;
   if (roulette) {
@@ -569,11 +576,12 @@ export function screenState(session: Session, calm: boolean): ScreenState {
   if (bonus?.kind === 'sugoroku') {
     const square = sugorokuSquare(bonus);
     if (bonus.payout >= 0) {
-      return { ...idle, mode: 'sugoroku', square, die: bonus.roll, banner: square === FEVER_SQUARE ? 'fever' : 'medals', amount: bonus.payout };
+      return { ...idle, mode: 'sugoroku', square, die: bonus.roll, banner: square === FEVER_SQUARE ? 'fever' : 'medals', amount: bonus.payout, pace: HURRY[bonus.hurry].pace };
     }
-    const rolling = !calm && bonus.elapsed < TIMING.dice * TUMBLE;
-    const die = rolling ? 1 + (Math.floor(bonus.elapsed * TUMBLE_RATE) % 6) : calm && bonus.elapsed < TIMING.dice * TUMBLE ? 0 : bonus.roll;
-    return { ...idle, mode: 'sugoroku', square: calm ? bonus.from : square, die, rolling };
+    const tumbles = bonus.elapsed < diceTime(bonus.hurry) * TUMBLE;
+    const rolling = !calm && tumbles;
+    const die = rolling ? 1 + (Math.floor(bonus.elapsed * TUMBLE_RATE) % 6) : calm && tumbles ? 0 : bonus.roll;
+    return { ...idle, mode: 'sugoroku', square: calm ? bonus.from : square, die, rolling, pace: HURRY[bonus.hurry].pace };
   }
   if (bonus?.kind === 'chest') {
     const opened = bonus.payout >= 0;
@@ -590,7 +598,7 @@ export function screenState(session: Session, calm: boolean): ScreenState {
     const { tier } = spin.result;
     if (spin.done && tier !== 'miss') return { ...idle, line: tier, banner: tier === 'seven' ? 'ball' : 'line' };
     // A reach is called with or without motion: the words stay, and only what moves round them is left out.
-    if (inReach(spin)) return { ...idle, banner: spin.result.reachKind === 'long' ? 'superReach' : 'reach' };
+    if (inReach(spin)) return { ...idle, banner: spin.result.reachKind === 'long' ? 'superReach' : 'reach', pace: HURRY[spin.hurry].reach };
   }
   return idle;
 }
@@ -615,7 +623,8 @@ export function sameScreen(a: ScreenState, b: ScreenState): boolean {
     a.fallen.some((hole, bowl) => hole !== b.fallen[bowl]) ||
     a.chance !== b.chance ||
     a.golds !== b.golds ||
-    a.gold !== b.gold
+    a.gold !== b.gold ||
+    a.pace !== b.pace
   ) {
     return false;
   }

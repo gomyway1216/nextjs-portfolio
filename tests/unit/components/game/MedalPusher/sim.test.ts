@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AIM, CHECKERS, DROP_INTERVAL, FIELD, checkerAt, seededRng, tipOf } from '@/components/game/MedalPusher/engine';
 import { CHANCE_BONUS, JACKPOT_GROWTH, JACKPOT_START, JACKPOT_STEP, TIERS, chanceSpinValue, spinValue } from '@/components/game/MedalPusher/lottery';
-import { MAX_STOCK, TIMING, advance, createSession, reachTime, type SessionEvent } from '@/components/game/MedalPusher/session';
+import { MAX_STOCK, advance, createSession, type SessionEvent } from '@/components/game/MedalPusher/session';
 import {
   AIM_COLORS,
   AIM_IDS,
@@ -139,10 +139,20 @@ describe('the gold spins of a stretch of play', () => {
   const DT = 1 / 60;
   /** The spins that start while the session plays on until its hold is empty, and which of them are gold. */
   const playOut = (session: ReturnType<typeof createSession>) => {
-    const events: SessionEvent[] = [];
-    for (let i = 0; i < 60 * 60 && (session.stock > 0 || session.spin !== null || session.bonus !== null); i++) advance(session, DT, events);
-    const starts = events.flatMap((event) => (event.type === 'spinStart' ? [event] : []));
-    return { spins: starts.length, gold: starts.filter((start) => start.duration === TIMING.chanceSpin + reachTime(start.result)).length };
+    // A spin is gold if the screen is on a gold spin in the step it starts. Its time cannot say so: deep in the hold
+    // an ordinary spin's reels are as quick as a gold one's.
+    let spins = 0;
+    let gold = 0;
+    for (let i = 0; i < 60 * 60 && (session.stock > 0 || session.spin !== null || session.bonus !== null); i++) {
+      const events: SessionEvent[] = [];
+      advance(session, DT, events);
+      for (const event of events) {
+        if (event.type !== 'spinStart') continue;
+        spins += 1;
+        if (session.chance) gold += 1;
+      }
+    }
+    return { spins, gold };
   };
 
   it('are the ones whose reels turned in it, even when the medals that made them went through a pocket before it began', () => {
@@ -205,10 +215,10 @@ describe('the simulation', () => {
     const medals = 120;
     const progress: number[] = [];
     // A run this short shows the order of the aims on some seeds and not on all: over the twenty from 2024 on, the
-    // medals through a hole come to 500 down the middle, 411 anywhere, 418 beside the middle and 258 from the edges,
-    // and five of the twenty have every one of the comparisons below. This is one of them. A long run shows the order
+    // medals through a hole come to 486 down the middle, 383 anywhere, 366 beside the middle and 284 from the edges,
+    // and six of the twenty have every one of the comparisons below. This is one of them. A long run shows the order
     // every time (scripts/medal-pusher-tune.ts).
-    const result = await simulate(medals, 5, { onProgress: (done, total) => progress.push(done / total) }, 2037);
+    const result = await simulate(medals, 5, { onProgress: (done, total) => progress.push(done / total) }, 2026);
     expect(result).not.toBeNull();
     if (!result) return;
     for (const id of AIM_IDS) {
@@ -231,7 +241,7 @@ describe('the simulation', () => {
       expect(aim.points[aim.points.length - 1]).toEqual({ medals, rate: aim.won / aim.played });
       expect(aim.points.every((point, index) => index === 0 || point.medals > aim.points[index - 1].medals)).toBe(true);
       // The side holes take four medals in ten of what leaves the field, and more of it from the edges: over those
-      // twenty seeds the share that drops into the tray runs from 43% to 64%.
+      // twenty seeds the share that drops into the tray runs from 47% to 64%.
       expect(frontShare(aim)).toBeGreaterThan(0.4);
       expect(frontShare(aim)).toBeLessThan(0.75);
     }

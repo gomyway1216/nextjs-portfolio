@@ -7,6 +7,7 @@ import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, cardsOf, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, replay, spot } from './baccaratPage';
 import { arrived } from './streamedPage';
 import { bankBalance } from './medalCenterPage';
+import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 
 // Hands are random: the test reads the dealt cards off the table, replays
 // them through the engine's drawing rules and checks the table against it.
@@ -182,4 +183,78 @@ test('the simulation tab runs every simulation through the real rules, and never
   await expect(page.getByText(/^10 shoes, [\d,]+ hands\./)).toBeVisible();
   // Thousands of simulated hands, and not one medal moved.
   expect(await bankBalance(page)).toBe(before);
+});
+
+test('on a phone the cards, the felt and DEAL are on the screen together', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openBaccarat(page);
+  await page.getByTestId('baccarat-notice-ok').click();
+  await firstBet(page, /^Banker \(1:1/);
+  await dealAndSettle(page);
+  await bringUnderTopBar(page, '[data-hand="player"]');
+  const bar = await topBarBottom(page);
+  const cards = await screenBox(page, '[data-hand="player"]');
+  const felt = await screenBox(page, 'button[data-bet="banker"]');
+  const deal = await screenBox(page, 'button:text-is("DEAL")');
+  expect(cards.top).toBeGreaterThanOrEqual(bar);
+  expect(felt.top).toBeGreaterThan(cards.bottom);
+  expect(deal.bottom).toBeLessThanOrEqual(812);
+});
+
+test('the last coup stays on the felt, the win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
+  // medal-machine-sound.spec.ts).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sounds: number };
+    w.__sounds = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds++;
+      return start.apply(this, args);
+    };
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number }).__sounds);
+  await openBaccarat(page);
+  await page.getByTestId('baccarat-notice-ok').click();
+  // The floor's sound switch: off on every visit, on with a press; the coup is played with it on.
+  await expect(page.getByTestId('baccarat-sound')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('baccarat-sound').click();
+  await expect(page.getByTestId('baccarat-sound')).toHaveAttribute('aria-pressed', 'true');
+  await betStep(page, 5);
+  for (let coup = 0; coup < 12; coup++) {
+    // Five on the Player and five on the Banker: one of them wins unless the hand is a tie.
+    if (coup === 0) await firstBet(page, /^Player \(1:1/);
+    else await spot(page, /^Player \(1:1/).click();
+    await spot(page, /^Banker \(1:1/).click();
+    const before = await medalsShown(page);
+    await watchLed(page, '[data-testid="baccarat-counter"]');
+    await dealAndSettle(page);
+    const hand = await handOnTable(page);
+    const { returned, results } = medalsBack({ player: 5, banker: 5 }, hand, 'ez');
+    // A tie pushes both; a Banker win on a three-card 7 pushes the Banker and loses the Player: no win to see.
+    const won = results.find((r) => r.outcome === 'win');
+    if (!won) continue;
+    // The winning spot keeps its stake with the medals paid beside it; the losing one is cleared.
+    await expect(page.getByTestId(`paid-${won.id}`)).toHaveText(`+${won.profit}`);
+    await expect(page.getByTestId(`paid-${won.id === 'player' ? 'banker' : 'player'}`)).toHaveCount(0);
+    // The counter ran up through the medals that came back, ending on the medals in hand.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="baccarat-counter"]'))[0]).toBe(before + returned);
+    const seen = await watchedLed(page);
+    const climb = seen.slice(seen.indexOf(Math.min(...seen)));
+    expect(climb[0]).toBe(before);
+    expect(climb[climb.length - 1]).toBe(before + returned);
+    expect(climb.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < climb.length; i++) expect(climb[i]).toBeGreaterThan(climb[i - 1]);
+    // A new bet clears the last coup off the felt.
+    await spot(page, /^Player \(1:1/).click();
+    await expect(page.getByTestId(`paid-${won.id}`)).toHaveCount(0);
+    // Heard: the switch, the medals put down, every card turned, the fanfare and the medals counted in.
+    expect(await heard()).toBeGreaterThanOrEqual(1 + 2 + 4 + 1 + 3);
+    expect(errors).toEqual([]);
+    return;
+  }
+  throw new Error('no bet won in twelve coups');
 });

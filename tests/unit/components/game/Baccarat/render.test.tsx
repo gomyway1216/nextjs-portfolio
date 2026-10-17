@@ -114,6 +114,9 @@ describe('PlayTab', () => {
     const six = revealSchedule(6);
     expect(six.reveal[4] - six.reveal[3]).toBeGreaterThan(340);
     expect(six.settle).toBeGreaterThan(six.reveal[5]);
+    // The result is called only once the last card is face up and its total is showing (0.46 s + 0.18 s).
+    expect(six.settle - six.reveal[5]).toBeGreaterThanOrEqual(640);
+    expect(revealSchedule(4).settle - 1020).toBeGreaterThanOrEqual(640);
   });
 });
 

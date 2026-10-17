@@ -66,6 +66,7 @@
  */
 
 import type { Move } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { isDevice } from '../MedalCenter/ledger';
 import { HAND_SIZE, cardAt, cardIndex, settle, type Bets, type Card, type Decision, type Deal, type Settlement } from './engine';
 
@@ -404,7 +405,10 @@ export function createTable(medals: TableMedals, store: TableStore, newId: () =>
       const settlement = settle(hand.bets, hand.decision, hand.player, hand.dealer);
       const next: SavedHand = { ...hand, paid: true };
       if (!keep(next)) return null;
-      if (settlement.returned > 0) move(next, PAY_STEP, settlement.returned);
+      // The medal floor hears of what the hand paid once, as it goes in.
+      if (settlement.returned > 0 && move(next, PAY_STEP, settlement.returned) === 'applied') {
+        floorReport(TCP_GAME, { won: settlement.returned, prize: { medals: settlement.returned, label: settlement.player.category === 'straightFlush' ? 'straight-flush' : undefined } });
+      }
       return { hand: next, settlement };
     },
 

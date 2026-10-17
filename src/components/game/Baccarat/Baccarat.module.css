@@ -186,18 +186,61 @@
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 900px) {
-  .playGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.panel {
+.panel,
+.tableSide,
+.front {
   min-width: 0;
   background: var(--games-route-surface);
   border: 1px solid var(--games-route-border);
   border-radius: 16px;
   padding: 1rem 1.1rem;
   box-shadow: var(--games-route-shadow);
+}
+.part {
+  min-width: 0;
+}
+/*
+ * One column: the cards, then the felt and its buttons straight under them, then the counter, the scoreboards and the
+ * odds. Each part becomes a panel of its own, so the felt can sit next to the cards.
+ */
+@media (max-width: 900px) {
+  .playGrid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.9rem;
+  }
+  .tableSide,
+  .front {
+    display: contents;
+  }
+  .part {
+    background: var(--games-route-surface);
+    border: 1px solid var(--games-route-border);
+    border-radius: 16px;
+    padding: 0.8rem 1rem;
+    box-shadow: var(--games-route-shadow);
+  }
+  .roadsPart > :first-child {
+    margin-top: 0;
+  }
+  .buttonsPart {
+    order: 1;
+  }
+  .counterPart {
+    order: 2;
+  }
+  .roadsPart {
+    order: 3;
+  }
+  .morePart {
+    order: 4;
+  }
+}
+@media (max-width: 520px) {
+  .part {
+    padding: 0.75rem 0.8rem;
+  }
 }
 .muted {
   color: var(--games-route-muted);
@@ -218,14 +261,43 @@
 }
 
 /* ---------- The table ---------- */
+.tableTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
 .shoeBar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.8rem;
   font-size: 0.8rem;
   color: var(--games-route-muted);
-  margin-bottom: 0.55rem;
   min-height: 1.2rem;
+}
+.soundToggle {
+  appearance: none;
+  flex: none;
+  min-height: 36px;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.soundToggle[aria-pressed='true'] {
+  background: var(--bc-gold);
+  color: #1a1200;
+  border-color: transparent;
+}
+.soundToggle:focus-visible {
+  outline: 2px solid var(--bc-gold);
+  outline-offset: 2px;
 }
 .shoeStrong {
   font-weight: 800;
@@ -694,7 +766,7 @@
 .refill {
   display: block;
   width: 100%;
-  margin: 0.5rem 0 0.25rem;
+  margin: 0 0 0.6rem;
 }
 
 /* ---------- Told once: the table plays with the player's medals now ---------- */
@@ -742,6 +814,8 @@
   color: var(--games-route-muted);
   font-size: 0.85rem;
   font-weight: 700;
+  /* Clear of the chosen medal's ring, which is drawn outside the medal. */
+  margin-right: 0.3rem;
 }
 .chip {
   /* A medal of the floor's silver (medalLook.ts MEDAL_PAINT): a raised rim, the face, and the number struck on it. */
@@ -863,25 +937,54 @@
 .pandaSpot {
   --accent: var(--bc-gold);
 }
-.chipBadge {
+/* The medals on a spot: a stack of the floor's silver medals, with the count beside it. */
+.spotStake {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 5px;
+  top: -12px;
+  right: -6px;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  z-index: 2;
+  pointer-events: none;
+}
+.spotStack {
+  width: 26px;
+  height: 28px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+.spotCount {
+  min-width: 1.4rem;
+  padding: 0.05rem 0.3rem;
   border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 38% 32%, #eff0f2 0%, #bbbec3 60%, #80848a 100%);
-  color: #15171a;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
   font-size: 0.7rem;
   font-weight: 900;
-  border: 2px solid #44474c;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   font-variant-numeric: tabular-nums;
-  z-index: 2;
+  text-align: center;
+}
+/* What the dealer pays a winning spot, set down beside the stake. */
+.spotPaid {
+  right: auto;
+  left: -6px;
+  animation: bcPaid 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.spotPaid .spotCount {
+  background: #166534;
+}
+@keyframes bcPaid {
+  0% {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.7);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 /* The felt and, over it, the plate that says the player's medals are being played in another tab. */
 .feltArea {
@@ -935,6 +1038,22 @@
   gap: 0.5rem;
   margin-top: 0.4rem;
   flex-wrap: wrap;
+}
+@media (max-width: 520px) {
+  /* On a phone, as on a machine's panel: one big DEAL across, and Undo, Clear and Rebet in a row under it. */
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  .actions .btn {
+    min-width: 0;
+    padding-left: 0.3rem;
+    padding-right: 0.3rem;
+  }
+  .actions .btnPrimary {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ---------- Live odds ---------- */
@@ -1244,5 +1363,26 @@
   .chip,
   .handBox {
     transition: none;
+  }
+}
+
+/* A hand's total appears as the card it counts shows its face: about 0.46 s into the card's 0.6 s slide (`bcDeal`). */
+.totalLate {
+  animation: bcTotalIn 0.18s ease-out 0.46s both;
+}
+@keyframes bcTotalIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .totalLate,
+  .spotPaid {
+    animation: none;
   }
 }

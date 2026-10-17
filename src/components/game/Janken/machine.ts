@@ -44,6 +44,7 @@
  */
 
 import { BANK_KEY, type Bank, type BankEvent, type BankState, type Seat } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { drawHand, drawLamp, judge, type Hand, type Outcome } from './engine';
 import { canDouble, doubled, owed, packRound, readRound, roundKey, spun, started, thrown, type Round } from './round';
 
@@ -249,6 +250,8 @@ export function createMachine({ bank, storage, random, newId = randomId }: Machi
     const medals = at.paying ?? 0;
     const moved = bank.apply({ game: JANKEN_GAME, round: at.id ?? newId(), step: PAY_STEP, medals });
     if (!moved) return false;
+    // The medal floor hears of a win once, as it goes in; a medal given back for a hand never thrown is no win.
+    if (moved === 'applied' && !(at.phase === 'calling' && at.kind === 'play')) floorReport(JANKEN_GAME, { won: medals, prize: { medals, label: at.doubles > 0 ? 'double-up' : undefined } });
     write(null);
     // Over and struck out: nothing will try its moves again.
     bank.forget(JANKEN_GAME);

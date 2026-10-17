@@ -27,6 +27,7 @@
  */
 
 import type { BankEvent, BankState, Move, Seat, SeatHandlers } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { isDevice, rowOf } from '../MedalCenter/ledger';
 import {
   BET_IDS,
@@ -522,6 +523,8 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
       const paid = purse.apply({ game: GAME, round: coup.id, step: PAY_STEP, medals: coup.returned, era: coup.era });
       if (!paid) return NOT_YET;
       again = paid === 'already';
+      // The medal floor hears of what the coup paid once, as it goes in.
+      if (paid === 'applied') floorReport(GAME, { won: coup.returned, prize: { medals: coup.returned } });
     }
     const settled = struck(true, again);
     // Over, and struck off: nothing will try its moves again.

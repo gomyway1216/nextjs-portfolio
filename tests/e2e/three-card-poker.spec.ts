@@ -9,6 +9,7 @@ import { decide, evaluate, settle, type Bets, type Card, type Decision, type Ran
 import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand, tableKey } from '../../src/components/game/ThreeCardPoker/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { arrived } from './streamedPage';
+import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 
 // Hands are random: the tests read the dealt cards off the table, settle them
 // with the engine and check the table against it. The table plays with the
@@ -615,4 +616,79 @@ test('the simulation tab plays the three strategies through the real rules, and 
   await expect(section.getByRole('button', { name: 'Run' })).toHaveCSS('color', 'rgb(4, 20, 10)');
   // Ten thousand hands, and not a medal moved.
   await medalsAre(page, WELCOME);
+});
+
+test('on a phone the cards and PLAY / FOLD are on the screen together when the player decides', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openGame(page);
+  await page.getByTestId('tcp-notice-ok').click();
+  await firstAnte(page);
+  await deal(page);
+  await bringUnderTopBar(page, '[data-hand="dealer"]');
+  const bar = await topBarBottom(page);
+  const dealer = await screenBox(page, '[data-hand="dealer"]');
+  const player = await screenBox(page, '[data-hand="player"]');
+  const fold = await screenBox(page, 'button[data-action="fold"]');
+  expect(dealer.top).toBeGreaterThanOrEqual(bar);
+  expect(fold.top).toBeGreaterThan(player.bottom);
+  expect(fold.bottom).toBeLessThanOrEqual(812);
+});
+
+test('the last hand stays on the felt, a win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
+  // medal-machine-sound.spec.ts).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sounds: number };
+    w.__sounds = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds++;
+      return start.apply(this, args);
+    };
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number }).__sounds);
+  await openGame(page);
+  await page.getByTestId('tcp-notice-ok').click();
+  // The floor's sound switch: off on every visit, on with a press; the hands are played with it on.
+  await expect(page.getByTestId('tcp-sound')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('tcp-sound').click();
+  await expect(page.getByTestId('tcp-sound')).toHaveAttribute('aria-pressed', 'true');
+  for (let hand = 0; hand < 30; hand++) {
+    if (hand === 0) await firstAnte(page);
+    else await anteSpot(page).click();
+    const before = await medals(page);
+    // The last hand's return (a tie's, passed over below) has been counted out, so the watch sees this hand's count
+    // alone: a bet here takes no medals, so it does not cut a count short.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="tcp-counter"]'))[0]).toBe(before);
+    await watchLed(page, '[data-testid="tcp-counter"]');
+    const player = await deal(page);
+    const decision = decide('optimal', player);
+    const dealer = await act(page, decision);
+    const result = settle({ ante: 1, pairPlus: 0 }, decision, player, dealer);
+    if (result.net <= 0) continue;
+    const ante = result.lines.find((l) => l.id === 'ante')!;
+    const bonus = result.lines.find((l) => l.id === 'anteBonus')?.profit ?? 0;
+    // The Ante keeps its stake with the medals paid beside it (its bonus with it).
+    await expect(page.getByTestId('paid-ante')).toHaveText(`+${ante.profit + bonus}`);
+    // The counter ran up through the medals that came back, ending on the medals the player holds.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="tcp-counter"]'))[0]).toBe(before + result.net);
+    const seen = await watchedLed(page);
+    const climb = seen.slice(seen.indexOf(Math.min(...seen)));
+    expect(climb[climb.length - 1]).toBe(before + result.net);
+    expect(climb.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < climb.length; i++) expect(climb[i]).toBeGreaterThan(climb[i - 1]);
+    // The WIN window ends on what came back.
+    expect((await ledNumbers(page, '[data-testid="tcp-counter"]'))[2]).toBe(result.returned);
+    // A new bet clears the last hand off the felt.
+    await anteSpot(page).click();
+    await expect(page.getByTestId('paid-ante')).toHaveCount(0);
+    // Heard: the switch, the medals put down, six cards dealt, three turned, the jingle and the medals counted in.
+    expect(await heard()).toBeGreaterThanOrEqual(1 + 2 + 6 + 3 + 1 + 3);
+    expect(errors).toEqual([]);
+    return;
+  }
+  throw new Error('no winning hand in 30');
 });

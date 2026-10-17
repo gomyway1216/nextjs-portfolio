@@ -168,6 +168,58 @@ export async function ensureValidUser(request: NextRequest): Promise<{
 }
 
 /**
+ * Like ensureValidUser, but only for a real account: a visitor Firebase knows
+ * only as anonymous (the games sign every guest in anonymously) is refused with
+ * 403. For features that are for signed-in players only.
+ */
+export async function ensureAccountUser(request: NextRequest): Promise<{
+  user: { uid: string; email?: string } | null;
+  response?: NextResponse;
+}> {
+  const token = getTokenFromRequest(request);
+
+  if (!token) {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: 'No authorization token provided' },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const decodedToken = await verifyIdToken(token);
+
+  if (!decodedToken) {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: 'Invalid or expired token' },
+        { status: 401 }
+      ),
+    };
+  }
+
+  if (decodedToken.firebase?.sign_in_provider === 'anonymous') {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: 'Sign in with an account first' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return {
+    user: {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+    },
+    response: undefined,
+  };
+}
+
+/**
  * Optional: Ensure user is authenticated (for routes that allow public access but want to know if user is logged in)
  */
 export async function getOptionalUser(request: NextRequest): Promise<{

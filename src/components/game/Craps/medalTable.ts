@@ -52,6 +52,7 @@
  */
 
 import type { Move } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import {
   BET_IDS,
   LAY_ODDS,
@@ -825,6 +826,8 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       // The medals' history counts the roll as one round: what the roll took off the table, and what it gave back.
       const decided = resolution.results.reduce((sum, r) => sum + (r.outcome === 'lose' || (r.outcome === 'win' && !r.staysUp) ? r.stake : 0), 0);
       if (decided > 0 || resolution.returned > 0) purse.rolled?.({ round: `${table.id ?? 'table'}-r${table.stats.rolls}`, bet: decided, won: resolution.returned });
+      // The medal floor hears of what the roll gave back, once, as it is given.
+      if (resolution.returned > 0) floorReport(CRAPS_GAME, { won: resolution.returned, prize: { medals: resolution.returned } });
       return { ok: true, value: { resolution, before } };
     },
   };

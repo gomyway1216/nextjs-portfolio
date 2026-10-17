@@ -28,6 +28,9 @@ export interface ThreeCardPokerStrings {
   centerLink: string;
   onTable: string;
   net: string;
+  /** The counter's amber windows: the bet on the felt, and what the last hand gave back. */
+  betLed: string;
+  winLed: string;
   step: string;
   stepAria: (medals: number) => string;
   deal: string;
@@ -198,6 +201,8 @@ const en: ThreeCardPokerStrings = {
   centerLink: 'Medal Game Center',
   onTable: 'On table',
   net: 'This session',
+  betLed: 'BET',
+  winLed: 'WIN',
   step: 'Bet per press',
   stepAria: (medals) => `Bet ${medals} ${medals === 1 ? 'medal' : 'medals'} per press`,
   deal: 'DEAL',
@@ -404,6 +409,8 @@ const ja: ThreeCardPokerStrings = {
   centerLink: 'メダルゲームセンター',
   onTable: 'ベット中',
   net: '今回の増減',
+  betLed: 'ベット',
+  winLed: '獲得',
   step: '1回のベット',
   stepAria: (medals) => `1回${medals}枚ベット`,
   deal: 'ディール',

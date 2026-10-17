@@ -24,8 +24,9 @@
 }
 @media (max-width: 520px) {
   .root {
-    --cw: 52px;
-    --ch: 74px;
+    /* Small enough on a phone for the dealer's cards, the player's and PLAY / FOLD to be on the screen at once. */
+    --cw: 46px;
+    --ch: 66px;
   }
 }
 :global(html.dark) .root {
@@ -177,18 +178,93 @@
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 900px) {
-  .playGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.panel {
+.panel,
+.tableSide,
+.front {
   min-width: 0;
   background: var(--games-route-surface);
   border: 1px solid var(--games-route-border);
   border-radius: 16px;
   padding: 1rem 1.1rem;
   box-shadow: var(--games-route-shadow);
+}
+.part {
+  min-width: 0;
+}
+/*
+ * One column: the cards, then the felt and its buttons straight under them, then the counter, the results and the
+ * strategy. Each part becomes a panel of its own, so the felt can sit next to the cards.
+ */
+@media (max-width: 900px) {
+  .playGrid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.9rem;
+  }
+  .tableSide,
+  .front {
+    display: contents;
+  }
+  .part {
+    background: var(--games-route-surface);
+    border: 1px solid var(--games-route-border);
+    border-radius: 16px;
+    padding: 0.8rem 1rem;
+    box-shadow: var(--games-route-shadow);
+  }
+  .part.resultsPart {
+    margin-top: 0;
+  }
+  .buttonsPart {
+    order: 1;
+  }
+  .counterPart {
+    order: 2;
+  }
+  .counterPart > .counter {
+    margin-bottom: 0.6rem;
+  }
+  .resultsPart {
+    order: 3;
+  }
+  .morePart {
+    order: 4;
+  }
+  .morePart > .hintRow:first-child {
+    margin-top: 0;
+  }
+}
+@media (max-width: 520px) {
+  .part {
+    padding: 0.75rem 0.8rem;
+  }
+}
+.soundToggle {
+  appearance: none;
+  position: absolute;
+  top: 0.4rem;
+  left: 0.7rem;
+  min-height: 28px;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+  z-index: 1;
+}
+.soundToggle[aria-pressed='true'] {
+  background: var(--tcp-gold);
+  color: #1a1200;
+  border-color: transparent;
+}
+.soundToggle:focus-visible {
+  outline: 2px solid var(--tcp-gold);
+  outline-offset: 2px;
 }
 .muted {
   color: var(--games-route-muted);
@@ -586,6 +662,8 @@
   color: var(--games-route-muted);
   font-size: 0.85rem;
   font-weight: 700;
+  /* Clear of the chosen medal's ring, which is drawn outside the medal. */
+  margin-right: 0.3rem;
 }
 
 /* ---------- Betting layout ---------- */
@@ -663,26 +741,68 @@
   border-style: dashed;
   pointer-events: none;
 }
-.chipBadge {
+/* The medals on a spot: a stack of the medal center's silver medals, with the count beside it. */
+.spotStake {
   position: absolute;
-  top: -8px;
+  top: -12px;
   right: -6px;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 5px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* A medal in the medal center's silver (MedalPusher/medalLook.ts), with the count struck on it. */
-  background: radial-gradient(circle at 42% 34%, #f6f7f9 0%, #d4d8de 38%, #bbbec3 70%, #80848a 100%);
-  color: #111318;
-  font-size: 0.7rem;
-  font-weight: 850;
-  border: 2px solid #44474c;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
   z-index: 2;
+  pointer-events: none;
+}
+.spotStack {
+  width: 26px;
+  height: 28px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+.spotCount {
+  min-width: 1.4rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* What the dealer pays a winning spot, set down beside the stake. */
+.spotPaid {
+  right: auto;
+  left: -6px;
+  animation: tcpPaid 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.spotPaid .spotCount {
+  background: #166534;
+}
+@keyframes tcpPaid {
+  0% {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.7);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* A hand's name appears as its last card shows its face (the delay is set where it is drawn). */
+.badgeLate {
+  animation: tcpBadgeIn 0.18s ease-out both;
+}
+@keyframes tcpBadgeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @media (max-width: 520px) {
   .spotRow {
@@ -1045,7 +1165,9 @@
 @media (prefers-reduced-motion: reduce) {
   .card,
   .cardFlip,
-  .cardDown {
+  .cardDown,
+  .spotPaid,
+  .badgeLate {
     animation: none;
   }
   .spot,
@@ -1176,7 +1298,9 @@
 }
 .refill {
   appearance: none;
-  align-self: flex-start;
+  display: block;
+  width: 100%;
+  margin: 0 0 0.6rem;
   min-height: 44px;
   padding: 0.45rem 1.2rem;
   border-radius: 999px;
@@ -1186,10 +1310,38 @@
   font-weight: 800;
   cursor: pointer;
 }
-.refill:focus-visible,
+.refill:focus-visible {
+  outline: 3px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
 .cardAwayButton:focus-visible {
   outline: 3px solid #ffffff;
   outline-offset: 2px;
+}
+/* The bet and the last win, on the counter's amber windows. */
+.counterSmall {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem 1rem;
+  flex-wrap: wrap;
+}
+.ledPair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ledLabel {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd65c;
+}
+.ledSmall {
+  display: flex;
+}
+.ledSmall > span {
+  height: 28px;
+  padding: 4px 6px;
 }
 .notMoney {
   margin: 0;
@@ -1287,5 +1439,31 @@
 @media (forced-colors: active) {
   .counterLed {
     display: none;
+  }
+}
+
+/* On a phone, as on a machine's panel: PLAY and FOLD under the felt, then one big DEAL across with Undo, Clear and
+   Rebet in a row under it. (After the rules they adjust, which they would otherwise lose to.) */
+@media (max-width: 520px) {
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  .actions .btn {
+    min-width: 0;
+    padding-left: 0.3rem;
+    padding-right: 0.3rem;
+  }
+  .actions .btnPrimary {
+    grid-column: 1 / -1;
+  }
+  .message {
+    margin-top: 0.45rem;
+  }
+  /* Room for a result of two lines ("Dealer doesn't qualify — Ante pays, Play pushes · won 2 medals"), so the felt and
+     its buttons do not drop when one is called. */
+  .callout {
+    min-height: 3.6rem;
   }
 }

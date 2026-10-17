@@ -43,7 +43,8 @@ describe('PlayTab', () => {
     expect(markup).toMatch(/data-testid="tcp-counter" data-loaded="false"/);
     expect(markup).toContain('data-testid="tcp-medals">—<');
     expect(markup.match(/data-on="true"/g)).toBeNull();
-    expect(markup.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
+    // The medals' window, and the BET (two places) and WIN (three places) windows beside it.
+    expect(markup.match(/<polygon[^>]*data-on="false"/g)?.length).toBe((COUNTER_PLACES + 2 + 3) * 7);
     expect(markup).toContain('Your medals');
     expect(markup).toContain(`data-testid="tcp-not-money">${NOT_MONEY.en}<`);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}" data-testid="tcp-counter-center">Medal Game Center<`);

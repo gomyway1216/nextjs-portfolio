@@ -6,8 +6,11 @@
  * - `card`: a card sliding out of the shoe onto the felt.
  * - `flip`: a card turned face up.
  * - `medal`: a medal put down on a betting spot.
- * - `payout`: one medal of a win paid back, a bright clink, as the WIN digits
- *   count up. A machine's medals ring like this as they are counted out.
+ * - `payout`: a bright clink as a win runs into the medals on the counter. A
+ *   machine's medals ring like this as they are counted out. It can be asked
+ *   for at every step of the count: clinks closer together than
+ *   `CLINK_APART` are let go, so a big, fast count does not turn into a
+ *   buzz.
  * - `win`, `big`: a short fanfare for a win, a longer one for a blackjack or
  *   a big win.
  * - `lose`: a soft, low note.
@@ -23,6 +26,10 @@ export type TableSound = 'card' | 'flip' | 'medal' | 'payout' | 'win' | 'big' | 
 
 let audio: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
+
+/** The closest together two payout clinks are played, in seconds. */
+export const CLINK_APART = 0.045;
+let lastClink = -Infinity;
 
 function context(): AudioContext | null {
   if (typeof window === 'undefined' || typeof AudioContext === 'undefined') return null;
@@ -109,6 +116,8 @@ export function playTableSound(sound: TableSound, delay = 0): void {
       tone(ctx, at, 420, 0.05, 0.05, 'triangle', 260);
       break;
     case 'payout':
+      if (at - lastClink < CLINK_APART) break;
+      lastClink = at;
       clink(ctx, at, 0.08);
       break;
     case 'win':

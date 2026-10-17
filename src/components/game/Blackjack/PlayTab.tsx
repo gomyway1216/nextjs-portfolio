@@ -24,7 +24,7 @@ import {
   type Round,
 } from './engine';
 import { playTableSound, unlockTableSounds, useSoundSwitch, type TableSound } from '../common/tableSounds';
-import { usePayoutCount, type Payout } from '../common/usePayoutCount';
+import { useCountUp } from '../MedalCenter/countUp';
 import { HoleCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
 import { MedalCounter, MedalStack } from './MedalCounter';
@@ -127,8 +127,6 @@ export const PlayTab = () => {
   const [announcement, setAnnouncement] = useState('');
   const [notice, setNotice] = useState(false);
   const [longWait, setLongWait] = useState(false);
-  /** The win being counted out on the counter's digits, if any: a new id for every hand settled on this page. */
-  const [payout, setPayout] = useState<Payout | null>(null);
   const [sound, toggleSound] = useSoundSwitch(SOUND_KEY);
   const soundOn = useRef(sound);
   useEffect(() => {
@@ -138,7 +136,6 @@ export const PlayTab = () => {
   const play = (name: TableSound, delay = 0) => {
     if (soundOn.current) playTableSound(name, delay / 1000);
   };
-  const counted = usePayoutCount(payout, () => play('payout'));
 
   // Refs mirror what click handlers and timers read synchronously.
   const saveRef = useRef(save);
@@ -173,7 +170,6 @@ export const PlayTab = () => {
   /** Puts a table read back on the page as it stands. */
   const adopt = (next: TableSave, said: string | null = null) => {
     stopShowing();
-    setPayout(null);
     setDealNo(roundId.current);
     commitSave(next);
     setView(viewOf(next));
@@ -191,13 +187,14 @@ export const PlayTab = () => {
 
   /** Puts back what a played-out hand brings back, once (medalTable.ts says how once). */
   const payOut = () => {
+    // What the hand brings back runs into the medals on the counter's digits.
+    if ((saveRef.current.round?.result?.returned ?? 0) > 0) live.current.payMedals();
     const step = table().settle();
     if (step.ok) {
       commitSave(step.save);
       setWon(wonBy(step.save));
       const result = step.save.round?.result;
       if (result) {
-        if (result.returned > 0) setPayout({ id: roundId.current, medals: result.returned });
         const natural = result.hands.some((h) => h.outcome === 'blackjack');
         play(result.net > 0 ? (natural ? 'big' : 'win') : result.net < 0 ? 'lose' : 'medal');
       }
@@ -259,9 +256,21 @@ export const PlayTab = () => {
     setNotice(true);
   };
 
-  const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t });
+  // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
+  // with a clink as the digits move; WIN shows the whole win at once. Every bet and every stake shows at once. The
+  // meter shows the medals once the player's table is open (`open`, below).
+  const medalMeter = useCountUp(
+    bankState.loaded && bankState.where !== 'checking' && openedFor !== undefined && openedFor === bankState.owner ? bankState.balance : null,
+  );
+  const payMedals = medalMeter.pay;
   useEffect(() => {
-    live.current = { reconcile, openTable, afterReset, showNoticeOnce, t };
+    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
+    if (medalMeter.counting) play('payout');
+  }, [medalMeter.shown, medalMeter.counting]);
+
+  const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t, payMedals: () => {} });
+  useEffect(() => {
+    live.current = { reconcile, openTable, afterReset, showNoticeOnce, t, payMedals };
   });
 
   useEffect(() => {
@@ -381,7 +390,6 @@ export const PlayTab = () => {
     commitSave(step.save);
     setMessage(null);
     setWon(null);
-    setPayout(null);
     setNotice(false);
     const r = step.save.round!;
     const fast = prefersReducedMotion();
@@ -457,8 +465,6 @@ export const PlayTab = () => {
     if (sound) void unlockTableSounds();
     setBet(bet + 1);
     setMessage(null);
-    // A bet for the next hand ends the count of the last one's win at once, as on a machine.
-    setPayout(null);
     play('medal');
   };
   /** MAX BET: the table's most, or every medal the player has if that is fewer. */
@@ -472,7 +478,6 @@ export const PlayTab = () => {
     if (sound) void unlockTableSounds();
     setBet(most);
     setMessage(null);
-    setPayout(null);
     play('medal');
   };
   const clearBet = () => {
@@ -726,7 +731,7 @@ export const PlayTab = () => {
               onTable={open ? onTable : null}
               won={won}
               format={fmt}
-              counting={payout && counted !== null ? { counted, medals: payout.medals } : null}
+              ledMedals={medalMeter.shown}
             />
             <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
               {t.noticeLink}

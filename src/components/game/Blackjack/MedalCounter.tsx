@@ -1,6 +1,5 @@
 'use client';
 
-import { countedLeds } from '../common/usePayoutCount';
 import { SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import type { BlackjackStrings } from './i18n';
@@ -42,10 +41,10 @@ export interface MedalCounterProps {
   won: number | null;
   format: (n: number) => string;
   /**
-   * A win being counted out (common/usePayoutCount.ts): `counted` of the `medals` the hand gave back so far. The LED
-   * digits run up with it; the numbers in type are the real ones throughout.
+   * What the MEDALS digits show, when it is not `medals`: a win running in (MedalCenter/countUp.ts). The numbers in
+   * type are the real ones throughout.
    */
-  counting?: { counted: number; medals: number } | null;
+  ledMedals?: number | null;
   children?: React.ReactNode;
 }
 
@@ -56,8 +55,7 @@ export interface MedalCounterProps {
  * reader and for anything else that reads the page. Under it, always, the
  * note that medals are not money.
  */
-export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, counting = null, children }: MedalCounterProps) => {
-  const led = countedLeds(medals, won, counting);
+export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, ledMedals = null, children }: MedalCounterProps) => {
   return (
     <section className={styles.cabinet} aria-labelledby="bj-medals-label" data-testid="bj-counter" data-loaded={loaded}>
       <div className={styles.cabinetHead}>
@@ -78,7 +76,7 @@ export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, co
       <div className={styles.cabinetBody}>
         <MedalStack count={stackFor(loaded ? medals : 0)} className={styles.cabinetStack} />
         <div className={styles.cabinetLed}>
-          <SegmentDisplay value={loaded ? led.medals : ''} places={MEDAL_PLACES} />
+          <SegmentDisplay value={loaded ? (ledMedals ?? medals) : ''} places={MEDAL_PLACES} />
         </div>
       </div>
       <div className={styles.smallLeds}>
@@ -94,7 +92,7 @@ export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, co
           <strong className={styles.srOnly} data-testid="bj-won">
             {won ?? 0}
           </strong>
-          <SegmentDisplay value={led.won ?? ''} places={3} tone="amber" />
+          <SegmentDisplay value={won ?? ''} places={3} tone="amber" />
         </div>
       </div>
       {children}

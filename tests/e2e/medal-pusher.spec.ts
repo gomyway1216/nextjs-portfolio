@@ -2213,14 +2213,14 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   // What it is set to give back, said where the sum is.
   await expect(odds(page)).toContainText('about 84% of the medals come back. That is about what a real machine is set to give.');
 
-  // The share goes from all of the medals into the tray down to three in ten: 1.4912 and 0.3 × 1.4912.
+  // The share goes from all of the medals into the tray down to three in ten: 1.5206 and 0.3 × 1.5206.
   const front = odds(page).getByRole('slider', { name: /reach your tray/ });
   await front.focus();
   await page.keyboard.press('End');
   await expect(result).toHaveAttribute('data-sign', 'pos');
-  await expect(result).toHaveText('149.1%');
+  await expect(result).toHaveText('152.1%');
   await page.keyboard.press('Home');
-  await expect(result).toHaveText('44.7%');
+  await expect(result).toHaveText('45.6%');
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('78%');
 });
 

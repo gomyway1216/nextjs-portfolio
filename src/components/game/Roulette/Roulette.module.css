@@ -140,6 +140,10 @@
   height: 100%;
   display: block;
   overflow: visible;
+  /* The wheel is a picture: nothing on it is pressed. Its head is a square turned to where the wheel stopped, and the
+     turned square's corners reach out past the wheel, over the tabs above it at some turns; it must not catch the
+     clicks meant for them. */
+  pointer-events: none;
 }
 .wheelHead {
   transform-origin: 50% 50%;

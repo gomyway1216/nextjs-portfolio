@@ -322,16 +322,41 @@
 .lamp[data-stopped='true'] circle {
   animation: stopped 0.5s steps(2) infinite;
 }
+/* Its number blinks with it: dark on the lit lamp, light on the dim one, so that it can always be read. */
+.lamp[data-stopped='true'] text {
+  animation: stoppedNumber 0.5s steps(2) infinite;
+}
 @keyframes stopped {
   50% {
     fill: var(--lamp-dim);
     filter: none;
   }
 }
-/* While the machine waits for a medal, the lamps run round slowly, as a real one's do. */
+@keyframes stoppedNumber {
+  50% {
+    fill: #f8efdc;
+  }
+}
+/* While the machine waits for a medal, the lamps run round slowly, as a real one's do. A lamp the light passes shows
+   its number dark on the lit bulb, as a lit lamp does, instead of cream on cream; the number turns back to cream part
+   of the way through the bulb's fade, at the point where it stands out from the bulb best for that colour (worked out
+   from the colours: never under 3.9:1 through the fade). */
 .faceArt[data-attract='true'] .lamp[data-on='false'] circle {
   animation: attract 3s linear infinite;
   animation-delay: calc(var(--i) * 0.1s - 3s);
+}
+.faceArt[data-attract='true'] .lamp[data-on='false'] text {
+  animation: attractNumberLate 3s linear infinite;
+  animation-delay: calc(var(--i) * 0.1s - 3s);
+}
+.faceArt[data-attract='true'] .lamp[data-tone='three'][data-on='false'] text {
+  animation-name: attractNumberThree;
+}
+.faceArt[data-attract='true'] .lamp[data-tone='five'][data-on='false'] text {
+  animation-name: attractNumberFive;
+}
+.faceArt[data-attract='true'] .lamp[data-tone='ten'][data-on='false'] text {
+  animation-name: attractNumberTen;
 }
 @keyframes attract {
   0%,
@@ -341,6 +366,47 @@
   12%,
   100% {
     fill: var(--lamp-dim);
+  }
+}
+/* The 1s and the 2s (the palest bulbs): cream again three quarters of the way through the fade. */
+@keyframes attractNumberLate {
+  0%,
+  10.5% {
+    fill: var(--jk-ink);
+  }
+  10.6%,
+  100% {
+    fill: #f8efdc;
+  }
+}
+@keyframes attractNumberThree {
+  0%,
+  10.1% {
+    fill: var(--jk-ink);
+  }
+  10.2%,
+  100% {
+    fill: #f8efdc;
+  }
+}
+@keyframes attractNumberFive {
+  0%,
+  9.6% {
+    fill: var(--jk-ink);
+  }
+  9.7%,
+  100% {
+    fill: #f8efdc;
+  }
+}
+@keyframes attractNumberTen {
+  0%,
+  8.6% {
+    fill: var(--jk-ink);
+  }
+  8.7%,
+  100% {
+    fill: #f8efdc;
   }
 }
 
@@ -463,6 +529,13 @@
   background: #2a2f38;
   padding: 0 2px;
   text-align: center;
+}
+/* On the narrowest phones (320 px) WIN, DRAW and LOSE ran into each other: smaller, and closer set. */
+@media (max-width: 360px) {
+  .resultLamp {
+    font-size: 0.66rem;
+    letter-spacing: 0;
+  }
 }
 .resultLamp[data-outcome='win'][data-on='true'] {
   background: #ffcf40;
@@ -890,7 +963,9 @@
   .paw,
   .paw[data-motion],
   .lamp[data-stopped='true'] circle,
+  .lamp[data-stopped='true'] text,
   .faceArt[data-attract='true'] .lamp[data-on='false'] circle,
+  .faceArt[data-attract='true'] .lamp[data-on='false'] text,
   .trayMedal {
     animation: none;
   }

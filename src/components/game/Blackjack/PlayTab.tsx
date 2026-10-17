@@ -23,9 +23,11 @@ import {
   type Action,
   type Round,
 } from './engine';
+import { playTableSound, unlockTableSounds, useSoundSwitch, type TableSound } from '../common/tableSounds';
+import { useCountUp } from '../MedalCenter/countUp';
 import { HoleCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
-import { MedalCounter } from './MedalCounter';
+import { MedalCounter, MedalStack } from './MedalCounter';
 import { DEFAULT_BET, GAME, MAX_BET, MIN_BET, NOTICE_KEY, createMedalTable, freshTable, unsettled, type MedalTable, type Shelf, type Step, type TableSave } from './medalTable';
 import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
@@ -34,6 +36,11 @@ const ACTIONS: Action[] = ['hit', 'stand', 'double', 'split'];
 
 /** Animation pacing (ms): the opening deal, the hole-card flip, each dealer draw, the pause before the hand is settled. */
 export const TIMING = { deal: 800, dealStep: 170, flip: 450, draw: 520, settle: 450 } as const;
+
+/** When a dealt card shows its face, from the start of its slide out of the shoe (ms; the `bjDeal` animation). */
+const FACE_SHOWS = 460;
+/** When the hole card shows its face as it is turned over (ms; the `bjFlip` animation). */
+const HOLE_FACE_SHOWS = 230;
 
 /**
  * How long the table waits for the medal center's card before it says that the medals are in a machine in another
@@ -46,6 +53,12 @@ export const RETRY_SAVE = 3000;
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+/** Where the sound switch is kept on this device. */
+export const SOUND_KEY = 'blackjack-sound';
+
+/** How many medals high a stake is drawn: one for one medal, then one more each time it doubles, up to five. */
+export const stackHeight = (medals: number) => Math.max(1, Math.min(5, Math.ceil(Math.log2(medals + 1))));
 
 /** The table is kept in this browser's storage. */
 const localShelf: Shelf = {
@@ -114,6 +127,15 @@ export const PlayTab = () => {
   const [announcement, setAnnouncement] = useState('');
   const [notice, setNotice] = useState(false);
   const [longWait, setLongWait] = useState(false);
+  const [sound, toggleSound] = useSoundSwitch(SOUND_KEY);
+  const soundOn = useRef(sound);
+  useEffect(() => {
+    soundOn.current = sound;
+  });
+  /** A sound of the table, `delay` ms from now, when the sound is on. */
+  const play = (name: TableSound, delay = 0) => {
+    if (soundOn.current) playTableSound(name, delay / 1000);
+  };
 
   // Refs mirror what click handlers and timers read synchronously.
   const saveRef = useRef(save);
@@ -165,10 +187,17 @@ export const PlayTab = () => {
 
   /** Puts back what a played-out hand brings back, once (medalTable.ts says how once). */
   const payOut = () => {
+    // What the hand brings back runs into the medals on the counter's digits.
+    if ((saveRef.current.round?.result?.returned ?? 0) > 0) live.current.payMedals();
     const step = table().settle();
     if (step.ok) {
       commitSave(step.save);
       setWon(wonBy(step.save));
+      const result = step.save.round?.result;
+      if (result) {
+        const natural = result.hands.some((h) => h.outcome === 'blackjack');
+        play(result.net > 0 ? (natural ? 'big' : 'win') : result.net < 0 ? 'lose' : 'medal');
+      }
       setMessage((was) => (was?.text === t.unsavedReturn ? null : was));
       return;
     }
@@ -227,9 +256,21 @@ export const PlayTab = () => {
     setNotice(true);
   };
 
-  const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t });
+  // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
+  // with a clink as the digits move; WIN shows the whole win at once. Every bet and every stake shows at once. The
+  // meter shows the medals once the player's table is open (`open`, below).
+  const medalMeter = useCountUp(
+    bankState.loaded && bankState.where !== 'checking' && openedFor !== undefined && openedFor === bankState.owner ? bankState.balance : null,
+  );
+  const payMedals = medalMeter.pay;
   useEffect(() => {
-    live.current = { reconcile, openTable, afterReset, showNoticeOnce, t };
+    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
+    if (medalMeter.counting) play('payout');
+  }, [medalMeter.shown, medalMeter.counting]);
+
+  const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t, payMedals: () => {} });
+  useEffect(() => {
+    live.current = { reconcile, openTable, afterReset, showNoticeOnce, t, payMedals };
   });
 
   useEffect(() => {
@@ -291,12 +332,24 @@ export const PlayTab = () => {
     const guard = (fn: () => void) => () => {
       if (roundId.current === id) fn();
     };
-    later(startDelay, guard(() => setView((v) => ({ ...v, holeUp: true, opening: false }))));
+    later(
+      startDelay,
+      guard(() => {
+        setView((v) => ({ ...v, holeUp: true, opening: false }));
+        play('flip');
+      }),
+    );
     // Each further dealer card lands `draw` ms after the previous one; settle once the last has landed.
     let at = startDelay + flip;
     for (let k = 3; k <= r.dealer.length; k++) {
       const shown = k;
-      later(at, guard(() => setView((v) => ({ ...v, dealerShown: shown }))));
+      later(
+        at,
+        guard(() => {
+          setView((v) => ({ ...v, dealerShown: shown }));
+          play('card');
+        }),
+      );
       at += draw;
     }
     later(
@@ -340,6 +393,10 @@ export const PlayTab = () => {
     setNotice(false);
     const r = step.save.round!;
     const fast = prefersReducedMotion();
+    if (sound) void unlockTableSounds();
+    play('medal');
+    // The opening deal: player, dealer, player, the hole card; each slides out of the shoe in turn.
+    for (let i = 0; i < 4; i++) play('card', 80 + (fast ? 0 : i * TIMING.dealStep));
     setView({ dealerShown: 2, holeUp: false, settled: false, opening: !fast });
     const opening = fast ? 0 : TIMING.deal;
     if (r.phase === 'done') {
@@ -372,6 +429,8 @@ export const PlayTab = () => {
     }
     commitSave(step.save);
     setMessage(null);
+    if (action === 'double' || action === 'split') play('medal');
+    if (action !== 'stand') play('card', action === 'hit' ? 0 : 120);
     // Let the last player card land before the dealer turns the hole card.
     const next = step.save.round!;
     if (next.phase === 'done') playDealer(next, prefersReducedMotion() ? 0 : TIMING.draw);
@@ -389,6 +448,7 @@ export const PlayTab = () => {
       refused(step);
       return;
     }
+    if (take) play('medal');
     commitSave(step.save);
     setMessage(null);
     const next = step.save.round!;
@@ -402,8 +462,10 @@ export const PlayTab = () => {
       say(t.noMedals);
       return;
     }
+    if (sound) void unlockTableSounds();
     setBet(bet + 1);
     setMessage(null);
+    play('medal');
   };
   /** MAX BET: the table's most, or every medal the player has if that is fewer. */
   const maxBet = () => {
@@ -413,8 +475,10 @@ export const PlayTab = () => {
       say(t.noMedals);
       return;
     }
+    if (sound) void unlockTableSounds();
     setBet(most);
     setMessage(null);
+    play('medal');
   };
   const clearBet = () => {
     if (!canBet) return;
@@ -463,6 +527,9 @@ export const PlayTab = () => {
   const tc = shownLeft !== null ? trueCount(running, shownLeft) : 0;
   const dealerTotal = round && view.holeUp ? handValue(dealerCards) : round ? handValue(round.dealer.slice(0, 1)) : null;
   const delay = (i: number) => (view.opening ? i * TIMING.dealStep : 0);
+  // A total is shown as the card it counts turns face up, not as the card leaves the shoe: the opening deal's upcard,
+  // the hole card turned over (a quick flip), or a card drawn.
+  const dealerTotalDelay = view.opening ? delay(1) + FACE_SHOWS : view.holeUp && dealerCards.length === 2 ? HOLE_FACE_SHOWS : FACE_SHOWS;
   const shuffleNext = view.settled && save.shoe !== null && needsShuffle(save.shoe);
 
   const calloutClass = !result ? styles.calloutIdle : result.net > 0 ? styles.calloutWin : result.net < 0 ? styles.calloutLose : styles.calloutPush;
@@ -500,8 +567,13 @@ export const PlayTab = () => {
 
       <div className={styles.playGrid}>
         <div className={styles.panel}>
-          <div className={styles.shoeBar} data-testid="shoe-info">
-            {shownLeft === null ? t.newShoe : t.shoeLabel(shownLeft)}
+          <div className={styles.tableTop}>
+            <div className={styles.shoeBar} data-testid="shoe-info">
+              {shownLeft === null ? t.newShoe : t.shoeLabel(shownLeft)}
+            </div>
+            <button type="button" className={styles.soundToggle} aria-pressed={sound} onClick={toggleSound} data-testid="bj-sound">
+              {sound ? t.soundOn : t.soundOff}
+            </button>
           </div>
 
           <div className={styles.table} data-testid="bj-table">
@@ -512,7 +584,12 @@ export const PlayTab = () => {
               <div className={styles.areaHead}>
                 <span className={styles.areaName}>{t.dealer}</span>
                 {dealerTotal && (
-                  <span className={styles.totalBadge} data-testid="dealer-total">
+                  <span
+                    key={`${dealNo}-dt-${dealerCards.length}-${view.holeUp}`}
+                    className={`${styles.totalBadge} ${styles.totalLate}`}
+                    style={{ animationDelay: `${dealerTotalDelay}ms` }}
+                    data-testid="dealer-total"
+                  >
                     {t.total(dealerTotal.total, view.holeUp && dealerTotal.soft && dealerTotal.total < 21)}
                   </span>
                 )}
@@ -539,6 +616,7 @@ export const PlayTab = () => {
                   round.hands.map((h, hi) => {
                     const v = handValue(h.cards);
                     const outcome = result?.hands[hi]?.outcome;
+                    const paid = Math.max(0, result?.hands[hi]?.profit ?? 0);
                     return (
                       <div
                         key={hi}
@@ -553,23 +631,47 @@ export const PlayTab = () => {
                           ))}
                         </div>
                         <div className={styles.handFoot}>
-                          <span className={styles.totalBadge} data-testid={`hand-total-${hi}`}>
+                          <span
+                            key={`${dealNo}-t${hi}-${h.cards.length}`}
+                            className={`${styles.totalBadge} ${styles.totalLate}`}
+                            style={{ animationDelay: `${view.opening && hi === 0 ? delay(2) + FACE_SHOWS : FACE_SHOWS}ms` }}
+                            data-testid={`hand-total-${hi}`}
+                          >
                             {v.total > 21 ? t.bust : !h.split && h.cards.length === 2 && v.total === 21 ? t.blackjack : t.total(v.total, v.soft && v.total < 21)}
-                          </span>
-                          <span className={styles.handBet} title={t.bet} aria-label={`${t.bet}: ${t.medals(String(h.bet))}`}>
-                            {h.bet}
                           </span>
                           {outcome && (
                             <span className={styles.outcomeTag} data-outcome={outcome}>
                               {t.outcome[outcome]}
                             </span>
                           )}
+                          {/* The stake, a stack of medals on the spot. When the hand is settled the dealer pays a win beside it, or takes it. */}
+                          <span className={styles.stakes}>
+                            <span className={styles.stake} data-outcome={outcome} role="img" title={t.bet} aria-label={`${t.bet}: ${t.medals(String(h.bet))}`}>
+                              <MedalStack count={stackHeight(h.bet)} className={styles.stakeStack} />
+                              <span className={styles.stakeCount}>{h.bet}</span>
+                            </span>
+                            {paid > 0 && (
+                              <span className={`${styles.stake} ${styles.stakePaid}`} aria-hidden="true" data-testid={`hand-paid-${hi}`}>
+                                <MedalStack count={stackHeight(paid)} className={styles.stakeStack} />
+                                <span className={styles.stakeCount}>+{paid}</span>
+                              </span>
+                            )}
+                          </span>
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div className={styles.waitingCircle}>{bet > 0 ? bet : '—'}</div>
+                  <div className={styles.waitingCircle}>
+                    {bet > 0 ? (
+                      <span className={styles.stake}>
+                        <MedalStack count={stackHeight(bet)} className={styles.stakeStack} />
+                        <span className={styles.stakeCount}>{bet}</span>
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -590,218 +692,241 @@ export const PlayTab = () => {
           </div>
           {shuffleNext && <p className={styles.cutNote}>{t.shuffleNext}</p>}
 
-          {result && (
-            <ul className={styles.resultList} data-testid="bj-results">
-              {result.hands.map((h, i) => (
-                <li key={i} data-positive={h.profit > 0 ? 'true' : undefined} data-negative={h.profit < 0 ? 'true' : undefined}>
-                  <span>
-                    {result.hands.length > 1 ? `${t.handLabel(i + 1)} · ` : ''}
-                    {t.outcome[h.outcome]}
-                  </span>
-                  <span className={styles.resultAmount}>{signed(h.profit)}</span>
-                </li>
-              ))}
-              {result.insurance && (
-                <li data-positive={result.insurance.profit > 0 ? 'true' : undefined} data-negative={result.insurance.profit < 0 ? 'true' : undefined}>
-                  <span>{t.insurance}</span>
-                  <span className={styles.resultAmount}>{signed(result.insurance.profit)}</span>
-                </li>
-              )}
-            </ul>
-          )}
+          {/* Room for one line of results is kept, so the buttons under the table do not move as a hand is settled. */}
+          <div className={styles.resultArea}>
+            {result && (
+              <ul className={styles.resultList} data-testid="bj-results">
+                {result.hands.map((h, i) => (
+                  <li key={i} data-positive={h.profit > 0 ? 'true' : undefined} data-negative={h.profit < 0 ? 'true' : undefined}>
+                    <span>
+                      {result.hands.length > 1 ? `${t.handLabel(i + 1)} · ` : ''}
+                      {t.outcome[h.outcome]}
+                    </span>
+                    <span className={styles.resultAmount}>{signed(h.profit)}</span>
+                  </li>
+                ))}
+                {result.insurance && (
+                  <li data-positive={result.insurance.profit > 0 ? 'true' : undefined} data-negative={result.insurance.profit < 0 ? 'true' : undefined}>
+                    <span>{t.insurance}</span>
+                    <span className={styles.resultAmount}>{signed(result.insurance.profit)}</span>
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
         </div>
 
-        <div className={styles.panel}>
-          <MedalCounter t={t} loaded={open} kept={bankState.kept} medals={medals} onTable={open ? onTable : null} won={won} format={fmt}>
+        {/*
+          The machine's front: the medal counter, the buttons, then the rest. On a desk it is one panel beside the
+          table. On a phone the buttons come straight under the table, as a machine's buttons sit under its screen, so
+          the cards and the buttons that play them are on the screen together; the counter follows them.
+        */}
+        <div className={styles.front}>
+          <div className={`${styles.frontPart} ${styles.counterPart}`}>
+            <MedalCounter
+              t={t}
+              loaded={open}
+              kept={bankState.kept}
+              medals={medals}
+              onTable={open ? onTable : null}
+              won={won}
+              format={fmt}
+              ledMedals={medalMeter.shown}
+            />
+            <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
+              {t.noticeLink}
+            </Link>
+          </div>
+
+          <div className={`${styles.frontPart} ${styles.buttonsPart}`} data-testid="bj-buttons">
+            {/* Out of medals: the medal center's free refill, right by the buttons it lets the player press again. */}
             {open && holdingCard && medals === 0 && !inRound && (
               <button type="button" className={styles.refill} data-testid="bj-refill" onClick={() => medalBank().refill()}>
                 {t.refill(REFILL)}
               </button>
             )}
-          </MedalCounter>
-          <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
-            {t.noticeLink}
-          </Link>
-
-          <div className={styles.betRow}>
-            <button type="button" className={styles.betCircle} onClick={addOne} disabled={!canBet || bet >= MAX_BET} aria-label={t.betAria(t.medals(String(bet)))}>
-              <span className={styles.betCircleLabel}>{t.bet}</span>
-              <span className={styles.betAmount} data-testid="bj-bet">
-                {bet}
-              </span>
-            </button>
-            <div className={styles.betButtons}>
-              <button type="button" className={styles.btn} onClick={addOne} disabled={!canBet || bet >= MAX_BET} title={t.oneBetAria} data-testid="bj-one-bet">
-                {t.oneBet}
+            <div className={styles.betRow}>
+              <button type="button" className={styles.betCircle} onClick={addOne} disabled={!canBet || bet >= MAX_BET} aria-label={t.betAria(t.medals(String(bet)))}>
+                <span className={styles.betCircleLabel}>{t.bet}</span>
+                <span className={styles.betAmount} data-testid="bj-bet">
+                  {bet}
+                </span>
               </button>
-              <button type="button" className={styles.btn} onClick={maxBet} disabled={!canBet} title={t.maxBetAria(MAX_BET)} data-testid="bj-max-bet">
-                {t.maxBet}
-              </button>
-              <button type="button" className={styles.btn} onClick={clearBet} disabled={!canBet}>
-                {t.clearBet}
-              </button>
-              <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={!canBet}>
-                {t.deal}
-              </button>
-            </div>
-          </div>
-          <p className={styles.betNote} data-testid="bj-bet-note">
-            {t.betRange(MIN_BET, MAX_BET)}
-            {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
-          </p>
-
-          {round?.phase === 'insurance' && !busy && (
-            <div className={styles.insuranceBox} data-testid="bj-insurance">
-              <span>{t.insuranceQuestion(t.medals(String(insuranceCost(round))))}</span>
-              <div className={styles.actions} style={{ marginTop: 0 }}>
-                <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard}>
-                  {t.insuranceYes}
+              <div className={styles.betButtons}>
+                <button type="button" className={styles.btn} onClick={addOne} disabled={!canBet || bet >= MAX_BET} title={t.oneBetAria} data-testid="bj-one-bet">
+                  {t.oneBet}
                 </button>
-                <button type="button" className={styles.btn} onClick={() => onInsurance(false)} disabled={!holdingCard} data-hint={showHint ? 'true' : undefined}>
-                  {t.insuranceNo}
+                <button type="button" className={styles.btn} onClick={maxBet} disabled={!canBet} title={t.maxBetAria(MAX_BET)} data-testid="bj-max-bet">
+                  {t.maxBet}
+                </button>
+                <button type="button" className={styles.btn} onClick={clearBet} disabled={!canBet}>
+                  {t.clearBet}
+                </button>
+                <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={!canBet}>
+                  {t.deal}
                 </button>
               </div>
-              {showHint && <span className={styles.muted}>{t.insuranceAdvice}</span>}
             </div>
-          )}
+            <p className={styles.betNote} data-testid="bj-bet-note">
+              {t.betRange(MIN_BET, MAX_BET)}
+              {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
+            </p>
 
-          <div className={styles.actionRow} role="group" aria-label={t.yourMove}>
-            {ACTIONS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                className={styles.actionBtn}
-                data-action={a}
-                data-hint={showHint && playing && hint === a ? 'true' : undefined}
-                onClick={() => onAction(a)}
-                disabled={!playing || !can?.[a]}
-              >
-                {t.action[a]}
-              </button>
-            ))}
-          </div>
-
-          <p className={`${styles.message} ${message?.error ? styles.messageError : ''}`} role="status" data-testid="bj-message">
-            {message?.text ?? ''}
-          </p>
-
-          <div className={styles.hintRow}>
-            <label className={styles.hintToggle}>
-              <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
-              {t.hintToggle}
-            </label>
-            {showHint && playing && hint && (
-              <span className={styles.hintText} data-testid="bj-hint">
-                {t.hintSays(t.action[hint])}
-              </span>
+            {round?.phase === 'insurance' && !busy && (
+              <div className={styles.insuranceBox} data-testid="bj-insurance">
+                <span>{t.insuranceQuestion(t.medals(String(insuranceCost(round))))}</span>
+                <div className={styles.actions} style={{ marginTop: 0 }}>
+                  <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard}>
+                    {t.insuranceYes}
+                  </button>
+                  <button type="button" className={styles.btn} onClick={() => onInsurance(false)} disabled={!holdingCard} data-hint={showHint ? 'true' : undefined}>
+                    {t.insuranceNo}
+                  </button>
+                </div>
+                {showHint && <span className={styles.muted}>{t.insuranceAdvice}</span>}
+              </div>
             )}
+
+            <div className={styles.actionRow} role="group" aria-label={t.yourMove}>
+              {ACTIONS.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  className={styles.actionBtn}
+                  data-action={a}
+                  data-hint={showHint && playing && hint === a ? 'true' : undefined}
+                  onClick={() => onAction(a)}
+                  disabled={!playing || !can?.[a]}
+                >
+                  {t.action[a]}
+                </button>
+              ))}
+            </div>
+
+            <p className={`${styles.message} ${message?.error ? styles.messageError : ''}`} role="status" data-testid="bj-message">
+              {message?.text ?? ''}
+            </p>
           </div>
 
-          <div className={styles.hintRow} style={{ marginTop: '0.4rem' }}>
-            <label className={styles.hintToggle}>
-              <input type="checkbox" checked={showCount} onChange={(e) => setShowCount(e.target.checked)} />
-              {t.countToggle}
-            </label>
-          </div>
-          {showCount && (
-            <section className={styles.countPanel} data-testid="bj-count">
-              <div className={styles.countGrid}>
-                <div>
-                  <span className={styles.statLabel}>{t.runningCount}</span>
-                  <b data-testid="bj-running-count">
-                    {running > 0 ? '+' : ''}
-                    {running}
-                  </b>
+          <div className={`${styles.frontPart} ${styles.morePart}`}>
+            <div className={styles.hintRow}>
+              <label className={styles.hintToggle}>
+                <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
+                {t.hintToggle}
+              </label>
+              {showHint && playing && hint && (
+                <span className={styles.hintText} data-testid="bj-hint">
+                  {t.hintSays(t.action[hint])}
+                </span>
+              )}
+            </div>
+
+            <div className={styles.hintRow} style={{ marginTop: '0.4rem' }}>
+              <label className={styles.hintToggle}>
+                <input type="checkbox" checked={showCount} onChange={(e) => setShowCount(e.target.checked)} />
+                {t.countToggle}
+              </label>
+            </div>
+            {showCount && (
+              <section className={styles.countPanel} data-testid="bj-count">
+                <div className={styles.countGrid}>
+                  <div>
+                    <span className={styles.statLabel}>{t.runningCount}</span>
+                    <b data-testid="bj-running-count">
+                      {running > 0 ? '+' : ''}
+                      {running}
+                    </b>
+                  </div>
+                  <div>
+                    <span className={styles.statLabel}>{t.decksLeft}</span>
+                    <b>{shownLeft === null ? DECKS.toFixed(1) : (shownLeft / 52).toFixed(1)}</b>
+                  </div>
+                  <div>
+                    <span className={styles.statLabel}>{t.trueCountLabel}</span>
+                    <b data-testid="bj-true-count">
+                      {tc > 0 ? '+' : ''}
+                      {tc.toFixed(1)}
+                    </b>
+                  </div>
                 </div>
-                <div>
-                  <span className={styles.statLabel}>{t.decksLeft}</span>
-                  <b>{shownLeft === null ? DECKS.toFixed(1) : (shownLeft / 52).toFixed(1)}</b>
-                </div>
-                <div>
-                  <span className={styles.statLabel}>{t.trueCountLabel}</span>
-                  <b data-testid="bj-true-count">
-                    {tc > 0 ? '+' : ''}
-                    {tc.toFixed(1)}
-                  </b>
-                </div>
+                <p className={styles.note}>
+                  <b>{t.countBet(spreadUnits(tc))}</b> · {t.countNote}
+                </p>
+              </section>
+            )}
+
+            {evs && playing && (
+              <section className={styles.evPanel} aria-labelledby="bj-ev-title" data-testid="bj-ev">
+                <h3 id="bj-ev-title" className={styles.evTitle}>
+                  {t.evTitle}
+                </h3>
+                <ul className={styles.evList}>
+                  {(Object.entries(evs) as [Action, number][]).map(([a, ev]) => {
+                    const clamped = Math.max(-2, Math.min(2, ev));
+                    return (
+                      <li key={a} className={styles.evItem} data-ev={a} data-best={Math.abs(ev - bestEv) < 1e-12 ? 'true' : undefined}>
+                        <span>{t.action[a]}</span>
+                        <span className={styles.evTrack} aria-hidden="true">
+                          <span
+                            className={styles.evBar}
+                            style={{
+                              left: `${50 + Math.min(0, clamped) * 25}%`,
+                              width: `${Math.abs(clamped) * 25}%`,
+                              background: ev >= 0 ? 'var(--bj-win)' : 'var(--bj-lose)',
+                            }}
+                          />
+                        </span>
+                        <span className={styles.evValue}>
+                          {ev > 0 ? '+' : ''}
+                          {ev.toFixed(3)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className={styles.note}>{t.evNote}</p>
+              </section>
+            )}
+
+            <ul className={styles.hint}>
+              {t.hint.map((h, i) => (
+                <li key={i}>{h}</li>
+              ))}
+            </ul>
+
+            <div className={styles.statsHead}>
+              <div className={styles.sectionLabel}>{t.statsTitle}</div>
+              <button type="button" className={styles.linkButton} onClick={clearRecord} disabled={!open || !holdingCard || save.stats.hands + save.stats.decisions === 0}>
+                {t.clearRecord}
+              </button>
+            </div>
+            <dl className={styles.statList} data-testid="bj-stats">
+              <div>
+                <dt>{t.hands}</dt>
+                <dd>{save.stats.hands}</dd>
               </div>
-              <p className={styles.note}>
-                <b>{t.countBet(spreadUnits(tc))}</b> · {t.countNote}
-              </p>
-            </section>
-          )}
-
-          {evs && playing && (
-            <section className={styles.evPanel} aria-labelledby="bj-ev-title" data-testid="bj-ev">
-              <h3 id="bj-ev-title" className={styles.evTitle}>
-                {t.evTitle}
-              </h3>
-              <ul className={styles.evList}>
-                {(Object.entries(evs) as [Action, number][]).map(([a, ev]) => {
-                  const clamped = Math.max(-2, Math.min(2, ev));
-                  return (
-                    <li key={a} className={styles.evItem} data-ev={a} data-best={Math.abs(ev - bestEv) < 1e-12 ? 'true' : undefined}>
-                      <span>{t.action[a]}</span>
-                      <span className={styles.evTrack} aria-hidden="true">
-                        <span
-                          className={styles.evBar}
-                          style={{
-                            left: `${50 + Math.min(0, clamped) * 25}%`,
-                            width: `${Math.abs(clamped) * 25}%`,
-                            background: ev >= 0 ? 'var(--bj-win)' : 'var(--bj-lose)',
-                          }}
-                        />
-                      </span>
-                      <span className={styles.evValue}>
-                        {ev > 0 ? '+' : ''}
-                        {ev.toFixed(3)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <p className={styles.note}>{t.evNote}</p>
-            </section>
-          )}
-
-          <ul className={styles.hint}>
-            {t.hint.map((h, i) => (
-              <li key={i}>{h}</li>
-            ))}
-          </ul>
-
-          <div className={styles.statsHead}>
-            <div className={styles.sectionLabel}>{t.statsTitle}</div>
-            <button type="button" className={styles.linkButton} onClick={clearRecord} disabled={!open || !holdingCard || save.stats.hands + save.stats.decisions === 0}>
-              {t.clearRecord}
-            </button>
+              <div>
+                <dt>{t.winsPushesLosses}</dt>
+                <dd>
+                  {save.stats.wins} / {save.stats.pushes} / {save.stats.losses}
+                </dd>
+              </div>
+              <div>
+                <dt>{t.blackjacks}</dt>
+                <dd>{save.stats.blackjacks}</dd>
+              </div>
+              <div>
+                <dt>{t.agreement}</dt>
+                <dd>{save.stats.decisions > 0 ? `${Math.round((save.stats.agreed / save.stats.decisions) * 100)}%` : '–'}</dd>
+              </div>
+              <div>
+                <dt>{t.statNet}</dt>
+                <dd className={save.stats.net > 0 ? styles.pos : save.stats.net < 0 ? styles.neg : undefined} data-testid="bj-net">
+                  {signed(save.stats.net)}
+                </dd>
+              </div>
+            </dl>
           </div>
-          <dl className={styles.statList} data-testid="bj-stats">
-            <div>
-              <dt>{t.hands}</dt>
-              <dd>{save.stats.hands}</dd>
-            </div>
-            <div>
-              <dt>{t.winsPushesLosses}</dt>
-              <dd>
-                {save.stats.wins} / {save.stats.pushes} / {save.stats.losses}
-              </dd>
-            </div>
-            <div>
-              <dt>{t.blackjacks}</dt>
-              <dd>{save.stats.blackjacks}</dd>
-            </div>
-            <div>
-              <dt>{t.agreement}</dt>
-              <dd>{save.stats.decisions > 0 ? `${Math.round((save.stats.agreed / save.stats.decisions) * 100)}%` : '–'}</dd>
-            </div>
-            <div>
-              <dt>{t.statNet}</dt>
-              <dd className={save.stats.net > 0 ? styles.pos : save.stats.net < 0 ? styles.neg : undefined} data-testid="bj-net">
-                {signed(save.stats.net)}
-              </dd>
-            </div>
-          </dl>
         </div>
       </div>
 

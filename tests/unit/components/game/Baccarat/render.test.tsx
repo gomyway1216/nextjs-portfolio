@@ -95,6 +95,15 @@ describe('PlayTab', () => {
     expect(markup).not.toContain('所持金');
   });
 
+  it('names its keys for a desk, in both languages', () => {
+    expect(render(<PlayTab />)).toContain(
+      'data-testid="baccarat-keys">Keys: Space or Enter deals · P Player · B Banker · T Tie · R rebet · U undo<',
+    );
+    expect(render(<PlayTab />, 'ja')).toContain(
+      'data-testid="baccarat-keys">キー：Space か Enter でディール・P でプレイヤー・B でバンカー・T でタイ・R で同じベット・U で取り消し<',
+    );
+  });
+
   it('writes nothing a player sees that could be taken for real money, in either language', () => {
     for (const lang of ['en', 'ja'] as const) {
       const markup = render(<Baccarat />, lang);

@@ -38,6 +38,8 @@ export interface ThreeCardPokerStrings {
   undo: string;
   clear: string;
   rebet: string;
+  /** The table's keys, on a desktop. */
+  keysHint: string;
   play: string;
   fold: string;
   dealer: string;
@@ -210,6 +212,7 @@ const en: ThreeCardPokerStrings = {
   undo: 'Undo',
   clear: 'Clear',
   rebet: 'Rebet',
+  keysHint: 'Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo',
   play: 'PLAY',
   fold: 'FOLD',
   dealer: 'Dealer',
@@ -418,6 +421,7 @@ const ja: ThreeCardPokerStrings = {
   undo: '取り消し',
   clear: 'クリア',
   rebet: '同じベット',
+  keysHint: 'キー：Space か Enter でディール・A でアンティ・P でプレイ・F でフォールド・R で同じベット・U で取り消し',
   play: 'プレイ',
   fold: 'フォールド',
   dealer: 'ディーラー',

@@ -89,6 +89,13 @@ describe('PlayTab', () => {
     expect(markup).not.toContain('Dealer plays with');
   });
 
+  it('names its keys for a desk, in both languages', () => {
+    expect(render(<PlayTab />)).toContain('data-testid="tcp-keys">Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo<');
+    expect(render(<PlayTab />, 'ja')).toContain(
+      'data-testid="tcp-keys">キー：Space か Enter でディール・A でアンティ・P でプレイ・F でフォールド・R で同じベット・U で取り消し<',
+    );
+  });
+
   it('paces the deal and the reveal, and drops every delay for reduced motion', () => {
     const deal = dealSchedule();
     expect(deal.cards).toEqual([0, 1, 2, 3, 4, 5].map((k) => k * TIMING.card));

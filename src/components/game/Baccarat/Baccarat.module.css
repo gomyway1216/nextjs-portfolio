@@ -1386,3 +1386,16 @@
     animation: none;
   }
 }
+
+/* The table's keys, on a desktop (MedalCenter/machineKeys.ts); a touch screen has none to press. */
+.keysHint {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--games-route-muted);
+}
+@media (hover: none) and (pointer: coarse) {
+  .keysHint {
+    display: none;
+  }
+}

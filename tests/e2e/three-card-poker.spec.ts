@@ -692,3 +692,61 @@ test('the last hand stays on the felt, a win paid beside its stake, and the coun
   }
   throw new Error('no winning hand in 30');
 });
+
+test('on a desk the keys play the table as its buttons do: A antes, U takes it off, Space deals, P plays, R puts the bet back, F folds', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openGame(page);
+  await expect(page.getByTestId('tcp-keys')).toHaveText('Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo');
+  // A first medal by a press, once the table holds the card; then the keys, with nothing focused. The notice that the
+  // table plays with medals is put away first: it goes at the first deal anyway, and the page would move up with it.
+  await firstAnte(page); // Ante 1
+  if (await page.getByTestId('tcp-notice-ok').isVisible()) await page.getByTestId('tcp-notice-ok').click();
+  const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await blur();
+  await page.keyboard.press('a');
+  await expect(onTable(page)).toHaveText('2');
+  await page.keyboard.press('u');
+  await expect(onTable(page)).toHaveText('1');
+  // P and F mean nothing before a hand is dealt.
+  await page.keyboard.press('p');
+  await page.keyboard.press('f');
+  await expect(onTable(page)).toHaveText('1');
+  await expect(dealButton(page)).toBeEnabled();
+
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await page.keyboard.press('Space');
+  await expect(playButton(page)).toBeEnabled({ timeout: 10_000 });
+  await expect(page.locator('[data-hand="player"] [data-rank]')).toHaveCount(3);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  const player = await cardsOf(page, 'player');
+  // Space does not play the hand: Play and Fold have keys of their own.
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(300);
+  await expect(page.locator('[data-hand="dealer"] [data-hole]')).toHaveCount(3);
+  await page.keyboard.press('p');
+  await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+  await expect(page.locator('[data-hand="dealer"] [data-rank]')).toHaveCount(3);
+  const dealer = await cardsOf(page, 'dealer');
+  const expected = WELCOME + settle({ ante: 1, pairPlus: 0 }, 'play', player, dealer).net;
+  await medalsAre(page, expected);
+
+  // R puts the Ante back, Enter deals it, F folds.
+  await page.keyboard.press('r');
+  await expect(onTable(page)).toHaveText('1');
+  await page.keyboard.press('Enter');
+  await expect(foldButton(page)).toBeEnabled({ timeout: 10_000 });
+  await page.keyboard.press('f');
+  await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+  await expect(page.locator('li[data-line="ante"]')).toHaveAttribute('data-outcome', 'lose');
+  await medalsAre(page, expected - 1);
+
+  // On the odds tab the keys are the page's again.
+  await page.getByRole('tab', { name: 'Odds' }).click();
+  await blur();
+  await page.keyboard.press('a');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  await page.getByRole('tab', { name: 'Table' }).click();
+  await expect(onTable(page)).toHaveText('0');
+  await medalsAre(page, expected - 1);
+});

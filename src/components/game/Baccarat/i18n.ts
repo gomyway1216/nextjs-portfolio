@@ -46,6 +46,8 @@ export interface BaccaratStrings {
   undo: string;
   clear: string;
   rebet: string;
+  /** The table's keys, on a desktop. */
+  keysHint: string;
   tableMode: string;
   modeName: Record<Mode, string>;
   modeLocked: string;
@@ -211,6 +213,7 @@ const en: BaccaratStrings = {
   undo: 'Undo',
   clear: 'Clear',
   rebet: 'Rebet',
+  keysHint: 'Keys: Space or Enter deals · P Player · B Banker · T Tie · R rebet · U undo',
   tableMode: 'Table',
   modeName: { commission: '5% commission', ez: 'No commission (EZ)' },
   modeLocked: 'Take your bets down to switch tables.',
@@ -414,6 +417,7 @@ const ja: BaccaratStrings = {
   undo: '取り消し',
   clear: 'クリア',
   rebet: '同じベット',
+  keysHint: 'キー：Space か Enter でディール・P でプレイヤー・B でバンカー・T でタイ・R で同じベット・U で取り消し',
   tableMode: 'テーブル',
   modeName: { commission: 'コミッション5%', ez: 'ノーコミッション（EZ）' },
   modeLocked: 'テーブルを切り替えるにはベットを外してください。',

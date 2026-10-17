@@ -46,7 +46,7 @@ export interface MyPageStrings {
   topPrize: string;
   best: string;
   last: string;
-  inARow: (count: string) => string;
+  inARow: (count: number, shown: string) => string;
   notPlayedTitle: string;
   notPlayed: string;
   play: string;
@@ -125,7 +125,7 @@ const en: MyPageStrings = {
   topPrize: 'Biggest prize',
   best: 'Best streak',
   last: 'Last played',
-  inARow: (count) => `${count} won in a row`,
+  inARow: (count, shown) => `${shown} ${count === 1 ? 'round' : 'rounds'} won in a row`,
   notPlayedTitle: 'Not played yet',
   notPlayed: 'Not played since your history began.',
   play: 'Play',
@@ -202,7 +202,7 @@ const ja: MyPageStrings = {
   topPrize: '最高配当',
   best: '最高連勝',
   last: '最後に遊んだ日',
-  inARow: (count) => `${count}連勝`,
+  inARow: (_count, shown) => `${shown}連勝`,
   notPlayedTitle: 'まだ遊んでいないマシン',
   notPlayed: '履歴が始まってから、まだ遊んでいません。',
   play: '遊ぶ',

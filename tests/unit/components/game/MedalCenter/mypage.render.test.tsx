@@ -86,7 +86,7 @@ describe('the medal center’s my page, for a player', () => {
     expect(html).toMatch(/data-testid="mypage-total-bet">48</);
     expect(html).toMatch(/data-testid="mypage-total-won">357</);
     expect(html).toMatch(/data-testid="mypage-roulette-return">700\.0%</);
-    expect(html).toMatch(/data-testid="mypage-roulette-best">1 won in a row</);
+    expect(html).toMatch(/data-testid="mypage-roulette-best">1 round won in a row</);
     expect(html).toMatch(/data-testid="mypage-medal-pusher-top">300</);
     // The pusher plays no rounds and has no streak of them.
     expect(html).not.toContain('data-testid="mypage-medal-pusher-rounds"');

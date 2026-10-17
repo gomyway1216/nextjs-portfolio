@@ -333,7 +333,7 @@ const GameCard = ({ id, path, row, t, f, name }: { id: string; path: string | nu
           {!pusher && (
             <div>
               <dt>{t.best}</dt>
-              <dd data-testid={`mypage-${id}-best`}>{row.best > 0 ? t.inARow(f.n(row.best)) : t.none}</dd>
+              <dd data-testid={`mypage-${id}-best`}>{row.best > 0 ? t.inARow(row.best, f.n(row.best)) : t.none}</dd>
             </div>
           )}
           <div>

@@ -118,7 +118,7 @@ test('lists what happened to a guest’s medals at two machines, keeps it throug
   await expect(page.getByTestId('mypage-total-bet')).toHaveText('6');
   await expect(page.getByTestId('mypage-total-won')).toHaveText('1,045');
   await expect(page.getByTestId('mypage-slot-machine-top')).toHaveText('1,000');
-  await expect(page.getByTestId('mypage-video-poker-best')).toHaveText('1 won in a row');
+  await expect(page.getByTestId('mypage-video-poker-best')).toHaveText('1 round won in a row');
   await expect(page.getByTestId('mypage-game-roulette')).toHaveAttribute('data-played', 'false');
   // It says where the history begins, and that play from before is not in it; and where it is kept.
   await expect(page.getByTestId('mypage-since')).toContainText('What was played before then is not in it.');

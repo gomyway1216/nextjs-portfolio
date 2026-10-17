@@ -9,6 +9,7 @@ import { decide, evaluate, settle, type Bets, type Card, type Decision, type Ran
 import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand, tableKey } from '../../src/components/game/ThreeCardPoker/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { arrived } from './streamedPage';
+import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 
 // Hands are random: the tests read the dealt cards off the table, settle them
 // with the engine and check the table against it. The table plays with the
@@ -615,4 +616,64 @@ test('the simulation tab plays the three strategies through the real rules, and 
   await expect(section.getByRole('button', { name: 'Run' })).toHaveCSS('color', 'rgb(4, 20, 10)');
   // Ten thousand hands, and not a medal moved.
   await medalsAre(page, WELCOME);
+});
+
+test('on a phone the cards and PLAY / FOLD are on the screen together when the player decides', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openGame(page);
+  await page.getByTestId('tcp-notice-ok').click();
+  await firstAnte(page);
+  await deal(page);
+  await bringUnderTopBar(page, '[data-hand="dealer"]');
+  const bar = await topBarBottom(page);
+  const dealer = await screenBox(page, '[data-hand="dealer"]');
+  const player = await screenBox(page, '[data-hand="player"]');
+  const fold = await screenBox(page, 'button[data-action="fold"]');
+  expect(dealer.top).toBeGreaterThanOrEqual(bar);
+  expect(fold.top).toBeGreaterThan(player.bottom);
+  expect(fold.bottom).toBeLessThanOrEqual(812);
+});
+
+test('the last hand stays on the felt, a win paid beside its stake, and the counter counts the medals back; the sound switch is kept', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await openGame(page);
+  await page.getByTestId('tcp-notice-ok').click();
+  await expect(page.getByTestId('tcp-sound')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('tcp-sound').click();
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('tcp-sound')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('tcp-counter')).toHaveAttribute('data-loaded', 'true');
+  for (let hand = 0; hand < 30; hand++) {
+    if (hand === 0) await firstAnte(page);
+    else await anteSpot(page).click();
+    const before = await medals(page);
+    await watchLed(page, '[data-testid="tcp-counter"]');
+    const player = await deal(page);
+    const decision = decide('optimal', player);
+    const dealer = await act(page, decision);
+    const result = settle({ ante: 1, pairPlus: 0 }, decision, player, dealer);
+    if (result.net <= 0) continue;
+    const ante = result.lines.find((l) => l.id === 'ante')!;
+    const bonus = result.lines.find((l) => l.id === 'anteBonus')?.profit ?? 0;
+    // The Ante keeps its stake with the medals paid beside it (its bonus with it).
+    await expect(page.getByTestId('paid-ante')).toHaveText(`+${ante.profit + bonus}`);
+    // The counter ran up through the medals that came back, ending on the medals the player holds.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="tcp-counter"]'))[0]).toBe(before + result.net);
+    const seen = await watchedLed(page);
+    const climb = seen.slice(seen.indexOf(Math.min(...seen)));
+    expect(climb[climb.length - 1]).toBe(before + result.net);
+    expect(climb.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < climb.length; i++) expect(climb[i]).toBeGreaterThan(climb[i - 1]);
+    // The WIN window ends on what came back.
+    expect((await ledNumbers(page, '[data-testid="tcp-counter"]'))[2]).toBe(result.returned);
+    // A new bet clears the last hand off the felt.
+    await anteSpot(page).click();
+    await expect(page.getByTestId('paid-ante')).toHaveCount(0);
+    expect(errors).toEqual([]);
+    return;
+  }
+  throw new Error('no winning hand in 30');
 });

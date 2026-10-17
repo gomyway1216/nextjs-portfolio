@@ -634,18 +634,28 @@ test('on a phone the cards and PLAY / FOLD are on the screen together when the p
   expect(fold.bottom).toBeLessThanOrEqual(812);
 });
 
-test('the last hand stays on the felt, a win paid beside its stake, and the counter counts the medals back; the sound switch is kept', async ({ page }) => {
+test('the last hand stays on the felt, a win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
+  // medal-machine-sound.spec.ts).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sounds: number };
+    w.__sounds = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds++;
+      return start.apply(this, args);
+    };
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number }).__sounds);
   await openGame(page);
   await page.getByTestId('tcp-notice-ok').click();
+  // The floor's sound switch: off on every visit, on with a press; the hands are played with it on.
   await expect(page.getByTestId('tcp-sound')).toHaveAttribute('aria-pressed', 'false');
   await page.getByTestId('tcp-sound').click();
-  await page.reload();
-  await arrived(page);
   await expect(page.getByTestId('tcp-sound')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('tcp-counter')).toHaveAttribute('data-loaded', 'true');
   for (let hand = 0; hand < 30; hand++) {
     if (hand === 0) await firstAnte(page);
     else await anteSpot(page).click();
@@ -675,6 +685,8 @@ test('the last hand stays on the felt, a win paid beside its stake, and the coun
     // A new bet clears the last hand off the felt.
     await anteSpot(page).click();
     await expect(page.getByTestId('paid-ante')).toHaveCount(0);
+    // Heard: the switch, the medals put down, six cards dealt, three turned, the jingle and the medals counted in.
+    expect(await heard()).toBeGreaterThanOrEqual(1 + 2 + 6 + 3 + 1 + 3);
     expect(errors).toEqual([]);
     return;
   }

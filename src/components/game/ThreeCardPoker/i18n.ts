@@ -31,9 +31,6 @@ export interface ThreeCardPokerStrings {
   /** The counter's amber windows: the bet on the felt, and what the last hand gave back. */
   betLed: string;
   winLed: string;
-  /** The sound switch, off until pressed. */
-  soundOn: string;
-  soundOff: string;
   step: string;
   stepAria: (medals: number) => string;
   deal: string;
@@ -206,8 +203,6 @@ const en: ThreeCardPokerStrings = {
   net: 'This session',
   betLed: 'BET',
   winLed: 'WIN',
-  soundOn: 'Sound: on',
-  soundOff: 'Sound: off',
   step: 'Bet per press',
   stepAria: (medals) => `Bet ${medals} ${medals === 1 ? 'medal' : 'medals'} per press`,
   deal: 'DEAL',
@@ -416,8 +411,6 @@ const ja: ThreeCardPokerStrings = {
   net: '今回の増減',
   betLed: 'ベット',
   winLed: '獲得',
-  soundOn: '音: オン',
-  soundOff: '音: オフ',
   step: '1回のベット',
   stepAria: (medals) => `1回${medals}枚ベット`,
   deal: 'ディール',

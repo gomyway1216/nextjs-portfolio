@@ -6,7 +6,8 @@ import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { NOT_MONEY } from '../MedalCenter/strings';
-import { playTableSound, unlockTableSounds, useSoundSwitch, type TableSound } from '../common/tableSounds';
+import { useMachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { useCountUp } from '../MedalCenter/countUp';
 import { FACE_STAR, MEDAL_PAINT, SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -72,9 +73,6 @@ export function revealSchedule(fast = false): { flips: number[]; paid: number } 
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-
-/** Where the sound switch is kept on this device. */
-export const SOUND_KEY = 'three-card-poker-sound';
 
 /** When a dealt card shows its face, from the start of its slide in (ms; the `tcpDeal` animation). */
 const FACE_SHOWS = 420;
@@ -240,23 +238,13 @@ export const PlayTab = () => {
   const warn = (text: string) => setMessage({ text, tone: 'warn' });
   const [showHint, setShowHint] = useState(true);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
-  const [sound, toggleSound] = useSoundSwitch(SOUND_KEY);
-  const soundOn = useRef(sound);
-  useEffect(() => {
-    soundOn.current = sound;
-  });
-  /** A sound of the table, `delay` ms from now, when the sound is on. */
-  const play = (name: TableSound, delay = 0) => {
-    if (soundOn.current) playTableSound(name, delay / 1000);
-  };
+  // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch in the felt's corner.
+  const sound = useMachineSound();
+  const { play, tick } = sound;
   // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
-  // with a clink as the digits move; the WIN window shows the whole win at once.
-  const medalMeter = useCountUp(medals.loaded ? medals.balance : null);
+  // each medal with its chirp; the WIN window shows the whole win at once.
+  const medalMeter = useCountUp(medals.loaded ? medals.balance : null, tick);
   const { pay: payMedals } = medalMeter;
-  useEffect(() => {
-    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
-    if (medalMeter.counting) play('payout');
-  }, [medalMeter.shown, medalMeter.counting]);
 
   // Refs mirror state that click handlers and timers must read synchronously.
   const betsRef = useRef<Bets>(NO_BETS);
@@ -346,7 +334,8 @@ export const PlayTab = () => {
     commitPhase('idle');
     // A fanfare as the medals run in: a bigger one for the Ante Bonus or a Pair Plus of a straight or better.
     const big = settlement.lines.some((l) => l.id === 'anteBonus' || (l.id === 'pairPlus' && l.outcome === 'win' && l.profit >= 3 * l.stake));
-    play(settlement.net > 0 ? (big ? 'big' : 'win') : settlement.net < 0 ? 'lose' : 'medal');
+    // A loss is silent, as on the machines.
+    if (settlement.net > 0) play(big ? 'big' : 'win');
   };
 
   /** Pays the decided hand on the table now, if this page holds the card: otherwise it is paid as soon as it does. */
@@ -488,8 +477,7 @@ export const PlayTab = () => {
     }
     commitBets({ ...betsRef.current, [spot]: on + add });
     undoStack.current.push({ spot, amount: add });
-    if (soundOn.current) void unlockTableSounds();
-    play('medal');
+    play('chip');
     if (add < amount) warn(t.spotFull(SPOT_MAX));
     else setMessage(null);
     return true;
@@ -545,8 +533,7 @@ export const PlayTab = () => {
     setMessage(null);
     clearTimers();
     const { cards, ready: canAct } = dealSchedule(prefersReducedMotion());
-    play('medal');
-    cards.forEach((ms) => play('card', ms));
+    cards.forEach((ms) => play('card', ms / 1000));
     cards.forEach((ms, k) => later(ms, () => patchRound(id, (r) => ({ dealt: Math.max(r.dealt, k + 1) }))));
     later(canAct, () => {
       if (roundRef.current?.id !== id) return;
@@ -570,8 +557,8 @@ export const PlayTab = () => {
     commitRound({ ...r, decision });
     setMessage(null);
     const { flips, paid } = revealSchedule(prefersReducedMotion());
-    if (decision === 'play') play('medal');
-    flips.forEach((ms) => play('flip', ms));
+    if (decision === 'play') play('chip');
+    flips.forEach((ms) => play('card', ms / 1000));
     flips.forEach((ms, k) => later(ms, () => patchRound(r.id, (cur) => ({ revealed: Math.max(cur.revealed, k + 1) }))));
     later(paid, payNow);
   };
@@ -721,9 +708,7 @@ export const PlayTab = () => {
               <span className={styles.shoeCards} />
             </div>
             {/* The sound switch sits in the felt's free corner, across from the shoe. */}
-            <button type="button" className={styles.soundToggle} aria-pressed={sound} onClick={toggleSound} data-testid="tcp-sound">
-              {sound ? t.soundOn : t.soundOff}
-            </button>
+            <SoundSwitch control={sound} language={language} className={styles.soundToggle} testId="tcp-sound" />
 
             <div
               className={styles.area}

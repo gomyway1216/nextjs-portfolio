@@ -448,9 +448,13 @@ test('under reduced motion a win is on the meters at once', async ({ page }) => 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openSlots(page);
   await force(page);
-  await spin(page);
+  // Under reduced motion the reels stop 250 ms after the lever, too soon to be sure of catching them turning on a busy
+  // machine, so the lever is pulled without `spin`, which waits to see them turn; the medals say the spin was made.
+  await expect(spinButton(page)).toBeEnabled({ timeout: 20_000 });
+  await spinButton(page).click();
   await unforce(page);
-  await settledLine(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + 1000));
+  expect(await settledLine(page)).toEqual(['seven', 'seven', 'seven']);
   await expect(page.getByTestId('slot-medals-led')).toHaveAttribute('data-shown', String(WELCOME - 1 + 1000), { timeout: 500 });
   await expect(page.getByTestId('slot-win-led')).toHaveAttribute('data-shown', '1000');
 });

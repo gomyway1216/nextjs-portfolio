@@ -213,3 +213,47 @@ test('every bet on the felt is where it shows, at a phone’s width (upright) an
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 });
+
+test('the wheel, wherever it has come to rest, never covers the tabs or anything else a player presses', async ({ page }) => {
+  for (const [width, height] of [
+    [1280, 720],
+    [375, 812],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await openRoulette(page);
+    // The wheel's head is a square picture turned to where the wheel stopped, and its corners reach out past the round
+    // wheel. Turned to every whole degree, nothing a player presses may have the wheel over its centre (on main the
+    // head covered "Martingale sim" at 31–33° and "House edge" at 62°, every quarter turn, at 1280 × 720).
+    const covered = await page.evaluate(() => {
+      const head = document.querySelector<SVGElement>('[class*="wheelHead"]')!;
+      const presses = [...document.querySelectorAll<HTMLElement>('button, [role="tab"]')].filter((el) => {
+        const box = el.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && !el.closest('[hidden], header, nav, footer');
+      });
+      const found = new Set<string>();
+      for (const scroll of [0, 220]) {
+        window.scrollTo({ top: scroll, behavior: 'instant' });
+        for (let turn = 0; turn < 360; turn += 1) {
+          head.style.transform = `rotate(${turn}deg)`;
+          for (const el of presses) {
+            const box = el.getBoundingClientRect();
+            const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+            if (y < 0 || y > window.innerHeight) continue;
+            const top = document.elementFromPoint(x, y);
+            if (top && !el.contains(top) && top.closest('[class*="wheel"]')) found.add(`${el.getAttribute('aria-label') ?? el.textContent?.trim()} at ${turn}°`);
+          }
+        }
+      }
+      return [...found];
+    });
+    expect(covered).toEqual([]);
+    // And the tab answers a real click with the wheel at rest where it used to cover it.
+    await page.evaluate(() => {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.querySelector<SVGElement>('[class*="wheelHead"]')!.style.transform = 'rotate(32deg)';
+    });
+    await page.getByRole('tab', { name: 'Martingale sim' }).click({ timeout: 5_000 });
+    await expect(page.getByRole('tab', { name: 'Martingale sim' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Play' }).click({ timeout: 5_000 });
+  }
+});

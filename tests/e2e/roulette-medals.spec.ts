@@ -295,3 +295,36 @@ test('the medal counter and the note that medals are not money, at a phone’s w
   await expect(page.getByRole('radiogroup', { name: '1回のベット枚数' })).toBeVisible();
   expect(await sideways(page)).toBeLessThanOrEqual(375);
 });
+
+test('the WIN counter shows what a spin won, and the win runs into the medals on the counter', async ({ page }) => {
+  await openRoulette(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
+  await coverTheWheel(page);
+  // Zero comes up: the medal on it wins 36 (35 and the medal back).
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.5 / 37;
+  });
+  await spinButton(page).click();
+  await page.evaluate(() => {
+    Math.random = (window as unknown as { __random: () => number }).__random;
+  });
+  // While the ball rolls the WIN counter is at 0.
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
+  expect(await settledResult(page)).toBe(0);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
+  await expect(page.getByTestId('roulette-win')).toHaveText('Won on the last spin: 36 medals');
+  // The medals are the player's at once; their LEDs count up to them.
+  expect(await shownMedals(page)).toBe(WELCOME - 3 + 36);
+  const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
+  const early = await led();
+  expect(early).toBeGreaterThanOrEqual(WELCOME - 3);
+  expect(early).toBeLessThan(WELCOME - 3 + 36);
+  await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + 36);
+  // A bet put on the felt (or taken back) is on the counter at once.
+  await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
+  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36 - 1);
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36);
+});

@@ -319,6 +319,30 @@ test('a bet comes out of your medals and a win goes back in, and the medal cente
   await expect(page.getByTestId('vp-medals')).toHaveText('140');
 });
 
+test('a win runs into the medals on the counter while the WIN meter shows it whole, and DEAL ends the count', async ({ page }) => {
+  await openVideoPoker(page);
+  await dealFullHouse(page);
+  await holdAll(page);
+  await drawButton(page).click();
+  await expect(page.getByTestId('vp-win')).toHaveText('45');
+  // The medals are the player's at once (in type for a screen reader); the counter's LEDs run up to them.
+  expect(await medals(page)).toBe(WELCOME - 5 + 45);
+  const led = () => page.getByTestId('vp-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
+  const early = await led();
+  expect(early).toBeGreaterThanOrEqual(WELCOME - 5);
+  expect(early).toBeLessThan(WELCOME - 5 + 45);
+  await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 5 + 45);
+
+  // Another full house; DEAL pressed while it runs in shows the medals less the next bet at once.
+  await dealFullHouse(page);
+  await holdAll(page);
+  await drawButton(page).click();
+  expect(await led()).toBeLessThan(WELCOME - 10 + 90);
+  await dealButton(page).click();
+  await expect.poll(led, { timeout: 1_000 }).toBe(WELCOME - 15 + 90);
+  expect(await medals(page)).toBe(WELCOME - 15 + 90);
+});
+
 test('a hand dealt before a reload is there after it: the same cards, no second bet, and its win once', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openVideoPoker(page);

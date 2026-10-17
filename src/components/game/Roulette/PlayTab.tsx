@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
+import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
@@ -178,6 +179,9 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
   const totalWagered = useMemo(() => sumOf(bets), [bets]);
   // The medals not on the felt: while the ball rolls, the bets on the felt have been taken out of them already.
   const medalsShown = mine ? Math.max(0, bankState.balance - (spinning ? 0 : totalWagered)) : null;
+  // On the counter's LEDs a win runs into the medals, as a medal machine pays it (countUp.ts).
+  const medalMeter = useCountUp(medalsShown);
+  const { pay: payMedals } = medalMeter;
 
   // Delta-aware placement + undo. betsRef mirrors the bets state synchronously
   // so rapid consecutive clicks (before React commits) validate against the
@@ -271,6 +275,8 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     if (!spun) return;
     inFlight.current = null;
     if (!spun.void) {
+      // What it won runs into the medals on the counter (paid now, or as the card went for a moment).
+      if (spun.record.won > 0) payMedals();
       if (!spun.paid) table.current?.settle(spun);
       const { record } = spun;
       if (!spun.boarded) resultsStore.record(record.result);
@@ -288,7 +294,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     setFelt({});
     spinningRef.current = false;
     setSpinning(false);
-  }, [setFelt]);
+  }, [setFelt, payMedals]);
 
   /** The medals have been reset at the medal center: the table starts over, and so does this device's copy of it. */
   const startOver = useCallback(
@@ -492,7 +498,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
 
       {/* ---- Right column: the medals, the bet per tap, the felt, actions ---- */}
       <div className={styles.panel}>
-        <MedalMeter medals={medalsShown} bet={totalWagered} t={t}>
+        <MedalMeter medals={medalsShown} medalsShown={medalMeter.shown} bet={totalWagered} win={outcome && !spinning ? outcome.won : 0} t={t}>
           {outOfMedals && (
             <button type="button" className={styles.refill} data-testid="roulette-refill" onClick={() => medalBank().refill()}>
               {t.refill(REFILL)}

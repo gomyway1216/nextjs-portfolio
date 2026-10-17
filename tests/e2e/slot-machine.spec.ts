@@ -365,3 +365,53 @@ test('the slot machine is localized', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'レバーを引いて回す' })).toBeVisible();
   await expect(page.getByTestId('slot-center')).toHaveText('← メダルゲームセンター');
 });
+
+/** What an LED meter shows (its `data-shown`), as a number. */
+const led = (page: Page, id: string) => page.getByTestId(id).evaluate((el) => Number((el as HTMLElement).dataset.shown));
+
+test('a win runs into the medals on the meters, the WIN meter counting up beside them, and the next spin ends the count', async ({ page }) => {
+  await openSlots(page);
+  // A jackpot at one medal: 1,000 medals.
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  // The medals are the player's at once (and in type for a screen reader); the LEDs are still counting.
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + 1000));
+  const early = { medals: await led(page, 'slot-medals-led'), win: await led(page, 'slot-win-led') };
+  expect(early.medals).toBeGreaterThanOrEqual(WELCOME - 1);
+  expect(early.medals).toBeLessThan(WELCOME - 1 + 1000);
+  expect(early.win).toBeLessThan(1000);
+  await page.waitForTimeout(400);
+  expect(await led(page, 'slot-medals-led')).toBeGreaterThan(early.medals);
+  // They end exactly on what the player has and on the win, in no more than the longest count.
+  await expect.poll(() => led(page, 'slot-medals-led'), { timeout: 4_000 }).toBe(WELCOME - 1 + 1000);
+  expect(await led(page, 'slot-win-led')).toBe(1000);
+
+  // The next jackpot's count is ended by the spin after it: its bet takes a medal and the meter shows the rest at once.
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  expect(await led(page, 'slot-medals-led')).toBeLessThan(WELCOME - 2 + 2000);
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.999;
+  });
+  await spinButton(page).click();
+  await unforce(page);
+  await expect.poll(() => led(page, 'slot-medals-led'), { timeout: 1_000 }).toBe(WELCOME - 3 + 2000);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 3 + 2000));
+});
+
+test('under reduced motion a win is on the meters at once', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  await expect(page.getByTestId('slot-medals-led')).toHaveAttribute('data-shown', String(WELCOME - 1 + 1000), { timeout: 500 });
+  await expect(page.getByTestId('slot-win-led')).toHaveAttribute('data-shown', '1000');
+});

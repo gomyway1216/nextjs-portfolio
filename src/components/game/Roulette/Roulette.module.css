@@ -493,6 +493,8 @@
    fixed palette that reads the same in the light and the dark theme; every text colour on it is at least 4.5:1 on
    the plate (gold #ffd65c and lilac #d9d2f5 on #1c1147 are over 10:1). */
 .meter {
+  /* The counters sit in one row where the plate is wide, and the medals on a row of their own where it is narrow. */
+  container: meter / inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -530,6 +532,28 @@
 }
 .meterBet {
   flex: 0 1 auto;
+}
+@container meter (max-width: 520px) {
+  .meterRow {
+    flex-wrap: wrap;
+    row-gap: 0.55rem;
+  }
+  /* The medals beside the medal on the first row; BET and WIN share the second. */
+  .meterMain {
+    flex: 1 1 calc(100% - 34px - 0.6rem);
+  }
+  .meterBet {
+    flex: 1 1 0;
+  }
+}
+/* The WIN counter lights up while it shows a win. */
+.meterWon .meterLed > span {
+  box-shadow:
+    0 0 0 1px #05040b,
+    0 0 0 2.5px #fde047,
+    0 0 0 3.5px #262838,
+    0 0 14px rgba(253, 224, 71, 0.55),
+    inset 0 2px 5px rgba(0, 0, 0, 0.9);
 }
 .meterLabel {
   font-size: 0.72rem;

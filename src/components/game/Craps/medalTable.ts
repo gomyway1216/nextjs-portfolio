@@ -52,6 +52,7 @@
  */
 
 import type { Move } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import {
   BET_IDS,
   LAY_ODDS,
@@ -818,6 +819,8 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         last: seed === undefined ? { point: before.point, bets: before.bets, dice } : { point: before.point, bets: before.bets, dice, seed: seed >>> 0 },
       };
       if (!giveBack(before, next, resolution.returned)) return fail('notKept');
+      // The medal floor hears of what the roll gave back, once, as it is given.
+      if (resolution.returned > 0) floorReport(CRAPS_GAME, { won: resolution.returned, prize: { medals: resolution.returned } });
       return { ok: true, value: { resolution, before } };
     },
   };

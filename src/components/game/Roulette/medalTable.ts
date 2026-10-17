@@ -60,6 +60,7 @@
  */
 
 import type { Move } from '../MedalCenter/bank';
+import { floorReport } from '../MedalCenter/floor/reporter';
 import { payoutMultiplier, type Bet } from './engine';
 
 /** The game's name at the medal center: its seat, and its restarts after a reset. */
@@ -264,6 +265,10 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
 
   /** A move of a spin's medals, under its receipt. */
   const move = (record: SpinRecord, step: string, medals: number) => bank.apply({ game: ROULETTE_GAME, round: record.id, step, medals, era: record.era });
+  /** A spin's winnings, in under their receipt; the medal floor hears of them once, as they go in. */
+  const payWinnings = (record: SpinRecord) => {
+    if (move(record, PAY_STEP, record.won) === 'applied') floorReport(ROULETTE_GAME, { won: record.won, prize: { medals: record.won } });
+  };
   /** Whether a spin's stake went in: the bank holds its receipt until the spin is paid. A spin from before receipts is taken at its word. */
   const stakeIn = (record: SpinRecord): boolean => !record.receipts || bank.applied({ game: ROULETTE_GAME, round: record.id, step: STAKE_STEP });
 
@@ -378,7 +383,7 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       // Marked paid under receipts whichever way it was bet: a spin bet before receipts has its winnings checked for too.
       if (!write(key, serializeSpin({ ...record, paid: true, receipts: true }))) remove(key);
       staked.paid = true;
-      if (record.won > 0) move(record, PAY_STEP, record.won);
+      if (record.won > 0) payWinnings(record);
       return 'paid';
     },
 
@@ -395,7 +400,7 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       // Marked paid, and the page died before its winnings went in: they go in now, once.
       const kept = typeof text === 'string' ? parseSpin(text) : null;
       if (kept && kept.paid && kept.receipts && kept.won > 0 && current(kept) && !bank.applied({ game: ROULETTE_GAME, round: kept.id, step: PAY_STEP })) {
-        move(kept, PAY_STEP, kept.won);
+        payWinnings(kept);
       }
       return unfinished();
     },

@@ -100,8 +100,11 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   }),
   // A Dragon 7 with both pairs on the EZ table: 100 pushed + 20 × 41 + 2 × 20 × 12 = 1,400.
   baccarat: rule(1_400, 6_000, 200),
-  // Aces on the come-out with everything that pays on it: 100 + 150 + 400 + 1,550 = 2,200.
-  craps: rule(2_200, 6_000, 300),
+  // A seven on the come-out against the fullest table: the Pass Line 100, Any Seven 250, a Don't Come bet with its 6x
+  // lay on every number 2 × (550 + 600 + 650) = 3,600, and the odds behind a Come bet on every number, off on the
+  // come-out and given back, 2 × (150 + 200 + 250) = 1,200: 5,150. (Aces on the come-out, the most before Come and
+  // Don't Come: 2,200.)
+  craps: rule(5_150, 6_000, 300),
   // A straight flush against a dealer who qualifies: 20 + 20 + 50 + 410 = 500.
   'three-card-poker': rule(500, 900, 100, {
     'straight-flush': { min: 1, max: 500, feed: true },

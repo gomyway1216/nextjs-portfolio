@@ -233,9 +233,10 @@ test('the last coup stays on the felt, the win paid beside its stake, and the co
     await watchLed(page, '[data-testid="baccarat-counter"]');
     await dealAndSettle(page);
     const hand = await handOnTable(page);
-    if (hand.winner === 'tie') continue;
     const { returned, results } = medalsBack({ player: 5, banker: 5 }, hand, 'ez');
-    const won = results.find((r) => r.outcome === 'win')!;
+    // A tie pushes both; a Banker win on a three-card 7 pushes the Banker and loses the Player: no win to see.
+    const won = results.find((r) => r.outcome === 'win');
+    if (!won) continue;
     // The winning spot keeps its stake with the medals paid beside it; the losing one is cleared.
     await expect(page.getByTestId(`paid-${won.id}`)).toHaveText(`+${won.profit}`);
     await expect(page.getByTestId(`paid-${won.id === 'player' ? 'banker' : 'player'}`)).toHaveCount(0);
@@ -255,5 +256,5 @@ test('the last coup stays on the felt, the win paid beside its stake, and the co
     expect(errors).toEqual([]);
     return;
   }
-  throw new Error('twelve ties in a row');
+  throw new Error('no bet won in twelve coups');
 });

@@ -37,6 +37,8 @@ export interface VideoPokerStrings {
   net: string;
   betOne: string;
   betMax: string;
+  /** The machine's keys, on a desktop. */
+  keysHint: string;
   deal: string;
   draw: string;
   hold: string;
@@ -181,6 +183,7 @@ const en: VideoPokerStrings = {
   win: 'Win',
   net: 'Net medals',
   betOne: 'Bet one',
+  keysHint: 'Keys: 1–5 hold a card · Space or Enter deals and draws · B bet one · M bet max',
   betMax: 'Bet max',
   deal: 'DEAL',
   draw: 'DRAW',
@@ -344,6 +347,7 @@ const ja: VideoPokerStrings = {
   win: '獲得',
   net: 'メダル増減',
   betOne: '1枚追加',
+  keysHint: 'キー：1〜5 でホールド・Space か Enter でディール／ドロー・B で1枚追加・M でマックスベット',
   betMax: 'マックスベット',
   deal: 'ディール',
   draw: 'ドロー',

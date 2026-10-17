@@ -7,6 +7,7 @@ import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { PAY_RULES, analyzeMachine, isJackpotNearMiss, resolveSpin, spinReels, winningReels, type SpinResult, type Stops } from './engine';
@@ -75,9 +76,11 @@ interface OnReels {
 
 export interface PlayTabProps {
   player?: SlotPlayer;
+  /** Whether the machine's tab is the one shown: its keys work only then. */
+  active?: boolean;
 }
 
-export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
+export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -275,6 +278,18 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const ready = medals.loaded && medals.card === 'here' && (!player.settled || medals.owner === player.uid);
   const canSpin = ready && !spinning && medals.balance >= bet;
   const autoRunning = autoLeft > 0;
+
+  // On a desktop: Space or Enter pulls the lever, 1 2 3 choose the bet (machineKeys.ts).
+  useMachineKeys(active, (key) => {
+    if (key === ' ' || key === 'Enter') {
+      if (canSpin && !autoRunning) doSpin();
+      return true;
+    }
+    const value = BET_OPTIONS.find((b) => String(b) === key);
+    if (value === undefined) return false;
+    if (!spinning && !autoRunning) chooseBet(value);
+    return true;
+  });
   const lineSymbols = last ? last.line.map((s) => t.symbolName[s]) : null;
   const observed = stats.wagered > 0 ? stats.paid / stats.wagered : null;
   const outOfMedals = ready && !spinning && medals.balance === 0;
@@ -409,6 +424,10 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
             {t.refill(REFILL)}
           </button>
         )}
+
+        <p className={styles.keysHint} data-testid="slot-keys">
+          {t.keysHint}
+        </p>
 
         <div className={styles.medalNotes}>
           <p data-testid="slot-not-money">{t.notMoney}</p>

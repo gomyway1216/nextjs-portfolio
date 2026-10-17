@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
@@ -112,7 +113,7 @@ const CounterMedal = () => (
  * (medals.ts says how a bet is taken and a win put back, once each), while
  * this page holds the member's card.
  */
-export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = {}) => {
+export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?: SeatedFor; active?: boolean } = {}) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -428,6 +429,28 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
               : { text: t.resultLose, tone: 'idle' };
   const canChange = phase !== 'dealt' && !busy;
   const net = stats.paid - stats.wagered;
+
+  // On a desktop: 1–5 hold the cards, Space or Enter deals and draws, B bets one more, M bets the most and deals.
+  useMachineKeys(active, (key) => {
+    if (key === ' ' || key === 'Enter') {
+      if (phase === 'dealt') drawNow();
+      else startDeal(coins);
+      return true;
+    }
+    if (/^[1-5]$/.test(key)) {
+      if (phase === 'dealt' && !busy && playable) toggle(Number(key) - 1);
+      return true;
+    }
+    if (key === 'b') {
+      if (canChange && playable) betOne();
+      return true;
+    }
+    if (key === 'm') {
+      if (canChange && playable) startDeal(MAX_COINS);
+      return true;
+    }
+    return false;
+  });
   const refillDue = bankState.loaded && playable && bankState.balance === 0 && phase !== 'dealt';
 
   const describe = (h: HoldValue) => {
@@ -580,6 +603,9 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
             {t.refill(REFILL)}
           </button>
         )}
+        <p className={styles.keysHint} data-testid="vp-keys">
+          {t.keysHint}
+        </p>
 
         <div className={styles.settingsRow}>
           <label htmlFor="vp-paytable-select">{t.payTableLabel}</label>

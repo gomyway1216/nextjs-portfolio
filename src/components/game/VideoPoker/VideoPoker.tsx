@@ -112,7 +112,7 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
             never drops a hand in progress. */}
         <div role="tabpanel" id="vp-panel-play" aria-labelledby="vp-tab-play" hidden={tab !== 'play'}>
-          <PlayTab seatedFor={{ uid: bankStore ? uid : null, settled: bankStore ? settled : true }} />
+          <PlayTab seatedFor={{ uid: bankStore ? uid : null, settled: bankStore ? settled : true }} active={tab === 'play'} />
         </div>
         <div role="tabpanel" id="vp-panel-odds" aria-labelledby="vp-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

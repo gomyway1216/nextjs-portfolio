@@ -223,8 +223,11 @@ test('a win is paid beside the stake and counted up on the counter, with the sou
   await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'true');
 
   for (let round = 0; round < 25; round++) {
-    await watchLed(page, '[data-testid="bj-counter"]');
     const before = await medalsShown(page);
+    // The last round's win (a split one, passed over below) has been counted out, so the watch sees this round's
+    // count alone: the next deal cuts a count short, and the digits jumping up to the medals is not this count.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="bj-counter"]'))[0]).toBe(before);
+    await watchLed(page, '[data-testid="bj-counter"]');
     await playByHint(page);
     const hands = await page.locator('[data-hand]').count();
     const net = await shownNet(page);

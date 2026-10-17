@@ -206,7 +206,7 @@ export function paintFoot(): HTMLCanvasElement {
   gold.addColorStop(1, '#6e4706');
   g.fillStyle = gold;
   g.fillRect(0, 0, W, shelf);
-  const last = HOLD_LAMPS.first + HOLD_LAMPS.step * 7;
+  const last = HOLD_LAMPS.first + HOLD_LAMPS.step * (HOLD_LAMPS.count - 1);
   const bed = { left: HOLD_LAMPS.label - 6.2, right: last + HOLD_LAMPS.radius + 1.3 };
   g.fillStyle = '#12082e';
   g.fillRect(bed.left, 0.45, bed.right - bed.left, shelf - 0.9);
@@ -219,7 +219,7 @@ export function paintFoot(): HTMLCanvasElement {
   g.fillStyle = '#ffe98a';
   g.fillText('HOLD', HOLD_LAMPS.label, shelf / 2 + 0.1);
   // A socket for each lamp.
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < HOLD_LAMPS.count; i++) {
     g.fillStyle = '#05020f';
     g.beginPath();
     g.arc(HOLD_LAMPS.first + HOLD_LAMPS.step * i, shelf / 2, HOLD_LAMPS.radius + 0.28, 0, TAU);

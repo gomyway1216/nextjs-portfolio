@@ -39,8 +39,15 @@ import {
 } from './lottery';
 
 export const START_CREDITS = 100;
-/** Spins the machine holds while the screen is busy; a chucker hit beyond that is wasted. */
-export const MAX_STOCK = 8;
+/**
+ * Spins the machine holds while the screen is busy; a medal through a START
+ * pocket beyond that starts none. Ten, as the big station pushers hold:
+ * Konami's GRAND CROSS and SEGA's GALILEO FACTORY each hold ten spins, and
+ * each does something for a medal that finds them all held, as this one
+ * does (it turns a held spin gold). It held eight until the screen learnt to
+ * hurry through a deep hold.
+ */
+export const MAX_STOCK = 10;
 /**
  * Prize balls lying on the field when a machine is switched on: one, on the
  * lower table.
@@ -59,8 +66,9 @@ export const START_BALLS = 1;
 /** Jewels lying on the field when a machine is switched on: one, near the front. It is worth a medal or so, and it is the first thing a new player sees collected. */
 export const START_JEWELS = 1;
 /**
- * How long things take on the screen, in seconds: a spin, a quicker one when
- * spins are queueing up, the extra suspense of a reach and what a long reach
+ * How long things take on the screen, in seconds, when it is not hurrying
+ * through a deep hold (`HURRY`): a spin, a quicker one when a couple of spins
+ * are queueing up, the extra suspense of a reach and what a long reach
  * adds to it, how long a winning line stays up, the die and each hop of the
  * piece, the time to choose a chest and for it to open, one turn of the
  * roulette and the pause before the next, the ball's time in the top bowl,
@@ -94,6 +102,67 @@ export const TIMING = {
 /** The seconds the ball spends in each bowl, the top one first. */
 export const BOWL_TIMES: readonly number[] = [TIMING.bowl, TIMING.bowlMiddle, TIMING.bowlLast];
 
+/**
+ * How hard the screen hurries: from how many spins are held behind the one it
+ * starts, the seconds its reels run before any reach, the share of its usual
+ * time a reach takes, and the share of the usual time its winning line, and
+ * the board or the chests that line leads to, take.
+ */
+export interface Hurry {
+  from: number;
+  reels: number;
+  reach: number;
+  pace: number;
+}
+
+/**
+ * The screen's hurry, by how deep the hold is. A real slot screen plays held
+ * spins faster the more of them there are (高速消化): a pachinko machine
+ * shortens its losing spins when its hold is deep, and a station pusher's
+ * hold of ten is seldom full while it is played steadily. Its first two steps
+ * are the spin and the quicker spin this screen always had; the deeper ones
+ * cut the reels, a reach, a winning line and its game short. The reels never
+ * run for less than a quarter of a second, so each spin's digits can still
+ * be read as they stop. What a spin is drawn from and what it pays are the
+ * same at any hurry, the time to pick a chest is the player's and never
+ * hurries, and a ball's roulette and the bowls never hurry either.
+ *
+ * It was tuned with scripts/medal-pusher-tune.ts so that steady fast feeding
+ * loses little more than slow feeding does to the screen: before it, at two
+ * medals a second one medal in five through a START pocket found a hold of
+ * eight full, and holding both buttons returned about 69 of every 100.
+ */
+export const HURRY: readonly Hurry[] = [
+  { from: 0, reels: TIMING.spin, reach: 1, pace: 1 },
+  { from: 2, reels: TIMING.quickSpin, reach: 1, pace: 1 },
+  { from: 3, reels: 0.5, reach: 0.6, pace: 0.55 },
+  { from: 5, reels: 0.3, reach: 0.4, pace: 0.4 },
+  { from: 7, reels: 0.25, reach: 0.25, pace: 0.25 },
+];
+
+/** The hurry the screen plays at with `held` spins held behind what it starts. */
+export function hurryFor(held: number): number {
+  let level = 0;
+  for (let at = 1; at < HURRY.length; at++) if (held >= HURRY[at].from) level = at;
+  return level;
+}
+
+/** The seconds a spin's reels run before any reach, at hurry `hurry`: a gold spin's are quicker, but never slower than the hurry's own. */
+export const reelTime = (hurry: number, gold: boolean): number => (gold ? Math.min(TIMING.chanceSpin, HURRY[hurry].reels) : HURRY[hurry].reels);
+
+/** How long a winning line stays up at hurry `hurry`. */
+export const celebrateTime = (hurry: number): number => TIMING.celebrate * HURRY[hurry].pace;
+
+/** How long a prize from the board or a chest stays up at hurry `hurry`. */
+export const prizeTime = (hurry: number): number => TIMING.prize * HURRY[hurry].pace;
+
+/** How long a chest takes to open at hurry `hurry`. */
+export const openTime = (hurry: number): number => TIMING.open * HURRY[hurry].pace;
+
+/** How long the die tumbles, and each hop of the piece, at hurry `hurry`. */
+export const diceTime = (hurry: number): number => TIMING.dice * HURRY[hurry].pace;
+export const hopTime = (hurry: number): number => TIMING.hop * HURRY[hurry].pace;
+
 export interface ActiveSpin {
   result: SpinResult;
   elapsed: number;
@@ -101,6 +170,8 @@ export interface ActiveSpin {
   duration: number;
   /** Whether the reels have stopped and the line has been counted. */
   done: boolean;
+  /** How hard the screen hurries with it: an index into HURRY, settled when it starts. */
+  hurry: number;
 }
 
 /** A roll on the sugoroku board: the die, then the piece hopping square by square. */
@@ -113,6 +184,8 @@ export interface ActiveSugoroku {
   duration: number;
   /** Medals it paid; −1 while the piece is still on its way. */
   payout: number;
+  /** How hard the screen hurries with it: an index into HURRY, settled when the roll starts. */
+  hurry: number;
 }
 
 /** A choice of three chests: one is picked, by the player or by the clock, and opens. */
@@ -131,6 +204,8 @@ export interface ActiveChest {
   told: boolean;
   /** Medals it paid; −1 until the chest has opened. */
   payout: number;
+  /** How hard the screen hurries with it once one is picked: an index into HURRY, settled when the chests come up. The time to choose is the player's, and does not hurry. */
+  hurry: number;
 }
 
 export type ActiveBonus = ActiveSugoroku | ActiveChest;
@@ -456,11 +531,12 @@ function collectJewel(session: Session, events?: SessionEvent[]): void {
   }
 }
 
-/** The seconds a roll takes from the die to the piece landing. */
-export const sugorokuDuration = (roll: number): number => TIMING.dice + roll * TIMING.hop;
+/** The seconds a roll takes from the die to the piece landing, at hurry `hurry`. */
+export const sugorokuDuration = (roll: number, hurry = 0): number => (TIMING.dice + roll * TIMING.hop) * HURRY[hurry].pace;
 
 /** The seconds of suspense a spin's reach adds before the centre reel stops: none, the usual, or the long one. */
-export const reachTime = (result: SpinResult): number => (result.reach ? TIMING.reach + (result.reachKind === 'long' ? TIMING.longReach : 0) : 0);
+export const reachTime = (result: SpinResult, hurry = 0): number =>
+  result.reach ? (TIMING.reach + (result.reachKind === 'long' ? TIMING.longReach : 0)) * HURRY[hurry].reach : 0;
 
 function advanceSugoroku(session: Session, bonus: ActiveSugoroku, dt: number, events?: SessionEvent[]): void {
   bonus.elapsed += dt;
@@ -472,7 +548,7 @@ function advanceSugoroku(session: Session, bonus: ActiveSugoroku, dt: number, ev
     pay(session, bonus.payout, false);
     events?.push({ type: 'sugorokuEnd', square: session.square, payout: bonus.payout, fever });
   }
-  if (bonus.elapsed >= bonus.duration + TIMING.prize) {
+  if (bonus.elapsed >= bonus.duration + prizeTime(bonus.hurry)) {
     session.bonus = null;
     session.chance = false;
   }
@@ -489,12 +565,12 @@ function advanceChest(session: Session, bonus: ActiveChest, dt: number, events?:
     bonus.told = true;
     events?.push({ type: 'chestPicked', chest: bonus.picked });
   }
-  if (bonus.payout < 0 && bonus.elapsed >= bonus.pickedAt + TIMING.open) {
+  if (bonus.payout < 0 && bonus.elapsed >= bonus.pickedAt + openTime(bonus.hurry)) {
     bonus.payout = bonus.prizes[bonus.picked] * (session.chance ? CHANCE.multiplier : 1);
     pay(session, bonus.payout, bonus.payout >= CHEST_TOWERS_FROM);
     events?.push({ type: 'chestEnd', chest: bonus.picked, payout: bonus.payout });
   }
-  if (bonus.payout >= 0 && bonus.elapsed >= bonus.pickedAt + TIMING.open + TIMING.prize) {
+  if (bonus.payout >= 0 && bonus.elapsed >= bonus.pickedAt + openTime(bonus.hurry) + prizeTime(bonus.hurry)) {
     session.bonus = null;
     session.chance = false;
   }
@@ -760,7 +836,7 @@ function run(session: Session, dt: number, still: boolean, events?: SessionEvent
       session.tiers[tier] += 1;
       events?.push({ type: 'spinEnd', result: spin.result });
     }
-    if (spin.elapsed < spin.duration + (tier === 'miss' ? 0 : TIMING.celebrate)) return;
+    if (spin.elapsed < spin.duration + (tier === 'miss' ? 0 : celebrateTime(spin.hurry))) return;
     session.spin = null;
     if (tier === 'miss') {
       session.chance = false;
@@ -775,13 +851,15 @@ function run(session: Session, dt: number, still: boolean, events?: SessionEvent
       dropBall(session.machine);
       session.chance = false;
     } else if (leadsTo === 'sugoroku') {
+      // The game hurries as hard as the hold now behind it says.
       const roll = drawDie(session.machine.rng);
-      session.bonus = { kind: 'sugoroku', roll, from: session.square, elapsed: 0, duration: sugorokuDuration(roll), payout: -1 };
+      const hurry = hurryFor(session.stock);
+      session.bonus = { kind: 'sugoroku', roll, from: session.square, elapsed: 0, duration: sugorokuDuration(roll, hurry), payout: -1, hurry };
       events?.push({ type: 'sugorokuStart', roll, from: session.square });
     } else {
       const prizes = shuffleChests(session.machine.rng);
       const fallback = Math.min(CHESTS.length - 1, Math.floor(session.machine.rng() * CHESTS.length));
-      session.bonus = { kind: 'chest', prizes, fallback, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1 };
+      session.bonus = { kind: 'chest', prizes, fallback, picked: -1, elapsed: 0, pickedAt: -1, told: false, payout: -1, hurry: hurryFor(session.stock) };
       events?.push({ type: 'chestStart' });
     }
     // A treasure line also lets a jewel go from the hatch: one, whether the spin was gold or not.
@@ -809,9 +887,10 @@ function run(session: Session, dt: number, still: boolean, events?: SessionEvent
     session.chance = session.gold > 0;
     if (session.chance) session.gold -= 1;
     const result = drawSpin(session.machine.rng);
-    // With spins queueing behind it, the reels hurry, and a gold spin's hurry more.
-    const duration = (session.chance ? TIMING.chanceSpin : session.stock >= 2 ? TIMING.quickSpin : TIMING.spin) + reachTime(result);
-    session.spin = { result, elapsed: 0, duration, done: false };
+    // With spins held behind it the screen hurries, the harder the more there are; and a gold spin's reels are quick at any hurry.
+    const hurry = hurryFor(session.stock);
+    const duration = reelTime(hurry, session.chance) + reachTime(result, hurry);
+    session.spin = { result, elapsed: 0, duration, done: false, hurry };
     events?.push({ type: 'spinStart', result, duration });
   }
 }

@@ -445,8 +445,10 @@ describe('the steps', () => {
   });
 
   it('say at step 4 how a medal gets into a START pocket: it slides down the plate under the lip into its hole', () => {
-    expect(getPlateStrings('en').steps.start.line(PLATE_RULES)).toBe(`A medal that slides down the plate under the lip into a START pocket spins the slot once. Up to ${MAX_STOCK} spins are held.`);
-    expect(getPlateStrings('ja').steps.start.line(PLATE_RULES)).toBe(`メダルがプッシャーの下のプレートをすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${MAX_STOCK}回まで）`);
+    expect(getPlateStrings('en').steps.start.line(PLATE_RULES)).toBe(
+      `A medal that slides down the plate under the lip into a START pocket spins the slot once. Up to ${MAX_STOCK} spins are held, and the more are held, the faster they spin.`,
+    );
+    expect(getPlateStrings('ja').steps.start.line(PLATE_RULES)).toBe(`メダルがプッシャーの下のプレートをすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${MAX_STOCK}回まで。たまるほど速く回る）`);
     // And the plate prints it, in both languages, beside the drawing of a medal doing so.
     for (const language of LANGUAGES) {
       const html = plate(language);

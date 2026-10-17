@@ -136,11 +136,14 @@ export const HOUSING = {
 } as const;
 
 /**
- * The hold's lamps on the front of the shelf, one for each spin the machine
- * can hold: where the first one is across the field, how far it is from one
- * to the next, how big each is, and where the word that names them is.
+ * The hold's lamps on the front of the shelf: how many, one for each spin
+ * the machine can hold (`MAX_STOCK` in session.ts, which this file cannot
+ * read without reading itself; the tests hold the two to each other), where
+ * the first one is across the field, how far it is from one to the next, how
+ * big each is, and where the word that names them is. The ten of them and
+ * their word sit in the middle of the shelf, between the two tube windows.
  */
-export const HOLD_LAMPS = { first: FIELD.width / 2 - 8.5, step: 4.2, radius: 1.3, label: FIELD.width / 2 - 16.5 } as const;
+export const HOLD_LAMPS = { count: 10, first: FIELD.width / 2 - 10.4, step: 3.6, radius: 1.3, label: FIELD.width / 2 - 18.4 } as const;
 
 /**
  * The screen itself: the part of the back wall the page's screen is stood

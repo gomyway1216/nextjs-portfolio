@@ -167,6 +167,19 @@
  * purse, the counters, the lottery and the screen as they were. A save of
  * version 11 that has a ball or a jewel under the plate is not a save of any
  * version.
+ *
+ * Version 12 changes neither the field nor the shape of the numbers. The
+ * screen hurries now while spins are held behind the one it plays, the
+ * harder the deeper the hold (`HURRY` in session.ts), and a spin, a roll on
+ * the board and a choice of chests each say how hard it hurries with them.
+ * Before, a spin was played at its usual time or at its quicker one, and a
+ * winning line and its game at their usual pace: today's first two hurries,
+ * so a save of any version before it comes back with what is on its screen
+ * at the hurry its own times agree with, and plays on exactly as it would
+ * have (see `beforeHurry`). And the hold has room for ten spins where it had
+ * room for eight (`HOLD_BEFORE`): an older save holds no more than eight, and
+ * comes back with room for two more. One that holds more is not a save of
+ * its version.
  */
 
 import {
@@ -227,10 +240,15 @@ import {
 } from './lottery';
 import {
   BOWL_TIMES,
+  HURRY,
   MAX_STOCK,
   TIMING,
   bowlShowTime,
+  celebrateTime,
+  openTime,
+  prizeTime,
   reachTime,
+  reelTime,
   sugorokuDuration,
   type ActiveBonus,
   type ActiveBowl,
@@ -256,12 +274,22 @@ const JACKPOT_STEPS = Math.max(JACKPOT_STEP, PAID_BEFORE.jackpotStep);
 /** The tallest tower there was before the tubes, and how many places on the pusher a tower could come up in. */
 const TOWERS_BEFORE = { max: 25, places: 18 } as const;
 /** The version every save is written with. */
-export const STORAGE_VERSION = 11;
+export const STORAGE_VERSION = 12;
+/**
+ * The version the game wrote before the screen hurried through a deep hold.
+ * Its field and its numbers are today's; what is on its screen does not say
+ * how hard the screen hurries with it, since it never hurried harder than its
+ * quicker spin (`beforeHurry`).
+ */
+export const VERSION_BEFORE_HURRY = 11;
+/** The spins the machine held in every version before the hurry: eight, where it holds ten now. */
+export const HOLD_BEFORE = 8;
 /**
  * The version the game wrote while the field was a hundred units wide and the
  * START pockets were at the pusher's lip, with a catcher drawn under it that
- * nothing came down on. Its numbers and its screen are today's; its field is
- * laid out as wide (`WIDE`), and nothing in it is on its way down the plate.
+ * nothing came down on. Its numbers are today's and its screen that of version
+ * 11; its field is laid out as wide (`WIDE`), and nothing in it is on its way
+ * down the plate.
  */
 export const VERSION_BEFORE_PLATE = 10;
 /**
@@ -313,7 +341,7 @@ export const VERSION_WITH_ONE_BOWL = 4;
 export const VERSION_BEFORE_CHANCE = 3;
 /** The version the game wrote while its two arms shared one slot and one aim. */
 export const VERSION_WITH_ONE_AIM = 2;
-/** The version the game wrote before it had its feed arms. A save carrying any number but these eleven is refused. */
+/** The version the game wrote before it had its feed arms. A save carrying any number but these twelve is refused. */
 export const VERSION_BEFORE_ARMS = 1;
 
 /**
@@ -1365,10 +1393,14 @@ const spinResult = shape<SpinResult>(
   },
 );
 
+/** How hard the screen hurries with what it shows: one of the hurries in HURRY. */
+const hurry = whole(0, HURRY.length - 1);
+
 /**
- * A spin. Its reels take one of the machine's two spin times, or a gold
- * spin's own when it is one (`gold`), and on top the suspense of its reach:
- * none, the usual, or the long one.
+ * A spin. Its reels take the time of its hurry, or a gold spin's own when it
+ * is one (`gold`) and that is quicker, and on top the suspense of its reach:
+ * none, the usual, or the long one. A winning line stays up for as long as
+ * its hurry has it.
  *
  *   reels running   elapsed < duration                         not done
  *   line held up    duration ≤ elapsed < duration + celebrate  done
@@ -1377,15 +1409,14 @@ const spinResult = shape<SpinResult>(
  * stop, so it is never seen done.
  */
 const activeSpin = (gold: boolean) =>
-  shape<ActiveSpin>({ result: spinResult, elapsed: timer, duration: lasting, done: flag }, (spin) => {
-    const suspense = reachTime(spin.result);
-    if (gold ? spin.duration !== TIMING.chanceSpin + suspense : spin.duration !== TIMING.spin + suspense && spin.duration !== TIMING.quickSpin + suspense) return false;
-    return spin.done === spin.elapsed >= spin.duration && spin.elapsed < spin.duration + (spin.result.tier === 'miss' ? 0 : TIMING.celebrate);
+  shape<ActiveSpin>({ result: spinResult, elapsed: timer, duration: lasting, done: flag, hurry }, (spin) => {
+    if (spin.duration !== reelTime(spin.hurry, gold) + reachTime(spin.result, spin.hurry)) return false;
+    return spin.done === spin.elapsed >= spin.duration && spin.elapsed < spin.duration + (spin.result.tier === 'miss' ? 0 : celebrateTime(spin.hurry));
   });
 
 /**
- * A roll on the board: the die, then a hop for each square. `square` is where
- * the session has the piece standing.
+ * A roll on the board: the die, then a hop for each square, both as quick as
+ * its hurry has them. `square` is where the session has the piece standing.
  *
  *   die and hops    elapsed < duration                         unpaid, the piece still on `from`
  *   prize shown     duration ≤ elapsed < duration + prize      paid what the square it reached holds, the piece on that square
@@ -1402,9 +1433,10 @@ const activeSugoroku = (square: number, pays: number) =>
       elapsed: timer,
       duration: lasting,
       payout: whole(-1, LIMITS.purse),
+      hurry,
     },
     (b) => {
-      if (b.duration !== sugorokuDuration(b.roll) || b.elapsed >= b.duration + TIMING.prize) return false;
+      if (b.duration !== sugorokuDuration(b.roll, b.hurry) || b.elapsed >= b.duration + prizeTime(b.hurry)) return false;
       const reached = squareAfter(b.from, b.roll);
       const paid = b.payout === BOARD[reached] * pays || b.payout === PAID_BEFORE.board[reached] * pays;
       return b.elapsed >= b.duration ? paid && square === reached : b.payout === -1 && square === b.from;
@@ -1416,7 +1448,9 @@ const inOrder = (medals: readonly number[]): string => [...medals].sort((a, b) =
 /**
  * A choice of chests, which hold the three prizes in some order: today's, or
  * the three they held when the save was written (`PAID_BEFORE`). `quickPick`
- * is whether the session picks the moment a chest is offered.
+ * is whether the session picks the moment a chest is offered. The time to
+ * choose is the same at any hurry; a picked chest opens, and its prize stays
+ * up, as quickly as the hurry has it.
  *
  *   choosing        nothing picked, told or paid; elapsed < choose
  *   just picked     picked by the player since the last step: pickedAt = elapsed, not yet told, unpaid
@@ -1439,6 +1473,7 @@ const activeChest = (quickPick: boolean, pays: number) =>
       pickedAt: real(-1, LIMITS.timer),
       told: flag,
       payout: whole(-1, LIMITS.purse),
+      hurry,
     },
     (c) => {
       if (inOrder(c.prizes) !== inOrder(CHESTS) && inOrder(c.prizes) !== inOrder(PAID_BEFORE.chests)) return false;
@@ -1447,8 +1482,8 @@ const activeChest = (quickPick: boolean, pays: number) =>
       const byClock = quickPick ? c.pickedAt > 0 : c.pickedAt >= TIMING.choose;
       if (byClock && c.picked !== c.fallback) return false;
       if (!c.told) return !byClock && c.pickedAt === c.elapsed && c.payout === -1;
-      const open = c.elapsed >= c.pickedAt + TIMING.open;
-      return c.payout === (open ? c.prizes[c.picked] * pays : -1) && c.elapsed < c.pickedAt + TIMING.open + TIMING.prize;
+      const open = c.elapsed >= c.pickedAt + openTime(c.hurry);
+      return c.payout === (open ? c.prizes[c.picked] * pays : -1) && c.elapsed < c.pickedAt + openTime(c.hurry) + prizeTime(c.hurry);
     },
   );
 
@@ -1456,6 +1491,28 @@ const activeBonus =
   ({ square, quickPick, chance }: StoredNumbers): Check<ActiveBonus> =>
   (value) =>
     activeSugoroku(square, chance ? CHANCE.multiplier : 1)(value) ?? activeChest(quickPick, chance ? CHANCE.multiplier : 1)(value);
+
+/**
+ * A spin, a roll or a choice of chests as a save from before the hurry wrote
+ * it, which does not say how hard the screen hurries with it, in today's
+ * terms. That screen played a spin at its usual time or at its quicker one,
+ * which are today's first two hurries, and a winning line, the board and the
+ * chests at their usual pace, which is theirs at both: so it is today's at
+ * the first of the hurries at the usual pace that its own times agree with,
+ * and nothing about it changes. One that agrees with none of them is not
+ * what that screen showed.
+ */
+const beforeHurry =
+  <T extends { hurry: number }>(check: Check<T>): Check<T> =>
+  (value) => {
+    if (!isRecord(value) || 'hurry' in value) return undefined;
+    for (let level = 0; level < HURRY.length; level++) {
+      const usual = HURRY[level].reach === 1 && HURRY[level].pace === 1;
+      const found = usual ? check({ ...value, hurry: level }) : undefined;
+      if (found) return found;
+    }
+    return undefined;
+  };
 
 /** The numbers on the wheel, and what a run can have come to after none of them, one, two … up to one short of the goal. */
 const NUMBERS = [...new Set(ROULETTE.filter((pocket): pocket is number => pocket !== 'stop'))];
@@ -1651,7 +1708,7 @@ export function serialize(session: Session): string {
 
 /**
  * The session a text was written from, or null when the text is not a save
- * that this game, or one of the nine versions of it before this one, could
+ * that this game, or one of the eleven versions of it before this one, could
  * have written. It never throws.
  *
  * The generator's state is shut inside a closure and cannot be read, so it is
@@ -1678,10 +1735,12 @@ export function restore(text: string | null, seed: number): Session | null {
     if (!isRecord(save) || Object.keys(save).length !== 4) return null;
     // The field changed shape at versions 2 and 3, took jewels at version 6, the payout works at version 7, the tubes
     // and today's medals at version 10 and the narrower field with the START plate at version 11; the numbers changed
-    // at versions 4, 6, 8 and 9; and the ball in the bowls at version 5. Every field before version 10 is read as
-    // versions 7 to 9 wrote theirs, and every field before version 11 comes back on a new heap.
+    // at versions 4, 6, 8 and 9; the ball in the bowls at version 5; and a spin and a bonus game took their hurry at
+    // version 12. Every field before version 10 is read as versions 7 to 9 wrote theirs, and every field before
+    // version 11 comes back on a new heap.
     const { version } = save;
-    const withPlate = version === STORAGE_VERSION;
+    const withHurry = version === STORAGE_VERSION;
+    const withPlate = withHurry || version === VERSION_BEFORE_HURRY;
     const withTubes = withPlate || version === VERSION_BEFORE_PLATE;
     const withRide = withTubes || version === VERSION_BEFORE_TUBES;
     const withLamp = withRide || version === VERSION_BEFORE_RIDE;
@@ -1713,15 +1772,20 @@ export function restore(text: string | null, seed: number): Session | null {
             : numbersBeforeChance(save.session);
     const { screen } = save;
     if (!counted || !isRecord(screen)) return null;
+    // Before the hurry the hold had room for eight, and no more were ever held, gold or not.
+    if (!withHurry && (counted.stock > HOLD_BEFORE || counted.gold > HOLD_BEFORE)) return null;
     // An older field is put on a new heap only once everything else has been read, since that is the dearest part.
     const field = withPlate ? storedMachine(save.machine) : before && onANewHeap(before, seed);
     if (!field) return null;
     // The jackpot as today's machine keeps it, whichever table the save was written by.
     const numbers = settleJackpot(counted);
 
+    // Every version before the hurry wrote its spin and its bonus game without one.
+    const spinNow = activeSpin(numbers.chance);
+    const bonusNow = activeBonus(numbers);
     const on: OnScreen = {
-      spin: shown(activeSpin(numbers.chance), screen.spin),
-      bonus: shown(activeBonus(numbers), screen.bonus),
+      spin: shown(withHurry ? spinNow : beforeHurry(spinNow), screen.spin),
+      bonus: shown(withHurry ? bonusNow : beforeHurry(bonusNow), screen.bonus),
       // Every version before the three bowls had one, whatever its field was.
       roulette: shown(withJewels || version === VERSION_BEFORE_JEWELS ? activeRoulette : rouletteWithOneBowl, screen.roulette),
     };

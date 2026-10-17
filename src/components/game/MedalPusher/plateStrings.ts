@@ -163,7 +163,7 @@ const ja: PlateStrings = {
     },
     start: {
       head: 'START をねらおう！',
-      line: (rules) => `メダルがプッシャーの下のプレートをすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${rules.hold}回まで）`,
+      line: (rules) => `メダルがプッシャーの下のプレートをすべって START チャッカーに入ると、スロットが1回まわるよ！（保留は${rules.hold}回まで。たまるほど速く回る）`,
       short: 'START',
     },
     match: {
@@ -272,7 +272,7 @@ const en: PlateStrings = {
     },
     start: {
       head: 'Hit START!',
-      line: (rules) => `A medal that slides down the plate under the lip into a START pocket spins the slot once. Up to ${rules.hold} spins are held.`,
+      line: (rules) => `A medal that slides down the plate under the lip into a START pocket spins the slot once. Up to ${rules.hold} spins are held, and the more are held, the faster they spin.`,
       short: 'START',
     },
     match: {

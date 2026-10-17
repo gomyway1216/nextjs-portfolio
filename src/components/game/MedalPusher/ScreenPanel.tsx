@@ -743,7 +743,9 @@ export const Screen = ({ state, stock, strings: t, registerStrip, registerBall, 
       data-mode={state.mode}
       data-banner={state.banner}
       data-monitor={monitor}
-      style={{ ...GOLD_FLASH_STYLE, ...cssVars({ '--mp-glow': MONITOR[monitor].colour, '--mp-stage-in': `${STAGE_IN.toFixed(2)}cqw` }) }}
+      // How quickly what is on the screen is played: the stylesheet times a reach's cut-in, the die and the piece's hops by it.
+      style={{ ...GOLD_FLASH_STYLE, ...cssVars({ '--mp-glow': MONITOR[monitor].colour, '--mp-stage-in': `${STAGE_IN.toFixed(2)}cqw`, '--mp-pace': state.pace }) }}
+      data-pace={state.pace}
       data-testid="pusher-screen"
     >
       <div className={styles.rays} aria-hidden />

@@ -1099,7 +1099,7 @@ const STUD = light('#ffd98a');
  * screen, along each rail of the table, under the front edge, across the
  * pusher's face, and the hold's lamps on the shelf.
  */
-export const LAMP_ROWS = { hood: 20, strip: 12, rail: 12, tray: TRAY_BULBS, foot: FOOT_BULBS, hold: 8 } as const;
+export const LAMP_ROWS = { hood: 20, strip: 12, rail: 12, tray: TRAY_BULBS, foot: FOOT_BULBS, hold: HOLD_LAMPS.count } as const;
 /** Gold studs: at each end of the shelf and of the hood's face. */
 export const STUDS = 4;
 

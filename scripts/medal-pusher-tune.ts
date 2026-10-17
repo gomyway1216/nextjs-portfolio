@@ -37,7 +37,7 @@
  *                           the field's share
  *   Return                  medals back per 100 fed, with average luck
  *
- * What is tuned is three things, and the table says what they are set to:
+ * What is tuned is four things, and the table says what they are set to:
  *
  *   FIELD.sideReach (engine.ts)     how far the side holes reach round the
  *                                   front corners, which is the field's share
@@ -46,6 +46,9 @@
  *   (lottery.ts)                    worth
  *   CHECKERS.wingWidth (engine.ts)  how wide a START pocket takes medals
  *                                   while its wings are open
+ *   HURRY, MAX_STOCK (session.ts)   how hard the screen hurries through a
+ *                                   deep hold, and how many spins it holds:
+ *                                   what fast feeding loses to a full hold
  *
  * `CHECKERS.halfWidth`, how wide a pocket is with its wings shut, is how
  * often a medal starts a spin. It is left where it is.
@@ -94,7 +97,7 @@ import {
   rouletteValue,
   spinValue,
 } from '../src/components/game/MedalPusher/lottery';
-import { MAX_STOCK, START_BALLS, START_JEWELS, advance, createSession, insert, isBusy, type SessionEvent } from '../src/components/game/MedalPusher/session';
+import { HURRY, MAX_STOCK, START_BALLS, START_JEWELS, advance, createSession, insert, isBusy, type SessionEvent } from '../src/components/game/MedalPusher/session';
 import { AIM_IDS, WARM_UP, aimAt, type AimId } from '../src/components/game/MedalPusher/sim';
 
 /**
@@ -344,6 +347,8 @@ function printSettings(): void {
   console.log(`a spin is worth ${spinValue(JACKPOT_START).toFixed(5)} medals, a gold one ${chanceSpinValue(JACKPOT_START).toFixed(5)}; ${JEWEL_SPIN_VALUE.toFixed(5)} of either is its jewel`);
   console.log(`the jackpot grows by a medal for every ${JACKPOT_STEP} played: ${JACKPOT_GROWTH} medals a medal, paid when it is won`);
   console.log(`a new machine starts with ${START_BALLS} ball${START_BALLS === 1 ? '' : 's'} and ${START_JEWELS} jewel${START_JEWELS === 1 ? '' : 's'} on the field`);
+  const hurries = HURRY.map((hurry) => `from ${hurry.from} held behind, reels ${hurry.reels} s, a reach ${hurry.reach}, a line and its game ${hurry.pace}`);
+  console.log(`the screen holds ${MAX_STOCK} spins and hurries through them: ${hurries.join('; ')}`);
 }
 
 /** The table: every way of playing over `seeds` machines of `medals` medals. */

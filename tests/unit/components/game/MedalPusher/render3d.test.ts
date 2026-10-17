@@ -2007,7 +2007,7 @@ describe('the cabinet as shapes', () => {
     };
     const bulbs = LAMP_ROWS.hood + LAMP_ROWS.strip * 2 + LAMP_ROWS.rail * 2 + LAMP_ROWS.tray;
     const { beads, flat, bead, kinds } = lamps(3);
-    expect(LAMP_ROWS.hold).toBe(8);
+    expect(LAMP_ROWS.hold).toBe(10);
     expect(beads.count).toBe(bulbs + LAMP_ROWS.hold + 2 + STUDS);
     // Every bulb in a row lights the surface it is on, one round touch each; so does each lamp of the hold that is
     // lit; and each light let into the plumb end of the START plate's foot is a hot spot and its glow, and no bulb.
@@ -2044,12 +2044,13 @@ describe('the cabinet as shapes', () => {
       expect(kind).toBeCloseTo(i < 3 ? BEAD.bulb(1) : BEAD.bulb(0.03), 5);
     });
     expect(HOLD_LAMPS.step).toBeGreaterThan(HOLD_LAMPS.radius * 2);
-    expect(hold[7][0] + HOLD_LAMPS.radius).toBeLessThan(SCREEN.right);
+    expect(hold[LAMP_ROWS.hold - 1][0] + HOLD_LAMPS.radius).toBeLessThan(SCREEN.right);
     expect(HOLD_LAMPS.label).toBeLessThan(HOLD_LAMPS.first - HOLD_LAMPS.radius);
     for (const [stock, lit] of [
       [0, 0],
       [8, 8],
-      [11, 8],
+      [10, 10],
+      [13, 10],
     ]) {
       const other = lamps(stock);
       expect(other.kinds.slice(bulbs, bulbs + LAMP_ROWS.hold).filter((kind) => kind > 2.5)).toHaveLength(lit);

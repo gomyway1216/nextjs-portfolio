@@ -81,9 +81,8 @@ export interface BlackjackStrings {
   feltRules: string;
   holeCard: string;
   hintToggle: string;
-  /** The sound switch, off until pressed. */
-  soundOn: string;
-  soundOff: string;
+  /** The table's keys, on a desktop. */
+  keysHint: string;
   hintSays: (action: string) => string;
   evTitle: string;
   evNote: string;
@@ -240,8 +239,7 @@ const en: BlackjackStrings = {
   feltRules: 'Dealer must stand on all 17s · Insurance pays 2 to 1',
   holeCard: 'Dealer’s face-down card',
   hintToggle: 'Show basic-strategy hint',
-  soundOn: 'Sound: on',
-  soundOff: 'Sound: off',
+  keysHint: 'Keys: Space or Enter deals · H hit · S stand · D double · P split · I / N insurance · B bet one · M bet max',
   hintSays: (action) => `Basic strategy: ${action}`,
   evTitle: 'What each play is worth',
   evNote:
@@ -425,8 +423,7 @@ const ja: BlackjackStrings = {
   feltRules: 'ディーラーはすべての17でスタンド・インシュランスは2対1',
   holeCard: 'ディーラーの伏せ札',
   hintToggle: 'ベーシックストラテジーのヒントを表示',
-  soundOn: '音: オン',
-  soundOff: '音: オフ',
+  keysHint: 'キー: Space か Enter でディール・H ヒット・S スタンド・D ダブル・P スプリット・I / N インシュランス・B 1枚ベット・M MAXベット',
   hintSays: (action) => `ベーシックストラテジー：${action}`,
   evTitle: '各選択肢の期待値',
   evNote:

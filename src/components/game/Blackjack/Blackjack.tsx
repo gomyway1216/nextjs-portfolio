@@ -65,7 +65,7 @@ export const Blackjack = () => {
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
             never drops a hand in progress. */}
         <div role="tabpanel" id="bj-panel-play" aria-labelledby="bj-tab-play" hidden={tab !== 'play'}>
-          <PlayTab />
+          <PlayTab shown={tab === 'play'} />
         </div>
         <div role="tabpanel" id="bj-panel-odds" aria-labelledby="bj-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

@@ -23,8 +23,10 @@ import {
   type Action,
   type Round,
 } from './engine';
-import { playTableSound, unlockTableSounds, useSoundSwitch, type TableSound } from '../common/tableSounds';
 import { useCountUp } from '../MedalCenter/countUp';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { useMachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { HoleCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
 import { MedalCounter, MedalStack } from './MedalCounter';
@@ -33,6 +35,9 @@ import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
 
 const ACTIONS: Action[] = ['hit', 'stand', 'double', 'split'];
+
+/** The keys of the four moves, on a desktop: H hit, S stand, D double, P split. */
+export const KEY_ACTIONS: Readonly<Record<string, Action>> = { h: 'hit', s: 'stand', d: 'double', p: 'split' };
 
 /** Animation pacing (ms): the opening deal, the hole-card flip, each dealer draw, the pause before the hand is settled. */
 export const TIMING = { deal: 800, dealStep: 170, flip: 450, draw: 520, settle: 450 } as const;
@@ -53,9 +58,6 @@ export const RETRY_SAVE = 3000;
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-
-/** Where the sound switch is kept on this device. */
-export const SOUND_KEY = 'blackjack-sound';
 
 /** How many medals high a stake is drawn: one for one medal, then one more each time it doubles, up to five. */
 export const stackHeight = (medals: number) => Math.max(1, Math.min(5, Math.ceil(Math.log2(medals + 1))));
@@ -98,7 +100,7 @@ const affordable = (r: Round, medals: number) => {
   return { ...legal, double: legal.double && medals >= hand.bet, split: legal.split && medals >= r.bet };
 };
 
-export const PlayTab = () => {
+export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -127,15 +129,10 @@ export const PlayTab = () => {
   const [announcement, setAnnouncement] = useState('');
   const [notice, setNotice] = useState(false);
   const [longWait, setLongWait] = useState(false);
-  const [sound, toggleSound] = useSoundSwitch(SOUND_KEY);
-  const soundOn = useRef(sound);
-  useEffect(() => {
-    soundOn.current = sound;
-  });
+  // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch beside the shoe.
+  const sound = useMachineSound();
   /** A sound of the table, `delay` ms from now, when the sound is on. */
-  const play = (name: TableSound, delay = 0) => {
-    if (soundOn.current) playTableSound(name, delay / 1000);
-  };
+  const play = sound.play;
 
   // Refs mirror what click handlers and timers read synchronously.
   const saveRef = useRef(save);
@@ -196,7 +193,8 @@ export const PlayTab = () => {
       const result = step.save.round?.result;
       if (result) {
         const natural = result.hands.some((h) => h.outcome === 'blackjack');
-        play(result.net > 0 ? (natural ? 'big' : 'win') : result.net < 0 ? 'lose' : 'medal');
+        // A loss, and a push, are silent, as on the machines.
+        if (result.net > 0) play(natural ? 'big' : 'win');
       }
       setMessage((was) => (was?.text === t.unsavedReturn ? null : was));
       return;
@@ -257,16 +255,13 @@ export const PlayTab = () => {
   };
 
   // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
-  // with a clink as the digits move; WIN shows the whole win at once. Every bet and every stake shows at once. The
-  // meter shows the medals once the player's table is open (`open`, below).
+  // each medal with its chirp; WIN shows the whole win at once. Every bet and every stake shows at once. The meter
+  // shows the medals once the player's table is open (`open`, below).
   const medalMeter = useCountUp(
     bankState.loaded && bankState.where !== 'checking' && openedFor !== undefined && openedFor === bankState.owner ? bankState.balance : null,
+    sound.tick,
   );
   const payMedals = medalMeter.pay;
-  useEffect(() => {
-    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
-    if (medalMeter.counting) play('payout');
-  }, [medalMeter.shown, medalMeter.counting]);
 
   const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t, payMedals: () => {} });
   useEffect(() => {
@@ -336,7 +331,7 @@ export const PlayTab = () => {
       startDelay,
       guard(() => {
         setView((v) => ({ ...v, holeUp: true, opening: false }));
-        play('flip');
+        play('card');
       }),
     );
     // Each further dealer card lands `draw` ms after the previous one; settle once the last has landed.
@@ -393,10 +388,8 @@ export const PlayTab = () => {
     setNotice(false);
     const r = step.save.round!;
     const fast = prefersReducedMotion();
-    if (sound) void unlockTableSounds();
-    play('medal');
     // The opening deal: player, dealer, player, the hole card; each slides out of the shoe in turn.
-    for (let i = 0; i < 4; i++) play('card', 80 + (fast ? 0 : i * TIMING.dealStep));
+    for (let i = 0; i < 4; i++) play('card', (80 + (fast ? 0 : i * TIMING.dealStep)) / 1000);
     setView({ dealerShown: 2, holeUp: false, settled: false, opening: !fast });
     const opening = fast ? 0 : TIMING.deal;
     if (r.phase === 'done') {
@@ -429,8 +422,8 @@ export const PlayTab = () => {
     }
     commitSave(step.save);
     setMessage(null);
-    if (action === 'double' || action === 'split') play('medal');
-    if (action !== 'stand') play('card', action === 'hit' ? 0 : 120);
+    if (action === 'double' || action === 'split') play('chip');
+    if (action !== 'stand') play('card', action === 'hit' ? 0 : 0.12);
     // Let the last player card land before the dealer turns the hole card.
     const next = step.save.round!;
     if (next.phase === 'done') playDealer(next, prefersReducedMotion() ? 0 : TIMING.draw);
@@ -448,7 +441,7 @@ export const PlayTab = () => {
       refused(step);
       return;
     }
-    if (take) play('medal');
+    if (take) play('chip');
     commitSave(step.save);
     setMessage(null);
     const next = step.save.round!;
@@ -462,10 +455,9 @@ export const PlayTab = () => {
       say(t.noMedals);
       return;
     }
-    if (sound) void unlockTableSounds();
     setBet(bet + 1);
     setMessage(null);
-    play('medal');
+    play('chip');
   };
   /** MAX BET: the table's most, or every medal the player has if that is fewer. */
   const maxBet = () => {
@@ -475,10 +467,9 @@ export const PlayTab = () => {
       say(t.noMedals);
       return;
     }
-    if (sound) void unlockTableSounds();
     setBet(most);
     setMessage(null);
-    play('medal');
+    play('chip');
   };
   const clearBet = () => {
     if (!canBet) return;
@@ -493,6 +484,34 @@ export const PlayTab = () => {
   };
 
   const playing = round?.phase === 'player' && !busy && holdingCard;
+
+  // On a desktop, the table's keys: Space or Enter deals, H hits, S stands, D doubles, P splits, I and N answer the
+  // insurance, B bets one more and M bets the most (MedalCenter/machineKeys.ts, as the floor's other machines have).
+  // Each press does only what its button would do now (each handler checks that), and nothing otherwise.
+  useMachineKeys(shown, (key) => {
+    if (key === ' ' || key === 'Enter') {
+      deal();
+      return true;
+    }
+    const move = KEY_ACTIONS[key];
+    if (move) {
+      onAction(move);
+      return true;
+    }
+    if (key === 'i' || key === 'n') {
+      onInsurance(key === 'i');
+      return true;
+    }
+    if (key === 'b') {
+      addOne();
+      return true;
+    }
+    if (key === 'm') {
+      maxBet();
+      return true;
+    }
+    return false;
+  });
   const active = round && round.phase === 'player' ? round.hands[round.active] : null;
   const can = round && round.phase === 'player' ? affordable(round, medals) : null;
   const hint = active && can ? basicStrategy(active.cards, round!.dealer[0], can) : null;
@@ -571,9 +590,7 @@ export const PlayTab = () => {
             <div className={styles.shoeBar} data-testid="shoe-info">
               {shownLeft === null ? t.newShoe : t.shoeLabel(shownLeft)}
             </div>
-            <button type="button" className={styles.soundToggle} aria-pressed={sound} onClick={toggleSound} data-testid="bj-sound">
-              {sound ? t.soundOn : t.soundOff}
-            </button>
+            <SoundSwitch control={sound} language={language} className={styles.soundToggle} testId="bj-sound" />
           </div>
 
           <div className={styles.table} data-testid="bj-table">
@@ -805,6 +822,9 @@ export const PlayTab = () => {
 
             <p className={`${styles.message} ${message?.error ? styles.messageError : ''}`} role="status" data-testid="bj-message">
               {message?.text ?? ''}
+            </p>
+            <p className={styles.keysHint} data-testid="bj-keys">
+              {t.keysHint}
             </p>
           </div>
 

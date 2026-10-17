@@ -2,8 +2,7 @@ import { test, expect } from '@playwright/test';
 
 import { handValue, hiLo, type Card } from '../../src/components/game/Blackjack/engine';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
-import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, playByHint, seated, shownNet } from './blackjackPage';
-import { arrived } from './streamedPage';
+import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, playByHint, shownNet } from './blackjackPage';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 import { bankBalance } from './medalCenterPage';
 
@@ -208,18 +207,27 @@ test('on a phone the cards and the buttons that play them are on the screen toge
   expect(Math.abs((await buttonsDrop()) - idleDrop)).toBeLessThanOrEqual(1);
 });
 
-test('a win is paid beside the stake and counted up on the counter, with the sound switched on and kept', async ({ page }) => {
+test('a win is paid beside the stake and counted up on the counter, with the sound on', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
+  // medal-machine-sound.spec.ts).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sounds: number };
+    w.__sounds = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds++;
+      return start.apply(this, args);
+    };
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number }).__sounds);
   await openBlackjack(page);
   await page.getByTestId('bj-notice-dismiss').click();
+  // The floor's sound switch: off on every visit, on with a press; the hands are played with it on.
   await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'false');
   await page.getByTestId('bj-sound').click();
-  await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'true');
-  await page.reload();
-  await arrived(page);
-  await seated(page);
   await expect(page.getByTestId('bj-sound')).toHaveAttribute('aria-pressed', 'true');
 
   for (let round = 0; round < 25; round++) {
@@ -243,8 +251,51 @@ test('a win is paid beside the stake and counted up on the counter, with the sou
     for (let i = 1; i < climb.length; i++) expect(climb[i]).toBeGreaterThan(climb[i - 1]);
     // The WIN digits end on the win.
     expect((await ledNumbers(page, '[data-testid="bj-counter"]'))[2]).toBe(net);
+    // Heard: the switch, four cards dealt, the hole card turned, the jingle and the medals counted in.
+    expect(await heard()).toBeGreaterThanOrEqual(1 + 4 + 1 + 1 + 3);
     expect(errors).toEqual([]);
     return;
   }
   throw new Error('no single-hand win in 25 rounds');
+});
+
+test('on a desktop the keys play the table: Space deals, B and M bet, H, S, D and P play the hand, I and N answer the insurance', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openBlackjack(page);
+  await page.getByTestId('bj-notice-dismiss').click();
+  await expect(page.getByTestId('bj-keys')).toContainText('Space or Enter deals');
+  // Keys go to the table from anywhere on the page but a field or a button (where Space presses the button).
+  await page.locator('h1').click();
+  await page.keyboard.press('b');
+  await expect(page.getByTestId('bj-bet')).toHaveText('3');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('bj-bet')).toHaveText('10');
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const before = await medalsShown(page);
+    await page.keyboard.press('Space');
+    await expect.poll(() => medalsShown(page)).toBeLessThan(before);
+    await expect(async () => {
+      const acting = (await page.locator('button[data-action="stand"]:enabled').count()) > 0;
+      const insurance = await page.getByTestId('bj-insurance').isVisible();
+      expect(acting || insurance || (await dealButton(page).isEnabled())).toBe(true);
+    }).toPass({ timeout: 10_000 });
+    if (await page.getByTestId('bj-insurance').isVisible()) {
+      // N declines it, as the button does.
+      await page.keyboard.press('n');
+      await expect(page.getByTestId('bj-insurance')).toHaveCount(0);
+    }
+    if ((await page.locator('button[data-action="stand"]:enabled').count()) === 0) {
+      await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+      continue;
+    }
+    // H draws a card; S stands and the dealer plays the hand out.
+    const cards = await page.locator('[data-hand="0"] [data-rank]').count();
+    await page.keyboard.press('h');
+    await expect(page.locator('[data-hand="0"] [data-rank]')).toHaveCount(cards + 1);
+    if ((await page.locator('button[data-action="stand"]:enabled').count()) > 0) await page.keyboard.press('s');
+    await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+    await expect(page.getByTestId('bj-results')).toBeVisible();
+    return;
+  }
+  throw new Error('no hand to play in 20 deals');
 });

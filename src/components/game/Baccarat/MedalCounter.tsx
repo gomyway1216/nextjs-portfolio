@@ -1,6 +1,7 @@
 'use client';
 
-import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
+import { countedLeds } from '../common/usePayoutCount';
+import { FACE_STAR, MEDAL_PAINT, SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import styles from './Baccarat.module.css';
 
@@ -22,6 +23,23 @@ export const MedalIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+/** A stack of `count` of the floor's silver medals, seen from the side: a stake on a spot. */
+export const MedalStack = ({ count, className }: { count: number; className?: string }) => (
+  <svg className={className} viewBox="0 0 60 64" aria-hidden focusable="false">
+    {Array.from({ length: count }, (_, index) => {
+      const y = 54 - index * 6;
+      return (
+        <g key={index}>
+          <ellipse cx="30" cy={y + 3} rx="24" ry="7" fill={SCREEN_STACK.line} />
+          <rect x="6" y={y} width="48" height="3" fill={SCREEN_STACK.edge} />
+          <ellipse cx="30" cy={y} rx="24" ry="7" fill={index === count - 1 ? SCREEN_STACK.face : SCREEN_STACK.edge} stroke={SCREEN_STACK.line} strokeWidth="1" />
+          {index === count - 1 && <ellipse cx="25" cy={y - 2} rx="10" ry="2.5" fill={SCREEN_STACK.shine} opacity="0.75" />}
+        </g>
+      );
+    })}
+  </svg>
+);
+
 export interface MedalCounterProps {
   /** Whether the player's medals have been read. Until then the windows are dark. */
   loaded: boolean;
@@ -33,6 +51,11 @@ export interface MedalCounterProps {
   won: number | null;
   labels: { medals: string; bet: string; win: string; held: (n: string) => string; onTable: (n: string) => string; won: (n: string) => string; waiting: string };
   fmt: (n: number) => string;
+  /**
+   * A win being counted out (common/usePayoutCount.ts): `counted` of the `medals` the hand gave back so far. The LED
+   * windows run up with it; the counts in type are the real ones throughout.
+   */
+  counting?: { counted: number; medals: number } | null;
 }
 
 /**
@@ -41,51 +64,54 @@ export interface MedalCounterProps {
  * The windows are pictures; the counts are written in type under them for a
  * screen reader and anything else that reads the page.
  */
-export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt }: MedalCounterProps) => (
-  <section className={styles.counter} aria-labelledby="baccarat-counter-label" data-testid="baccarat-counter" data-loaded={loaded}>
-    <div className={styles.counterMain}>
-      <h3 id="baccarat-counter-label" className={styles.counterLabel}>
-        <MedalIcon className={styles.counterMedal} />
-        {labels.medals}
-      </h3>
-      <span className={styles.ledBig}>
-        <SegmentDisplay value={loaded ? medals : ''} places={MEDAL_PLACES} />
-      </span>
-    </div>
-    <div className={styles.counterSmall} aria-hidden>
-      <span className={styles.ledPair}>
-        <span className={styles.ledLabel}>{labels.bet}</span>
-        <span className={styles.ledSmall}>
-          <SegmentDisplay value={loaded ? onTable : ''} places={BET_PLACES} tone="amber" />
+export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt, counting = null }: MedalCounterProps) => {
+  const led = countedLeds(medals, won, counting);
+  return (
+    <section className={styles.counter} aria-labelledby="baccarat-counter-label" data-testid="baccarat-counter" data-loaded={loaded}>
+      <div className={styles.counterMain}>
+        <h3 id="baccarat-counter-label" className={styles.counterLabel}>
+          <MedalIcon className={styles.counterMedal} />
+          {labels.medals}
+        </h3>
+        <span className={styles.ledBig}>
+          <SegmentDisplay value={loaded ? led.medals : ''} places={MEDAL_PLACES} />
         </span>
-      </span>
-      <span className={styles.ledPair}>
-        <span className={styles.ledLabel}>{labels.win}</span>
-        <span className={styles.ledSmall}>
-          <SegmentDisplay value={loaded && won !== null ? won : ''} places={WIN_PLACES} tone="amber" />
-        </span>
-      </span>
-    </div>
-    <p className={styles.counterText}>
-      {loaded ? (
-        <strong data-testid="baccarat-medals" data-medals={medals}>
-          {labels.held(fmt(medals))}
-        </strong>
-      ) : (
-        <strong data-testid="baccarat-medals">{labels.waiting}</strong>
-      )}
-      <span aria-hidden> · </span>
-      <span data-testid="baccarat-on-table" data-medals={onTable}>
-        {labels.onTable(fmt(onTable))}
-      </span>
-      {won !== null && (
-        <>
-          <span aria-hidden> · </span>
-          <span data-testid="baccarat-won" data-medals={won}>
-            {labels.won(fmt(won))}
+      </div>
+      <div className={styles.counterSmall} aria-hidden>
+        <span className={styles.ledPair}>
+          <span className={styles.ledLabel}>{labels.bet}</span>
+          <span className={styles.ledSmall}>
+            <SegmentDisplay value={loaded ? onTable : ''} places={BET_PLACES} tone="amber" />
           </span>
-        </>
-      )}
-    </p>
-  </section>
-);
+        </span>
+        <span className={styles.ledPair}>
+          <span className={styles.ledLabel}>{labels.win}</span>
+          <span className={styles.ledSmall}>
+            <SegmentDisplay value={loaded && led.won !== null ? led.won : ''} places={WIN_PLACES} tone="amber" />
+          </span>
+        </span>
+      </div>
+      <p className={styles.counterText}>
+        {loaded ? (
+          <strong data-testid="baccarat-medals" data-medals={medals}>
+            {labels.held(fmt(medals))}
+          </strong>
+        ) : (
+          <strong data-testid="baccarat-medals">{labels.waiting}</strong>
+        )}
+        <span aria-hidden> · </span>
+        <span data-testid="baccarat-on-table" data-medals={onTable}>
+          {labels.onTable(fmt(onTable))}
+        </span>
+        {won !== null && (
+          <>
+            <span aria-hidden> · </span>
+            <span data-testid="baccarat-won" data-medals={won}>
+              {labels.won(fmt(won))}
+            </span>
+          </>
+        )}
+      </p>
+    </section>
+  );
+};

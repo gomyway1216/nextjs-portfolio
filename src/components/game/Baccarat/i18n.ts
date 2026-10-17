@@ -34,9 +34,6 @@ export interface BaccaratStrings {
   noticeTitle: string;
   noticeBody: string;
   noticeOk: string;
-  /** The sound switch, off until pressed. */
-  soundOn: string;
-  soundOff: string;
   cardAway: string;
   playHere: string;
   refill: (medals: number) => string;
@@ -202,8 +199,6 @@ const en: BaccaratStrings = {
   noticeBody:
     'This table now takes its bets from your medals at the Medal Game Center, the same medals every game there plays with. The old practice chips are gone: they were never medals, and they are not turned into medals.',
   noticeOk: 'Got it',
-  soundOn: 'Sound: on',
-  soundOff: 'Sound: off',
   cardAway: 'Your medals are being played in another tab. This table waits here.',
   playHere: 'Play here',
   refill: (n) => `Out of medals — take ${n} more`,
@@ -407,8 +402,6 @@ const ja: BaccaratStrings = {
   noticeBody:
     'このテーブルのベットは、メダルゲームセンターの持ちメダルから使います。センターのどのゲームとも同じメダルです。以前の練習用チップはなくなりました。チップはメダルではなかったので、メダルには替わりません。',
   noticeOk: 'わかりました',
-  soundOn: '音: オン',
-  soundOff: '音: オフ',
   cardAway: 'メダルは別のタブで遊ばれています。このテーブルはここで待っています。',
   playHere: 'ここで遊ぶ',
   refill: (n) => `メダルがなくなりました — ${n}枚もらう`,

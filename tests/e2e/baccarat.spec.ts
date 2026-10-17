@@ -201,18 +201,28 @@ test('on a phone the cards, the felt and DEAL are on the screen together', async
   expect(deal.bottom).toBeLessThanOrEqual(812);
 });
 
-test('the last coup stays on the felt, the win paid beside its stake, and the counter counts the medals back; the sound switch is kept', async ({ page }) => {
+test('the last coup stays on the felt, the win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
+  // medal-machine-sound.spec.ts).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sounds: number };
+    w.__sounds = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds++;
+      return start.apply(this, args);
+    };
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number }).__sounds);
   await openBaccarat(page);
   await page.getByTestId('baccarat-notice-ok').click();
+  // The floor's sound switch: off on every visit, on with a press; the coup is played with it on.
   await expect(page.getByTestId('baccarat-sound')).toHaveAttribute('aria-pressed', 'false');
   await page.getByTestId('baccarat-sound').click();
-  await page.reload();
-  await arrived(page);
   await expect(page.getByTestId('baccarat-sound')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('baccarat-counter')).toHaveAttribute('data-loaded', 'true');
   await betStep(page, 5);
   for (let coup = 0; coup < 12; coup++) {
     // Five on the Player and five on the Banker: one of them wins unless the hand is a tie.
@@ -240,6 +250,8 @@ test('the last coup stays on the felt, the win paid beside its stake, and the co
     // A new bet clears the last coup off the felt.
     await spot(page, /^Player \(1:1/).click();
     await expect(page.getByTestId(`paid-${won.id}`)).toHaveCount(0);
+    // Heard: the switch, the medals put down, every card turned, the fanfare and the medals counted in.
+    expect(await heard()).toBeGreaterThanOrEqual(1 + 2 + 4 + 1 + 3);
     expect(errors).toEqual([]);
     return;
   }

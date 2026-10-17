@@ -53,7 +53,8 @@ import {
   type Stats,
   type TableState,
 } from './medals';
-import { playTableSound, unlockTableSounds, useSoundSwitch, type TableSound } from '../common/tableSounds';
+import { useMachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { useCountUp } from '../MedalCenter/countUp';
 import { MedalCounter, MedalIcon, MedalStack } from './MedalCounter';
 import { PlayingCard, cardLabel } from './Cards';
@@ -82,9 +83,6 @@ export function revealSchedule(cards: number): { reveal: number[]; settle: numbe
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-
-/** Where the sound switch is kept on this device. */
-export const SOUND_KEY = 'baccarat-sound';
 
 /** How many medals high a stake is drawn: one for one medal, then one more each time it doubles, up to five. */
 export const stackHeight = (medals: number) => Math.max(1, Math.min(5, Math.ceil(Math.log2(medals + 1))));
@@ -169,15 +167,9 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const [notice, setNotice] = useState(false);
   /** Says that the medals about to come back are a win, to be counted up on the counter (`medalMeter.pay`). */
   const payMedals = useRef<() => void>(() => undefined);
-  const [sound, toggleSound] = useSoundSwitch(SOUND_KEY);
-  const soundOn = useRef(sound);
-  useEffect(() => {
-    soundOn.current = sound;
-  });
-  /** A sound of the table, `delay` ms from now, when the sound is on. */
-  const play = (name: TableSound, delay = 0) => {
-    if (soundOn.current) playTableSound(name, delay / 1000);
-  };
+  // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch beside the shoe.
+  const sound = useMachineSound();
+  const { play, tick } = sound;
 
   // Refs mirror state that click handlers, timers and the bank's calls must read synchronously.
   const betsRef = useRef<Bets>({});
@@ -375,8 +367,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     commitBets({ ...betsRef.current, [id]: (betsRef.current[id] ?? 0) + amount });
     undoStack.current.push({ id, amount });
     setMessage(null);
-    if (soundOn.current) void unlockTableSounds();
-    play('medal');
+    play('chip');
     return true;
   };
 
@@ -479,15 +470,14 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
       setDealing(false);
       // A fanfare as the medals run in: a bigger one for a natural or a side bet.
       const wins = results.filter((r) => r.outcome === 'win');
+      // A loss is silent, as on the machines.
       if (wins.length > 0) play(hand.natural || wins.some((r) => BIG_WINS.includes(r.id)) ? 'big' : 'win');
-      else play(results.some((r) => r.outcome === 'lose') ? 'lose' : 'medal');
     };
 
     const count = cardsInHand(hand);
     const { reveal, settle } = prefersReducedMotion() ? { reveal: new Array<number>(count).fill(0), settle: 0 } : revealSchedule(count);
-    play('medal');
-    // Each card slides out of the shoe as it is turned over; a third card a beat later, with a flick as it lands.
-    reveal.forEach((ms, k) => play(k < 4 ? 'card' : 'flip', ms));
+    // Each card slides out of the shoe as it is turned over, a third card a beat later.
+    reveal.forEach((ms) => play('card', ms / 1000));
     timers.current.forEach(clearTimeout);
     timers.current = reveal.map((ms, k) =>
       setTimeout(() => setRound((r) => (r && r.id === id ? { ...r, shown: Math.max(r.shown, k + 1) } : r)), ms),
@@ -510,15 +500,11 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const shownMedals = Math.max(0, bankState.balance - (dealing ? 0 : onTable) - hiddenWin);
   const won = round?.settled ? round.returned : null;
   // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
-  // with a clink as the digits move; WIN shows the whole win at once. A bet put down shows at once, and ends a count.
-  const medalMeter = useCountUp(bankState.loaded ? shownMedals : null);
+  // each medal with its chirp; WIN shows the whole win at once. A bet put down shows at once, and ends a count.
+  const medalMeter = useCountUp(bankState.loaded ? shownMedals : null, tick);
   useEffect(() => {
     payMedals.current = medalMeter.pay;
   });
-  useEffect(() => {
-    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
-    if (medalMeter.counting) play('payout');
-  }, [medalMeter.shown, medalMeter.counting]);
 
   const handView = (side: Side) => {
     const cards = round ? round.hand[side] : [];
@@ -663,9 +649,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
                   </>
                 )}
               </div>
-              <button type="button" className={styles.soundToggle} aria-pressed={sound} onClick={toggleSound} data-testid="baccarat-sound">
-                {sound ? t.soundOn : t.soundOff}
-              </button>
+              <SoundSwitch control={sound} language={language} className={styles.soundToggle} testId="baccarat-sound" />
             </div>
 
             <div className={styles.table}>

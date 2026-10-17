@@ -724,7 +724,7 @@ describe('a browser that dies between two writes', () => {
 describe('what is not play', () => {
   it('leaves the medals alone in the analysis, the odds and the simulation: none of them reaches the medal center', () => {
     const dir = path.resolve(__dirname, '../../../../../src/components/game/VideoPoker');
-    for (const file of ['analysis.ts', 'sim.ts', 'precomputed.ts', 'charts.tsx', 'OddsTab.tsx', 'SimTab.tsx', 'engine.ts']) {
+    for (const file of ['analysis.ts', 'sim.ts', 'precomputed.ts', 'charts.tsx', 'OddsTab.tsx', 'SimTab.tsx', 'engine.ts', 'doubleUp.ts']) {
       const source = readFileSync(path.join(dir, file), 'utf8');
       expect(source, file).not.toMatch(/MedalCenter|medals'|bank\(/);
     }

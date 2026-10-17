@@ -39,6 +39,19 @@
  *   with them (bank.ts moves them, the same copy, to the account): a hand
  *   dealt from them comes along, and is kept under the account from then on.
  *
+ * - A win may be put on a double-up (doubleUp.ts) before the next deal, up
+ *   to `DOUBLE_MAX` times. The win is in the player's medals from the draw;
+ *   each double-up takes the medals on offer out again as it begins (its
+ *   dealer's card face up), and puts back twice them for a card picked
+ *   higher, the same for a push, nothing for a lower one. Each is a move of
+ *   its own under a receipt (`double<n>` out, `double<n>pay` back), written
+ *   down before it is made, so the same squaring holds: a double written down
+ *   whose medals never went out never began, and is taken off the hand; a
+ *   double picked whose medals never came back is paid now. A double waiting
+ *   for its pick is the hand's until it is picked: it resumes after a reload,
+ *   with the same dealer's card, and no deal goes over it. TAKE (or the next
+ *   deal) moves nothing: the medals on offer are the player's already.
+ *
  * This file is the arithmetic and the storage. The page (PlayTab.tsx) holds
  * the seat and shows it all.
  */
@@ -46,6 +59,7 @@
 import type { Bank } from '../MedalCenter/bank';
 import { isDevice } from '../MedalCenter/ledger';
 import { slotFor } from '../MedalPusher/account';
+import { DOUBLE_MAX, DOUBLE_RETURN, doubleState, drawDealer, drawFaceDown, roundOutcome, type DoubleOutcome, type DoubleRound, type DoubleState } from './doubleUp';
 import { MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, deal as dealCards, draw as drawCards, heldFromMask, payout, rankCards, type PayTableId } from './engine';
 
 /** The game, as the medal center knows it. */
@@ -81,11 +95,17 @@ export interface SavedHand {
    * bet's receipt, and its win paid only if it holds the win's. A hand dealt before there were receipts has none.
    */
   receipts?: true;
+  /** The double-ups its win has been put on, in order (doubleUp.ts): the last may still wait for its pick. */
+  doubles?: DoubleRound[];
+  /** Whether the player has taken the win: no more double-ups. */
+  taken?: true;
 }
 
-/** The names of a hand's two moves of medals at the bank. */
+/** The names of a hand's moves of medals at the bank: the bet, the win, and each double-up's medals out and back. */
 export const DEAL_STEP = 'deal';
 export const PAY_STEP = 'pay';
+export const doubleStep = (n: number): string => `double${n}`;
+export const doublePayStep = (n: number): string => `double${n}pay`;
 
 const ID_SHAPE = /^[a-z0-9]{4,32}$/;
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -119,9 +139,45 @@ export function parseHand(text: unknown): SavedHand | null {
   if (!isMask(held)) return null;
   if (typeof drawn !== 'boolean') return null;
   if (receipts !== undefined && receipts !== true) return null;
+  const { doubles, taken } = value;
+  if (taken !== undefined && taken !== true) return null;
+  const rounds = doubles === undefined ? [] : parseDoubles(doubles);
+  if (rounds === null) return null;
   const read: SavedHand = { v: HAND_VERSION, id, era, device, hand: [...hand], stub: [...stub], coins, payId: payId as PayTableId, held, drawn };
   if (receipts) read.receipts = true;
+  if (rounds.length > 0 || taken) {
+    // Double-ups and a win taken belong to a drawn hand that won, under receipts.
+    if (!drawn || !receipts || wonBy(read) === 0) return null;
+    if (rounds.length > 0) read.doubles = rounds;
+    if (taken) read.taken = true;
+  }
   return read;
+}
+
+/**
+ * A hand's double-ups as kept, or null for anything that is not: more than
+ * `DOUBLE_MAX`, a card that is no card, four face-down cards that are not
+ * four different cards apart from the dealer's, a pick that is not one of
+ * them, a double waiting for its pick before the last, or one after a loss.
+ */
+function parseDoubles(value: unknown): DoubleRound[] | null {
+  if (!Array.isArray(value) || value.length > DOUBLE_MAX) return null;
+  const rounds: DoubleRound[] = [];
+  for (const [i, entry] of value.entries()) {
+    if (!isRecord(entry) || !isCard(entry.dealer)) return null;
+    const { dealer, cards, pick } = entry;
+    if (cards === undefined && pick === undefined) {
+      if (i !== value.length - 1) return null;
+      rounds.push({ dealer });
+      continue;
+    }
+    if (!Array.isArray(cards) || cards.length !== 4 || !cards.every(isCard) || new Set([dealer, ...cards]).size !== 5) return null;
+    if (typeof pick !== 'number' || !Number.isInteger(pick) || pick < 0 || pick > 3) return null;
+    const round: DoubleRound = { dealer, cards: [...cards], pick };
+    if (roundOutcome(round) === 'lose' && i !== value.length - 1) return null;
+    rounds.push(round);
+  }
+  return rounds;
 }
 
 export const serializeHand = (h: SavedHand): string =>
@@ -137,12 +193,24 @@ export const serializeHand = (h: SavedHand): string =>
     held: h.held,
     drawn: h.drawn,
     ...(h.receipts ? { receipts: true } : {}),
+    ...(h.doubles && h.doubles.length > 0 ? { doubles: h.doubles } : {}),
+    ...(h.taken ? { taken: true } : {}),
   });
 
 /** The five cards on the screen: as dealt, or as drawn. */
 export const cardsOf = (h: SavedHand): number[] => (h.drawn ? drawCards({ hand: h.hand, stub: h.stub }, heldFromMask(h.held)) : h.hand);
 /** What a drawn hand won, in medals; nothing before the draw. Worked out from the cards, never read from storage. */
 export const wonBy = (h: SavedHand): number => (h.drawn ? payout(rankCards(cardsOf(h)), PAY_TABLES[h.payId], h.coins) : 0);
+/** Where a drawn hand's win stands after its double-ups: worked out from the cards, never read from storage. */
+export const doubleOf = (h: SavedHand): DoubleState => doubleState(wonBy(h), h.doubles ?? []);
+/** Whether a double-up waits for its pick: its medals are out, and the hand is not over until it is picked. */
+export const doublePending = (h: SavedHand): boolean => h.drawn && doubleOf(h).pending;
+/** Whether the medals on offer may be put on a double-up now. */
+export const canDouble = (h: SavedHand): boolean => {
+  if (!h.drawn || h.taken || !h.receipts) return false;
+  const state = doubleOf(h);
+  return state.offer > 0 && !state.pending && !state.lost && state.left > 0;
+};
 
 /** This device's storage, as the page has it. Every call may throw: storage can be blocked, full or switched off. */
 export interface HandStore {
@@ -188,6 +256,26 @@ export type DrawOutcome =
   /** This hand has been drawn already, here or in another tab, or thrown away by a reset: nothing is won again. */
   | { kind: 'gone'; hand: SavedHand | null }
   /** The hand kept on the device cannot be marked drawn (or read back) just now: it stays dealt, and nothing is won yet. */
+  | { kind: 'unsaved' }
+  | { kind: 'away' };
+
+export type DoubleUpOutcome =
+  /** The medals on offer are on the double now, out of the player's medals, and the dealer's card is up. */
+  | { kind: 'doubling'; hand: SavedHand; stake: number }
+  /** Not this hand, or nothing that may be doubled up now (no win on offer, taken, lost, the most double-ups made, one waiting). */
+  | { kind: 'gone'; hand: SavedHand | null }
+  /** Storage will not keep the double: none is made. */
+  | { kind: 'unsaved' }
+  /** The medals on offer could not be put on it (the medals changed under it): none is made. */
+  | { kind: 'short' }
+  | { kind: 'away' };
+
+export type PickOutcome =
+  /** The card is picked: what came of it, and what is on offer now. */
+  | { kind: 'picked'; hand: SavedHand; outcome: DoubleOutcome; stake: number; back: number; offer: number }
+  /** No double waits for a pick on this hand (picked already, here or in another tab, or thrown away by a reset). */
+  | { kind: 'gone'; hand: SavedHand | null }
+  /** Storage will not keep the pick: nothing is decided, and the double still waits. */
   | { kind: 'unsaved' }
   | { kind: 'away' };
 
@@ -255,6 +343,34 @@ export function createMedalPlay(env: MedalPlayEnv) {
     if (h.drawn) {
       const won = wonBy(h);
       if (won > 0 && !moved(h, PAY_STEP)) move(h, PAY_STEP, won);
+      return squareDoubles(h, from);
+    }
+    return h;
+  };
+
+  /**
+   * The double-ups of a drawn hand, squared with their receipts in order: one picked whose medals never came back is
+   * paid them now; one written down whose medals never went out never began, and is taken off the hand (only the last
+   * can be such). Returns the hand as it stands.
+   */
+  const squareDoubles = (h: SavedHand, from: string | null): SavedHand => {
+    const rounds = h.doubles ?? [];
+    let stake = wonBy(h);
+    for (const [i, round] of rounds.entries()) {
+      const n = i + 1;
+      if (!moved(h, doubleStep(n))) {
+        // Written down, and the browser died before its medals went out: no double-up was made.
+        const back: SavedHand = { ...h, doubles: rounds.slice(0, i) };
+        if (back.doubles!.length === 0) delete back.doubles;
+        if (from !== null) write(back, from);
+        else memory = { key: key(), hand: back };
+        return back;
+      }
+      const outcome = roundOutcome(round);
+      if (outcome === null) return h;
+      const back = stake * DOUBLE_RETURN[outcome];
+      if (back > 0 && !moved(h, doublePayStep(n))) move(h, doublePayStep(n), back);
+      stake = back;
     }
     return h;
   };
@@ -364,7 +480,8 @@ export function createMedalPlay(env: MedalPlayEnv) {
       const ledger = bank.getState().ledger;
       if (!ledger || !Number.isInteger(coins) || coins < 1 || coins > MAX_COINS) return { kind: 'away' };
       const before = look();
-      if (before.ok && before.hand && !before.hand.drawn) return { kind: 'inPlay', hand: before.hand };
+      // A hand still dealt, or a double-up waiting for its pick (its medals are out), is played first.
+      if (before.ok && before.hand && (!before.hand.drawn || doublePending(before.hand))) return { kind: 'inPlay', hand: before.hand };
       if (bank.balance() < coins) return { kind: 'short' };
       const { hand, stub } = dealCards(random);
       const dealt: SavedHand = { v: HAND_VERSION, id: newId(), era: ledger.era, device: ledger.device, hand, stub, coins, payId, held: 0, drawn: false, receipts: true };
@@ -459,6 +576,87 @@ export function createMedalPlay(env: MedalPlayEnv) {
       const won = wonBy(drawn);
       if (won > 0) move(drawn, PAY_STEP, won);
       return { kind: 'drawn', hand: drawn, won };
+    },
+
+    /**
+     * Puts the medals on offer from the drawn hand `id` on a double-up: the
+     * dealer's card is drawn and the double written down first, and then the
+     * medals go out under its receipt. A double that cannot be written down,
+     * or whose medals cannot go out, is not made.
+     */
+    doubleUp(id: string): DoubleUpOutcome {
+      if (!holding()) return { kind: 'away' };
+      const now = look();
+      if (!now.ok) return { kind: 'unsaved' };
+      const current = now.hand;
+      if (!current || current.id !== id || !canDouble(current)) return { kind: 'gone', hand: current };
+      const stake = doubleOf(current).offer;
+      const rounds = current.doubles ?? [];
+      const n = rounds.length + 1;
+      const next: SavedHand = { ...current, doubles: [...rounds, { dealer: drawDealer(random) }] };
+      if (now.from !== null) {
+        if (write(next, now.from) === 'failed') return { kind: 'unsaved' };
+      } else memory = { key: key(), hand: next };
+      if (move(next, doubleStep(n), -stake) !== 'applied') {
+        // Its medals did not go out: the double was never made, and the hand is put back as it was.
+        if (now.from !== null) write(current, null);
+        else memory = { key: key(), hand: current };
+        return { kind: 'short' };
+      }
+      return { kind: 'doubling', hand: next, stake };
+    },
+
+    /**
+     * Picks face-down card `index` (0–3) of the double-up waiting on hand
+     * `id`. The four cards are drawn now, as the card is picked, and the pick
+     * is written down before what it brings back goes into the medals under
+     * its receipt: twice the medals for a higher card, the same for a push,
+     * nothing for a lower one. When the pick cannot be written down nothing
+     * is decided, and the double still waits.
+     */
+    pick(id: string, index: number): PickOutcome {
+      if (!holding()) return { kind: 'away' };
+      if (!Number.isInteger(index) || index < 0 || index > 3) return { kind: 'gone', hand: null };
+      const now = look();
+      if (!now.ok) return { kind: 'unsaved' };
+      const current = now.hand;
+      if (!current || current.id !== id || !doublePending(current)) return { kind: 'gone', hand: current };
+      const rounds = current.doubles!;
+      const n = rounds.length;
+      const waiting = rounds[n - 1];
+      const stake = doubleOf({ ...current, doubles: rounds.slice(0, n - 1) }).offer;
+      const picked: DoubleRound = { dealer: waiting.dealer, cards: drawFaceDown(waiting.dealer, random), pick: index };
+      const next: SavedHand = { ...current, doubles: [...rounds.slice(0, n - 1), picked] };
+      if (now.from !== null) {
+        if (write(next, now.from) === 'failed') return { kind: 'unsaved' };
+      } else memory = { key: key(), hand: next };
+      const outcome = roundOutcome(picked)!;
+      const back = stake * DOUBLE_RETURN[outcome];
+      if (back > 0) move(next, doublePayStep(n), back);
+      return { kind: 'picked', hand: next, outcome, stake, back, offer: doubleOf(next).offer };
+    },
+
+    /**
+     * Takes the win on offer: no more double-ups for it. Nothing moves, since
+     * the medals on offer are the player's already; a hand storage will not
+     * mark taken is taken here all the same, and may be offered again after a
+     * reload, which costs nothing.
+     */
+    take(id: string): SavedHand | null {
+      if (!holding()) return null;
+      const now = look();
+      const current = now.ok ? now.hand : remembered();
+      if (!current || current.id !== id || !current.drawn || current.taken || doublePending(current)) return null;
+      const next: SavedHand = { ...current, taken: true };
+      if (now.ok && now.from !== null) {
+        try {
+          store.write(key(), serializeHand(next));
+          if (now.from !== key()) removeKey(now.from);
+        } catch {
+          // Taken on this page.
+        }
+      } else memory = { key: key(), hand: next };
+      return next;
     },
   };
 }

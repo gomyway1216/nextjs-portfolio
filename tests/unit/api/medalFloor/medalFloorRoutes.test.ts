@@ -420,3 +420,21 @@ describe('what is kept', () => {
     expect([...db().docs.keys()].filter((path) => path.startsWith('medal_floor_periods/'))).toEqual([]);
   });
 });
+
+describe('a report the floor has counted', () => {
+  it('still succeeds when its moment cannot be put on show, so the browser does not send the same medals twice', async () => {
+    await join('fake-token-ann');
+    const failing = rtdb();
+    const ref = failing.ref.bind(failing);
+    failing.ref = (path = '') => {
+      const real = ref(path);
+      if (path.endsWith('/seq')) real.transaction = async () => Promise.reject(new Error('fake RTDB: unreachable'));
+      return real;
+    };
+    const answer = await report('fake-token-ann', { game: 'slot-machine', won: 3_000, moment: { medals: 3_000, label: 'seven3' } });
+    expect(answer.status).toBe(200);
+    expect(answer.body).toEqual({ counted: 3_000, best: true, shown: false });
+    failing.ref = ref;
+    expect((await summary()).day.won[0]?.score).toBe(3_000);
+  });
+});

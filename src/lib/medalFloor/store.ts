@@ -296,7 +296,12 @@ export async function joinFloor(uid: string, name: string | null, now: number): 
         if (line.exists) tx.update(current[index], { name });
       });
     });
-    await touchMoments(uid, { name });
+    try {
+      await touchMoments(uid, { name });
+    } catch (error) {
+      // The new name is the player's now; the moments on show keep the old one until they scroll off.
+      console.error('[medal-floor] the moments on show could not be renamed:', error);
+    }
   }
   return meOf(player);
 }
@@ -390,17 +395,18 @@ export async function reportToFloor(uid: string, report: FloorReport, now: numbe
     }
     return { counted, best: best > 0, shown, player };
   });
-  if (outcome.shown && report.moment) {
-    await showMoment(uid, {
-      name: outcome.player.name,
-      tag: outcome.player.tag,
-      game: report.game,
-      label: report.moment.label ?? null,
-      medals: report.moment.medals,
-      at: now,
-    });
+  let shown = outcome.shown;
+  if (shown && report.moment) {
+    // The report is counted already: a moment that cannot be put on show now is not shown, and the report still
+    // succeeds. Failing it would have the browser send the same medals again, and count them twice.
+    try {
+      shown = (await showMoment(uid, { name: outcome.player.name, tag: outcome.player.tag, game: report.game, label: report.moment.label ?? null, medals: report.moment.medals, at: now })) !== null;
+    } catch (error) {
+      console.error('[medal-floor] a moment could not be put on show:', error);
+      shown = false;
+    }
   }
-  return { counted: outcome.counted, best: outcome.best, shown: outcome.shown };
+  return { counted: outcome.counted, best: outcome.best, shown };
 }
 
 // ── The owner ────────────────────────────────────────────────────────────────

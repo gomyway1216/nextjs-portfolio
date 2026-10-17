@@ -32,9 +32,12 @@ export interface RouletteStrings {
   medals: string;
   /** The LED counter of the medals on the felt. */
   bet: string;
-  /** What a screen reader hears for the two counters. */
+  /** The LED counter of the medals the last spin won (bets on winning spots included). */
+  win: string;
+  /** What a screen reader hears for the three counters. */
   medalsSr: (n: number) => string;
   betSr: (n: number) => string;
+  winSr: (n: number) => string;
   /** Until the player's medals have been found. */
   finding: string;
   /** Medals are for playing only: never money. Shown by the counter and in the help. */
@@ -69,6 +72,12 @@ export interface RouletteStrings {
   spinning: string;
   clear: string;
   undo: string;
+  /** Puts the last spin's bets back on the felt, as they were: the button, with how many medals that is. */
+  rebet: (medals: number) => string;
+  /** Said when the medals do not cover the last spin's bets. */
+  rebetShort: (medals: number) => string;
+  /** What a screen reader hears when the last bets are back on the felt. */
+  sayRebet: (medals: number) => string;
   recentResults: string;
   none: string;
   betHistory: string;
@@ -211,8 +220,10 @@ const EN: RouletteStrings = {
   centerLink: 'Medal Game Center',
   medals: 'MEDALS',
   bet: 'BET',
+  win: 'WIN',
   medalsSr: (n) => `Your medals: ${n.toLocaleString('en-US')}`,
   betSr: (n) => `On the felt: ${medalsEn(n)}`,
+  winSr: (n) => `Won on the last spin: ${medalsEn(n)}`,
   finding: 'Looking for your medals…',
   notMoney: NOT_MONEY.en,
   centerNote: 'These are your medals from the Medal Game Center: every game there plays with the same ones, and they are reset only there.',
@@ -240,12 +251,15 @@ const EN: RouletteStrings = {
   spinning: 'Spinning…',
   clear: 'Clear',
   undo: 'Undo',
+  rebet: (medals) => (medals > 0 ? `Rebet ${medals}` : 'Rebet'),
+  rebetShort: (medals) => `Not enough medals to repeat the last bets (${medalsEn(medals)}).`,
+  sayRebet: (medals) => `The last bets are back on the felt: ${medalsEn(medals)}.`,
   recentResults: 'Winning numbers',
   none: '(none yet)',
   betHistory: 'Spin history',
   noBets: 'No spins yet.',
   insideHint:
-    'Inside bets: tap a grid border = Split (17:1), an intersection = Corner (8:1), the row below the grid = Street (11:1) / Line (5:1).',
+    'Inside bets: tap the border between two numbers = Split (17:1), a point where four meet = Corner (8:1), the small boxes along the numbers = Street (11:1) / Line (5:1).',
   outsideHint: `Pick how many medals a tap adds, tap a betting area, then SPIN. The medals are taken when the wheel spins; at least 1 a bet and up to ${SPOT_MAX} on one spot.`,
   histBet: 'Bet',
   histNet: '+/−',
@@ -340,8 +354,10 @@ const JA: RouletteStrings = {
   centerLink: 'メダルゲームセンター',
   medals: '持ちメダル',
   bet: 'ベット',
+  win: '獲得',
   medalsSr: (n) => `持ちメダル ${n.toLocaleString('ja-JP')}枚`,
   betSr: (n) => `テーブル上のベット ${n.toLocaleString('ja-JP')}枚`,
+  winSr: (n) => `前回のスピンの獲得 ${n.toLocaleString('ja-JP')}枚`,
   finding: '持ちメダルを確認しています…',
   notMoney: NOT_MONEY.ja,
   centerNote: 'メダルゲームセンターの持ちメダルです。センターのどのゲームも同じメダルで遊び、リセットはセンターでのみ行えます。',
@@ -368,12 +384,15 @@ const JA: RouletteStrings = {
   spinning: 'スピン中…',
   clear: 'クリア',
   undo: '取り消し',
+  rebet: (medals) => (medals > 0 ? `前回と同じ ${medals.toLocaleString('ja-JP')}枚` : '前回と同じ'),
+  rebetShort: (medals) => `前回のベット（${medals.toLocaleString('ja-JP')}枚）に足りるメダルがありません。`,
+  sayRebet: (medals) => `前回と同じベット（${medals.toLocaleString('ja-JP')}枚）をテーブルに置きました。`,
   recentResults: '出目履歴',
   none: '（まだなし）',
   betHistory: 'スピン履歴',
   noBets: 'まだスピンなし。',
   insideHint:
-    'インサイドベット: 数字グリッドの境界線をタップ = スプリット (17:1)、交点 = コーナー (8:1)、グリッド下の行 = ストリート (11:1) / ライン (5:1)。',
+    'インサイドベット: 2つの数字の境界線をタップ = スプリット (17:1)、4つの数字が接する点 = コーナー (8:1)、数字に沿った小さな枠 = ストリート (11:1) / ライン (5:1)。',
   outsideHint: `1回のベット枚数を選んでベットエリアをタップ→SPIN。メダルはホイールが回るときに使います。ベットは1枚から、1か所${SPOT_MAX}枚まで。`,
   histBet: 'ベット',
   histNet: '増減',

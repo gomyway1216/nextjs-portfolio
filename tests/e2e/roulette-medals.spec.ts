@@ -65,6 +65,81 @@ test('a bet takes medals when the wheel spins, a win puts medals back, and the m
   await expect(page.locator('[data-machine="roulette"]')).toHaveAttribute('data-open', 'true');
 });
 
+/** The next spin comes up `n`. */
+const comeUp = (page: Page, n: number) =>
+  page.evaluate((pocket) => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => {
+      Math.random = w.__random;
+      return (pocket + 0.5) / 37;
+    };
+  }, n);
+
+test('Rebet puts the last spin’s bets back on the felt, after a reload too, and only when the medals cover them', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openRoulette(page);
+  const rebet = page.getByTestId('roulette-rebet');
+  // Nothing to repeat before the first spin.
+  await expect(rebet).toBeDisabled();
+  await expect(rebet).toHaveText('Rebet');
+
+  // Five on red (one tap at five a tap), one on 17.
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await page.getByRole('button', { name: /^Undo$/ }).click();
+  await page.getByRole('radio', { name: 'Bet 5 medals a tap' }).click();
+  await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
+  await page.getByRole('radio', { name: 'Bet 1 medal a tap' }).click();
+  await page.getByRole('button', { name: /^Straight up \(35:1\) — 17$/ }).click();
+  await expect.poll(() => shownBet(page)).toBe(6);
+  await expect(rebet).toBeDisabled();
+  await comeUp(page, 2);
+  await spinButton(page).click();
+  expect(await settledResult(page)).toBe(2);
+  // 2 is black: both bets lost, and the felt is clear.
+  expect(await shownMedals(page)).toBe(WELCOME - 6);
+  expect(await shownBet(page)).toBe(0);
+
+  // Rebet: the same two bets, at once.
+  await expect(rebet).toBeEnabled();
+  await expect(rebet).toHaveText('Rebet 6');
+  await rebet.click();
+  await expect.poll(() => shownBet(page)).toBe(6);
+  expect(await shownMedals(page)).toBe(WELCOME - 12);
+  await expect(page.getByRole('button', { name: /^Red \(1:1\)$/ })).toHaveText('RED5');
+  await expect(page.getByRole('button', { name: /^Straight up \(35:1\) — 17$/ })).toHaveText('171');
+  await expect(rebet).toBeDisabled();
+  // Undo takes them off again, the last one first.
+  await page.getByRole('button', { name: /^Undo$/ }).click();
+  await expect.poll(() => shownBet(page)).toBe(5);
+  await page.getByRole('button', { name: /^Undo$/ }).click();
+  await expect.poll(() => shownBet(page)).toBe(0);
+
+  // After a reload, the last spin's bets are still there to repeat.
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  await expect(rebet).toHaveText('Rebet 6');
+  await rebet.click();
+  await expect.poll(() => shownBet(page)).toBe(6);
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+
+  // Everything on red twice over, lost: Rebet then asks for more medals than there are, and puts nothing down.
+  await page.getByRole('radio', { name: 'Bet 50 medals a tap' }).click();
+  await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
+  await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
+  await expect.poll(() => shownBet(page)).toBe(WELCOME - 6);
+  await comeUp(page, 2);
+  await spinButton(page).click();
+  expect(await settledResult(page)).toBe(2);
+  expect(await shownMedals(page)).toBe(0);
+  await expect(rebet).toHaveText(`Rebet ${WELCOME - 6}`);
+  await rebet.click();
+  await expect(page.getByTestId('roulette-message')).toHaveText(`Not enough medals to repeat the last bets (${WELCOME - 6} medals).`);
+  expect(await shownBet(page)).toBe(0);
+  expect(await bankBalance(page)).toBe(0);
+});
+
 test('a reload while the ball is rolling settles the spin once, with the number drawn when it was bet', async ({ page }) => {
   await openRoulette(page);
   await placeFirstBet(page, /^Red \(1:1\)$/);
@@ -294,4 +369,37 @@ test('the medal counter and the note that medals are not money, at a phone’s w
   await expect(page.getByTestId('roulette-not-money')).toHaveText(NOT_MONEY.ja);
   await expect(page.getByRole('radiogroup', { name: '1回のベット枚数' })).toBeVisible();
   expect(await sideways(page)).toBeLessThanOrEqual(375);
+});
+
+test('the WIN counter shows what a spin won, and the win runs into the medals on the counter', async ({ page }) => {
+  await openRoulette(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
+  await coverTheWheel(page);
+  // Zero comes up: the medal on it wins 36 (35 and the medal back).
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.5 / 37;
+  });
+  await spinButton(page).click();
+  await page.evaluate(() => {
+    Math.random = (window as unknown as { __random: () => number }).__random;
+  });
+  // While the ball rolls the WIN counter is at 0.
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
+  expect(await settledResult(page)).toBe(0);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
+  await expect(page.getByTestId('roulette-win')).toHaveText('Won on the last spin: 36 medals');
+  // The medals are the player's at once; their LEDs count up to them.
+  expect(await shownMedals(page)).toBe(WELCOME - 3 + 36);
+  const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
+  const early = await led();
+  expect(early).toBeGreaterThanOrEqual(WELCOME - 3);
+  expect(early).toBeLessThan(WELCOME - 3 + 36);
+  await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + 36);
+  // A bet put on the felt (or taken back) is on the counter at once.
+  await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
+  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36 - 1);
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36);
 });

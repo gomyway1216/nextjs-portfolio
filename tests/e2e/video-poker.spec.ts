@@ -225,6 +225,53 @@ test('switching tabs mid-hand keeps the hand', async ({ page }) => {
   await expect(drawButton(page)).toBeVisible();
 });
 
+test('on a phone the pay table shows the bet’s column in type that can be read, and the cards take the width they have', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const width of [320, 375, 414]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openVideoPoker(page);
+    // The hand dealt at the first width is kept through the reloads, and is there at the others.
+    if (width === 320) await dealHand(page);
+    await expect(drawButton(page)).toBeVisible();
+    await expect(page.locator('[data-slot] [data-card]')).toHaveCount(5);
+    const look = await page.evaluate(() => {
+      const table = document.querySelector('[data-testid="vp-paytable"]')!;
+      const shown = (el: Element) => getComputedStyle(el).display !== 'none';
+      const cells = [...table.querySelectorAll('tbody tr:first-child td')].filter(shown);
+      const cards = [...document.querySelectorAll('[data-slot] [data-card]')].map((c) => c.getBoundingClientRect());
+      const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+      return {
+        columns: cells.length,
+        text: cells.map((c) => c.textContent),
+        font: parseFloat(getComputedStyle(cells[0]).fontSize),
+        cardWidth: Math.min(...cards.map((c) => c.width)),
+        overlap: cards.some((c, i) => i > 0 && c.left < cards[i - 1].right - 0.5),
+        sideways: document.documentElement.scrollWidth,
+        draw: box('button[class*="dealBtn"]'),
+        betOne: box('button[class*="machineBtn"]:not([class*="dealBtn"])'),
+      };
+    });
+    // One column, the bet's (five medals: the royal is 4,000), in type of at least 12 px.
+    expect(look.columns).toBe(1);
+    expect(look.text).toEqual(['4,000']);
+    expect(look.font).toBeGreaterThanOrEqual(12);
+    // Five cards side by side, none over another, as large as the row allows (58 px or more from 375 px up).
+    expect(look.overlap).toBe(false);
+    if (width >= 375) expect(look.cardWidth).toBeGreaterThanOrEqual(56);
+    // DRAW under Bet one and Bet max, the width of both.
+    expect(look.draw.top).toBeGreaterThan(look.betOne.bottom - 1);
+    expect(look.draw.width).toBeGreaterThan(look.betOne.width * 1.8);
+    expect(look.sideways).toBeLessThanOrEqual(width);
+  }
+  // A desktop still shows all five columns.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openVideoPoker(page);
+  const columns = await page.evaluate(
+    () => [...document.querySelectorAll('[data-testid="vp-paytable"] tbody tr:first-child td')].filter((c) => getComputedStyle(c).display !== 'none').length,
+  );
+  expect(columns).toBe(5);
+});
+
 test('the odds tab prices every pay table and shows the close calls', async ({ page }) => {
   await openVideoPoker(page, 'ja');
   await page.getByRole('tab', { name: '確率' }).click();
@@ -317,6 +364,30 @@ test('a bet comes out of your medals and a win goes back in, and the medal cente
   await expect(page).toHaveURL(/\/games\/video-poker$/);
   await arrived(page);
   await expect(page.getByTestId('vp-medals')).toHaveText('140');
+});
+
+test('a win runs into the medals on the counter while the WIN meter shows it whole, and DEAL ends the count', async ({ page }) => {
+  await openVideoPoker(page);
+  await dealFullHouse(page);
+  await holdAll(page);
+  await drawButton(page).click();
+  await expect(page.getByTestId('vp-win')).toHaveText('45');
+  // The medals are the player's at once (in type for a screen reader); the counter's LEDs run up to them.
+  expect(await medals(page)).toBe(WELCOME - 5 + 45);
+  const led = () => page.getByTestId('vp-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
+  const early = await led();
+  expect(early).toBeGreaterThanOrEqual(WELCOME - 5);
+  expect(early).toBeLessThan(WELCOME - 5 + 45);
+  await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 5 + 45);
+
+  // Another full house; DEAL pressed while it runs in shows the medals less the next bet at once.
+  await dealFullHouse(page);
+  await holdAll(page);
+  await drawButton(page).click();
+  expect(await led()).toBeLessThan(WELCOME - 10 + 90);
+  await dealButton(page).click();
+  await expect.poll(led, { timeout: 1_000 }).toBe(WELCOME - 15 + 90);
+  expect(await medals(page)).toBe(WELCOME - 15 + 90);
 });
 
 test('a hand dealt before a reload is there after it: the same cards, no second bet, and its win once', async ({ page }) => {

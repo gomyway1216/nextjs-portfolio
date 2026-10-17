@@ -329,6 +329,45 @@ test('says once that the machine plays with the player’s medals now, and fits 
   expect(errors).toEqual([]);
 });
 
+test('the pay glass shows each line at 1, 2 and 3 medals, with the column of the bet lit', async ({ page }) => {
+  await openSlots(page);
+  const glass = page.getByTestId('slot-paytable');
+  await expect(glass.locator('thead th')).toHaveText(['Line', 'BET 1', 'BET 2', 'BET 3']);
+  await expect(glass.locator('th[aria-current="true"]')).toHaveText('BET 1');
+  // The 7-7-7 row: 1,000, 2,000 and 3,000.
+  await expect(glass.locator('tbody tr').first().locator('td')).toHaveText(['1,000', '2,000', '3,000']);
+  await page.getByTestId('slot-bet-3').click();
+  await expect(glass.locator('th[aria-current="true"]')).toHaveText('BET 3');
+  await expect(glass.locator('tbody tr').last().locator('td')).toHaveText(['2', '4', '6']);
+});
+
+test('with fewer medals left than the bet, the machine says why SPIN cannot be pressed, under the last result', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await page.getByTestId('slot-bet-3').click();
+  // Losing spins at three medals until one is left.
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.999;
+  });
+  for (let left = WELCOME; left >= 3; left -= 3) {
+    await spinButton(page).click();
+    await expect(page.getByTestId('slot-medals')).toHaveText(count(left - 3));
+    await settledLine(page);
+  }
+  await unforce(page);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME % 3));
+  await expect(spinButton(page)).toBeDisabled();
+  await expect(page.getByTestId('slot-result')).toHaveText('No win');
+  await expect(page.getByTestId('slot-short')).toHaveText('Not enough medals to bet 3 — choose a smaller bet.');
+  // A bet the medals cover: the note goes, and the machine spins again.
+  await page.getByTestId('slot-bet-1').click();
+  await expect(page.getByTestId('slot-short')).toHaveCount(0);
+  await expect(spinButton(page)).toBeEnabled();
+});
+
 test('the exact odds tab shows the computed paytable and virtual reels', async ({ page }) => {
   await openSlots(page);
   await page.getByRole('tab', { name: 'Exact odds' }).click();
@@ -364,4 +403,54 @@ test('the slot machine is localized', async ({ page }) => {
   await expect(page.getByRole('tab', { name: '正確な確率' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'レバーを引いて回す' })).toBeVisible();
   await expect(page.getByTestId('slot-center')).toHaveText('← メダルゲームセンター');
+});
+
+/** What an LED meter shows (its `data-shown`), as a number. */
+const led = (page: Page, id: string) => page.getByTestId(id).evaluate((el) => Number((el as HTMLElement).dataset.shown));
+
+test('a win runs into the medals on the meters, the WIN meter counting up beside them, and the next spin ends the count', async ({ page }) => {
+  await openSlots(page);
+  // A jackpot at one medal: 1,000 medals.
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  // The medals are the player's at once (and in type for a screen reader); the LEDs are still counting.
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + 1000));
+  const early = { medals: await led(page, 'slot-medals-led'), win: await led(page, 'slot-win-led') };
+  expect(early.medals).toBeGreaterThanOrEqual(WELCOME - 1);
+  expect(early.medals).toBeLessThan(WELCOME - 1 + 1000);
+  expect(early.win).toBeLessThan(1000);
+  await page.waitForTimeout(400);
+  expect(await led(page, 'slot-medals-led')).toBeGreaterThan(early.medals);
+  // They end exactly on what the player has and on the win, in no more than the longest count.
+  await expect.poll(() => led(page, 'slot-medals-led'), { timeout: 4_000 }).toBe(WELCOME - 1 + 1000);
+  expect(await led(page, 'slot-win-led')).toBe(1000);
+
+  // The next jackpot's count is ended by the spin after it: its bet takes a medal and the meter shows the rest at once.
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  expect(await led(page, 'slot-medals-led')).toBeLessThan(WELCOME - 2 + 2000);
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.999;
+  });
+  await spinButton(page).click();
+  await unforce(page);
+  await expect.poll(() => led(page, 'slot-medals-led'), { timeout: 1_000 }).toBe(WELCOME - 3 + 2000);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 3 + 2000));
+});
+
+test('under reduced motion a win is on the meters at once', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openSlots(page);
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await settledLine(page);
+  await expect(page.getByTestId('slot-medals-led')).toHaveAttribute('data-shown', String(WELCOME - 1 + 1000), { timeout: 500 });
+  await expect(page.getByTestId('slot-win-led')).toHaveAttribute('data-shown', '1000');
 });

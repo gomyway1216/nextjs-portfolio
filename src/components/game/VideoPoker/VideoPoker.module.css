@@ -785,6 +785,13 @@
   font-size: 0.82rem;
   color: #d1d5db;
 }
+/* The sound switch, at the far end of the row under the buttons. */
+.soundSwitch {
+  margin-left: auto;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
 .select {
   background: #0b0b0f;
   color: #f8fafc;

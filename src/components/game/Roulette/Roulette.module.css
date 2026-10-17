@@ -736,6 +736,13 @@
   font-size: 0.85rem;
   font-weight: 700;
 }
+/* The sound switch, at the far end of the row of steps. */
+.soundSwitch {
+  margin-left: auto;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
 .chip {
   --c: var(--rl-gold);
   appearance: none;

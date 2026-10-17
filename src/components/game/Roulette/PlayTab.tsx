@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
+import { useMachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
@@ -180,7 +182,10 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
   // The medals not on the felt: while the ball rolls, the bets on the felt have been taken out of them already.
   const medalsShown = mine ? Math.max(0, bankState.balance - (spinning ? 0 : totalWagered)) : null;
   // On the counter's LEDs a win runs into the medals, as a medal machine pays it (countUp.ts).
-  const medalMeter = useCountUp(medalsShown);
+  // The table's sound, off until the player switches it on; each medal of a win chirps as it is counted in.
+  const sound = useMachineSound();
+  const { play, tick } = sound;
+  const medalMeter = useCountUp(medalsShown, tick);
   const { pay: payMedals } = medalMeter;
 
   // Delta-aware placement + undo. betsRef mirrors the bets state synchronously
@@ -214,6 +219,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
       return;
     }
     setMessage('');
+    play('chip');
     const nextBets = { ...betsRef.current, [k]: { bet, amount: onSpot + add } };
     betsRef.current = nextBets;
     setBets(nextBets);
@@ -265,6 +271,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     }
     setMessage('');
     putNoticeAway();
+    play('launch');
     setAnnouncement(t.sayStake(staked.record.wagered));
     roll(Object.assign(staked, { boarded: false }));
   };
@@ -277,6 +284,9 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     if (!spun.void) {
       // What it won runs into the medals on the counter (paid now, or as the card went for a moment).
       if (spun.record.won > 0) payMedals();
+      // The ball drops into its pocket; a win is played over the medals coming in.
+      play('drop');
+      if (spun.record.won > 0) play(spun.record.won >= spun.record.wagered * 10 ? 'big' : 'win', 0.2);
       if (!spun.paid) table.current?.settle(spun);
       const { record } = spun;
       if (!spun.boarded) resultsStore.record(record.result);
@@ -294,7 +304,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
     setFelt({});
     spinningRef.current = false;
     setSpinning(false);
-  }, [setFelt, payMedals]);
+  }, [setFelt, payMedals, play]);
 
   /** The medals have been reset at the medal center: the table starts over, and so does this device's copy of it. */
   const startOver = useCallback(
@@ -522,6 +532,7 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
               {v}
             </button>
           ))}
+          <SoundSwitch control={sound} language={language} className={`${styles.btn} ${styles.soundSwitch}`} testId="roulette-sound" />
         </div>
 
         {/* The felt and its buttons, with the plate that stands over them while the medals are in another tab. */}

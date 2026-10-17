@@ -808,7 +808,8 @@
   grid-template-columns: 34px repeat(12, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(34px, auto)) auto 24px;
   gap: 2px;
-  margin-bottom: 0.35rem;
+  /* Room under the lines for the count of medals on one (below), clear of the dozens and the columns. */
+  margin-bottom: 0.9rem;
 }
 .zeroCell {
   grid-column: 1;
@@ -848,6 +849,7 @@
    columns] over [0][12 number rows]. */
 @container felt (max-width: 520px) {
   .feltBoard {
+    margin-bottom: 0.35rem;
     grid-template-columns: 38px 44px repeat(3, minmax(0, 1fr));
     /* Rows of one height, so that the hit zones, placed by twelfths, sit on the borders between them. */
     grid-template-rows: 38px repeat(12, 36px);
@@ -974,6 +976,40 @@
   border: 2px solid #1a1200;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   font-variant-numeric: tabular-nums;
+  /* The count is a picture of the medals on the spot: a tap on it is a tap on whatever is under it. */
+  pointer-events: none;
+}
+/* On a street, a line or a column the count is a size smaller and sits where it covers no label (on the corner it
+   covered "25-27" or "31-36"): a street's on its top edge, over the numbers' empty lower edge; a line's on its bottom
+   edge where the table is wide (above it are the streets), on its top edge where it stands upright; a column's on its
+   outer edge. */
+.cellSmall .chipBadge {
+  top: -11px;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  font-size: 0.6rem;
+  border-width: 1.5px;
+  z-index: 1;
+}
+.lineCell .chipBadge {
+  top: auto;
+  bottom: -13px;
+}
+.columns .chipBadge {
+  top: 50%;
+  left: auto;
+  right: -9px;
+  transform: translateY(-50%);
+}
+@container felt (max-width: 520px) {
+  .lineCell .chipBadge {
+    top: -11px;
+    bottom: auto;
+  }
 }
 
 .hitZone {

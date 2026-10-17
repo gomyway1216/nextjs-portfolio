@@ -257,3 +257,46 @@ test('the wheel, wherever it has come to rest, never covers the tabs or anything
     await page.getByRole('tab', { name: 'Play' }).click({ timeout: 5_000 });
   }
 });
+
+test('the medals on a street or a line never cover its label, and no count of medals catches a tap meant for a bet', async ({ page }) => {
+  test.setTimeout(60_000);
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openRoulette(page);
+    // A medal on every street and every line, and on a number, a column and red.
+    const labels = await page
+      .getByRole('button')
+      .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label') ?? '').filter((l) => /^(Street|Line) /.test(l)));
+    expect(labels).toHaveLength(12 + 11);
+    await placeFirstBet(page, /^Straight up \(35:1\) — 17$/);
+    for (const label of [...labels, 'Column (2:1) 1', 'Red (1:1)']) await page.getByRole('button', { name: label, exact: true }).click();
+    await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-bet', String(1 + 23 + 2));
+    const found = await page.evaluate(() => {
+      const overlaps: string[] = [];
+      const catching: string[] = [];
+      // Every bet's label: the cell's own text, before any count of medals on it.
+      const labels = [...document.querySelectorAll<HTMLElement>('button[aria-label]')].flatMap((cell) => {
+        const text = [...cell.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+        if (!text) return [];
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return [...range.getClientRects()].map((rect) => ({ cell, rect }));
+      });
+      for (const badge of document.querySelectorAll<HTMLElement>('[class*="chipBadge"]')) {
+        const own = badge.parentElement!;
+        if (getComputedStyle(badge).pointerEvents !== 'none') catching.push(own.getAttribute('aria-label') ?? '');
+        const b = badge.getBoundingClientRect();
+        // Neither its own label nor a neighbour's.
+        for (const { cell, rect: r } of labels) {
+          const x = Math.min(b.right, r.right) - Math.max(b.left, r.left);
+          const y = Math.min(b.bottom, r.bottom) - Math.max(b.top, r.top);
+          if (x > 0.5 && y > 0.5) overlaps.push(`${own.getAttribute('aria-label')} over ${cell.getAttribute('aria-label')}: ${x.toFixed(1)} × ${y.toFixed(1)}`);
+        }
+      }
+      return { overlaps, catching, badges: document.querySelectorAll('[class*="chipBadge"]').length };
+    });
+    expect(found.badges).toBe(1 + 23 + 2);
+    expect(found.overlaps, `${width} px`).toEqual([]);
+    expect(found.catching, `${width} px`).toEqual([]);
+  }
+});

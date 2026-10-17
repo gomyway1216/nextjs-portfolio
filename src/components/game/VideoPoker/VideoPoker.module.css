@@ -820,6 +820,19 @@
   letter-spacing: 0.1em;
   font-size: 1rem;
 }
+/* The machine's keys, on a desktop. Phones have no keys, so it is not shown there. */
+.keysHint {
+  margin: 0.7rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #d1d5db;
+}
+@media (hover: none) and (pointer: coarse) {
+  .keysHint {
+    display: none;
+  }
+}
 .settingsRow {
   display: flex;
   align-items: center;

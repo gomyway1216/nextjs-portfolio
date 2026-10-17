@@ -87,7 +87,7 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
             never clears the felt or drops a spin that is still rolling (its
             medals are already taken and it pays on settle). */}
         <div role="tabpanel" id="rl-panel-play" aria-labelledby="rl-tab-play" hidden={tab !== 'play'}>
-          <PlayTab player={player} />
+          <PlayTab player={player} active={tab === 'play'} />
         </div>
         <div role="tabpanel" id="rl-panel-sim" aria-labelledby="rl-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

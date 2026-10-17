@@ -135,7 +135,7 @@ export const SlotMachine = ({ player, bankStore = null, legacyStores }: SlotMach
             never drops the play session, a spin that is still rolling (its bet
             is already taken and it pays on settle) or a running simulation. */}
         <div role="tabpanel" id="slot-panel-play" aria-labelledby="slot-tab-play" hidden={tab !== 'play'}>
-          <PlayTab player={player ? { uid, settled } : undefined} />
+          <PlayTab player={player ? { uid, settled } : undefined} active={tab === 'play'} />
         </div>
         <div role="tabpanel" id="slot-panel-odds" aria-labelledby="slot-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

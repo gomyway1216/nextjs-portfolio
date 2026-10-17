@@ -41,6 +41,8 @@ export interface SlotStrings {
   spinning: string;
   auto: (n: number) => string;
   stopAuto: string;
+  /** The machine's keys, on a desktop. */
+  keysHint: string;
   lever: string;
   betAria: (n: number) => string;
   reelsIdle: string;
@@ -166,6 +168,7 @@ const EN: SlotStrings = {
   spin: 'SPIN',
   spinning: 'Spinning…',
   auto: (n) => `Auto ×${n}`,
+  keysHint: 'Keys: Space or Enter spins · 1 2 3 choose the bet',
   stopAuto: 'Stop auto',
   lever: 'Pull the lever to spin',
   betAria: (n) => `BET ${n} ${n === 1 ? 'medal' : 'medals'}`,
@@ -296,6 +299,7 @@ const JA: SlotStrings = {
   spin: 'SPIN',
   spinning: '回転中…',
   auto: (n) => `オート ×${n}`,
+  keysHint: 'キー：Space か Enter でスピン・1 2 3 でベット枚数',
   stopAuto: 'オート停止',
   lever: 'レバーを引いて回す',
   betAria: (n) => `${n}枚ベット`,

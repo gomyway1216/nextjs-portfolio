@@ -1069,6 +1069,18 @@
   flex: 0 0 84px;
 }
 
+/* The table's keys, on a desktop. Phones have no keys, so it is not shown there. */
+.keysHint {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  font-size: 0.8rem;
+}
+@media (hover: none) and (pointer: coarse) {
+  .keysHint {
+    display: none;
+  }
+}
+
 /* ---------- Actions ---------- */
 .actions {
   display: flex;

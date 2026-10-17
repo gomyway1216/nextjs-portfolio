@@ -83,6 +83,8 @@ export interface RouletteStrings {
   betHistory: string;
   noBets: string;
   insideHint: string;
+  /** The table's keys, on a desktop. */
+  keysHint: string;
   outsideHint: string;
   /** The columns of the spin history: medals bet, and what the spin left the player with. */
   histBet: string;
@@ -260,6 +262,7 @@ const EN: RouletteStrings = {
   noBets: 'No spins yet.',
   insideHint:
     'Inside bets: tap the border between two numbers = Split (17:1), a point where four meet = Corner (8:1), the small boxes along the numbers = Street (11:1) / Line (5:1).',
+  keysHint: 'Keys: Space or Enter spins · R rebet · U undo',
   outsideHint: `Pick how many medals a tap adds, tap a betting area, then SPIN. The medals are taken when the wheel spins; at least 1 a bet and up to ${SPOT_MAX} on one spot.`,
   histBet: 'Bet',
   histNet: '+/−',
@@ -393,6 +396,7 @@ const JA: RouletteStrings = {
   noBets: 'まだスピンなし。',
   insideHint:
     'インサイドベット: 2つの数字の境界線をタップ = スプリット (17:1)、4つの数字が接する点 = コーナー (8:1)、数字に沿った小さな枠 = ストリート (11:1) / ライン (5:1)。',
+  keysHint: 'キー：Space か Enter でスピン・R で前回と同じ・U で取り消し',
   outsideHint: `1回のベット枚数を選んでベットエリアをタップ→SPIN。メダルはホイールが回るときに使います。ベットは1枚から、1か所${SPOT_MAX}枚まで。`,
   histBet: 'ベット',
   histNet: '増減',

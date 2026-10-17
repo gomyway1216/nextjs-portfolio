@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { REFILL } from '../MedalCenter/ledger';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
@@ -80,9 +81,11 @@ const browserStorage = {
 export interface PlayTabProps {
   /** Who is playing: whose medals the table plays with. A guest when not given. */
   player?: Player;
+  /** Whether the table's tab is the one shown: its keys work only then. */
+  active?: boolean;
 }
 
-export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
+export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
 
@@ -434,6 +437,15 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
   // The number shown under the wheel: the one just settled, or the last spin from before this page opened.
   const shownNumber = spinning ? null : (result ?? (outcome?.earlier ? outcome.result : null));
   const outcomeText = outcome && (outcome.won > 0 ? t.wonLine(outcome.won, outcome.won - outcome.wagered) : t.lostLine(outcome.wagered));
+
+  // On a desktop: Space or Enter spins, R puts the last bets back, U takes the last one off (machineKeys.ts).
+  useMachineKeys(active, (key) => {
+    if (key === ' ' || key === 'Enter') doSpin();
+    else if (key === 'r') rebet();
+    else if (key === 'u') undoTracked();
+    else return false;
+    return true;
+  });
   const net = outcome ? outcome.won - outcome.wagered : 0;
 
   return (
@@ -717,6 +729,9 @@ export const PlayTab = ({ player = GUEST }: PlayTabProps) => {
           {t.outsideHint}{' '}
           <br />
           <strong>{t.insideHint}</strong>
+        </p>
+        <p className={styles.keysHint} data-testid="roulette-keys">
+          {t.keysHint}
         </p>
 
         <div style={{ marginTop: '0.9rem' }}>

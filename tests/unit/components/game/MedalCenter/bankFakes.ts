@@ -1,4 +1,5 @@
 import { createBank, type Bank, type BankEnv, type BankMessage, type Watchers } from '@/components/game/MedalCenter/bank';
+import type { AccountStore } from '@/components/game/MedalPusher/account';
 
 // A browser for the bank's tests: one storage that every page shares, the one card (a lock that is given to the
 // pages in the order they asked), a channel between the pages, and storage events. What a browser does later
@@ -28,6 +29,8 @@ export class FakeBrowser {
   writesLeft: number | null = null;
   /** The writes and removals that have reached storage. */
   writes = 0;
+  /** The account's store for the medals' history, where a test gives the pages one: none, and the history is this browser's alone. */
+  historyAccounts: AccountStore | null = null;
 
   /** Whether one more write reaches storage: it is counted, and once the browser has died it does not. */
   lets(): boolean {
@@ -174,6 +177,7 @@ export class FakePage {
         },
       },
       page: this.name,
+      historyStore: () => browser.historyAccounts,
     };
     this.bank = createBank(this.env);
   }

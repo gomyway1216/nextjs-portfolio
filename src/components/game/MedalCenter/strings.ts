@@ -29,6 +29,9 @@ export interface CenterStrings {
   refill: (medals: number) => string;
   sayRefill: (medals: number) => string;
   sayBonus: (medals: number) => string;
+  // The player's own page
+  myPage: string;
+  myPageNote: string;
   // The floor
   floorTitle: string;
   floorLead: string;
@@ -87,6 +90,8 @@ const en: CenterStrings = {
   refill: (medals) => `Out of medals — take ${medals} more`,
   sayRefill: (medals) => `${medals} medals added to yours.`,
   sayBonus: (medals) => `Daily bonus: ${medals} medals added to yours.`,
+  myPage: 'MY PAGE',
+  myPageNote: 'Your history and records at every machine',
   floorTitle: 'THE FLOOR',
   floorLead: 'Every open machine plays with your medals, and the medals it wins come straight back to you.',
   open: 'OPEN',
@@ -138,6 +143,8 @@ const ja: CenterStrings = {
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
   sayRefill: (medals) => `メダルが${medals}枚増えました。`,
   sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
+  myPage: 'マイページ',
+  myPageNote: '持ちメダルの履歴と、各マシンの記録',
   floorTitle: 'フロア',
   floorLead: '遊べるマシンは持ちメダルで遊べ、勝ったメダルはそのまま持ちメダルに加わります。',
   open: '営業中',

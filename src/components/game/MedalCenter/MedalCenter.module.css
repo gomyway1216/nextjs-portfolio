@@ -255,6 +255,44 @@
   display: block;
 }
 
+/* The way to the player's own page: a lit plate under the counter. */
+.myPage {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.15rem 0.75rem;
+  min-height: 56px;
+  padding: 0.6rem 1rem;
+  border-radius: 14px;
+  border: 2px solid var(--mc-cyan);
+  background: linear-gradient(180deg, #24135c 0%, var(--mc-night) 100%);
+  color: var(--mc-ink);
+  text-decoration: none;
+  box-shadow: 0 0 14px rgba(125, 240, 255, 0.25);
+}
+.myPage:focus-visible {
+  outline: 3px solid var(--mc-gold);
+  outline-offset: 2px;
+}
+.myPageTitle {
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--mc-cyan);
+}
+.myPageNote {
+  grid-column: 1;
+  color: var(--mc-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.myPageArrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--mc-gold);
+}
+
 /* ---------- The floor ---------- */
 .floor,
 .rules,

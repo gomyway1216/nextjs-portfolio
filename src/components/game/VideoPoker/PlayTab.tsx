@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
-import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';

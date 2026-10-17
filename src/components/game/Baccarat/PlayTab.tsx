@@ -5,6 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
 import {
   BET_IDS,
@@ -143,9 +144,11 @@ const paysText = (id: BetId) => `${PAYS[id][0]}:${PAYS[id][1]}`;
 
 export interface PlayTabProps {
   player?: TablePlayer;
+  /** Whether the table's tab is the one shown: its keys work only then. */
+  active?: boolean;
 }
 
-export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
+export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -604,6 +607,20 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     </div>
   );
 
+  // On a desktop, as on a machine's panel: Space or Enter deals; P, B and T bet on Player, Banker and Tie; R puts the
+  // last hand's bets back and U takes the last one off. Each does just what its button does, and nothing while a hand
+  // is being dealt.
+  useMachineKeys(active, (key) => {
+    if (key === ' ' || key === 'Enter') deal();
+    else if (key === 'p') place('player');
+    else if (key === 'b') place('banker');
+    else if (key === 't') place('tie');
+    else if (key === 'r') rebet();
+    else if (key === 'u') undo();
+    else return false;
+    return true;
+  });
+
   const busy = dealing || !playable;
   const outOfMedals = bankState.loaded && playable && !dealing && bankState.balance === 0 && onTable === 0;
 
@@ -879,6 +896,9 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
                 {t.rebet}
               </button>
             </div>
+            <p className={styles.keysHint} data-testid="baccarat-keys">
+              {t.keysHint}
+            </p>
 
           </div>
 

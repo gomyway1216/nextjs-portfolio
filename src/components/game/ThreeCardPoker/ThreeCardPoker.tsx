@@ -64,7 +64,7 @@ export const ThreeCardPoker = () => {
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
             never drops a hand that is still in progress. */}
         <div role="tabpanel" id="tcp-panel-play" aria-labelledby="tcp-tab-play" hidden={tab !== 'play'}>
-          <PlayTab />
+          <PlayTab active={tab === 'play'} />
         </div>
         <div role="tabpanel" id="tcp-panel-odds" aria-labelledby="tcp-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

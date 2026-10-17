@@ -5,6 +5,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
@@ -214,7 +215,12 @@ const MedalIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export const PlayTab = () => {
+export interface PlayTabProps {
+  /** Whether the table's tab is the one shown: its keys work only then. */
+  active?: boolean;
+}
+
+export const PlayTab = ({ active = true }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -562,6 +568,20 @@ export const PlayTab = () => {
     flips.forEach((ms, k) => later(ms, () => patchRound(r.id, (cur) => ({ revealed: Math.max(cur.revealed, k + 1) }))));
     later(paid, payNow);
   };
+
+  // On a desktop, as on a machine's panel: Space or Enter deals, A bets on the Ante, P plays and F folds once the hand
+  // is dealt, R puts the last hand's bets back and U takes the last one off. Each does just what its button does, and
+  // nothing when that button could not be pressed.
+  useMachineKeys(active, (key) => {
+    if (key === ' ' || key === 'Enter') deal();
+    else if (key === 'a') place('ante');
+    else if (key === 'p') act('play');
+    else if (key === 'f') act('fold');
+    else if (key === 'r') rebet();
+    else if (key === 'u') undo();
+    else return false;
+    return true;
+  });
 
   const idle = phase === 'idle';
   const deciding = phase === 'decision';
@@ -946,6 +966,9 @@ export const PlayTab = () => {
               {t.rebet}
             </button>
           </div>
+          <p className={styles.keysHint} data-testid="tcp-keys">
+            {t.keysHint}
+          </p>
         </div>
 
         <div className={`${styles.part} ${styles.morePart}`}>

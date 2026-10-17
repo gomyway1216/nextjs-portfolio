@@ -258,3 +258,46 @@ test('the last coup stays on the felt, the win paid beside its stake, and the co
   }
   throw new Error('no bet won in twelve coups');
 });
+
+test('on a desk the keys play the table as its buttons do: P, B and T bet, U takes one off, Space deals, R puts the bets back', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openBaccarat(page);
+  await expect(page.getByTestId('baccarat-keys')).toHaveText('Keys: Space or Enter deals · P Player · B Banker · T Tie · R rebet · U undo');
+  // A first medal by a press, once the table holds the card; then the keys, with nothing focused.
+  await firstBet(page, /^Player \(1:1\)/); // Player 1
+  const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await blur();
+  await page.keyboard.press('b'); // Banker 1
+  await page.keyboard.press('t'); // Tie 1
+  await expect.poll(() => onTable(page)).toBe(3);
+  await page.keyboard.press('u'); // the Tie off again
+  await expect.poll(() => onTable(page)).toBe(2);
+
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await page.keyboard.press('Space');
+  await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(1, { timeout: 10_000 });
+  await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+  // Space dealt; it did not scroll the page.
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  const first = medalsBack({ player: 1, banker: 1 }, await handOnTable(page), 'ez').returned;
+  await expect.poll(() => medalsShown(page)).toBe(WELCOME - 2 + first);
+
+  // R puts the same two medals back, and Enter deals them.
+  await page.keyboard.press('r');
+  await expect.poll(() => onTable(page)).toBe(2);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(2, { timeout: 10_000 });
+  await expect(dealButton(page)).toBeEnabled({ timeout: 10_000 });
+  const second = medalsBack({ player: 1, banker: 1 }, await handOnTable(page), 'ez').returned;
+  await expect.poll(() => medalsShown(page)).toBe(WELCOME - 4 + first + second);
+
+  // On the odds tab the keys are the page's again.
+  await page.getByRole('tab', { name: 'Odds' }).click();
+  await blur();
+  await page.keyboard.press('p');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  await page.getByRole('tab', { name: 'Table' }).click();
+  expect(await onTable(page)).toBe(0);
+  await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(2);
+});

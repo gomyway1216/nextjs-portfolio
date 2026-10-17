@@ -69,7 +69,7 @@ export const Baccarat = ({ player = GUEST_PLAYER }: BaccaratProps = {}) => {
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
             never drops a hand that is still being dealt. */}
         <div role="tabpanel" id="baccarat-panel-play" aria-labelledby="baccarat-tab-play" hidden={tab !== 'play'}>
-          <PlayTab player={player} />
+          <PlayTab player={player} active={tab === 'play'} />
         </div>
         <div role="tabpanel" id="baccarat-panel-odds" aria-labelledby="baccarat-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

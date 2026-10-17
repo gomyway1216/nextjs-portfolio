@@ -54,7 +54,7 @@ import {
   type TableState,
 } from './medals';
 import { playTableSound, unlockTableSounds, useSoundSwitch, type TableSound } from '../common/tableSounds';
-import { usePayoutCount, type Payout } from '../common/usePayoutCount';
+import { useCountUp } from '../MedalCenter/countUp';
 import { MedalCounter, MedalIcon, MedalStack } from './MedalCounter';
 import { PlayingCard, cardLabel } from './Cards';
 import { BeadPlate, BigRoad } from './Roads';
@@ -167,8 +167,8 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const [shoeView, setShoeView] = useState<ShoeView>(NO_SHOE);
   const [unseen, setUnseen] = useState<number[]>(() => fullShoeCounts(DEFAULT_DECKS));
   const [notice, setNotice] = useState(false);
-  /** The win being counted out on the counter's windows, if any: a new id for every hand settled on this page. */
-  const [payout, setPayout] = useState<Payout | null>(null);
+  /** Says that the medals about to come back are a win, to be counted up on the counter (`medalMeter.pay`). */
+  const payMedals = useRef<() => void>(() => undefined);
   const [sound, toggleSound] = useSoundSwitch(SOUND_KEY);
   const soundOn = useRef(sound);
   useEffect(() => {
@@ -178,7 +178,6 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const play = (name: TableSound, delay = 0) => {
     if (soundOn.current) playTableSound(name, delay / 1000);
   };
-  const counted = usePayoutCount(payout, () => play('payout'));
 
   // Refs mirror state that click handlers, timers and the bank's calls must read synchronously.
   const betsRef = useRef<Bets>({});
@@ -236,7 +235,6 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   /** Shows a table as it stands: its shoe, its scoreboards and its last hand, settled. */
   const showTable = (table: TableState) => {
     tableRef.current = table;
-    setPayout(null);
     commitMode(table.mode);
     commitChip(table.chip);
     setRoads(table.roads);
@@ -377,8 +375,6 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     commitBets({ ...betsRef.current, [id]: (betsRef.current[id] ?? 0) + amount });
     undoStack.current.push({ id, amount });
     setMessage(null);
-    // A bet for the next coup ends the count of the last one's win at once, as on a machine.
-    setPayout(null);
     if (soundOn.current) void unlockTableSounds();
     play('medal');
     return true;
@@ -466,10 +462,11 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     }));
     const id = ++roundId.current;
     setRound({ id, hand, shown: 0, settled: false, results, mode: atMode, returned, paidEarly: false });
-    setPayout(null);
 
     const finish = () => {
-      // What the hand won goes back now, unless it went back already as the card left the page.
+      // What the hand won goes back now, unless it went back already as the card left the page; either way it runs
+      // into the medals on the counter now.
+      if (returned > 0) payMedals.current();
       medalTable.current?.settle(coup.id);
       commitBets({});
       undoStack.current = [];
@@ -480,8 +477,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
       setRound((r) => (r && r.id === id ? { ...r, shown: cardsInHand(hand), settled: true } : r));
       dealingRef.current = false;
       setDealing(false);
-      // The medals that come back are counted out on the counter, to a fanfare: a bigger one for a natural or a side bet.
-      if (returned > 0) setPayout({ id, medals: returned });
+      // A fanfare as the medals run in: a bigger one for a natural or a side bet.
       const wins = results.filter((r) => r.outcome === 'win');
       if (wins.length > 0) play(hand.natural || wins.some((r) => BIG_WINS.includes(r.id)) ? 'big' : 'win');
       else play(results.some((r) => r.outcome === 'lose') ? 'lose' : 'medal');
@@ -513,6 +509,16 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const hiddenWin = round && !round.settled && round.paidEarly ? round.returned : 0;
   const shownMedals = Math.max(0, bankState.balance - (dealing ? 0 : onTable) - hiddenWin);
   const won = round?.settled ? round.returned : null;
+  // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
+  // with a clink as the digits move; WIN shows the whole win at once. A bet put down shows at once, and ends a count.
+  const medalMeter = useCountUp(bankState.loaded ? shownMedals : null);
+  useEffect(() => {
+    payMedals.current = medalMeter.pay;
+  });
+  useEffect(() => {
+    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
+    if (medalMeter.counting) play('payout');
+  }, [medalMeter.shown, medalMeter.counting]);
 
   const handView = (side: Side) => {
     const cards = round ? round.hand[side] : [];
@@ -769,7 +775,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
               onTable={onTable}
               won={won}
               fmt={fmt}
-              counting={payout && counted !== null ? { counted, medals: payout.medals } : null}
+              ledMedals={medalMeter.shown}
               labels={{
                 medals: t.medalsLed,
                 bet: t.betLed,

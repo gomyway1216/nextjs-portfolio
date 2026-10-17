@@ -1,6 +1,5 @@
 'use client';
 
-import { countedLeds } from '../common/usePayoutCount';
 import { FACE_STAR, MEDAL_PAINT, SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import styles from './Baccarat.module.css';
@@ -52,10 +51,10 @@ export interface MedalCounterProps {
   labels: { medals: string; bet: string; win: string; held: (n: string) => string; onTable: (n: string) => string; won: (n: string) => string; waiting: string };
   fmt: (n: number) => string;
   /**
-   * A win being counted out (common/usePayoutCount.ts): `counted` of the `medals` the hand gave back so far. The LED
-   * windows run up with it; the counts in type are the real ones throughout.
+   * What the MEDALS window shows, when it is not `medals`: a win running in (MedalCenter/countUp.ts). The counts in
+   * type are the real ones throughout.
    */
-  counting?: { counted: number; medals: number } | null;
+  ledMedals?: number | null;
 }
 
 /**
@@ -64,8 +63,7 @@ export interface MedalCounterProps {
  * The windows are pictures; the counts are written in type under them for a
  * screen reader and anything else that reads the page.
  */
-export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt, counting = null }: MedalCounterProps) => {
-  const led = countedLeds(medals, won, counting);
+export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt, ledMedals = null }: MedalCounterProps) => {
   return (
     <section className={styles.counter} aria-labelledby="baccarat-counter-label" data-testid="baccarat-counter" data-loaded={loaded}>
       <div className={styles.counterMain}>
@@ -74,7 +72,7 @@ export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt, counti
           {labels.medals}
         </h3>
         <span className={styles.ledBig}>
-          <SegmentDisplay value={loaded ? led.medals : ''} places={MEDAL_PLACES} />
+          <SegmentDisplay value={loaded ? (ledMedals ?? medals) : ''} places={MEDAL_PLACES} />
         </span>
       </div>
       <div className={styles.counterSmall} aria-hidden>
@@ -87,7 +85,7 @@ export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt, counti
         <span className={styles.ledPair}>
           <span className={styles.ledLabel}>{labels.win}</span>
           <span className={styles.ledSmall}>
-            <SegmentDisplay value={loaded && led.won !== null ? led.won : ''} places={WIN_PLACES} tone="amber" />
+            <SegmentDisplay value={loaded && won !== null ? won : ''} places={WIN_PLACES} tone="amber" />
           </span>
         </span>
       </div>

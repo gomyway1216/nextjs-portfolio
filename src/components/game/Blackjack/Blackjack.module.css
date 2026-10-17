@@ -1527,3 +1527,16 @@
     padding-bottom: 0.6rem;
   }
 }
+
+/* The table's keys, on a desktop. Phones have no keys, so it is not shown there. */
+.keysHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--games-route-muted);
+}
+@media (hover: none) and (pointer: coarse) {
+  .keysHint {
+    display: none;
+  }
+}

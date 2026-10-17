@@ -650,6 +650,9 @@ test('the last hand stays on the felt, a win paid beside its stake, and the coun
     if (hand === 0) await firstAnte(page);
     else await anteSpot(page).click();
     const before = await medals(page);
+    // The last hand's return (a tie's, passed over below) has been counted out, so the watch sees this hand's count
+    // alone: a bet here takes no medals, so it does not cut a count short.
+    await expect.poll(async () => (await ledNumbers(page, '[data-testid="tcp-counter"]'))[0]).toBe(before);
     await watchLed(page, '[data-testid="tcp-counter"]');
     const player = await deal(page);
     const decision = decide('optimal', player);

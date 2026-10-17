@@ -253,14 +253,9 @@ export const PlayTab = () => {
   // with a clink as the digits move; the WIN window shows the whole win at once.
   const medalMeter = useCountUp(medals.loaded ? medals.balance : null);
   const { pay: payMedals } = medalMeter;
-  const clinked = useRef(0);
   useEffect(() => {
-    if (!medalMeter.counting) return;
-    const now = performance.now();
-    if (now - clinked.current < 45) return;
-    clinked.current = now;
-    play('payout');
-    // A clink each time the digits move (at most one every 45 ms): the sound follows the count, and nothing else.
+    // A clink each time the digits move (tableSounds.ts spaces them out): the sound follows the count, and nothing else.
+    if (medalMeter.counting) play('payout');
   }, [medalMeter.shown, medalMeter.counting]);
 
   // Refs mirror state that click handlers and timers must read synchronously.

@@ -28,6 +28,14 @@
     --ch: 76px;
   }
 }
+/* On a phone the cards take the width their row has: five across, as large as fits (at 375 px about 58 px instead of
+   52), and never wider than their column at 320 px. */
+@media (max-width: 520px) {
+  .root {
+    --cw: min(66px, calc((100cqw - 1.2rem) / 5));
+    --ch: calc(var(--cw) * 1.45);
+  }
+}
 .shell {
   max-width: 1160px;
   margin: 0 auto;
@@ -476,18 +484,24 @@
   color: #fff;
 }
 @media (max-width: 520px) {
-  /* Five number columns plus the hand name must fit a phone screen. */
+  /* On a phone five number columns came out in 9 px type. The table shows the column of the bet (lit, as on the
+     machine) beside the hands, in type that can be read; Bet one changes the column, as it lights another one on a
+     cabinet. */
   .payTable {
-    font-size: 0.6rem;
+    font-size: 0.78rem;
   }
   .payTable th,
   .payTable td {
-    padding: 0.12rem 0.22rem;
+    padding: 0.16rem 0.45rem;
   }
   .payTable th {
     white-space: normal;
-    letter-spacing: 0;
-    line-height: 1.15;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .payTable td:not(.payCol),
+  .payTable .payHead th[scope='col']:not(:first-child):not([aria-current='true']) {
+    display: none;
   }
 }
 /* The column headers carry text for screen readers only, so the row takes no room on the screen. */
@@ -518,11 +532,18 @@
   color: #b91c1c;
 }
 .cardsRow {
+  /* The cards are sized by this row's width on a phone (100cqw above). */
+  container-type: inline-size;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: clamp(0.2rem, 1.2vw, 0.6rem);
   margin-top: 0.9rem;
   justify-items: center;
+}
+@media (max-width: 520px) {
+  .cardsRow {
+    gap: 0.3rem;
+  }
 }
 .slot {
   appearance: none;
@@ -744,6 +765,29 @@
   flex-wrap: wrap;
   margin-top: 0.8rem;
   align-items: center;
+}
+/* On a phone: Bet one and Bet max side by side, and DEAL / DRAW the whole width under them, the big button a thumb
+   finds, as it is the biggest on the cabinet. Less frame round the screen, for the cards. */
+@media (max-width: 520px) {
+  .machine {
+    padding: 0.55rem;
+  }
+  .screen {
+    padding: 0.5rem 0.4rem 0.7rem;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .controls .machineBtn {
+    min-height: 44px;
+  }
+  .controls .dealBtn {
+    grid-column: 1 / -1;
+    margin-left: 0;
+    min-height: 52px;
+    font-size: 1.1rem;
+  }
 }
 .machineBtn {
   appearance: none;

@@ -7,9 +7,10 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import type { RouletteStrings } from './i18n';
 import styles from './Roulette.module.css';
 
-/** How many digits the medal counter has (as the medal center's: up to 9,999,999), and the bet counter. */
+/** How many digits the medal counter has (as the medal center's: up to 9,999,999), the bet counter and the win counter. */
 export const MEDAL_PLACES = 7;
 export const BET_PLACES = 5;
+export const WIN_PLACES = 5;
 
 /** The star on the medal, in its view box: the one struck on every medal of the medal center (medalLook.ts). */
 const STAR = FACE_STAR.map(([x, y]) => `${(16 + x * 15).toFixed(2)},${(16 + y * 15).toFixed(2)}`).join(' ');
@@ -27,31 +28,35 @@ export const MedalIcon = ({ className }: { className?: string }) => (
 export interface MedalMeterProps {
   /** The player's medals that are not on the felt, or null until they have been found. */
   medals: number | null;
+  /** What the medals' LEDs show: the medals, or a win still running into them (countUp.ts). */
+  medalsShown?: number | null;
   /** The medals on the felt. */
   bet: number;
+  /** The medals the last spin won, bets on winning spots included: 0 before the first spin and while the ball rolls. */
+  win: number;
   t: RouletteStrings;
   /** What stands under the counters for the moment: the free cupful, when the player has run out. */
   children?: ReactNode;
 }
 
 /**
- * The table's medal counter, as a medal machine's: the player's medals and
- * the medals bet, each on LED digits behind smoked acrylic (the Medal
+ * The table's medal counter, as a medal machine's: the player's medals, the
+ * medals bet and the medals the last spin won, each on LED digits behind smoked acrylic (the Medal
  * Pusher's own display), on a plate with one of the medals beside them. The
  * numbers are written in type for a screen reader; the digits are a picture.
  * Under them, always, the note that medals are not money, and where the
  * medals belong.
  */
-export const MedalMeter = ({ medals, bet, t, children }: MedalMeterProps) => (
-  <section className={styles.meter} aria-label={t.medals} data-testid="roulette-meter" data-loaded={medals !== null} data-medals={medals ?? ''} data-bet={bet}>
+export const MedalMeter = ({ medals, medalsShown = medals, bet, win, t, children }: MedalMeterProps) => (
+  <section className={styles.meter} aria-label={t.medals} data-testid="roulette-meter" data-loaded={medals !== null} data-medals={medals ?? ''} data-bet={bet} data-win={win}>
     <div className={styles.meterRow}>
       <MedalIcon className={styles.meterMedal} />
-      <div className={styles.meterCell}>
+      <div className={`${styles.meterCell} ${styles.meterMain}`}>
         <span className={styles.meterLabel} aria-hidden>
           {t.medals}
         </span>
-        <span className={styles.meterLed}>
-          <SegmentDisplay value={medals ?? ''} places={MEDAL_PLACES} />
+        <span className={styles.meterLed} data-testid="roulette-medals-led" data-shown={medalsShown ?? ''}>
+          <SegmentDisplay value={medalsShown ?? ''} places={MEDAL_PLACES} />
         </span>
         <span className={styles.srOnly} data-testid="roulette-medals">
           {medals === null ? t.finding : t.medalsSr(medals)}
@@ -66,6 +71,17 @@ export const MedalMeter = ({ medals, bet, t, children }: MedalMeterProps) => (
         </span>
         <span className={styles.srOnly} data-testid="roulette-bet">
           {t.betSr(bet)}
+        </span>
+      </div>
+      <div className={`${styles.meterCell} ${styles.meterBet} ${win > 0 ? styles.meterWon : ''}`}>
+        <span className={styles.meterLabel} aria-hidden>
+          {t.win}
+        </span>
+        <span className={styles.meterLed}>
+          <SegmentDisplay value={win} places={WIN_PLACES} tone="amber" />
+        </span>
+        <span className={styles.srOnly} data-testid="roulette-win">
+          {t.winSr(win)}
         </span>
       </div>
     </div>

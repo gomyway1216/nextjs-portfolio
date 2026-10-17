@@ -32,9 +32,12 @@ export interface RouletteStrings {
   medals: string;
   /** The LED counter of the medals on the felt. */
   bet: string;
-  /** What a screen reader hears for the two counters. */
+  /** The LED counter of the medals the last spin won (bets on winning spots included). */
+  win: string;
+  /** What a screen reader hears for the three counters. */
   medalsSr: (n: number) => string;
   betSr: (n: number) => string;
+  winSr: (n: number) => string;
   /** Until the player's medals have been found. */
   finding: string;
   /** Medals are for playing only: never money. Shown by the counter and in the help. */
@@ -211,8 +214,10 @@ const EN: RouletteStrings = {
   centerLink: 'Medal Game Center',
   medals: 'MEDALS',
   bet: 'BET',
+  win: 'WIN',
   medalsSr: (n) => `Your medals: ${n.toLocaleString('en-US')}`,
   betSr: (n) => `On the felt: ${medalsEn(n)}`,
+  winSr: (n) => `Won on the last spin: ${medalsEn(n)}`,
   finding: 'Looking for your medals…',
   notMoney: NOT_MONEY.en,
   centerNote: 'These are your medals from the Medal Game Center: every game there plays with the same ones, and they are reset only there.',
@@ -340,8 +345,10 @@ const JA: RouletteStrings = {
   centerLink: 'メダルゲームセンター',
   medals: '持ちメダル',
   bet: 'ベット',
+  win: '獲得',
   medalsSr: (n) => `持ちメダル ${n.toLocaleString('ja-JP')}枚`,
   betSr: (n) => `テーブル上のベット ${n.toLocaleString('ja-JP')}枚`,
+  winSr: (n) => `前回のスピンの獲得 ${n.toLocaleString('ja-JP')}枚`,
   finding: '持ちメダルを確認しています…',
   notMoney: NOT_MONEY.ja,
   centerNote: 'メダルゲームセンターの持ちメダルです。センターのどのゲームも同じメダルで遊び、リセットはセンターでのみ行えます。',

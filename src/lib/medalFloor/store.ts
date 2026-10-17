@@ -253,11 +253,24 @@ const emptyBoards = (period: Period): FloorBoards => ({ kind: period.kind, key: 
 export const emptySummary = (now: number): FloorSummary => ({ now, available: false, feed: [], day: emptyBoards(periodAt('day', now)), week: emptyBoards(periodAt('week', now)) });
 
 /** What the floor shows: the moments on show and today's and this week's boards. The owner also sees hidden lines, marked. */
+/** A read of the floor that takes longer than this is given up: the page is told the floor cannot be reached, not left waiting. */
+export const READ_TIMEOUT_MS = 6_000;
+
+function within<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`[medal-floor] ${what} took longer than ${ms} ms`)), ms);
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
+
 export async function readFloor(view: FloorView, now: number, admin = false): Promise<FloorSummary> {
-  // Both stores are reached for first, once: where they are not set up, that fails here, once, and not in every query.
+  // Firestore first, and once: where it is not set up, that fails here, once, and not in every query. The boards before
+  // the moments: where the store cannot be reached at all (no credentials), the read fails on them, and the Realtime
+  // Database, whose client keeps dialling once it has been asked, is never asked.
   getFirestore();
-  getRealtimeDatabase();
-  const [feed, day, week] = await Promise.all([readFeed(), readBoards(periodAt('day', now), view, admin), readBoards(periodAt('week', now), view, admin)]);
+  const [day, week] = await within(Promise.all([readBoards(periodAt('day', now), view, admin), readBoards(periodAt('week', now), view, admin)]), READ_TIMEOUT_MS, 'reading the boards');
+  const feed = await within(readFeed(), READ_TIMEOUT_MS, 'reading the moments on show');
   return { now, available: true, feed: view === 'hub' ? feed.slice(0, 12) : feed, day, week };
 }
 

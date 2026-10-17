@@ -106,6 +106,46 @@ describe('GET /api/game/medal-floor', () => {
     expect(floor.feed).toEqual([]);
   });
 
+  it('does not ask a failing store again for half a minute, and never dials the live database when Firestore is down', async () => {
+    db().failing = new Error('fake Firestore: unavailable');
+    const dialled: string[] = [];
+    const ref = rtdb().ref.bind(rtdb());
+    rtdb().ref = (path = '') => {
+      dialled.push(path);
+      return ref(path);
+    };
+    const { GET } = await floorRoute();
+    expect((await GET(request(''), undefined as never))!.status).toBe(503);
+    db().failing = null;
+    const readsBefore = db().reads;
+    vi.setSystemTime(NOON + 29_000);
+    const resting = await GET(request(''), undefined as never);
+    expect(resting!.status).toBe(503);
+    expect(((await resting!.json()) as FloorSummary).available).toBe(false);
+    expect(db().reads).toBe(readsBefore);
+    vi.setSystemTime(NOON + 30_000);
+    const back = await GET(request(''), undefined as never);
+    expect(back!.status).toBe(200);
+    expect(((await back!.json()) as FloorSummary).available).toBe(true);
+    // The live database was dialled only once Firestore answered.
+    expect(dialled).toEqual(['medalFloor/feed']);
+  });
+
+  it('gives up a read that hangs, and says the floor cannot be reached', async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'], now: NOON });
+    const ref = rtdb().ref.bind(rtdb());
+    rtdb().ref = (path = '') => {
+      const real = ref(path);
+      real.get = () => new Promise(() => {});
+      return real;
+    };
+    const { GET } = await floorRoute();
+    const answer = GET(request(''), undefined as never);
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect((await answer)!.status).toBe(503);
+  });
+
   it('is cached for a few seconds at the edge, being the same for everybody', async () => {
     const { GET } = await floorRoute();
     const response = await GET(request(''), undefined as never);

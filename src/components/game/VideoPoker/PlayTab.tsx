@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
+import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
@@ -283,6 +284,10 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
   const shownCoins = inPlay ? hand.coins : coins;
   // The medals: what the medal center holds, less a win that is still being turned over.
   const medalsNow = bankState.loaded ? Math.max(0, bankState.balance - (revealing && hand ? wonBy(hand) : 0)) : null;
+  // Once they are, the win runs into the medals on the counter's LEDs, as a machine's credit meter counts it up
+  // (countUp.ts); the WIN meter shows the whole win at once.
+  const medalMeter = useCountUp(medalsNow);
+  const { pay: payMedals } = medalMeter;
 
   /** Every way to play the dealt hand, best first (once the tables are ready), under the rules it was dealt with. */
   const analysis = useMemo<HoldValue[] | null>(
@@ -345,6 +350,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     setError(null);
     commitHand(drawn);
     const settle = () => {
+      if (outcome.won > 0) payMedals();
       setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + finished.coins, paid: s.paid + outcome.won }));
       // The tables may still be building on the first hands: judge those once they exist.
       if (tablesReady()) setStats((s) => judgePlay(s, finished));
@@ -508,8 +514,8 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
             <strong className={`${styles.srOnly} ${styles.meterNumber}`} data-testid="vp-medals" data-loaded={bankState.loaded ? 'true' : 'false'}>
               {medalsNow === null ? '—' : fmt(medalsNow)}
             </strong>
-            <span className={styles.meterLed}>
-              <SegmentDisplay value={medalsNow ?? ''} places={MEDAL_PLACES} />
+            <span className={styles.meterLed} data-testid="vp-medals-led" data-shown={medalMeter.shown ?? ''}>
+              <SegmentDisplay value={medalMeter.shown ?? ''} places={MEDAL_PLACES} />
             </span>
           </div>
           <div className={styles.meter}>

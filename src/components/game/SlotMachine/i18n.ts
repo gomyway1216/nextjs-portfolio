@@ -63,6 +63,9 @@ export interface SlotStrings {
   nearMissHint: string;
   rtpGapNote: (spins: number, needed: string) => string;
   paytable: string;
+  /** The paytable's columns: the line, and what it wins at each bet. */
+  payColLine: string;
+  payColBet: (bet: number) => string;
   recentSpins: string;
   // Odds
   oddsIntro: string[];
@@ -185,7 +188,9 @@ const EN: SlotStrings = {
   nearMissHint: 'Spins where reels 1–2 showed 7s and reel 3 had a 7 just above or below the line.',
   rtpGapNote: (spins, needed) =>
     `After ${spins} ${spins === 1 ? 'spin' : 'spins'} your return can be far from the theory: it takes about ${needed} spins for it to settle within ±1 point.`,
-  paytable: 'Paytable (medals won per medal bet)',
+  paytable: 'Paytable (medals won)',
+  payColLine: 'Line',
+  payColBet: (bet) => `BET ${bet}`,
   recentSpins: 'Recent spins',
   oddsIntro: [
     'Each reel has 22 physical stops, but the random number generator picks one of 64 virtual stops that map onto them. Counting every combination of virtual stops (64³ = 262,144) gives the exact odds below.',
@@ -313,7 +318,9 @@ const JA: SlotStrings = {
   nearMissHint: '1〜2 リール目に 7 が揃い、3 リール目の 7 がペイラインのすぐ上か下で止まった回数。',
   rtpGapNote: (spins, needed) =>
     `${spins} 回ではあなたの還元率は理論値から大きくズレることがあります。±1 ポイント以内に収まるには約 ${needed} 回のスピンが必要です。`,
-  paytable: '配当表（1枚ベットあたりの獲得枚数）',
+  paytable: '配当表（獲得枚数）',
+  payColLine: '役',
+  payColBet: (bet) => `${bet}枚`,
   recentSpins: '最近のスピン',
   oddsIntro: [
     '各リールの物理的なコマは 22 個ですが、乱数は 64 個のバーチャルストップから 1 つを選び、それが物理的なコマに対応します。バーチャルストップの組み合わせ（64³ = 262,144 通り）をすべて数えると、下の厳密な確率になります。',

@@ -11,7 +11,7 @@ import { SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { WELCOME } from './ledger';
 import { bank as medalBank, useBank } from './bank';
-import { MEDAL_PUSHER_PATH } from './paths';
+import { MEDAL_PUSHER_PATH, MY_PAGE_PATH } from './paths';
 import { getCenterStrings } from './strings';
 import styles from './MedalCenter.module.css';
 
@@ -36,7 +36,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
 ];
 
 /** A stack of medals, in the same silver as the medals on the machines. */
-const MedalStack = ({ count }: { count: number }) => (
+export const MedalStack = ({ count }: { count: number }) => (
   <svg className={styles.stack} viewBox="0 0 60 64" aria-hidden focusable="false">
     {Array.from({ length: count }, (_, index) => {
       const y = 54 - index * 6;
@@ -199,6 +199,15 @@ export const MedalCenter = ({ signInHref, together }: MedalCenterProps) => {
             {t.notMoney}
           </p>
         </section>
+
+        {/* The player's own page: what happened to the medals, and the records at every machine. */}
+        <Link href={MY_PAGE_PATH} className={styles.myPage} data-testid="center-my-page">
+          <span className={styles.myPageTitle}>{t.myPage}</span>
+          <span className={styles.myPageNote}>{t.myPageNote}</span>
+          <span className={styles.myPageArrow} aria-hidden>
+            →
+          </span>
+        </Link>
 
         {/* The daily bonus is the bank's, for every machine: the same stamp card the machines show. */}
         <div className={styles.bonus} data-testid="center-bonus">

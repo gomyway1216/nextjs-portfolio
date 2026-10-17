@@ -73,6 +73,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { bank as medalBank } from '../MedalCenter/bank';
 import {
   GUEST,
   createSync,
@@ -88,6 +89,7 @@ import {
   type Verdict,
 } from './account';
 import {
+  BESTS,
   RECORDS_KEY,
   clearBook,
   countBonus,
@@ -221,6 +223,35 @@ export interface RecordsEnv {
   lock: (task: (alone: boolean, release: () => void) => void) => void;
   /** Takes a transaction through its steps, and calls `done` when it has taken the last. */
   drive: (steps: Steps, done: () => void) => void;
+  /**
+   * Where what the machine fed, won and paid out is told besides: the medal
+   * center's history of the player's medals (MedalCenter/history.ts), which
+   * hears it from the book because the book is what knows it. None in a test.
+   */
+  history?: (report: MachineReport) => void;
+}
+
+/** What the book tells the medals' history of a frame: medals fed and won, the largest prize the frame finished, and its jackpots. */
+export interface MachineReport {
+  game: 'medal-pusher';
+  fed: number;
+  won: number;
+  prize: number;
+  jackpots: number[];
+}
+
+/** What a frame did that the medals' history keeps, or null when it did none of it. */
+export function reportOf(fed: number, events: readonly SessionEvent[]): MachineReport | null {
+  let won = 0;
+  let prize = 0;
+  const jackpots: number[] = [];
+  for (const event of events) {
+    if (event.type === 'won') won += event.count;
+    prize = Math.max(prize, BESTS.prize(event));
+    if (event.type === 'bowlEnd' && event.jackpot) jackpots.push(event.payout);
+  }
+  const fedNow = Math.max(0, fed);
+  return fedNow > 0 || won > 0 || prize > 0 || jackpots.length > 0 ? { game: 'medal-pusher', fed: fedNow, won, prize, jackpots } : null;
 }
 
 export interface RecordsState {
@@ -716,6 +747,9 @@ export function createRecords(env: RecordsEnv) {
       const refills = session.refills - was.refills;
       was.inserted = session.inserted;
       was.refills = session.refills;
+      // The medals' history hears of the medals fed and won, and of the prizes, from here: the book is what knows them.
+      const report = env.history ? reportOf(fed, events) : null;
+      if (report) env.history?.(report);
       if (!started || !desk || !state.day) return;
       let all: readonly RecordEvent[] = events;
       if (fed > 0 || refills > 0) {
@@ -843,6 +877,7 @@ const browser: RecordsEnv = {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   },
+  history: (report) => medalBank().played(report),
   lock: (task) => {
     // No Web Locks here (Safari before 15.4), or the browser will not grant one: the task runs beside whatever
     // another tab is doing, and is told so. The top of this file says what that costs and what it is not let do.

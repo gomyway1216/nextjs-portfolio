@@ -427,6 +427,8 @@ export interface TablePurse {
   restarted(game: string): void;
   /** Whether this browser kept the medals' last write: read straight after a take or a give, whether that one was. */
   kept(): boolean;
+  /** Tells the medals' history of a roll as one round: the bets it decided, and what came back off the table (bank.ts `played`). */
+  rolled?(roll: { round: string; bet: number; won: number }): void;
 }
 
 /** The medal center's bank, as the table uses it. */
@@ -441,6 +443,7 @@ export const purseOf = (bank: {
   forget(game: string, keep?: readonly string[]): boolean;
   restartDue(game: string): boolean;
   restarted(game: string): void;
+  played?(report: { game: string; round: string; bet: number; won: number }): void;
 }): TablePurse => ({
   loaded: () => bank.getState().loaded,
   balance: () => bank.balance(),
@@ -457,6 +460,7 @@ export const purseOf = (bank: {
   restartDue: (game) => bank.restartDue(game),
   restarted: (game) => bank.restarted(game),
   kept: () => bank.getState().kept,
+  rolled: (roll) => bank.played?.({ game: CRAPS_GAME, ...roll }),
 });
 
 /** Where tables are written: this device's storage. Every call may throw (storage blocked or full). */
@@ -819,6 +823,9 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         last: seed === undefined ? { point: before.point, bets: before.bets, dice } : { point: before.point, bets: before.bets, dice, seed: seed >>> 0 },
       };
       if (!giveBack(before, next, resolution.returned)) return fail('notKept');
+      // The medals' history counts the roll as one round: what the roll took off the table, and what it gave back.
+      const decided = resolution.results.reduce((sum, r) => sum + (r.outcome === 'lose' || (r.outcome === 'win' && !r.staysUp) ? r.stake : 0), 0);
+      if (decided > 0 || resolution.returned > 0) purse.rolled?.({ round: `${table.id ?? 'table'}-r${table.stats.rolls}`, bet: decided, won: resolution.returned });
       // The medal floor hears of what the roll gave back, once, as it is given.
       if (resolution.returned > 0) floorReport(CRAPS_GAME, { won: resolution.returned, prize: { medals: resolution.returned } });
       return { ok: true, value: { resolution, before } };

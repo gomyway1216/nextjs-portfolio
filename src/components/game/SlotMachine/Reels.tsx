@@ -30,20 +30,24 @@ interface ReelsProps {
   /** Reels whose payline symbol is part of the win, lit up once settled. */
   winningReels: readonly number[];
   onSettled?: () => void;
+  /** Told as each reel comes to rest (0, 1, 2), for the clunk of it. */
+  onReelStop?: (reel: number) => void;
   /** Accessible description of the reel window. */
   label: string;
 }
 
-export const Reels = ({ stops, spinId, anticipation, winningReels, onSettled, label }: ReelsProps) => {
+export const Reels = ({ stops, spinId, anticipation, winningReels, onSettled, onReelStop, label }: ReelsProps) => {
   const stripRefs = useRef<(HTMLDivElement | null)[]>([]);
   // Initial positions render into the markup once; afterwards the animation
   // loop owns the transforms (the JSX value never changes, so React leaves them).
   const [initialPositions] = useState(() => stops.map((s) => mod(s - 1)));
   const positionsRef = useRef<number[]>(initialPositions);
   const onSettledRef = useRef(onSettled);
+  const onReelStopRef = useRef(onReelStop);
   useEffect(() => {
     onSettledRef.current = onSettled;
-  }, [onSettled]);
+    onReelStopRef.current = onReelStop;
+  }, [onSettled, onReelStop]);
 
   const [settled, setSettled] = useState(true);
   const [trackedSpinId, setTrackedSpinId] = useState(spinId);
@@ -56,9 +60,14 @@ export const Reels = ({ stops, spinId, anticipation, winningReels, onSettled, la
     if (spinId === 0) return;
     const plans = planReels(positionsRef.current, stops, anticipation);
     const total = spinDuration(plans);
+    const stopped = plans.map(() => false);
 
     const draw = (t: number) => {
       plans.forEach((plan, r) => {
+        if (!stopped[r] && t >= plan.durationMs) {
+          stopped[r] = true;
+          onReelStopRef.current?.(r);
+        }
         const position = reelPosition(plan, t);
         positionsRef.current[r] = position;
         const el = stripRefs.current[r];

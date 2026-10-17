@@ -181,6 +181,48 @@ test.describe('with less motion', () => {
   });
 });
 
+test('every lamp’s number can be read as the light runs round, and the way back says Medal Game Center', async ({ page }) => {
+  await openJanken(page);
+  await expect(page.getByRole('link', { name: /Medal Game Center/ }).first()).toBeVisible();
+  await expect(page.getByTestId('janken-face')).toHaveAttribute('data-attract', 'true');
+  // While the machine waits, each lamp is lit in turn (3 s round, lamp i lit at i × 100 ms, then fading). Every lamp is
+  // put at every 15 ms of its round, and its number must stand out from the bulb at each of them.
+  const lamps = await page.evaluate(() => {
+    const luminance = (css: string) => {
+      const [r, g, b] = (css.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map((v) => {
+        const c = Number(v) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a: string, b: string) => {
+      const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    return ([...document.querySelectorAll('[data-testid="janken-face"] g[data-tone]')] as SVGGElement[]).map((lamp, i) => {
+      const circle = lamp.querySelector('circle')!;
+      const text = lamp.querySelector('text')!;
+      const animations = [...circle.getAnimations(), ...text.getAnimations()];
+      animations.forEach((a) => a.pause());
+      const fills = new Set<string>();
+      let worst = Infinity;
+      for (let ms = 0; ms < 3000; ms += 15) {
+        for (const a of animations) a.currentTime = i * 100 + ms;
+        fills.add(getComputedStyle(circle).fill);
+        worst = Math.min(worst, ratio(getComputedStyle(circle).fill, getComputedStyle(text).fill));
+      }
+      return { worst, shades: fills.size };
+    });
+  });
+  expect(lamps).toHaveLength(30);
+  for (const [i, { worst, shades }] of lamps.entries()) {
+    // The bulb really does light and fade…
+    expect(shades, `lamp ${i} runs`).toBeGreaterThan(3);
+    // …and its number can be read all the way round.
+    expect(worst, `lamp ${i}`).toBeGreaterThanOrEqual(3.5);
+  }
+});
+
 test('another tab takes the card: this machine waits, and plays again here when asked', async ({ page, context }) => {
   await openJanken(page);
   await insert(page);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 /**
  * A medal machine's meters do not jump to a win: the medals won run into the
@@ -77,14 +77,19 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.
 /**
  * A meter that counts a win up to `value` (null while there is nothing to
  * show). The first value, every drop and every rise that is not a win are
- * shown as they are, and under reduced motion a win is too.
+ * shown as they are, and under reduced motion a win is too. `onStep` is told
+ * each time the count goes up, for a medal's chirp.
  */
-export function useCountUp(value: number | null): CountUp {
+export function useCountUp(value: number | null, onStep?: () => void): CountUp {
   const [count] = useState(createCount);
   const state = useSyncExternalStore(count.subscribe, count.get, count.get);
   // The value the meter last took in, and until when a rise is a win.
   const seen = useRef(value);
   const payingUntil = useRef(-Infinity);
+  const step = useRef(onStep);
+  useEffect(() => {
+    step.current = onStep;
+  });
 
   const pay = useCallback(() => {
     payingUntil.current = performance.now() + PAY_WINDOW;
@@ -106,9 +111,12 @@ export function useCountUp(value: number | null): CountUp {
     count.set({ counting: true, shown: from });
     let frame = 0;
     let start: number | null = null;
+    let last = from;
     const tick = (time: number) => {
       start ??= time;
       const n = countedAt(from, value, time - start);
+      if (n > last) step.current?.();
+      last = n;
       count.set(n >= value ? AT_REST : { counting: true, shown: n });
       if (n < value) frame = window.requestAnimationFrame(tick);
     };

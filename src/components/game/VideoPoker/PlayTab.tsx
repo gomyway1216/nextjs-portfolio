@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
+import { useMachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
@@ -286,7 +288,10 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
   const medalsNow = bankState.loaded ? Math.max(0, bankState.balance - (revealing && hand ? wonBy(hand) : 0)) : null;
   // Once they are, the win runs into the medals on the counter's LEDs, as a machine's credit meter counts it up
   // (countUp.ts); the WIN meter shows the whole win at once.
-  const medalMeter = useCountUp(medalsNow);
+  // The machine's sound, off until the player switches it on; each medal of a win chirps as it is counted in.
+  const sound = useMachineSound();
+  const { play: playSound, tick } = sound;
+  const medalMeter = useCountUp(medalsNow, tick);
   const { pay: payMedals } = medalMeter;
 
   /** Every way to play the dealt hand, best first (once the tables are ready), under the rules it was dealt with. */
@@ -322,6 +327,9 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     commitHand(outcome.hand);
     setError(null);
     setDealNo((n) => n + 1);
+    // The medals go in, and the five cards are dealt.
+    for (let i = 0; i < bet; i++) playSound('medal', i * 0.05);
+    for (let i = 0; i < 5; i++) playSound('card', 0.2 + (i * TIMING.step) / 1000);
     const wait = prefersReducedMotion() ? 0 : 4 * TIMING.step + TIMING.flip;
     commitBusy(wait > 0);
     if (wait > 0) timers.current.push(setTimeout(() => commitBusy(false), wait));
@@ -349,8 +357,15 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     const lastReplaced = heldFromMask(drawn.held).lastIndexOf(false);
     setError(null);
     commitHand(drawn);
+    // The cards drawn turn over left to right, as they are shown.
+    heldFromMask(drawn.held).forEach((kept, i) => {
+      if (!kept) playSound('card', (i * TIMING.step) / 1000);
+    });
     const settle = () => {
-      if (outcome.won > 0) payMedals();
+      if (outcome.won > 0) {
+        payMedals();
+        playSound(rankCards(drawn.hand) >= HANDS.indexOf('fourOfAKind') ? 'big' : 'win');
+      }
       setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + finished.coins, paid: s.paid + outcome.won }));
       // The tables may still be building on the first hands: judge those once they exist.
       if (tablesReady()) setStats((s) => judgePlay(s, finished));
@@ -375,6 +390,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     if (next) {
       setError(null);
       commitHand(next);
+      playSound('hold');
     } else if (!play.read().ok) setError(t.unsaved);
     else resync();
   };
@@ -388,6 +404,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
     if (busyRef.current || phase === 'dealt') return;
     setCoins((c) => (c >= MAX_COINS ? 1 : c + 1));
     setError(null);
+    playSound('button');
   };
 
   const onRefill = () => {
@@ -573,6 +590,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT }: { seatedFor?: SeatedFor } = 
               </option>
             ))}
           </select>
+          <SoundSwitch control={sound} language={language} className={`${styles.machineBtn} ${styles.soundSwitch}`} testId="vp-sound" />
         </div>
       </div>
 

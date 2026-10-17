@@ -84,6 +84,15 @@
  * balance can be below nothing. Nothing can be taken out then, and the next
  * medals won pay it back.
  *
+ * ## The history
+ *
+ * What the bank does with the medals is told, as it does it, to the
+ * medals' history (history.ts, historyStore.ts): every move of a round's
+ * medals, the daily bonus, a refill, a reset. A machine tells it what its
+ * medals alone do not say (`played`). The history is a document of its own,
+ * beside the medals and on the account beside theirs; nothing in it is read
+ * to decide a medal, and a write of it that does not take loses no medal.
+ *
  * ## Purses from before the bank
  *
  * A Medal Pusher played before the bank kept its medals in its own purse.
@@ -98,8 +107,11 @@
 import { useSyncExternalStore } from 'react';
 import { GUEST, createSync, fromCloud, slotFor, toCloud, type AccountStore, type Kept, type Player, type Slots, type Standing, type Status, type Sync, type Verdict } from '../MedalPusher/account';
 import { dayFrom, readDays, unionDays, type Day, type DaySet } from '../MedalPusher/records';
+import type { Observation } from './history';
+import { HISTORY_GAME_KEY, HISTORY_WAITING, createHistoryStore, type HistoryState } from './historyStore';
 import {
   REFILL,
+  WELCOME,
   applyMove,
   balanceOf,
   cardOf,
@@ -278,6 +290,12 @@ export interface BankEnv {
   card: CardLock;
   /** This page's own name among the pages. */
   page: string;
+  /**
+   * The account's store for the medals' history, a document of its own beside
+   * the bank's, wherever the bank has an account's store. The same store every
+   * time it is asked. None: the history is this device's alone.
+   */
+  historyStore?: () => AccountStore | null;
 }
 
 // ── What the page is shown ──────────────────────────────────────────────────
@@ -337,6 +355,19 @@ export interface Move {
   /** The era of the medals the round was played in, when the machine knows it: a move for another era is not made. */
   era?: number;
 }
+
+/**
+ * What a machine tells the medals' history that its moves of medals do not
+ * say (`played`). Nothing in it moves a medal.
+ */
+export type Played =
+  /** A round played whole, as its machine counts it: what it took, and what came back. (The craps table's: see `REPORTS_ROUNDS` in history.ts.) */
+  | { game: string; round: string; bet: number; won: number }
+  /** A machine that is fed and pays as it goes (the Medal Pusher): medals fed and won since it last said, the largest prize among them, and its jackpots. */
+  | { game: string; fed: number; won: number; prize?: number; jackpots?: readonly number[] };
+
+/** Something that happened to the medals, as the bank tells the history: when, on what day and with what left are the bank's to add. */
+type Told = Observation extends infer O ? (O extends unknown ? Omit<O, 'at' | 'day' | 'left'> : never) : never;
 
 /** A machine's place at the bank. */
 export interface Seat {
@@ -426,6 +457,22 @@ export function createBank(env: BankEnv) {
   let seat: { game: string; handlers: SeatHandlers; paused: boolean; held: boolean } | null = null;
   /** The era of the bank last heard of, to tell when it has been reset. */
   let era: number | null = null;
+
+  /** The medals' history, told what the bank does as it does it, and written with the card as the medals are. */
+  const history = createHistoryStore({
+    read: env.read,
+    write: env.write,
+    remove: env.remove,
+    now: env.now,
+    mark: env.mark,
+    holding: () => holding(),
+    withCard: (job) => withCard(job),
+  });
+  /** Tells the history what has just happened to the medals on the table. */
+  const noted = (told: Told): void => {
+    const at = desk;
+    if (at) history.observe({ ...told, at: env.now(), day: env.today(), left: spendable(at.ledger) } as Observation);
+  };
 
   // ── Showing ──
 
@@ -610,6 +657,8 @@ export function createBank(env: BankEnv) {
       }
       seat.held = false;
     }
+    // The history is written while the card is still here, as the machine's last medals were.
+    history.yielding();
     const { release } = held;
     held = null;
     release();
@@ -948,6 +997,8 @@ export function createBank(env: BankEnv) {
     // Another player's bank is not a reset of the one before it: its era is the one heard of from here on.
     if (!had) era = null;
     desk = at;
+    // The history of these medals is put beside them; a guest's that have become the account's take the guest's history with them.
+    history.seat(owner, at.ledger.device, at.moved);
     watchEra();
     if (at.unsaved) commit(at);
   };
@@ -972,6 +1023,7 @@ export function createBank(env: BankEnv) {
   const tick = (): void => {
     if (!started || !desk) return;
     ticks += 1;
+    history.tick();
     // A job still waiting for the card says so again: the holder may have taken the card back before this page's request
     // reached the lock manager (see `ask`), and it lets the card go once more when it hears.
     if (waiting && jobs.length > 0) env.post({ kind: 'want', page: env.page, play: false });
@@ -991,6 +1043,7 @@ export function createBank(env: BankEnv) {
     if (started) return;
     started = true;
     ticks = 0;
+    history.start();
     sync = accounts ? keeper(accounts) : null;
     sync?.player(wanted);
     era = null;
@@ -999,6 +1052,7 @@ export function createBank(env: BankEnv) {
     unwatch = env.watch({
       tick,
       changed: (key) => {
+        history.changed(key);
         const at = desk;
         if (!started || !at || (typeof key === 'string' && key !== at.key) || held) return;
         refresh(at);
@@ -1022,6 +1076,7 @@ export function createBank(env: BankEnv) {
         }
         if (desk?.unsaved) commit(desk);
         sync?.save('moment');
+        history.hidden();
         publish();
       },
       shown: () => {
@@ -1042,6 +1097,7 @@ export function createBank(env: BankEnv) {
       waiting();
       waiting = null;
     }
+    history.end();
     sync?.save('moment');
     sync?.close();
     sync = null;
@@ -1056,7 +1112,7 @@ export function createBank(env: BankEnv) {
   };
 
   const maybeEnd = (): void => {
-    if (listeners.size === 0 && hearers.size === 0 && !seat && jobs.length === 0) end();
+    if (listeners.size === 0 && hearers.size === 0 && !seat && jobs.length === 0 && !history.listening()) end();
   };
 
   /** Pays today's bonus, with the card, from the bank as storage has it then: a day another tab took is not paid again. */
@@ -1074,6 +1130,7 @@ export function createBank(env: BankEnv) {
       at.ledger = ledger;
       if (!store(at)) return;
       claims += 1;
+      noted({ type: 'bonus', medals });
       tell({ type: 'bonus', medals });
       sync?.save('moment');
     });
@@ -1112,6 +1169,8 @@ export function createBank(env: BankEnv) {
       wanted = store ? player : GUEST;
       machines = legacy.machines ?? null;
       books = legacy.books ?? null;
+      // The history is kept on the account beside the medals, wherever they are.
+      history.attend(wanted, store ? (env.historyStore?.() ?? null) : null);
       if (store === accounts) {
         sync?.player(wanted);
         return;
@@ -1138,6 +1197,7 @@ export function createBank(env: BankEnv) {
       if (!next) return false;
       at.ledger = next;
       store(at);
+      noted({ type: 'medals' });
       publish();
       return true;
     },
@@ -1148,6 +1208,7 @@ export function createBank(env: BankEnv) {
       if (!at || !holding() || !Number.isSafeInteger(medals) || medals <= 0) return false;
       at.ledger = give(at.ledger, medals);
       store(at);
+      noted({ type: 'medals' });
       publish();
       return true;
     },
@@ -1175,6 +1236,7 @@ export function createBank(env: BankEnv) {
       if (!moved.applied) return 'already';
       at.ledger = moved.ledger;
       store(at);
+      noted({ type: 'move', game: move.game, round: move.round, step: move.step, medals: move.medals });
       publish();
       return 'applied';
     },
@@ -1204,6 +1266,8 @@ export function createBank(env: BankEnv) {
         store(at);
         publish();
       }
+      // The machine is done with every other round of the game: the history writes them down as over, a lost one too.
+      noted({ type: 'over', game, keep });
       return true;
     },
 
@@ -1219,6 +1283,7 @@ export function createBank(env: BankEnv) {
         at.ledger = refill(at.ledger);
         if (!store(at)) return;
         paid = true;
+        noted({ type: 'refill', medals: REFILL });
         tell({ type: 'refill', medals: REFILL });
         sync?.save('moment');
       });
@@ -1277,8 +1342,10 @@ export function createBank(env: BankEnv) {
       withCard(() => {
         if (at !== desk) return;
         refresh(at);
+        const thrown = spendable(at.ledger);
         at.ledger = resetLedger(at.ledger);
         store(at);
+        noted({ type: 'reset', thrown, medals: WELCOME });
         watchEra();
         sync?.save('moment');
       });
@@ -1353,6 +1420,31 @@ export function createBank(env: BankEnv) {
 
     /** Today's bonus card, from the bank on the table: null until it has been read. */
     cardToday: () => (desk ? cardOf(desk.ledger, env.today()) : null),
+
+    /**
+     * A machine tells the medals' history what its moves of medals do not say:
+     * a round it counts whole, or what it fed and paid since it last said (see
+     * `Played`). It goes into the history of the medals on the table, and
+     * moves no medal.
+     */
+    played(report: Played): void {
+      if (!started) return;
+      if ('round' in report) noted({ type: 'round', game: report.game, round: report.round, bet: report.bet, won: report.won });
+      else noted({ type: 'machine', game: report.game, fed: report.fed, won: report.won, prize: report.prize ?? 0, jackpots: report.jackpots ?? [] });
+    },
+
+    /** The medals' history as it stands: `HISTORY_WAITING` until it has been read. */
+    historyState: (): HistoryState => history.getState(),
+
+    /** Listens for changes to the medals' history. The bank is opened for it, as for any listener, and put away when the last one leaves. */
+    watchHistory(listener: () => void): () => void {
+      const stop = history.subscribe(listener);
+      start();
+      return () => {
+        stop();
+        maybeEnd();
+      };
+    },
   };
 }
 
@@ -1395,6 +1487,34 @@ const browserCard = (): CardLock => {
     },
   };
 };
+
+/**
+ * An account's store for one game key on the site's save service, loaded the
+ * first time it is used: the module that talks to the service is the one
+ * every machine's page has already, and the bank's own tests never load it.
+ * Nothing is sent as the page is left (`storeNow`): the history never sends
+ * blind, and so never in the way that outlives the page.
+ */
+const savedLater = (gameKey: string): AccountStore => {
+  let real: Promise<AccountStore> | null = null;
+  const store = (): Promise<AccountStore> => (real ??= import('../MedalPusher/accountStore').then(({ accountStoreFor }) => accountStoreFor(gameKey)));
+  return {
+    load: (uid) => store().then((it) => it.load(uid)),
+    store: (uid, state) => store().then((it) => it.store(uid, state)),
+    prepare: (uid) => store().then(
+      (it) => it.prepare(uid),
+      () => undefined,
+    ),
+    storeNow: () => null,
+    forget: (uid) => {
+      void store().then(
+        (it) => it.forget(uid),
+        () => undefined,
+      );
+    },
+  };
+};
+let historyAccount: AccountStore | null = null;
 
 let channel: BroadcastChannel | null = null;
 const browser = (): BankEnv => ({
@@ -1446,6 +1566,7 @@ const browser = (): BankEnv => ({
   },
   card: browserCard(),
   page: randomName(randomFrom()),
+  historyStore: () => (historyAccount ??= savedLater(HISTORY_GAME_KEY)),
 });
 
 let theBank: Bank | null = null;
@@ -1457,3 +1578,9 @@ const subscribeToBank = (listener: () => void) => bank().subscribe(listener);
 const bankState = () => bank().getState();
 /** The bank as the page shows it: `WAITING` on the server and in the first drawing, the browser's bank after. */
 export const useBank = (): BankState => useSyncExternalStore(subscribeToBank, bankState, waitingState);
+
+const waitingHistory = (): HistoryState => HISTORY_WAITING;
+const subscribeToHistory = (listener: () => void) => bank().watchHistory(listener);
+const historyNow = () => bank().historyState();
+/** The medals' history as the page shows it: `HISTORY_WAITING` on the server and in the first drawing, the browser's after. */
+export const useMedalHistory = (): HistoryState => useSyncExternalStore(subscribeToHistory, historyNow, waitingHistory);

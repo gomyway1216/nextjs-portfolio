@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
+import { useMachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -99,7 +101,10 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
   const [announcement, setAnnouncement] = useState('');
   // The meters as the machine shows them: a win runs into the medals, the WIN meter counting up beside them, as a
   // medal slot pays (countUp.ts). The numbers in type are the medals as they are.
-  const medalMeter = useCountUp(medals.loaded ? medals.balance : null);
+  // The cabinet's sound: off until the player switches it on. Each medal of a win chirps as it is counted in.
+  const sound = useMachineSound();
+  const { play, tick } = sound;
+  const medalMeter = useCountUp(medals.loaded ? medals.balance : null, tick);
   const winMeter = useCountUp(last ? last.win : 0);
   const { pay: payMedals } = medalMeter;
   const { pay: payWin } = winMeter;
@@ -141,8 +146,11 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     // The outcome is drawn as the lever is pulled, and the stake is taken with it (medals.ts).
     const placed = mine.bet(betRef.current, spinReels());
     if (!placed.ok) return;
+    // The medals go in, and the lever is pulled.
+    for (let i = 0; i < placed.round.bet; i++) play('medal', i * 0.09);
+    play('lever', placed.round.bet * 0.09);
     roll(placed.round, false);
-  }, [roll]);
+  }, [roll, play]);
 
   const settle = useCallback(() => {
     const pending = pendingRef.current;
@@ -162,6 +170,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     setLast(result);
     setLastResumed(pending.resumed);
     setBigWin(result.win >= result.bet * BIG_WIN_MULTIPLE);
+    if (result.win > 0) play(result.win >= result.bet * BIG_WIN_MULTIPLE ? 'big' : 'win');
     setStats((s) => ({
       spins: s.spins + 1,
       wagered: s.wagered + result.bet,
@@ -173,7 +182,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     const entry = { id: recentId.current++, result };
     setRecent((r) => [entry, ...r].slice(0, RECENT_LIMIT));
     if (pending.resumed) setAnnouncement(live.current.t.resumed);
-  }, [payMedals, payWin]);
+  }, [payMedals, payWin, play]);
 
   // The machine's place at the medal bank, while the page is open: the card is asked for at once, and a reset at the
   // medal center starts the machine over.
@@ -260,6 +269,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
     if (spinningRef.current) return;
     betRef.current = value;
     setBet(value);
+    play('button');
   };
 
   const ready = medals.loaded && medals.card === 'here' && (!player.settled || medals.owner === player.uid);
@@ -285,6 +295,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
             anticipation={anticipation}
             winningReels={winningReels(last?.rule ?? null)}
             onSettled={settle}
+            onReelStop={() => play('reel')}
             label={lineSymbols ? t.reelsResult(lineSymbols) : t.reelsIdle}
           />
           <button
@@ -388,6 +399,7 @@ export const PlayTab = ({ player = GUEST_PLAYER }: PlayTabProps) => {
                 {t.auto(AUTO_SPINS)}
               </button>
             )}
+            <SoundSwitch control={sound} language={language} className={styles.btn} testId="slot-sound" />
           </div>
         </div>
 

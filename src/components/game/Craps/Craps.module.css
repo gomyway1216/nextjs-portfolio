@@ -373,6 +373,18 @@
   gap: 0.5rem;
   margin-top: 0.6rem;
 }
+/* The table's keys, on a desktop (MedalCenter/machineKeys.ts); a touch screen has none to press. */
+.keysHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--games-route-muted);
+}
+@media (hover: none) and (pointer: coarse) {
+  .keysHint {
+    display: none;
+  }
+}
 .toggle {
   appearance: none;
   min-height: 40px;

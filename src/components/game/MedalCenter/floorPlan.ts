@@ -64,13 +64,15 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   'ball-bingo': 'big',
   // An upright prize wheel stands among the big machines a floor is built round, as the casino's Big Six stands on its floor.
   'big-wheel': 'big',
+  // A card machine stands with the video machines: a screen of cards and a row of buttons, as a medal poker cabinet does.
+  'high-low': 'video',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -87,6 +89,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'horse-race': { en: 'Six horses on a mini track: win or quinella.', ja: 'ミニコースを6頭が走る。単勝か連複を買おう。' },
   'ball-bingo': { en: 'Drop balls through the pins; line up a 3×3 card.', ja: '釘を抜けるボールで3×3のビンゴをそろえよう。' },
   'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
+  'high-low': { en: 'Higher or lower? Climb 12 rungs, or TAKE.', ja: '次はハイかローか。12段のラダーを上ろう' },
 };
 
 /**
@@ -101,6 +104,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'three-card-poker': ['スリーカード', 'ポーカー'],
   'horse-race': ['ミニターフ', '競馬'],
   'big-wheel': ['星まつり', 'ビッグホイール'],
+  'high-low': ['ハイ＆ロー', 'ラダー'],
 };
 
 /** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */
@@ -131,6 +135,34 @@ export function cornersOf<T extends { id: string }>(machines: readonly T[]): Flo
   return ZONES.flatMap((zone) => {
     const here = machines.filter((machine) => zoneOf(machine.id) === zone);
     return here.length === 0 ? [] : [{ zone, machines: here, width: here.length * (WIDE_ZONES.has(zone) ? 2 : 1) }];
+  });
+}
+
+/** The most columns the floor has side by side, on its widest layout. */
+export const PLAN_COLUMNS = 4;
+
+/**
+ * How many of the floor's columns each corner takes on its widest layout, the corners laid in order as a row fills:
+ * as many as its machines need, up to a whole row. A corner of small cabinets too wide for the columns left beside the
+ * corner before it, but that fits in two rows of them, takes those columns (`squeezed`), its cabinets on two rows, so
+ * that the pair still stands side by side (the third video machine beside the pusher) rather than half a row being
+ * left empty.
+ */
+export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): { span: number; squeezed: boolean }[] {
+  let used = 0;
+  return corners.map(({ zone, width }) => {
+    let span = Math.min(width, PLAN_COLUMNS);
+    let squeezed = false;
+    const rest = PLAN_COLUMNS - used;
+    if (used > 0 && span > rest) {
+      if (!WIDE_ZONES.has(zone) && width <= 2 * rest) {
+        span = rest;
+        squeezed = true;
+      } else used = 0;
+    }
+    used += span;
+    if (used >= PLAN_COLUMNS) used = 0;
+    return { span, squeezed };
   });
 }
 

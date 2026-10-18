@@ -135,6 +135,8 @@ const enMoment = (label: string | null, medals: string): string => {
       return `hit ×400 on the big wheel: ${medals} medals`;
     case 'wheel-bonus':
       return `won on the big wheel’s second chance: ${medals} medals`;
+    case 'ladder-top':
+      return `climbed the High & Low ladder to the top: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -170,6 +172,8 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `ビッグホイールで×400！${medals}枚`;
     case 'wheel-bonus':
       return `ビッグホイールのセカンドチャンスで${medals}枚`;
+    case 'ladder-top':
+      return `ハイ＆ローのラダーをトップまで上って${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

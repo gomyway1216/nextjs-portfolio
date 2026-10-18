@@ -45,6 +45,7 @@ export const FLOOR_GAMES = [
   'horse-race',
   'ball-bingo',
   'big-wheel',
+  'high-low',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -183,6 +184,14 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   'big-wheel': rule(39_600, 6_000, 400, 693, 0.9, {
     'wheel-400': { amounts: times([400], Array.from({ length: 99 }, (_, i) => i + 1)), feed: true },
     'wheel-bonus': { amounts: times(times([2, 4, 5, 8, 10, 20, 40], [2, 3, 10]), Array.from({ length: 99 }, (_, i) => i + 1)), feed: false },
+  }),
+  // High & Low Ladder: the top of the ladder pays 200 a 5 medals bet (×40), on a bet of up to 50: 2,000. A game can end
+  // in a couple of seconds (START, one guess skipped to its end, TAKE): about 30 games a minute at the quickest, 1,800
+  // medals at most at 60 a game; 3,000 leaves room. Taken: one bet at its biggest, 50.
+  // Best return: 89.965% (dynamic programming over the 13 cards on each of the 12 rungs), at every bet.
+  // Named: the top of the ladder, on every bet.
+  'high-low': rule(2_000, 3_000, 300, 50, 0.8997, {
+    'ladder-top': { amounts: [200, 400, 800, 2_000], feed: true },
   }),
 };
 

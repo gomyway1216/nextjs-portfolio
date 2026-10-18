@@ -412,18 +412,24 @@
   height: 28px;
   padding: 3px 6px;
 }
+/* What the medals are, said after the buttons on the page's own panel (no longer on the cabinet's dark): as baccarat
+   says it, a note with the table's gold at its edge. */
 .notMoney {
-  margin: 0;
-  font-size: 0.78rem;
+  margin: 0 0 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border-left: 3px solid var(--bj-gold);
+  border-radius: 4px;
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-size: 0.82rem;
   line-height: 1.5;
-  color: #ddd6ff;
 }
 .notKept {
-  margin: 0;
+  margin: 0 0 0.35rem;
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.5;
-  color: #ffd65c;
+  color: var(--games-route-fg);
 }
 .refill {
   appearance: none;

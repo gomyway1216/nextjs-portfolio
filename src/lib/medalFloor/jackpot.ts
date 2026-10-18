@@ -173,6 +173,12 @@ export interface FloorJackpotView {
   amount: number;
   /** How many times it has been won. */
   seq: number;
+  /**
+   * The pool's version: every change counts it up, and the live mirror
+   * (`JackpotLive.v`) carries the same count, so that a page can tell which of
+   * the two it heard last is the later. 0 where it is not known.
+   */
+  v: number;
   /** The last wins, newest first. */
   wins: JackpotWinShown[];
 }
@@ -222,8 +228,8 @@ export function jackpotViewFrom(value: unknown): FloorJackpotView | null {
   const raw = asRecord(value);
   if (typeof raw.available !== 'boolean' || !count(raw.amount) || !count(raw.seq) || !count(raw.now)) return null;
   const wins = Array.isArray(raw.wins) ? raw.wins.map(winShownFrom).filter((win): win is JackpotWinShown => win !== null) : [];
-  return { now: raw.now, available: raw.available, amount: raw.amount, seq: raw.seq, wins };
+  return { now: raw.now, available: raw.available, amount: raw.amount, seq: raw.seq, v: count(raw.v) ? raw.v : 0, wins };
 }
 
 /** An empty pool, for when the store cannot be reached. */
-export const unavailableJackpot = (now: number): FloorJackpotView => ({ now, available: false, amount: 0, seq: 0, wins: [] });
+export const unavailableJackpot = (now: number): FloorJackpotView => ({ now, available: false, amount: 0, seq: 0, v: 0, wins: [] });

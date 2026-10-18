@@ -23,6 +23,7 @@ function jackpot(amount: number, available = true): FloorJackpotView {
     available,
     amount: available ? amount : 0,
     seq: available ? 3 : 0,
+    v: available ? 42 : 0,
     wins: available
       ? [
           { name: 'Lucky Cat', tag: '0001', game: 'roulette', medals: 4_321, at: NOW - 2 * 3_600_000 },

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useMachineSound } from '../MedalCenter/machineSounds';
@@ -721,7 +721,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <div className={styles.outRow}>
           {refillDue && (
             <button type="button" className={styles.refill} data-testid="bw-refill" onClick={() => medalBank().refill()}>
-              {t.refill(REFILL)}
+              <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
           {outOfMedals && !refillDue && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="bw-out" />}

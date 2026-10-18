@@ -61,6 +61,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 .subtitle {
   margin: 0.4rem 0 0;
@@ -992,11 +1002,17 @@
   font-size: 0.78rem;
   line-height: 1.15;
   text-align: center;
+  /* A name is broken only between its words (「プレイヤー｜ペア」), never inside one (「バンカーペ｜ア」, 「プレイヤ｜ー」). */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .spotPays {
   font-size: 0.66rem;
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
+  /* 「1:1・3枚の7は引き分け」 breaks after the 「・」, not in 「引き分｜け」. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .playerSpot,
 .bankerSpot {
@@ -1006,6 +1022,18 @@
 .bankerSpot .spotLabel {
   font-size: 1.15rem;
   letter-spacing: 0.12em;
+}
+/* On the narrowest phones 「プレイヤー」 keeps to one line in its spot and in its box over the cards. */
+@media (max-width: 360px) {
+  .playerSpot .spotLabel,
+  .bankerSpot .spotLabel {
+    letter-spacing: 0.02em;
+  }
+  .handName {
+    letter-spacing: 0.02em;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
 }
 .playerSpot,
 .playerPairSpot {

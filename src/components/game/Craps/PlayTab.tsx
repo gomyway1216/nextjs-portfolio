@@ -10,7 +10,7 @@ import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { useMachineSound, type MachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
@@ -441,7 +441,7 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
         </dl>
         {bankState.loaded && medals === 0 && staked === 0 && bankState.card === 'here' && !rolling && bankState.out.length === 0 && (
           <button type="button" className={styles.refill} data-testid="craps-refill" onClick={() => medalBank().refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
         {/* Out of medals here, and some still out on a round at another machine: no refill until they are back. */}

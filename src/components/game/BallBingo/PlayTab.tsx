@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } 
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useMachineSound } from '../MedalCenter/machineSounds';
@@ -785,7 +785,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         {/* The attendant's free cupful, the medal center's own, for a player with no medals left. */}
         {outOfMedals && (
           <button type="button" className={styles.refill} data-testid="bingo-refill" onClick={() => medalBank().refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
 

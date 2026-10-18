@@ -1282,3 +1282,28 @@
   animation: none !important;
   transition: none !important;
 }
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the figures and the Odds tab's tables (as the High & Low
+ * Ladder's and Sic Bo's do): where the browser can tell phrases apart, at them; elsewhere at the 、。： and spaces the
+ * words carry. A word longer than its line still breaks. The status line keeps its phrases whole itself (PlayTab.tsx).
+ */
+.statLabel,
+.statNote,
+.statList dt,
+.rowNote,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .rowNote,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

@@ -6,6 +6,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
@@ -46,7 +47,11 @@ const Medal = ({ className }: { className?: string }) => (
 
 /** Written once the note has been shown on this device. */
 export const NOTICE_KEY = 'craps-medals-note';
-/** Whether this page shows the note: decided the first time it is asked, and kept for the page's life. */
+/**
+ * Whether this page shows the note: decided the first time it is asked, and kept for the page's life. The server draws
+ * it, and its gate hides it before the page is painted where it has been seen (MedalCenter/onceNote.tsx), so the table
+ * never moves for it.
+ */
 let noticeShown: boolean | null = null;
 const noticeListeners = new Set<() => void>();
 const noticeStore = {
@@ -65,7 +70,7 @@ const noticeStore = {
     }
     return noticeShown;
   },
-  server: (): boolean => false,
+  server: (): boolean => true,
   close: () => {
     noticeShown = false;
     for (const listener of [...noticeListeners]) listener();
@@ -212,9 +217,10 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
     crapsTable().sync();
   }, [settled, bankState.loaded, bankState.owner, bankState.where]);
 
-  // The note that the table plays with medals now is written down as seen the first time it is shown.
+  // The note that the table plays with medals now is written down as seen the first time it is shown. (The page's own
+  // answer is asked first: the server's drawing shows the note to everyone, and the page keeps the answer it was given.)
   useEffect(() => {
-    if (!noticeOpen) return;
+    if (!noticeOpen || !noticeStore.snapshot()) return;
     try {
       window.localStorage.setItem(NOTICE_KEY, '1');
     } catch {
@@ -372,23 +378,26 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
   return (
     <div className={styles.playLayout}>
       {noticeOpen && (
-        <section className={styles.notice} aria-labelledby="craps-notice-title" data-testid="craps-notice">
-          <Medal className={styles.noticeMedal} />
-          <div className={styles.noticeText}>
-            <h2 id="craps-notice-title" className={styles.noticeTitle}>
-              {t.noticeTitle}
-            </h2>
-            <p>{t.noticeBody}</p>
-            <div className={styles.noticeActions}>
-              <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="craps-notice-center">
-                {t.noticeLink}
-              </Link>
-              <button type="button" className={styles.btn} data-testid="craps-notice-close" onClick={noticeStore.close}>
-                {t.noticeClose}
-              </button>
+        <>
+          <NoteGate name="craps" storageKey={NOTICE_KEY} />
+          <section className={styles.notice} aria-labelledby="craps-notice-title" data-testid="craps-notice" {...noteAttributes('craps')}>
+            <Medal className={styles.noticeMedal} />
+            <div className={styles.noticeText}>
+              <h2 id="craps-notice-title" className={styles.noticeTitle}>
+                {t.noticeTitle}
+              </h2>
+              <p>{t.noticeBody}</p>
+              <div className={styles.noticeActions}>
+                <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="craps-notice-center">
+                  {t.noticeLink}
+                </Link>
+                <button type="button" className={styles.btn} data-testid="craps-notice-close" onClick={noticeStore.close}>
+                  {t.noticeClose}
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </>
       )}
 
       {/* The medal counter, as a medal machine shows it: the player's medals on LED digits, and what is on the table. */}

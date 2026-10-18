@@ -213,8 +213,9 @@ describe('VideoPoker shell', () => {
     const markup = render(<VideoPoker />);
     expect(markup).toMatch(/<a[^>]*href="\/games\/medal-center"[^>]*data-testid="vp-center"/);
     expect(markup).toContain('Medal Game Center');
-    // The notice that the machine plays with the medals now is the browser's to show, once: not on the server.
-    expect(markup).not.toContain('vp-notice');
+    // The notice that the machine plays with the medals now is in the server's drawing, with its gate, which hides it
+    // before the first paint where it has been told: the machine never moves for it (MedalCenter/onceNote.tsx).
+    expect(markup).toMatch(/<script>[^<]*video-poker-medals-notice[^<]*<\/script><section[^>]*data-testid="vp-notice"[^>]*data-once-note="video-poker"/);
   });
 });
 

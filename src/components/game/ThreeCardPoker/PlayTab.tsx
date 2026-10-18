@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { KeysHint } from '../MedalCenter/KeysHint';
@@ -232,7 +233,9 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const medals = useBank();
   const seat = useRef<Seat | null>(null);
   const table = useRef<Table | null>(null);
-  const notice = useSyncExternalStore(hearNotice, noticeDue, () => false);
+  // The server draws the notice, and its gate hides it before the page is painted where it has been read
+  // (MedalCenter/onceNote.tsx), so the table never moves for it.
+  const notice = useSyncExternalStore(hearNotice, noticeDue, () => true);
 
   const [step, setStep] = useState<number>(BET_STEPS[0]);
   const [bets, setBets] = useState<Bets>(NO_BETS);
@@ -703,20 +706,23 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   return (
     <div className={styles.playGrid}>
       {notice && (
-        <section className={styles.notice} aria-labelledby={noticeId} data-testid="tcp-medals-notice">
-          <h2 id={noticeId} className={styles.noticeTitle}>
-            <MedalIcon className={styles.noticeMedal} /> {t.noticeTitle}
-          </h2>
-          <p className={styles.noticeBody}>{t.noticeBody}</p>
-          <div className={styles.noticeActions}>
-            <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="tcp-notice-center">
-              {t.noticeLink}
-            </a>
-            <button type="button" className={styles.btn} data-testid="tcp-notice-ok" onClick={readNotice}>
-              {t.noticeOk}
-            </button>
-          </div>
-        </section>
+        <>
+          <NoteGate name="three-card-poker" storageKey={NOTICE_KEY} />
+          <section className={styles.notice} aria-labelledby={noticeId} data-testid="tcp-medals-notice" {...noteAttributes('three-card-poker')}>
+            <h2 id={noticeId} className={styles.noticeTitle}>
+              <MedalIcon className={styles.noticeMedal} /> {t.noticeTitle}
+            </h2>
+            <p className={styles.noticeBody}>{t.noticeBody}</p>
+            <div className={styles.noticeActions}>
+              <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="tcp-notice-center">
+                {t.noticeLink}
+              </a>
+              <button type="button" className={styles.btn} data-testid="tcp-notice-ok" onClick={readNotice}>
+                {t.noticeOk}
+              </button>
+            </div>
+          </section>
+        </>
       )}
       {/*
         The table's side: the cards, then the results of the hand. On a desk it is one panel. On a phone its parts are

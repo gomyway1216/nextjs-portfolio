@@ -72,8 +72,9 @@ describe('the table on the medal center’s floor', () => {
     // Nothing is bet until the medals have been found: the felt and SPIN wait.
     expect(en).toMatch(/<button[^>]*disabled=""[^>]*>SPIN<\/button>/);
     expect(en).toMatch(/aria-label="Straight up \(35:1\) — 17"[^>]*disabled=""|disabled=""[^>]*aria-label="Straight up \(35:1\) — 17"/);
-    // The one-time note is the browser's to show, after it has looked at what this device remembers.
-    expect(en).not.toContain('roulette-notice');
+    // The one-time note is in the server's drawing, with its gate, which hides it before the first paint where this
+    // device has seen it: the table never moves for it (MedalCenter/onceNote.tsx).
+    expect(en).toMatch(/<script>[^<]*roulette-medals-notice-v1[^<]*<\/script><div[^>]*data-testid="roulette-notice"[^>]*data-once-note="roulette"/);
     // No reset of the table's own: the medals are reset only at the medal center.
     expect(seen(en)).not.toMatch(/\bReset\b/);
 

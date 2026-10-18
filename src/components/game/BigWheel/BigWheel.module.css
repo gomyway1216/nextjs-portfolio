@@ -1,0 +1,1131 @@
+/* Star Festival Big Wheel. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette
+   of its own — a night-sky indigo body with brass trim, a marquee of bulbs, the wheel's painted segments — that reads on
+   both. The wheel and the flapper move by transform only, each on a layer of its own, so a phone turns them on its
+   compositor; with less motion asked for, nothing chases, blinks or glows in time. */
+
+.root {
+  --bw-night: #17134a;
+  --bw-night-deep: #0b0928;
+  --bw-brass: #d2a23c;
+  --bw-brass-light: #f5d98b;
+  --bw-pink: #e0559a;
+  --bw-focus: #ffd34d;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --bw-accent-text: #4b2a9e;
+  --bw-ahead: #15803d;
+  --bw-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --bw-accent-text: #c4b5fd;
+  --bw-ahead: #4ade80;
+  --bw-behind: #f87171;
+}
+
+.shell {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.titleText {
+  /* Broken only where the title allows (between 星まつり and ビッグホイール), never inside a word. */
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleWheel {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: #4b2a9e;
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 520px);
+}
+@media (min-width: 900px) {
+  .machine {
+    grid-template-columns: minmax(0, 520px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.7rem 0.7rem 1rem;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.08) 0 1px, transparent 2px) 0 0 / 23px 29px,
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.07) 0 1px, transparent 2px) 0 0 / 31px 37px,
+    linear-gradient(180deg, #241d6b 0%, var(--bw-night) 45%, var(--bw-night-deep) 100%);
+  border: 3px solid var(--bw-brass);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08),
+    0 14px 30px rgba(0, 0, 0, 0.3);
+  color: #eef0fb;
+}
+
+/* The marquee over the wheel: the sign in a ring of bulbs. */
+.marquee {
+  display: grid;
+  grid-template-columns: 0.9rem 1fr 0.9rem;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f06aa8 0%, var(--bw-pink) 55%, #8f1f5a 100%);
+  border: 2px solid var(--bw-brass-light);
+}
+.marqueeBulbs {
+  background-image: radial-gradient(circle, #fff6c9 0 2.4px, #f3b938 2.6px 3.8px, transparent 4px);
+  background-size: 100% 0.62rem;
+  border-radius: 6px;
+}
+.marquee[data-chase='true'] .marqueeBulbs {
+  animation: bulbs 0.5s steps(2) infinite;
+}
+@keyframes bulbs {
+  50% {
+    background-position: 0 0.31rem;
+  }
+}
+.marqueeText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.marqueeSub {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #fff6c9;
+}
+.marqueeMain {
+  font-size: clamp(1.35rem, 6.5vw, 1.9rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #fff;
+}
+
+/* ---------- The wheel ---------- */
+.wheelBox {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+.wheel {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  /* The turned wheel's square layer reaches past its box at the corners (transparent there): kept inside it, so that
+     the page never grows sideways as it turns. */
+  overflow: hidden;
+}
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.rotor {
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.flapper {
+  /* The hinge, 5 of the drawing's 400 units down from the top. */
+  transform-origin: 50% 1.25%;
+  will-change: transform;
+}
+.frameRing {
+  fill: #3a2606;
+  stroke: var(--bw-brass);
+  stroke-width: 3;
+}
+/* The bulbs round the wheel: lit in turn while it turns, all of them on a win, slowly in the attract pattern. */
+.wheel .bulb {
+  fill: #ffe9a3;
+  opacity: 0.45;
+}
+.wheel[data-phase='spin'] .bulb,
+.wheel[data-phase='second'] .bulb {
+  animation: chase 0.36s steps(1) infinite;
+}
+.wheel[data-phase='bonus'] .bulb,
+.wheel[data-phase='chance'] .bulb {
+  animation: chase 0.18s steps(1) infinite;
+  fill: #ffd0f0;
+}
+.wheel[data-win='true'] .bulb {
+  animation: flash 0.5s steps(1) infinite;
+}
+/* Left standing unplayed, the machine runs its lights slowly round, as cabinets on a real floor do. */
+.machine[data-attract='true'] .wheel[data-phase='idle'] .bulb {
+  animation: chase 1.2s steps(1) infinite;
+}
+.wheel .bulb[data-group='1'] {
+  animation-delay: -0.12s;
+}
+.wheel .bulb[data-group='2'] {
+  animation-delay: -0.24s;
+}
+.wheel[data-phase='bonus'] .bulb[data-group='1'],
+.wheel[data-phase='chance'] .bulb[data-group='1'] {
+  animation-delay: -0.06s;
+}
+.wheel[data-phase='bonus'] .bulb[data-group='2'],
+.wheel[data-phase='chance'] .bulb[data-group='2'] {
+  animation-delay: -0.12s;
+}
+@keyframes chase {
+  0% {
+    opacity: 1;
+  }
+  34% {
+    opacity: 0.35;
+  }
+}
+@keyframes flash {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.faceNumber {
+  font-size: 15.5px;
+  font-weight: 900;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.faceLetter {
+  font-size: 11px;
+  font-weight: 900;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.faceStar {
+  font-size: 15px;
+}
+.faceStarSmall {
+  font-size: 10px;
+  opacity: 0.85;
+}
+.peg {
+  fill: #f2d48a;
+  stroke: #6b4a0e;
+  stroke-width: 0.8;
+}
+/* On the second chance BONUS is out of play: its segments go dark. */
+.bonusSegment {
+  transition: opacity 0.3s;
+}
+.wheel[data-dark='true'] .bonusSegment {
+  opacity: 0.28;
+}
+.winWedge {
+  fill: rgba(255, 236, 160, 0.34);
+  stroke: #fff6c2;
+  stroke-width: 3.6;
+  stroke-linejoin: round;
+  opacity: 0;
+}
+.wheel[data-win='true'] .winWedge {
+  opacity: 1;
+  animation: wedge 0.5s steps(1) 6;
+}
+@keyframes wedge {
+  50% {
+    opacity: 0.35;
+  }
+}
+.milkyWay {
+  fill: none;
+  stroke: rgba(205, 210, 255, 0.28);
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+.lamp circle {
+  fill: #2a2560;
+  stroke: #8d86d6;
+  stroke-width: 1;
+}
+.lamp text {
+  font-size: 8.5px;
+  font-weight: 900;
+  fill: #b8b2ea;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.lamp[data-top='true'] circle {
+  stroke: var(--bw-brass-light);
+  stroke-width: 1.6;
+}
+.lamp[data-on='true'] circle {
+  fill: #ffe066;
+  stroke: #fff8d6;
+}
+.lamp[data-on='true'] text {
+  fill: #3a1d00;
+}
+.core {
+  fill: #0d0b2a;
+  stroke: var(--bw-brass);
+  stroke-width: 2;
+}
+.hubText {
+  font-size: 22px;
+  font-weight: 900;
+  fill: #ffe9a3;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.flap {
+  fill: #7a4222;
+  stroke: #2e1607;
+  stroke-width: 1.1;
+}
+.flapShine {
+  fill: none;
+  stroke: rgba(255, 220, 180, 0.45);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.pointer {
+  fill: var(--bw-brass);
+  stroke: #5c3d0a;
+  stroke-width: 1.2;
+}
+.jewel {
+  fill: #ff4f8b;
+  stroke: #fff2f7;
+  stroke-width: 0.8;
+}
+
+/* Words over the wheel: always there, only shown when they have something to say. */
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 70%;
+  transform: translate(-50%, -50%);
+  max-width: 92%;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(10, 8, 40, 0.86);
+  border: 2px solid var(--bw-brass-light);
+  color: #fff3c4;
+  font-weight: 900;
+  font-size: clamp(0.95rem, 4.6vw, 1.3rem);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.banner[data-show='true'] {
+  opacity: 1;
+}
+.banner[data-kind='bonus'],
+.banner[data-kind='chance'] {
+  /* Purple to magenta: the white words stay at least 4.5:1 across it. */
+  background: linear-gradient(90deg, #5b25a3, #a82a6e);
+  color: #fff;
+}
+.resumedBadge {
+  position: absolute;
+  top: 2%;
+  right: 0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #2c4470;
+  border: 1px solid var(--bw-brass-light);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.status {
+  margin: 0.55rem 0 0.5rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- The counters ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.8fr) minmax(0, 1.1fr);
+  gap: 0.4rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+  padding: 0.35rem 0.4rem 0.4rem;
+  border-radius: 10px;
+  background: #050b16;
+  border: 2px solid #3d3a7a;
+  min-width: 0;
+}
+.meterWin {
+  border-color: var(--bw-brass-light);
+}
+.meterLabel {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c7c3ec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(20px, 6vw, 28px);
+}
+
+/* ---------- The betting board ---------- */
+.board {
+  margin-top: 0.7rem;
+}
+.boardTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #c7c3ec;
+  text-align: center;
+}
+.spots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.spot,
+.spotBonus {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 66px;
+  min-width: 0;
+  padding: 0.3rem 0.2rem 0.35rem;
+  border-radius: 12px;
+  border: 2px solid var(--edge, #3d3a7a);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(0, 0, 0, 0.15)), var(--fill, #241d6b);
+  color: var(--ink, #fff);
+  line-height: 1.1;
+}
+.spot {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+.spot:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.spot:disabled {
+  cursor: default;
+}
+.spot[data-hit='true'] {
+  box-shadow:
+    0 0 0 3px #fff2b0,
+    0 0 16px 4px rgba(255, 226, 120, 0.8);
+}
+.spotPays {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+/* In full white: at 90% opacity the line was 4.3:1 on the orange and the green numbers. */
+.spotSegments {
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+/* The medals on a number: a stack-coloured chip at its corner, the same size whether or not there are any. */
+.spotMedals {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #1d1708;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #d7dce3 55%, #9aa2ac);
+  border: 2px solid #f5f6f8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  visibility: hidden;
+}
+.spotMedals[data-on='true'] {
+  visibility: visible;
+}
+.spotBonus {
+  --fill: #1b1748;
+  --edge: #6b5bd0;
+  --ink: #ffd86b;
+  border-style: dashed;
+}
+.spotBonusText {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- The buttons ---------- */
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'steps'
+    'board'
+    'main';
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+.steps {
+  grid-area: steps;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.stepsLabel {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #c7c3ec;
+  margin-right: 0.2rem;
+  white-space: nowrap;
+}
+.stepButton {
+  appearance: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: 3px solid #8f969f;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #cfd5dc 55%, #9aa2ac);
+  color: #1c2633;
+  font-weight: 900;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0;
+}
+.stepButton[aria-checked='true'] {
+  border-color: var(--bw-brass-light);
+  background: radial-gradient(circle at 35% 30%, #fff8d8, #f1d48a 55%, #c99a3b);
+  box-shadow: 0 0 0 3px rgba(255, 211, 77, 0.45);
+}
+.stepButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.boardButtons {
+  grid-area: board;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 0.35rem;
+  min-width: 0;
+}
+.boardButtons .btn {
+  min-width: 0;
+  padding: 0.4rem 0.4rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rebetCount {
+  font-variant-numeric: tabular-nums;
+}
+.mainButtons {
+  grid-area: main;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+.spinButton {
+  appearance: none;
+  min-height: 60px;
+  border-radius: 16px;
+  border: 3px solid #fff1b8;
+  /* The white SPIN is large type: at least 3:1 over the whole button, its lightest top included (3.9:1). */
+  background: linear-gradient(180deg, #d94a90 0%, #b8286f 55%, #7f1a4f 100%);
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 5px 0 #5b0f37;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0 0.6rem;
+  min-width: 0;
+}
+.spinButton:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #5b0f37;
+}
+.spinButton:disabled {
+  filter: grayscale(0.7) brightness(0.75);
+  cursor: default;
+}
+.skipButton {
+  appearance: none;
+  min-height: 60px;
+  min-width: 5rem;
+  padding: 0 0.6rem;
+  border-radius: 14px;
+  border: 2px solid #6d68b8;
+  background: #2a2470;
+  color: #eef0fb;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.skipButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cabinet .btn {
+  background: #2a2470;
+  color: #fff;
+  border-color: #6d68b8;
+}
+.spot:focus-visible,
+.stepButton:focus-visible,
+.spinButton:focus-visible,
+.skipButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--bw-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .stepButton {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 0.95rem;
+  }
+  .boardButtons .btn {
+    padding: 0.4rem 0.25rem;
+    font-size: 0.76rem;
+  }
+  .spotPays {
+    font-size: 1.1rem;
+  }
+}
+.message {
+  margin: 0.45rem 0 0;
+  /* One line held, so that nothing under it moves when a message comes and goes. */
+  min-height: 1.4em;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid var(--bw-brass-light);
+  background: #2c4470;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outNote a {
+  color: #ffe1a1;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #c7c3ec;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(210, 162, 60, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #dcdcf2;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+
+/* The card in another tab's machine: this one waits. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(8, 6, 30, 0.9);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 48px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--bw-brass-light);
+  background: #4b2a9e;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ---------- Beside the cabinet ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  height: 2.4rem;
+  padding: 0 0.3rem;
+  border-radius: 8px;
+  background: var(--fill);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 0.95rem;
+  line-height: 1;
+  border: 2px solid transparent;
+}
+.historyChip[data-won='true'] {
+  border-color: #f5c400;
+}
+.historyStar {
+  font-size: 0.55rem;
+  font-weight: 800;
+  margin-bottom: 0.1rem;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pos {
+  color: var(--bw-ahead);
+}
+.neg {
+  color: var(--bw-behind);
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 850;
+  color: var(--bw-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.drawList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+/* A heading may wrap, so that the columns fit a phone; the figures under it never do. */
+.oddsTable thead th.num {
+  white-space: normal;
+}
+.oddsTable tfoot td {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+  background: var(--fill);
+  color: var(--ink);
+  font-weight: 900;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+  .swatch {
+    min-width: 1.9rem;
+    padding: 0.1rem 0.2rem;
+  }
+}
+.nowrap {
+  white-space: nowrap;
+}
+.fraction {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.percent {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--games-route-muted);
+}
+.check {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.checkButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 11px;
+  border: none;
+  background: #4b2a9e;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.checkButton:disabled {
+  opacity: 0.6;
+}
+.checkButton:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.checkResult {
+  margin: 0.6rem 0 0.3rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.checkList {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Less motion: nothing chases, blinks or flashes ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .marquee[data-chase='true'] .marqueeBulbs,
+  .wheel .bulb,
+  .wheel[data-phase] .bulb,
+  .wheel[data-win='true'] .bulb,
+  .wheel[data-win='true'] .winWedge,
+  .machine[data-attract='true'] .wheel[data-phase='idle'] .bulb,
+  .bonusSegment,
+  .banner {
+    animation: none !important;
+    transition: none !important;
+  }
+  .wheel .bulb {
+    opacity: 0.8;
+  }
+}

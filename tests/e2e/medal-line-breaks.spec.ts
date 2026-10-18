@@ -412,6 +412,8 @@ for (const width of WIDTHS) {
     await expect(status).toContainText('ランプチャンス');
     said.push(...(await brokenIn(status, SG_WORDS)));
     said.push(...(await brokenIn(page.locator('#sg-session-title ~ dl dt'), SG_WORDS)));
+    // The legend that names the squares.
+    said.push(...(await brokenIn(page.getByTestId('sg-legend').locator('li'), [...SG_WORDS, '数字', 'ひとやすみ', 'ふりだし', 'ボーナス', 'ファイナル'])));
     await page.locator('#sg-tab-odds').click();
     const odds = page.locator('[role="tabpanel"]:not([hidden])');
     await expect(odds.getByTestId('sg-squares-table')).toBeVisible();

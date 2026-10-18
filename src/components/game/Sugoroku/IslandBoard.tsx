@@ -16,7 +16,7 @@ import styles from './Sugoroku.module.css';
 const CENTER = { x: 4, y: 4.5 };
 /** The ring of lamps round the dome, and the ring of the whale's back round them, in cells. */
 const LAMP_RADIUS = 1.55;
-const LANE_RADIUS = 2.35;
+const LANE_RADIUS = 2.4;
 /** Where a step of the whale ride is: 0 the top (where the boat comes aboard from the gate), 1 to 10 the squares of its back clockwise, 11 the blowhole. */
 export function laneCell(step: number): { x: number; y: number } {
   const angle = ((-90 + 30 * step) * Math.PI) / 180;
@@ -30,8 +30,8 @@ function lampCell(lamp: number): { x: number; y: number } {
 const placed = (x: number, y: number, size = 1): CSSProperties =>
   ({ '--x': (x - size / 2).toFixed(4), '--y': (y - size / 2).toFixed(4), '--size': size } as CSSProperties);
 
-/** A square's little picture. */
-function SquareIcon({ kind }: { kind: SquareKind }) {
+/** A square's little picture: on the board, and beside its name in the legend under the controls. */
+export function SquareIcon({ kind }: { kind: SquareKind }) {
   switch (kind) {
     case 'start':
       return (
@@ -145,7 +145,7 @@ const Whale = ({ spout }: { spout: boolean }) => (
     <path d="M6.25 4.9c.45.2.6.6.5 1-.35-.1-.65-.35-.85-.7Z" fill="#2d78c4" stroke="#123a66" strokeWidth="0.05" />
     <circle cx="4" cy="4.5" r="2.75" fill="url(#sg-whale-back)" stroke="#123a66" strokeWidth="0.06" />
     {/* The path the ride takes round the back. */}
-    <circle cx="4" cy="4.5" r="2.35" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.1" strokeDasharray="0.12 0.14" />
+    <circle cx="4" cy="4.5" r="2.4" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.1" strokeDasharray="0.12 0.14" />
     <circle cx="4" cy="4.5" r="1.95" fill="#1a5d9f" opacity="0.35" />
     {/* The water the blowhole throws up, shown as the ride reaches it. */}
     <g className={styles.spout} data-on={spout ? 'true' : 'false'}>
@@ -177,7 +177,6 @@ const Squares = memo(function Squares({ bet, lit, here, flash, t }: { bet: numbe
         const { x, y } = cellOf(s);
         const distance = square.to === null ? 0 : Math.abs(square.to - s) || BOARD_SIZE;
         const medals = square.kind === 'start' ? medalsFor(bet, LAP_PAYS) : medalsFor(bet, square.pays);
-        const words = t.squareText(square.kind, distance);
         return (
           <li
             key={s}
@@ -193,13 +192,19 @@ const Squares = memo(function Squares({ bet, lit, here, flash, t }: { bet: numbe
             <span className={styles.squareIcon} aria-hidden="true">
               <SquareIcon kind={square.kind} />
             </span>
-            {square.kind === 'shell' || square.kind === 'pearl' ? (
+            {/* What a square prints is short enough to stay readable on a phone: what it pays at the bet, the squares an
+                arrow moves the boat, or JP. Its name is in the legend under the controls, and in its label. */}
+            {square.kind === 'shell' || square.kind === 'pearl' || square.kind === 'start' ? (
               <span className={styles.squarePays} aria-hidden="true">
                 +{medals}
               </span>
-            ) : words ? (
-              <span className={styles.squareWords} aria-hidden="true">
-                {words}
+            ) : square.kind === 'tailwind' || square.kind === 'current' || square.kind === 'storm' ? (
+              <span className={styles.squareMove} data-way={square.kind === 'tailwind' ? 'on' : 'back'} aria-hidden="true">
+                {distance}
+              </span>
+            ) : square.kind === 'jp' ? (
+              <span className={styles.squarePays} aria-hidden="true">
+                JP
               </span>
             ) : null}
           </li>
@@ -248,7 +253,7 @@ export function IslandBoard({ scene, bet, t, attract, calm, hop, warp, label, on
               data-blowhole={step === BLOWHOLE ? 'true' : 'false'}
               data-big={pays > 1 ? 'true' : 'false'}
               data-lit={laneLit.has(step) ? 'true' : 'false'}
-              style={placed(x, y, step === BLOWHOLE ? 0.78 : 0.64)}
+              style={placed(x, y, step === BLOWHOLE ? 0.82 : 0.72)}
               aria-label={t.laneAria(step, medals)}
             >
               <span aria-hidden="true">{step === BLOWHOLE ? 'JP' : `+${medals}`}</span>
@@ -270,7 +275,7 @@ export function IslandBoard({ scene, bet, t, attract, calm, hop, warp, label, on
               data-lit={scene.lamps.lit === i ? 'true' : 'false'}
               data-star={value === STAR ? 'true' : 'false'}
               data-empty={value === 0 ? 'true' : 'false'}
-              style={{ ...placed(x, y, 0.66), '--i': i } as CSSProperties}
+              style={{ ...placed(x, y, 0.72), '--i': i } as CSSProperties}
               aria-hidden="true"
             >
               <span className={styles.lampText}>{value === null ? '' : value === STAR ? 'JP' : value === 0 ? '–' : timesOf(value)}</span>

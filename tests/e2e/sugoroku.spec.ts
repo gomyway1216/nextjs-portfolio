@@ -213,6 +213,17 @@ test('fits 375 and 320 px phones in English and Japanese: the board and ROLL on 
     seen.add(JSON.stringify(await boxes()));
     expect([...seen], where).toEqual([JSON.stringify(before)]);
     expect(await inView('sg-board'), `${where}: the board, after`).toBe(true);
+    // Everything the board prints (the squares' pays and moves, the whale's back, the lamps of the chance just played),
+    // and the legend that names the squares, is at least 11 px: readable on the narrowest phone.
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="sg-board"] *, [data-testid="sg-legend"] *')].flatMap((el) => {
+        const text = [...el.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE && node.textContent!.trim() !== '').map((node) => node.textContent!.trim()).join('');
+        if (!text || !(el as HTMLElement).checkVisibility({ visibilityProperty: true, opacityProperty: true }) || el.closest('[class*="srOnly"]')) return [];
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        return size < 10.95 ? [`${text} ${size.toFixed(1)}px`] : [];
+      }),
+    );
+    expect(small, `${where}: text under 11 px`).toEqual([]);
     // The Odds tab fits too.
     await page.locator('#sg-tab-odds').click();
     await expect(page.getByTestId('sg-rtp')).toHaveText('89.74%');

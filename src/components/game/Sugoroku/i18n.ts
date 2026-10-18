@@ -137,28 +137,21 @@ const en = {
     })();
     return `Square ${square}, ${what}${here ? '. The boat is here' : ''}`;
   },
-  /** What a square prints on the board. */
-  squareText: (kind: SquareKind, distance: number): string => {
-    switch (kind) {
-      case 'start':
-        return 'START';
-      case 'lamp':
-        return 'CHANCE';
-      case 'jp':
-        return 'JP';
-      case 'whale':
-        return 'BONUS';
-      case 'tailwind':
-        return `GO ${distance}`;
-      case 'current':
-      case 'storm':
-        return `BACK ${distance}`;
-      case 'whirlpool':
-        return 'START';
-      default:
-        return '';
-    }
-  },
+  legendTitle: 'What the squares do',
+  /** Each kind of square in the legend under the controls, in board order: its name and what it does. */
+  legend: [
+    ['start', 'START', 'sailing past pays ×½'],
+    ['shell', 'Shell', '×½'],
+    ['pearl', 'Pearl', '×1'],
+    ['rest', 'Palm tree', 'a rest'],
+    ['tailwind', 'Tailwind', 'on that many squares'],
+    ['current', 'Ebb tide', 'back that many squares'],
+    ['storm', 'Storm', 'back that many squares'],
+    ['whirlpool', 'Whirlpool', 'back to START'],
+    ['lamp', 'Lamp Chance', '×1 to ×10'],
+    ['whale', 'Whale Ride', 'the bonus: 3 free rolls'],
+    ['jp', 'JP Chance', 'a 6 at the JP final is ×100'],
+  ] as [SquareKind, string, string][],
   laneLabel: 'The whale’s back: 10 squares and the blowhole',
   laneAria: (step: number, medals: number): string => (step === BLOWHOLE ? 'The blowhole: the JP Chance' : `Whale’s back, square ${step}: ${enMedals(medals)}`),
   lampsLabel: (set: 'lamp' | 'jp' | null): string => (set === 'lamp' ? 'The lamps, set for the Lamp Chance' : set === 'jp' ? 'The lamps, set for the JP Chance' : 'The lamps round the dome'),
@@ -376,27 +369,20 @@ const ja: SugorokuStrings = {
     })();
     return `${square}番のマス、${what}${here ? '。船はここ' : ''}`;
   },
-  squareText: (kind, distance) => {
-    switch (kind) {
-      case 'start':
-        return 'START';
-      case 'lamp':
-        return 'チャンス';
-      case 'jp':
-        return 'JP';
-      case 'whale':
-        return 'ボーナス';
-      case 'tailwind':
-        return `${distance}進む`;
-      case 'current':
-      case 'storm':
-        return `${distance}戻る`;
-      case 'whirlpool':
-        return 'ふりだし';
-      default:
-        return '';
-    }
-  },
+  legendTitle: 'マスのはたらき',
+  legend: [
+    ['start', 'スタート', '通過で×½'],
+    ['shell', '貝がら', '×½'],
+    ['pearl', '真珠', '×1'],
+    ['rest', 'ヤシの木', 'ひとやすみ'],
+    ['tailwind', '追い風', '数字のマスだけ進む'],
+    ['current', '引き潮', '数字のマスだけ戻る'],
+    ['storm', '嵐', '数字のマスだけ戻る'],
+    ['whirlpool', 'うずしお', 'ふりだしに戻る'],
+    ['lamp', 'ランプチャンス', '×1〜×10'],
+    ['whale', 'くじらライド', '無料で3回ふれるボーナス'],
+    ['jp', 'JPチャンス', 'JPファイナルで6なら×100'],
+  ],
   laneLabel: 'くじらの背中：10マスと潮吹き穴',
   laneAria: (step, medals) => (step === BLOWHOLE ? '潮吹き穴：JPチャンス' : `くじらの背中の${step}マスめ：${jaMedals(medals)}`),
   lampsLabel: (set) => (set === 'lamp' ? 'ランプチャンスのランプ' : set === 'jp' ? 'JPチャンスのランプ' : 'ドームのまわりのランプ'),

@@ -403,34 +403,47 @@
 }
 .squareIcon {
   display: flex;
-  width: 5.2cqw;
-  height: 5.2cqw;
+  width: clamp(13px, 5cqw, 28px);
+  height: clamp(13px, 5cqw, 28px);
   flex: none;
 }
 .squareIcon svg {
   width: 100%;
   height: 100%;
 }
-.squarePays,
-.squareWords {
-  font-size: 2.45cqw;
+/* A square that prints nothing under its picture shows the picture larger. */
+.square[data-kind='rest'] .squareIcon,
+.square[data-kind='whirlpool'] .squareIcon,
+.square[data-kind='lamp'] .squareIcon,
+.square[data-kind='whale'] .squareIcon {
+  width: clamp(20px, 8cqw, 40px);
+  height: clamp(20px, 8cqw, 40px);
+}
+/* What a square prints: never under 11 px, however narrow the phone (4cqw is 11 px on a 320 px screen's board). */
+.squarePays {
+  font-size: clamp(11px, 4.1cqw, 17px);
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
-.squarePays {
-  font-size: 2.95cqw;
+.squareMove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: clamp(14px, 5cqw, 22px);
+  padding: 0 0.6cqw;
+  border-radius: 999px;
+  font-size: clamp(11px, 4.1cqw, 17px);
+  font-weight: 900;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+  background: #0b5c99;
 }
-.square[data-kind='lamp'] .squareWords,
-.square[data-kind='whale'] .squareWords {
-  font-size: 2.2cqw;
-  letter-spacing: -0.04em;
-}
-.square[data-kind='jp'] .squareWords,
-.square[data-kind='start'] .squareWords {
-  font-size: 2.4cqw;
+.squareMove[data-way='back'] {
+  background: #b42318;
 }
 .board[data-attract='true'] .square::after {
   animation: sg-chase 3s linear infinite;
@@ -461,8 +474,9 @@
   background: #eaf6ff;
   border: 0.4cqw solid #123a66;
   color: #0b3a66;
-  font-size: 2.7cqw;
+  font-size: clamp(11px, 4cqw, 16px);
   font-weight: 900;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   box-shadow: inset 0 -0.6cqw 0 rgba(0, 0, 0, 0.15);
   transition: background-color 0.3s ease-out;
@@ -478,7 +492,6 @@
   background: radial-gradient(circle at 40% 35%, #fff7c9, #f2c14e 60%, #b9810e);
   border-color: #6b4400;
   color: #3d2400;
-  font-size: 2.6cqw;
 }
 
 /* The lamps round the dome: dark, until a chance puts its prizes on them and they run. */
@@ -500,7 +513,7 @@
   background: radial-gradient(circle at 40% 35%, #6b5420, #2e2208);
   border: 0.35cqw solid #c79a2c;
   color: #ffe9a8;
-  font-size: 2.6cqw;
+  font-size: clamp(11px, 3.9cqw, 16px);
   font-weight: 900;
   letter-spacing: -0.04em;
   white-space: nowrap;
@@ -705,7 +718,7 @@
   border-radius: 999px;
   background: #2c4470;
   border: 1px solid var(--sg-gold-light);
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 800;
   color: #fff;
   pointer-events: none;
@@ -713,6 +726,81 @@
 
 .phrase {
   white-space: nowrap;
+}
+
+/* The legend under the controls: each square's picture, its name and what it does. */
+.legend {
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.7rem 0.7rem;
+  border-radius: 12px;
+  background: rgba(3, 14, 28, 0.55);
+  border: 1px solid #23507e;
+}
+.legendTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 850;
+  color: #ffe08a;
+}
+.legendList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.3rem 0.8rem;
+}
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #e3f1ff;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .legendItem {
+    word-break: auto-phrase;
+  }
+}
+.legendItem strong {
+  color: #ffffff;
+}
+.legendIcon {
+  display: flex;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  border-radius: 6px;
+  background: #f8e7c2;
+  box-sizing: border-box;
+}
+.legendIcon svg {
+  width: 100%;
+  height: 100%;
+}
+.legendItem[data-kind='start'] .legendIcon {
+  background: #2a9d55;
+  color: #ffffff;
+}
+.legendItem[data-kind='tailwind'] .legendIcon {
+  background: #c7ecff;
+  color: #0b4a78;
+}
+.legendItem[data-kind='current'] .legendIcon,
+.legendItem[data-kind='storm'] .legendIcon {
+  background: #ffd5c8;
+  color: #8a1f0b;
+}
+.legendItem[data-kind='whirlpool'] .legendIcon {
+  background: #e5d8ff;
+  color: #4a1d8a;
+}
+.legendItem[data-kind='whale'] .legendIcon {
+  background: #a8dcff;
 }
 .status {
   margin: 0.5rem 0 0.45rem;
@@ -750,7 +838,7 @@
   border-color: var(--sg-gold-light);
 }
 .meterLabel {
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;

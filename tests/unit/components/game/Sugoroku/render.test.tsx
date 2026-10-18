@@ -36,6 +36,11 @@ describe('the machine', () => {
     expect(markup).toContain('aria-label="Square 2, Pearl: 2 medals"');
     expect(markup).toContain('aria-label="Square 15, Whirlpool: back to START"');
     expect(markup).toContain(`aria-label="The blowhole: the JP Chance"`);
+    // Each square prints what it pays at the bet, how far an arrow moves the boat, or JP; the legend names them all.
+    expect(markup).toMatch(/data-square="2"[^>]*>.*?>\+2</);
+    expect(markup).toMatch(/data-square="9"[^>]*>.*?data-way="back"[^>]*>6</);
+    expect(markup).toMatch(/data-square="7"[^>]*>.*?data-way="on"[^>]*>3</);
+    expect(markup.match(/<li[^>]*data-kind="[a-z]+"[^>]*><span[^>]*class="[^"]*legendIcon/g)).toHaveLength(11);
     expect(markup.match(/role="radio"/g)).toHaveLength(BETS.length);
     expect(markup).toContain('aria-checked="true" aria-label="Bet 2 medals"');
     expect(markup).toContain('data-testid="sg-die" data-face="1" data-rolling="false"');
@@ -54,11 +59,11 @@ describe('the machine', () => {
     // The status line, kept whole between its phrases: it breaks only after 「、」.
     expect(markup).toMatch(/>ベットを選んで、<\/span><wbr\/><span[^>]*>サイコロをふろう。</);
     expect(markup).toContain(NOT_MONEY.ja);
-    // The squares print START and JP as a real board does, and their other words in Japanese.
-    expect(markup).toContain('>チャンス<');
-    expect(markup).toContain('>ボーナス<');
-    expect(markup).toContain('>ふりだし<');
-    expect(markup).not.toMatch(/>(BONUS|CHANCE|GO \d|BACK \d)</);
+    // The squares print only what they pay, how far they move the boat, or JP; their names are in the legend.
+    expect(markup).toContain('>マスのはたらき<');
+    expect(markup).toContain('<strong>ランプチャンス</strong>：×1〜×10');
+    expect(markup).toContain('<strong>うずしお</strong>：ふりだしに戻る');
+    expect(markup).not.toMatch(/>(BONUS|CHANCE|GO \d|BACK \d|START)</);
   });
 });
 
@@ -175,7 +180,6 @@ function everyString(t: SugorokuStrings): { key: string; text: string }[] {
     if (key === 'banner') for (const banner of banners) add(`banner.${banner.kind}`, t.banner(banner, 10));
     else if (key === 'outcome') for (const play of plays) add('outcome', t.outcome(play, 10));
     else if (key === 'squareAria') BOARD.forEach((square, s) => add(`squareAria.${s}`, t.squareAria(s, square.kind, 5, square.to, s === 3)));
-    else if (key === 'squareText') BOARD.forEach((square, s) => add(`squareText.${s}`, t.squareText(square.kind, 4)));
     else if (key === 'squareName') BOARD.forEach((square) => add('squareName', t.squareName(square.kind)));
     else if (key === 'laneAria') for (let step = 1; step <= BLOWHOLE; step++) add('laneAria', t.laneAria(step, 5));
     else if (key === 'lampsLabel') for (const set of ['lamp', 'jp', null] as const) add('lampsLabel', t.lampsLabel(set));

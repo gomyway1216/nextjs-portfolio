@@ -16,7 +16,7 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { BETS, BOARD, START, analyzeBoard, drawPlay, medalsFor, valueOf, type Bet, type Play } from './engine';
 import { getStrings } from './i18n';
-import { IslandBoard } from './IslandBoard';
+import { IslandBoard, SquareIcon } from './IslandBoard';
 import { SUGOROKU_GAME, createTable, playOfRecord, rollId, standingOf, type BoardRecord, type Staked, type Table } from './medalTable';
 import { beatsOf, finalScene, restingScene, showLength, type Beat, type Scene } from './scene';
 import styles from './Sugoroku.module.css';
@@ -603,6 +603,28 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <p className={styles.message} role="status" data-testid="sg-message">
           {message}
         </p>
+
+        {/* What each square does, by its picture: the board prints only what a square pays or how far it moves, large
+            enough to read on a phone, and the names are here. */}
+        <section className={styles.legend} aria-labelledby="sg-legend-title" data-testid="sg-legend">
+          <h2 id="sg-legend-title" className={styles.legendTitle}>
+            {t.legendTitle}
+          </h2>
+          <ul className={styles.legendList}>
+            {t.legend.map(([kind, name, does]) => (
+              <li key={kind} className={styles.legendItem} data-kind={kind}>
+                <span className={styles.legendIcon} aria-hidden="true">
+                  <SquareIcon kind={kind} />
+                </span>
+                <span>
+                  <strong>{name}</strong>
+                  {language === 'ja' ? '：' : ': '}
+                  {does}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <div className={styles.outRow}>
           {refillDue && (

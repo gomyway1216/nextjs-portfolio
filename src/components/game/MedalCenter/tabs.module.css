@@ -9,6 +9,9 @@
 }
 .tabs > .tab {
   white-space: nowrap;
+  /* 44 px to hit, on every machine (tests/e2e/medal-tap-targets.spec.ts). */
+  min-height: 44px;
+  min-width: 44px;
 }
 @media (max-width: 360px) {
   .tabs {

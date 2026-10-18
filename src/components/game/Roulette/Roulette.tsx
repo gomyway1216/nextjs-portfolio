@@ -12,6 +12,7 @@ import { SimTab } from './SimTab';
 import { EdgeTab } from './EdgeTab';
 import { getStrings, betName } from './i18n';
 import { BET_ODDS } from './engine';
+import floorTabs from '../MedalCenter/tabs.module.css';
 import styles from './Roulette.module.css';
 import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
@@ -76,7 +77,7 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
         <FloorJackpotStrip game="roulette" />
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -84,7 +85,7 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
               id={`rl-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`rl-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}

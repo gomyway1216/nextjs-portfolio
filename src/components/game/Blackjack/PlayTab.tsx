@@ -760,77 +760,85 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
                 <RefillWords text={t.refill(REFILL)} />
               </button>
             )}
-            <div className={styles.betRow}>
-              <button type="button" className={styles.betCircle} onClick={addOne} disabled={!canBet || bet >= MAX_BET} aria-label={t.betAria(t.medals(String(bet)))}>
-                <span className={styles.betCircleLabel}>{t.bet}</span>
-                <span className={styles.betAmount} data-testid="bj-bet">
-                  {bet}
-                </span>
-              </button>
-              <div className={styles.betButtons}>
-                <button type="button" className={styles.btn} onClick={addOne} disabled={!canBet || bet >= MAX_BET} title={t.oneBetAria} data-testid="bj-one-bet">
-                  {t.oneBet}
-                </button>
-                <button type="button" className={styles.btn} onClick={maxBet} disabled={!canBet} title={t.maxBetAria(MAX_BET)} data-testid="bj-max-bet">
-                  {t.maxBet}
-                </button>
-                <button type="button" className={styles.btn} onClick={clearBet} disabled={!canBet}>
-                  {t.clearBet}
-                </button>
-                <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={!canBet}>
-                  {t.deal}
-                </button>
-              </div>
-            </div>
-            <p className={styles.betNote} data-testid="bj-bet-note">
-              {t.betRange(MIN_BET, MAX_BET)}
-              {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
-            </p>
-
             {/*
-              The insurance offer takes the place of HIT / STAND / DOUBLE / SPLIT while it is asked, in the same room, as a
-              machine's buttons turn to YES and NO: nothing on the panel moves as it comes and goes.
+              The bet and the moves share one place on a phone, as a machine's buttons change what they do: between hands
+              the bet and DEAL, during one HIT / STAND / DOUBLE / SPLIT, right where DEAL was pressed. On a desk both show.
             */}
-            <div className={styles.moveArea}>
-              {round?.phase === 'insurance' && !busy && (
-                <div className={styles.insuranceBox} data-testid="bj-insurance">
-                  <span className={styles.insuranceAsk}>{t.insuranceFor(t.medals(String(insuranceCost(round))))}</span>
-                  <div className={styles.insuranceChoices}>
-                    <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard} aria-label={t.insuranceYesAria}>
-                      {t.insuranceYes}
+            <div className={styles.playSpot} data-phase={inRound ? 'hand' : 'bet'} data-testid="bj-play-spot">
+              <div className={styles.betArea}>
+                <div className={styles.betRow}>
+                  <button type="button" className={styles.betCircle} onClick={addOne} disabled={!canBet || bet >= MAX_BET} aria-label={t.betAria(t.medals(String(bet)))}>
+                    <span className={styles.betCircleLabel}>{t.bet}</span>
+                    <span className={styles.betAmount} data-testid="bj-bet">
+                      {bet}
+                    </span>
+                  </button>
+                  <div className={styles.betButtons}>
+                    <button type="button" className={styles.btn} onClick={addOne} disabled={!canBet || bet >= MAX_BET} title={t.oneBetAria} data-testid="bj-one-bet">
+                      {t.oneBet}
                     </button>
-                    <button
-                      type="button"
-                      className={styles.btn}
-                      onClick={() => onInsurance(false)}
-                      disabled={!holdingCard}
-                      data-hint={showHint ? 'true' : undefined}
-                      aria-label={t.insuranceNoAria}
-                    >
-                      {t.insuranceNo}
+                    <button type="button" className={styles.btn} onClick={maxBet} disabled={!canBet} title={t.maxBetAria(MAX_BET)} data-testid="bj-max-bet">
+                      {t.maxBet}
+                    </button>
+                    <button type="button" className={styles.btn} onClick={clearBet} disabled={!canBet}>
+                      {t.clearBet}
+                    </button>
+                    <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={!canBet}>
+                      {t.deal}
                     </button>
                   </div>
                 </div>
-              )}
+                <p className={styles.betNote} data-testid="bj-bet-note">
+                  {t.betRange(MIN_BET, MAX_BET)}
+                  {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
+                </p>
+              </div>
 
-              <div
-                className={`${styles.actionRow} ${round?.phase === 'insurance' && !busy ? styles.actionRowAway : ''}`}
-                role="group"
-                aria-label={t.yourMove}
-              >
-                {ACTIONS.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    className={styles.actionBtn}
-                    data-action={a}
-                    data-hint={showHint && playing && hint === a ? 'true' : undefined}
-                    onClick={() => onAction(a)}
-                    disabled={!playing || !can?.[a]}
-                  >
-                    {t.action[a]}
-                  </button>
-                ))}
+              {/*
+                The insurance offer takes the place of HIT / STAND / DOUBLE / SPLIT while it is asked, in the same room, as a
+                machine's buttons turn to YES and NO: nothing on the panel moves as it comes and goes.
+              */}
+              <div className={styles.moveArea}>
+                {round?.phase === 'insurance' && !busy && (
+                  <div className={styles.insuranceBox} data-testid="bj-insurance">
+                    <span className={styles.insuranceAsk}>{t.insuranceFor(t.medals(String(insuranceCost(round))))}</span>
+                    <div className={styles.insuranceChoices}>
+                      <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard} aria-label={t.insuranceYesAria}>
+                        {t.insuranceYes}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        onClick={() => onInsurance(false)}
+                        disabled={!holdingCard}
+                        data-hint={showHint ? 'true' : undefined}
+                        aria-label={t.insuranceNoAria}
+                      >
+                        {t.insuranceNo}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={`${styles.actionRow} ${round?.phase === 'insurance' && !busy ? styles.actionRowAway : ''}`}
+                  role="group"
+                  aria-label={t.yourMove}
+                >
+                  {ACTIONS.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={styles.actionBtn}
+                      data-action={a}
+                      data-hint={showHint && playing && hint === a ? 'true' : undefined}
+                      onClick={() => onAction(a)}
+                      disabled={!playing || !can?.[a]}
+                    >
+                      {t.action[a]}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

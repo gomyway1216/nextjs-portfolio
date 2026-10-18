@@ -5,6 +5,7 @@ import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
+import { lookUp } from '../MedalCenter/lookUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
@@ -109,17 +110,6 @@ function cardOf(record: RaceRecord): RaceCard | null {
 }
 
 const sumOf = (bets: Readonly<Record<string, number>>): number => Object.values(bets).reduce((sum, n) => sum + n, 0);
-
-/** Brings the track on screen as a race starts (on a phone the tickets are under it), unless most of it is there already. */
-function revealTrack(element: HTMLElement | null): void {
-  if (!element || typeof window === 'undefined') return;
-  const rect = element.getBoundingClientRect();
-  const viewport = window.innerHeight || document.documentElement.clientHeight;
-  const visible = Math.min(rect.bottom, viewport) - Math.max(rect.top, 0);
-  if (visible >= rect.height * 0.6) return;
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  element.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-}
 
 export interface PlayTabProps {
   /** Who is playing: whose medals the machine plays with. A guest when not given. */
@@ -292,7 +282,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       // scrolled to: the page has only just opened.)
       if (!resumed) {
         play('fanfare');
-        revealTrack(stageRef.current);
+        lookUp(stageRef.current);
       }
     },
     [play, setBoard],

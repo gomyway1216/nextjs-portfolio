@@ -8,6 +8,7 @@ import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
 import { RefillWords } from '../MedalCenter/KeysHint';
+import { lookUp, type Glance } from '../MedalCenter/lookUp';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
 import { HistoryBoard } from './HistoryBoard';
@@ -63,16 +64,8 @@ interface Outcome {
 
 const sumOf = (bets: Record<BetKey, PlacedBet>): number => Object.values(bets).reduce((sum, b) => sum + b.amount, 0);
 
-/** Brings the wheel on screen (single-column mobile layout) so the spin is visible. */
-function revealWheel(el: HTMLElement | null) {
-  if (!el || typeof window === 'undefined') return;
-  const rect = el.getBoundingClientRect();
-  const viewport = window.innerHeight || document.documentElement.clientHeight;
-  const visible = Math.min(rect.bottom, viewport) - Math.max(rect.top, 0);
-  if (visible >= rect.height * 0.6) return;
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-}
+/** How long the result stays in view under the wheel before the view goes back down to the felt, in ms. */
+const RESULT_GLANCE = 2000;
 
 /** This device's storage for the table: a spin on record, under the player's name. Every call may throw. */
 const browserStorage = {
@@ -124,6 +117,18 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setLastBets(copy);
   }, []);
   const wheelAreaRef = useRef<HTMLDivElement>(null);
+  const spinButtonRef = useRef<HTMLButtonElement>(null);
+  // On a phone the wheel is above the felt: SPIN lifts the view to it, and once the result has been seen it goes back
+  // down to the felt, where the winning number is lit (MedalCenter/lookUp.ts).
+  const glance = useRef<Glance | null>(null);
+  const glanceTimer = useRef<number | null>(null);
+  const dropGlance = useCallback(() => {
+    if (glanceTimer.current !== null) window.clearTimeout(glanceTimer.current);
+    glanceTimer.current = null;
+    glance.current?.drop();
+    glance.current = null;
+  }, []);
+  useEffect(() => dropGlance, [dropGlance]);
 
   // Refs guard against state-lag races: setSpinning(true) doesn't take effect
   // until the next render, so a fast second click would otherwise schedule a
@@ -249,7 +254,6 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setWinning(null);
     setResult(spun.record.result);
     setSpinId((id) => id + 1);
-    revealWheel(wheelAreaRef.current);
   }, []);
 
   const doSpin = () => {
@@ -266,6 +270,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     rememberBets(staked.record.bets);
     setAnnouncement(t.sayStake(staked.record.wagered));
     roll(Object.assign(staked, { boarded: false }));
+    dropGlance();
+    glance.current = lookUp(wheelAreaRef.current, spinButtonRef.current);
     // The ball is launched round the wheel.
     play('launch');
   };
@@ -300,6 +306,15 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setFelt({});
     spinningRef.current = false;
     setSpinning(false);
+    // The number and what it paid have been seen under the wheel: the view goes back down to the felt.
+    if (glance.current) {
+      const seen = glance.current;
+      glanceTimer.current = window.setTimeout(() => {
+        glanceTimer.current = null;
+        if (glance.current === seen) glance.current = null;
+        seen.back();
+      }, RESULT_GLANCE);
+    }
   }, [setFelt, payMedals, play]);
 
   /** The medals have been reset at the medal center: the table starts over, and so does this device's copy of it. */
@@ -711,6 +726,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           <div className={styles.actions}>
             <button
               type="button"
+              ref={spinButtonRef}
               onClick={doSpin}
               disabled={!canBet || totalWagered === 0}
               className={`${styles.btn} ${styles.btnPrimary}`}

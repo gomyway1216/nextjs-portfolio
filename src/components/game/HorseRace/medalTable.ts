@@ -276,6 +276,13 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
    * One bet from these medals before a reset, or whose stake never went in,
    * is thrown away. Races of other medals are left as they are.
    */
+  /**
+   * The race this table is staking at this moment: from its record being written until its stake is in and the races
+   * before it are let go of. The bank tells the page of every one of those moves as it makes it, and a page that looks
+   * for a race to finish then is looking at its own press, not at a race left unfinished (`leftover`).
+   */
+  let staking: string | null = null;
+
   const unfinished = (): RaceRecord | null => {
     const medals = onTable();
     if (!medals) return null;
@@ -333,14 +340,19 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
         paid: false,
       };
       let stored = write(key, serializeRace(record));
-      if (move(record, STAKE_STEP, -wagered) !== 'applied') {
-        if (stored) remove(key);
-        return null;
+      staking = record.id;
+      try {
+        if (move(record, STAKE_STEP, -wagered) !== 'applied') {
+          if (stored) remove(key);
+          return null;
+        }
+        // The medals played feed the floor jackpot, once, as the stake goes in.
+        floorReport(HORSE_GAME, { played: wagered });
+        // The race before this one is no longer on record: nothing will look at its receipts again.
+        bank.forget(HORSE_GAME, [record.id]);
+      } finally {
+        staking = null;
       }
-      // The medals played feed the floor jackpot, once, as the stake goes in.
-      floorReport(HORSE_GAME, { played: wagered });
-      // The race before this one is no longer on record: nothing will look at its receipts again.
-      bank.forget(HORSE_GAME, [record.id]);
       // The bank could not write the stake down: the race is not left on record either, or a page that dies now would
       // come back to a race whose medals were never taken. It is played from memory, as the bank's medals are.
       if (stored && !bank.getState().kept) stored = !remove(key);
@@ -397,7 +409,8 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
 
     /** A race this device left unfinished with the medals on the table, which the page that holds the card now is to finish: null when there is none. */
     leftover(): RaceRecord | null {
-      if (!holding() || !bank.getState().loaded) return null;
+      // While START stakes, the race on record is that press's own: nothing is left unfinished, and nothing is settled.
+      if (!holding() || !bank.getState().loaded || staking !== null) return null;
       const key = raceKey(bank.owner());
       const text = read(key);
       // Text that is not a race this machine can read: an unreadable copy, not a stake, and not one to keep.

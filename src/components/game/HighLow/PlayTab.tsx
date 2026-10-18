@@ -199,6 +199,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const table = useRef<Table | null>(null);
   const timers = useRef<number[]>([]);
   const finishRef = useRef<(() => void) | null>(null);
+  // While START bets its game: the medals moving then are this press's own game, not one to take up as resumed.
+  const starting = useRef(false);
   const syncNow = useRef<(() => void) | null>(null);
   const playRef = useRef<HTMLDivElement | null>(null);
   const glance = useRef<Glance | null>(null);
@@ -291,7 +293,13 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (!canPressRef.current || (recordRef.current && inPlay(recordRef.current))) return;
     const card = drawCard(Math.random);
     const amount = betRef.current;
-    const outcome = table.current?.start(amount, card) ?? { kind: 'away' as const };
+    starting.current = true;
+    let outcome: ReturnType<Table['start']>;
+    try {
+      outcome = table.current?.start(amount, card) ?? { kind: 'away' };
+    } finally {
+      starting.current = false;
+    }
     if (outcome.kind === 'inPlay') {
       setRecord(outcome.record);
       return;
@@ -418,8 +426,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           const state = purse.getState();
           if (!tab || !placed.holding() || !state.loaded || !who.settled || state.owner !== who.uid) break;
           if (tab.restartIfDue()) startOver(false);
-          // A card still turning on the screen is this page's own game: it is left to land.
-          if (showRef.current !== 'rest') break;
+          // A card still turning on the screen is this page's own game: it is left to land. So is a game START is betting.
+          if (showRef.current !== 'rest' || starting.current) break;
           const now = tab.read();
           const shown = recordRef.current;
           if (sameState(now, shown)) break;

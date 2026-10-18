@@ -235,6 +235,33 @@ describe('a reload while the horses are running', () => {
   });
 });
 
+describe('a page looking at the medals while START stakes', () => {
+  // The bank tells the page of every move it makes as it makes it, START's own stake among them, and the page then looks
+  // for a race left unfinished to finish. While START is staking, the race on record is that press's own: the page is
+  // told of none, and nothing is settled under it. (Before, it was handed the race being staked; the page began it as
+  // one resumed and START began it again in the same press, which React drew as one. Nothing a player saw changed.)
+  it('is told of no race left unfinished while START stakes, and the race’s medals stay out', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const machine = machineOn(page);
+    await quiet(browser);
+    const seen: (string | null)[] = [];
+    const out: (readonly string[])[] = [];
+    page.bank.subscribe(() => {
+      seen.push(machine.table.leftover()?.id ?? null);
+      out.push(page.bank.getState().out);
+    });
+    const staked = machine.start([WIN1, Q12], ONE_TWO)!;
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).toEqual(seen.map(() => null));
+    expect(out[out.length - 1]).toEqual([HORSE_GAME]);
+    // Once START is done, a race on record still to be finished is one to finish, as for a page opened after a reload.
+    expect(machine.table.leftover()?.id).toBe(staked.record.id);
+    expect(machine.finish()).toBe('paid');
+    expect(stored(browser)).toBe(WELCOME - WIN1.amount - Q12.amount + BOTH);
+  });
+});
+
 describe('the medals out on a race', () => {
   it('are out from the off until the line, a losing race included, and stay out over a page killed while it runs', async () => {
     const browser = new FakeBrowser();

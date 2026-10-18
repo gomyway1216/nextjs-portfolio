@@ -12,18 +12,32 @@
  * A guest's history is kept on this device under `HISTORY_KEY`, and each
  * account's under a name of its own (`historyKey`), beside that account's
  * medals. It is written by the page that holds the medal center's card, as
- * the medals are, so no tab's write lands on top of another's:
+ * the medals are, so no tab's write lands on top of another's.
  *
- * - while a machine plays, every couple of seconds (`FLUSH_EVERY`), and
+ * It is kept in two parts: the whole, as it was when last written whole, and
+ * beside it (`partKey`) only what has changed since (`changedSince`): the
+ * entries of the rounds played since, their games' rows, the day's totals.
+ * Read, the two are joined (`mergeHistories`), and since a history only grows,
+ * joining the part in again changes nothing. A round played rewrites a few
+ * hundred characters of the part, not the whole of a history that comes to
+ * tens of thousands:
+ *
+ * - while a machine plays, the part, every couple of seconds while anything
+ *   in it changes (`FLUSH_EVERY`), and only when it has;
+ * - the whole, a minute after the part was begun (`WHOLE_EVERY`), so that the
+ *   part stays small; when the part grows too long anyway (`PART_MOST`); and
  *   when the card is let go, which is also what happens when the page is
- *   hidden or left;
- * - after the hub's moment with the card (a bonus, a refill, a reset), as the
- *   card goes back.
+ *   hidden or left. Then the part is let go of;
+ * - after the hub's moment with the card (a bonus, a refill, a reset), the
+ *   whole, as the card goes back.
  *
- * Every write reads what storage holds first and joins it in
- * (`mergeHistories`), so what another tab wrote is never written over. A
- * browser that dies between the medals' write and the history's loses the
- * last second or two of history, never a medal.
+ * Every write reads what storage holds first and joins it in, so what another
+ * tab wrote is never written over. A browser that dies loses at most the last
+ * couple of seconds of history, those the part had not been written for yet,
+ * and never a medal: every move of the medals is made under its receipt in
+ * the ledger, in the same write as the medals (ledger.ts). A browser that dies
+ * between writing the whole and letting go of the part leaves the part, which
+ * is joined in again and changes nothing.
  *
  * ## The account
  *
@@ -43,7 +57,7 @@
  */
 
 import { GUEST, createSync, fromCloud, toCloud, type AccountStore, type Kept, type Player, type Slots, type Standing, type Status, type Sync, type Verdict } from '../MedalPusher/account';
-import { createHistory, mergeHistories, parseHistory, printOf, record, serializeHistory, type History, type Observation } from './history';
+import { changedSince, createHistory, isEmpty, mergeHistories, parseHistory, printOf, record, serializeHistory, type History, type Observation } from './history';
 
 /** Where a guest's history is kept on this device. */
 export const HISTORY_KEY = 'medal-center-history';
@@ -54,8 +68,19 @@ export const HISTORY_GAME_KEY = 'medal-center-history';
 
 /** How often a history that has changed goes to the account, in seconds: nearly every round changes it, and each write costs the server a document. */
 export const HISTORY_SEND_EVERY = 300;
-/** How often a page holding the card writes the history while it changes, in seconds. */
+/** How often a page holding the card writes what has changed of the history while it changes, in seconds. */
 export const FLUSH_EVERY = 2;
+/**
+ * How long after the part changed since the whole was begun the history is
+ * written whole again, in seconds. The part grows by a round's entry with
+ * every round, and the whole is the most there is to write: a minute of play
+ * between the two writes the least.
+ */
+export const WHOLE_EVERY = 60;
+/** The longest a part is written as a part, in characters: a longer one goes into the whole at once. */
+export const PART_MOST = 16_000;
+/** Where the part of a history changed since it was last written whole is kept, beside the whole under `key`. */
+export const partKey = (key: string): string => `${key}#recent`;
 /** How often the keeper is shown the history, in seconds. */
 export const HISTORY_LOOK_EVERY = 10;
 /** How long what the account has just said is taken to be what it holds, in milliseconds. */
@@ -119,6 +144,17 @@ export function settleHistories({ account, device }: Standing, name: () => strin
   return { kind: 'take', text: merged, send: printOf(merged) !== printOf(account.text) };
 }
 
+/**
+ * A history as this device keeps it under `key`, read the way the page reads
+ * it: the whole and the part changed since, joined. Null for none, or for text
+ * that is not a history; the part alone is taken when the whole is not there.
+ */
+export function storedHistory(read: (key: string) => string | null, key: string): History | null {
+  const whole = parseHistory(read(key));
+  const part = parseHistory(read(partKey(key)));
+  return whole && part ? mergeHistories(whole, part) : (whole ?? part);
+}
+
 /** One player's history on the table. */
 interface Desk {
   owner: string | null;
@@ -126,6 +162,10 @@ interface Desk {
   history: History;
   /** Whether it holds something storage may not. */
   unsaved: boolean;
+  /** The history as storage holds it whole: what the part is worked out against. Null while storage holds no whole. */
+  whole: History | null;
+  /** The tick at which the part beside the whole was begun, or null while there is none. */
+  partSince: number | null;
   /** Whether it is an account's that the guest's history has gone into, and the guest's has still to leave its place. */
   moved: boolean;
   /** Whether a copy from elsewhere (the account's, the guest's) has been joined in and is still to be written. */
@@ -189,36 +229,109 @@ export function createHistoryStore(deps: HistoryDeps) {
     return printed.text;
   };
 
+  /** What storage holds of a history under `key`, the whole and the part, read; undefined when storage cannot be read at all. */
+  const stored = (key: string): { text: string | null; whole: History | null; partText: string | null; part: History | null } | undefined => {
+    const text = read(key);
+    const partText = read(partKey(key));
+    if (text === undefined || partText === undefined) return undefined;
+    return { text, whole: text === null ? null : parseHistory(text), partText, part: partText === null ? null : parseHistory(partText) };
+  };
+
+  /** The whole and the part storage holds, joined: the history as it is kept. */
+  const joined = (found: { whole: History | null; part: History | null }): History | null =>
+    found.whole && found.part ? mergeHistories(found.whole, found.part) : (found.whole ?? found.part);
+
   /**
-   * Writes a desk's history on top of what storage holds, joined in. Only the
-   * page that holds the card does. A history stored there that cannot be read
-   * is put aside under a name of its own, not written over.
+   * Writes a desk's history whole on top of what storage holds, the whole and
+   * the part joined in, and lets go of the part. Only the page that holds the
+   * card does. A history stored there that cannot be read is put aside under
+   * a name of its own, not written over.
    */
-  const flush = (at: Desk | null = desk): void => {
-    if (!at || !at.unsaved) return;
-    const text = read(at.key);
-    if (text === undefined) {
+  const writeWhole = (at: Desk): void => {
+    const found = stored(at.key);
+    if (!found) {
       if (at === desk) kept = false;
       return;
     }
-    const stored = text === null ? null : parseHistory(text);
-    if (text !== null && !stored) put(`${at.key}#unread`, text);
-    const merged = stored ? mergeHistories(at.history, stored) : at.history;
+    const { text, whole, partText, part } = found;
+    if (text !== null && !whole) put(`${at.key}#unread`, text);
+    if (partText !== null && !part) put(`${partKey(at.key)}#unread`, partText);
+    let merged = whole ? mergeHistories(at.history, whole) : at.history;
+    if (part) merged = mergeHistories(merged, part);
     const out = textOf(merged);
     if (out !== text) {
       const ok = put(at.key, out);
       if (at === desk) kept = ok;
       if (!ok) return;
     }
+    // The whole holds the part now. A browser that dies before it is let go of leaves it, to be joined in again.
+    if (partText !== null) drop(partKey(at.key));
     at.history = merged;
+    at.whole = merged;
+    at.partSince = null;
     at.unsaved = false;
     at.joined = false;
     // A guest's history that has gone into the account's is safely in the account's place now: it leaves the guest's.
     if (at.moved && at.owner !== null) {
       drop(HISTORY_KEY);
+      drop(partKey(HISTORY_KEY));
       at.moved = false;
     }
+    if (at === desk) {
+      publish();
+      // The account's keeper writes its copy now, with the whole, rather than every few seconds while it changes.
+      sync?.save(where === 'offline' ? 'moment' : 'tick');
+    }
+  };
+
+  /**
+   * Writes the part of a desk's history changed since it was last written
+   * whole, beside the whole, joined with the part storage holds. A part grown
+   * long goes into the whole instead.
+   */
+  const writePart = (at: Desk, whole: History): void => {
+    const key = partKey(at.key);
+    const text = read(key);
+    if (text === undefined) {
+      if (at === desk) kept = false;
+      return;
+    }
+    const theirs = text === null ? null : parseHistory(text);
+    if (text !== null && !theirs) put(`${key}#unread`, text);
+    const history = theirs ? mergeHistories(at.history, theirs) : at.history;
+    const part = changedSince(history, whole);
+    const out = isEmpty(part) ? null : serializeHistory(part);
+    if (out !== null && out.length > PART_MOST) {
+      at.history = history;
+      writeWhole(at);
+      return;
+    }
+    if (out === null) {
+      if (text !== null) drop(key);
+    } else if (out !== text) {
+      const ok = put(key, out);
+      if (at === desk) kept = ok;
+      if (!ok) return;
+    }
+    at.history = history;
+    at.unsaved = false;
+    if (out === null) at.partSince = null;
+    else at.partSince ??= ticks;
     if (at === desk) publish();
+  };
+
+  /**
+   * Writes what a desk's history holds that storage does not, by the page that
+   * holds the card: the part changed since the whole, or the whole when it is
+   * asked for (`whole`), when storage holds no whole yet, when a copy from
+   * elsewhere has been joined in, or when the part has stood for long enough.
+   */
+  const flush = (at: Desk | null = desk, whole = false): void => {
+    if (!at) return;
+    const due = at.partSince !== null && ticks - at.partSince >= WHOLE_EVERY;
+    if (!at.unsaved && !((whole || due) && at.partSince !== null)) return;
+    if (whole || due || at.joined || at.whole === null) writeWhole(at);
+    else writePart(at, at.whole);
   };
 
   /** A copy from elsewhere joined into a desk's history. It is written with the card. */
@@ -233,8 +346,8 @@ export function createHistoryStore(deps: HistoryDeps) {
 
   /** The guest's history goes into an account's with the guest's medals, and leaves the guest's place once it is written. */
   const carry = (at: Desk): void => {
-    const text = read(HISTORY_KEY);
-    const guest = typeof text === 'string' ? parseHistory(text) : null;
+    const found = stored(HISTORY_KEY);
+    const guest = found ? joined(found) : null;
     // A guest's history this version cannot read stays where it is.
     if (!guest) return;
     // It is written with the medals: the bank writes a guest's medals that have moved with the card, and the history
@@ -453,15 +566,26 @@ export function createHistoryStore(deps: HistoryDeps) {
         // The history of the medals that leave the table is written with them, if the card is here; if not, it is
         // written the next time it is (`leftover`). Nothing is asked for here, in the middle of the bank's own change.
         const before = desk;
-        if (before?.unsaved) {
-          if (deps.holding()) flush(before);
+        if (before && (before.unsaved || before.partSince !== null)) {
+          if (deps.holding()) flush(before, true);
           else leftover = before;
         }
         const key = historyKey(owner);
-        const text = read(key);
-        kept = text !== undefined;
-        const stored = typeof text === 'string' ? parseHistory(text) : null;
-        desk = { owner, key, history: stored ?? createHistory(device, deps.now()), unsaved: stored === null, moved: false, joined: false };
+        const found = stored(key);
+        kept = found !== undefined;
+        const whole = found?.whole ?? null;
+        const history = found ? joined(found) : null;
+        desk = {
+          owner,
+          key,
+          history: history ?? createHistory(device, deps.now()),
+          unsaved: whole === null,
+          whole,
+          // A part left beside the whole goes into it within the minute, as one written here would.
+          partSince: found?.part ? ticks : null,
+          moved: false,
+          joined: false,
+        };
         if (pending && pending.owner === owner) {
           join(desk, pending.history);
           pending = null;
@@ -489,20 +613,21 @@ export function createHistoryStore(deps: HistoryDeps) {
       if (!started) return;
       ticks += 1;
       if (leftover && deps.holding()) {
-        flush(leftover);
+        flush(leftover, true);
         leftover = null;
       }
       const at = desk;
-      if (at?.unsaved) {
-        if (deps.holding()) {
-          if (ticks % FLUSH_EVERY === 0 || at.joined) flush(at);
-        } else if (at.joined) {
-          // A copy from the account joined in on a page that plays no machine: it is written with the card, once.
-          at.joined = false;
-          deps.withCard(() => flush(at));
-        }
+      if (at && deps.holding()) {
+        if ((at.unsaved && (ticks % FLUSH_EVERY === 0 || at.joined)) || (at.partSince !== null && ticks - at.partSince >= WHOLE_EVERY)) flush(at);
+      } else if (at?.unsaved && at.joined) {
+        // A copy from the account joined in on a page that plays no machine: it is written with the card, once.
+        at.joined = false;
+        deps.withCard(() => flush(at, true));
       }
-      if (ticks % HISTORY_LOOK_EVERY === 0) sync?.save(where === 'offline' ? 'moment' : 'tick');
+      // The account's keeper writes its copy of the history on this device each time it is asked: while this page is
+      // writing a part, it is asked as the whole is written (`writeWhole`), not every few seconds.
+      const writing = at !== null && at.partSince !== null && deps.holding();
+      if (ticks % HISTORY_LOOK_EVERY === 0 && !writing) sync?.save(where === 'offline' ? 'moment' : 'tick');
       if (checkAt !== null && deps.now() >= checkAt) {
         checkAt = null;
         check();
@@ -512,10 +637,10 @@ export function createHistoryStore(deps: HistoryDeps) {
     /** The card is about to go: what has not been written is written while it is still here. */
     yielding(): void {
       if (leftover) {
-        flush(leftover);
+        flush(leftover, true);
         leftover = null;
       }
-      flush();
+      flush(desk, true);
     },
 
     /** The page has been hidden, or is being left: the account is sent what it has not had, if the page lives long enough. */
@@ -526,11 +651,14 @@ export function createHistoryStore(deps: HistoryDeps) {
     /** Another tab has written storage: what it wrote of this history is joined in. */
     changed(key: string | null): void {
       const at = desk;
-      if (!started || !at || (key !== null && key !== at.key)) return;
-      const text = read(at.key);
-      const stored = typeof text === 'string' ? parseHistory(text) : null;
-      if (!stored) return;
-      const merged = mergeHistories(at.history, stored);
+      if (!started || !at || (key !== null && key !== at.key && key !== partKey(at.key))) return;
+      const found = stored(at.key);
+      if (!found) return;
+      // What storage holds whole only grows: the part this page writes is worked out against it.
+      if (found.whole) at.whole = at.whole ? mergeHistories(at.whole, found.whole) : found.whole;
+      const theirs = joined(found);
+      if (!theirs) return;
+      const merged = mergeHistories(at.history, theirs);
       if (textOf(merged) === serializeHistory(at.history)) return;
       at.history = merged;
       publish();

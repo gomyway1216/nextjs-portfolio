@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // The double-up of video poker (doubleUp.ts): after a win the player may TAKE it, or DOUBLE UP: the dealer's card is
@@ -58,10 +59,8 @@ const drawButton = (page: Page) => page.getByRole('button', { name: 'DRAW', exac
 /** Deals the full house at five medals, holds it whole and draws: 45 medals won, and in the medals. */
 async function winFullHouse(page: Page) {
   await rig(page, dealNumbers(FULL_HOUSE));
-  await expect(async () => {
-    await dealButton(page).click({ timeout: 1_000 });
-    await expect(drawButton(page)).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  // Pressed until the hand is dealt, and never again once it is: a deal that has landed takes DEAL away.
+  await pressUntil(dealButton(page), () => drawButton(page).isVisible());
   for (let i = 0; i < 5; i++) {
     const slot = page.locator(`[data-slot="${i}"]`);
     if ((await slot.getAttribute('aria-pressed')) !== 'true') await slot.click();

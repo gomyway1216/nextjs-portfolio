@@ -14,7 +14,7 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { useCountUp } from '../MedalCenter/countUp';
 import { FACE_STAR, MEDAL_PAINT, SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
-import { DEALER_HANDS, HAND_COUNT, handOdds, qualifyingHands, strategyOdds } from './analysis';
+import { DEALER_HANDS, HAND_COUNT, handOdds, qualifyingHands } from './analysis';
 import {
   HAND_SIZE,
   NO_BETS,
@@ -46,6 +46,7 @@ import {
   type TableMedals,
   type TableStore,
 } from './medalTable';
+import { PUBLISHED_STRATEGIES } from './published';
 import styles from './ThreeCardPoker.module.css';
 
 /** How many digits the medal counter has, as the Medal Game Center's own. */
@@ -608,7 +609,8 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const hintDecision = deciding && round ? decide('optimal', round.player) : null;
 
   const exactQualify = qualifyingHands() / HAND_COUNT;
-  const exactPlayRate = strategyOdds('optimal').playRate;
+  // As published (published.ts): working it out builds every hand's value against the dealer.
+  const exactPlayRate = PUBLISHED_STRATEGIES.optimal.playRate;
 
   const calloutText = !round
     ? t.placeBets

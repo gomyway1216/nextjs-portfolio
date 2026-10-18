@@ -5,7 +5,8 @@
  * with come from `analysis.ts`.
  */
 
-import { betOdds, exactOdds, shoeOdds } from './analysis';
+import { betOdds, exactOdds } from './analysis';
+import { publishedShoeOdds } from './published';
 import {
   DEFAULT_DECKS,
   createShoe,
@@ -44,7 +45,7 @@ export function lineProfit(id: SimBet, hand: Hand): number {
 }
 
 /** The exact edge off the top of an eight-deck shoe. */
-export const theoreticalEdge = (id: SimBet) => -betOdds(id, shoeOdds(DEFAULT_DECKS)).ev;
+export const theoreticalEdge = (id: SimBet) => -betOdds(id, publishedShoeOdds(DEFAULT_DECKS)).ev;
 
 const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const YIELD_EVERY = 20_000;

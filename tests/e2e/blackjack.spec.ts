@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { handValue, hiLo, type Card } from '../../src/components/game/Blackjack/engine';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, playByHint, shownNet } from './blackjackPage';
+import { pressUntil } from './pressUntil';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 import { bankBalance } from './medalCenterPage';
 
@@ -298,4 +299,71 @@ test('on a desktop the keys play the table: Space deals, B and M bet, H, S, D an
     return;
   }
   throw new Error('no hand to play in 20 deals');
+});
+
+test('on a phone nothing over the buttons changes height as a shoe’s first hand is dealt: the call-out stays one line in either language (the insurance question, a dealer blackjack), so does the shoe line, and every button’s words fit it', async ({ browser }) => {
+  test.setTimeout(120_000);
+  for (const width of [320, 375]) {
+    for (const language of ['en', 'ja'] as const) {
+      // The shoe is shuffled from Math.random on the first deal, so a constant one deals what the test needs: 0.01 an ace
+      // over a 6 against 5 5 (insurance is offered), 0.048 a jack over an ace against 3 6 (a dealer blackjack at once).
+      for (const [shuffle, shown] of [
+        [0.01, 'insurance'],
+        [0.048, 'blackjack'],
+      ] as const) {
+        const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
+        const page = await context.newPage();
+        await page.addInitScript(() => {
+          const random = Math.random;
+          const w = window as unknown as { __shuffle?: number };
+          Math.random = () => w.__shuffle ?? random();
+        });
+        await openBlackjack(page, language);
+        if (await page.getByTestId('bj-notice-dismiss').isVisible()) await page.getByTestId('bj-notice-dismiss').click();
+        const callout = page.getByTestId('bj-callout').locator('span').first();
+        /** How many lines the call-out takes. */
+        const lines = () =>
+          callout.evaluate((el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+          });
+        /** Where the buttons under the table start, on the page. */
+        const buttonsAt = () => page.getByTestId('bj-buttons').evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+        // The page's fonts are in, so what is measured is what stays.
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        expect(await lines()).toBe(1);
+        // Every button's words fit inside it.
+        const overflowing = () =>
+          page
+            .getByTestId('bj-buttons')
+            .locator('button')
+            .evaluateAll((els) => els.filter((el) => el.getBoundingClientRect().width > 0 && el.scrollWidth > el.clientWidth).map((el) => el.textContent));
+        expect(await overflowing(), `${width} ${language}`).toEqual([]);
+        const before = await buttonsAt();
+        await pressUntil(page.getByTestId('bj-max-bet'), async () => (await page.getByTestId('bj-bet').textContent())?.trim() === '10');
+        await page.evaluate((value) => ((window as unknown as { __shuffle?: number }).__shuffle = value), shuffle);
+        await dealButton(page).click();
+        if (shown === 'insurance') {
+          await expect(page.getByTestId('bj-insurance')).toBeVisible();
+          await expect(callout).toHaveText(language === 'en' ? 'The dealer shows an ace.' : 'ディーラーのアップカードはA。');
+          await expect(page.getByTestId('bj-insurance')).toContainText(language === 'en' ? 'Insurance for 5 medals?' : 'インシュランスは5枚です。');
+          // Its two answers side by side, as a machine's YES and NO.
+          const answers = page.getByTestId('bj-insurance').getByRole('button');
+          await expect(answers).toHaveText(language === 'en' ? ['Yes', 'No'] : ['掛ける', '掛けない']);
+          const rows = await answers.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+          expect(new Set(rows).size, `${width} ${language}`).toBe(1);
+        } else {
+          await expect(callout).toHaveText(language === 'en' ? 'Dealer blackjack · −10 medals' : 'ディーラーのブラックジャック・−10枚');
+        }
+        await page.evaluate(() => delete (window as unknown as { __shuffle?: number }).__shuffle);
+        expect(await lines(), `${width} ${language} ${shown}`).toBe(1);
+        // The shoe line said a fresh shoe would be shuffled; now it counts the cards left, in the same room.
+        await expect(page.getByTestId('shoe-info')).toContainText(language === 'en' ? 'cards left' : '残り');
+        expect(Math.abs((await buttonsAt()) - before), `${width} ${language} ${shown}`).toBeLessThan(1);
+        expect(await overflowing(), `${width} ${language} ${shown}`).toEqual([]);
+        await context.close();
+      }
+    }
+  }
 });

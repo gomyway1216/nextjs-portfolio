@@ -148,8 +148,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const canBet = mine && here && !spinning;
 
   const totalWagered = useMemo(() => sumOf(bets), [bets]);
+  // What a spin still rolling won, when it was paid before its ball stopped: the card went for a moment (the medal
+  // center taking the day's bonus, say) and the spin was settled as it went. The medals are in, and the counter does
+  // not show them before the ball has stopped on the number that won them.
+  const [hiddenWin, setHiddenWin] = useState(0);
   // The medals not on the felt: while the ball rolls, the bets on the felt have been taken out of them already.
-  const medalsShown = mine ? Math.max(0, bankState.balance - (spinning ? 0 : totalWagered)) : null;
+  const medalsShown = mine ? Math.max(0, bankState.balance - hiddenWin - (spinning ? 0 : totalWagered)) : null;
   // On the counter's LEDs a win runs into the medals, as a medal machine pays it (countUp.ts).
   // The table's sound, off until the player switches it on; each medal of a win chirps as it is counted in.
   const sound = useMachineSound();
@@ -271,8 +275,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (!spun) return;
     inFlight.current = null;
     if (!spun.void) {
-      // What it won runs into the medals on the counter (paid now, or as the card went for a moment).
+      // What it won runs into the medals on the counter (paid now, or as the card went for a moment, and kept off the
+      // counter until now).
       if (spun.record.won > 0) payMedals();
+      setHiddenWin(0);
       // The ball drops into its pocket; a win is played over the medals coming in.
       play('drop');
       if (spun.record.won > 0) play(spun.record.won >= spun.record.wagered * 10 ? 'big' : 'win', 0.2);
@@ -305,6 +311,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       // The number under the wheel goes too; a ball still rolling is left to stop (taking its number away would stop
       // the wheel's animation before it could say that it has stopped).
       else setResult(null);
+      // A win paid as the card went before the reset went with every other medal: nothing of it is held back now.
+      setHiddenWin(0);
       table.current?.clear();
       shownLast.current = null;
       setFelt({});
@@ -335,6 +343,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (!spun || spun.void || !table.current) return;
       // Settled already when the card went for a moment, perhaps; it may still have to go on the board.
       const settled = spun.paid ? 'already' : table.current.settle(spun);
+      // Paid now, before the ball has stopped: what it won stays off the counter until it has (`settleSpin`).
+      if (settled === 'paid' && spun.record.won > 0) setHiddenWin(spun.record.won);
       // A page that is hidden or left will not show the number when the ball stops: it goes on the board now.
       if ((settled === 'paid' || settled === 'already') && why !== 'moment' && !spun.boarded) {
         resultsStore.record(spun.record.result);

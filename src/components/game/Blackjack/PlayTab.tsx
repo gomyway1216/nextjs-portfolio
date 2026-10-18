@@ -555,7 +555,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   const callout = !round
     ? t.placeBet
     : round.phase === 'insurance'
-      ? t.insuranceQuestion(t.medals(String(insuranceCost(round))))
+      ? t.insuranceAsked
       : round.phase === 'player'
         ? busy
           ? t.dealing
@@ -791,12 +791,19 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
 
             {round?.phase === 'insurance' && !busy && (
               <div className={styles.insuranceBox} data-testid="bj-insurance">
-                <span>{t.insuranceQuestion(t.medals(String(insuranceCost(round))))}</span>
-                <div className={styles.actions} style={{ marginTop: 0 }}>
-                  <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard}>
+                <span>{t.insuranceFor(t.medals(String(insuranceCost(round))))}</span>
+                <div className={styles.insuranceChoices}>
+                  <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard} aria-label={t.insuranceYesAria}>
                     {t.insuranceYes}
                   </button>
-                  <button type="button" className={styles.btn} onClick={() => onInsurance(false)} disabled={!holdingCard} data-hint={showHint ? 'true' : undefined}>
+                  <button
+                    type="button"
+                    className={styles.btn}
+                    onClick={() => onInsurance(false)}
+                    disabled={!holdingCard}
+                    data-hint={showHint ? 'true' : undefined}
+                    aria-label={t.insuranceNoAria}
+                  >
                     {t.insuranceNo}
                   </button>
                 </div>

@@ -1,0 +1,22 @@
+/*
+ * The tabs over a machine (Table / Odds / Simulation, 「テーブル / 確率 / シミュレーション」), as every table on the floor
+ * shows them. Each machine keeps its own look (its .tabs and .tab); these rules sit beside them and only make sure
+ * that a tab's name is never broken inside itself (「テーブ」 / 「ル」) and that the three fit the narrowest phone in
+ * either language. The selectors name both classes, so they hold whichever stylesheet comes last.
+ */
+.tabs {
+  max-width: 100%;
+}
+.tabs > .tab {
+  white-space: nowrap;
+}
+@media (max-width: 360px) {
+  .tabs {
+    gap: 0.1rem;
+  }
+  .tabs > .tab {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+    font-size: 0.82rem;
+  }
+}

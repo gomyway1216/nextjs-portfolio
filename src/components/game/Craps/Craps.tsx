@@ -12,6 +12,7 @@ import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './Craps.module.css';
+import floorTabs from '../MedalCenter/tabs.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -65,7 +66,7 @@ export const Craps = ({ player, bankStore = null, legacy }: CrapsProps = {}) => 
           </button>
         </div>
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -74,7 +75,7 @@ export const Craps = ({ player, bankStore = null, legacy }: CrapsProps = {}) => 
               id={`craps-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`craps-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}

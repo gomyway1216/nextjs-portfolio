@@ -168,6 +168,10 @@
 .take:hover {
   filter: brightness(1.05);
 }
+/* The button's place, held while the book is read. */
+.take.unseen {
+  visibility: hidden;
+}
 .take:active {
   transform: translateY(2px);
   box-shadow:

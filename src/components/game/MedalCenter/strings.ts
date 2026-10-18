@@ -97,7 +97,7 @@ const en: CenterStrings = {
   owed: (count) => `${count} medals short: two devices played the same medals at once. Your next wins pay it back.`,
   memberGuest: 'Guest',
   memberAccount: 'Member',
-  memberChecking: 'Looking for your medals…',
+  memberChecking: 'Checking…',
   where: {
     device: 'Kept on this device.',
     account: 'Kept on your account, and on every device you sign in on.',
@@ -161,7 +161,7 @@ const ja: CenterStrings = {
   owed: (count) => `${count}枚足りません。2つの端末で同じメダルを同時に遊んだためです。次に勝ったメダルで埋まります。`,
   memberGuest: 'ゲスト',
   memberAccount: '会員',
-  memberChecking: 'メダルを確認しています…',
+  memberChecking: '確認中…',
   where: {
     device: 'この端末に保存しています。',
     account: 'アカウントに保存しています。サインインしたどの端末でも使えます。',

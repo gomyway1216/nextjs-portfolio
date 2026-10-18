@@ -96,12 +96,18 @@ export const BonusStripView = ({ state }: { state: BankState }) => {
           {t.bonusTake(card.medals)}
           <span className={styles.srOnly}>{t.bonusTakeMore}</span>
         </button>
-      ) : (
-        card?.state === 'taken' && (
+      ) : card ? (
+        card.state === 'taken' && (
           <span className={styles.stripStamp}>
             <DateStamp ink={ink} index={card.stamped - 1} day={card.days[card.stamped - 1]} fresh={stampedHere} />
           </span>
         )
+      ) : (
+        // Until the book has been read, the first day's button holds its place, unseen: a new card's day is ready, and
+        // the line beside it then wraps as it will, so nothing on the plate moves when it is read.
+        <span className={`${styles.take} ${styles.unseen}`} aria-hidden="true">
+          {t.bonusTake(BONUS_CARD[0])}
+        </span>
       )}
     </section>
   );

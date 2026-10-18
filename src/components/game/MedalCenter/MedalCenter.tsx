@@ -16,6 +16,7 @@ import { MedalsOut } from './MedalsOut';
 import { MEDAL_PUSHER_PATH, MY_PAGE_PATH } from './paths';
 import { getCenterStrings } from './strings';
 import styles from './MedalCenter.module.css';
+import { RefillWords } from './KeysHint';
 
 /** How many digits the bank's counter has: up to 9,999,999 medals. */
 export const COUNTER_PLACES = 7;
@@ -206,7 +207,7 @@ export const MedalCenter = ({ signInHref, now, together }: MedalCenterProps) => 
               </p>
               {state.loaded && state.balance === 0 && state.out.length === 0 && (
                 <button type="button" className={styles.refill} data-testid="center-refill" onClick={() => medalBank().refill()}>
-                  {t.refill(WELCOME)}
+                  <RefillWords text={t.refill(WELCOME)} />
                 </button>
               )}
               {/* None to play with, and some still out on a round: they come back when it is finished, so no refill yet. */}

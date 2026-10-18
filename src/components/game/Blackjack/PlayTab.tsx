@@ -26,7 +26,7 @@ import {
 import { useCountUp } from '../MedalCenter/countUp';
 import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { HoleCard, PlayingCard } from './Cards';
@@ -757,7 +757,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
             {/* Out of medals: the medal center's free refill, right by the buttons it lets the player press again. */}
             {open && holdingCard && medals === 0 && !inRound && (
               <button type="button" className={styles.refill} data-testid="bj-refill" onClick={() => medalBank().refill()}>
-                {t.refill(REFILL)}
+                <RefillWords text={t.refill(REFILL)} />
               </button>
             )}
             <div className={styles.betRow}>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useMachineSound } from '../MedalCenter/machineSounds';
@@ -604,7 +604,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           )}
           {outOfMedals && (
             <button type="button" className={styles.refill} data-testid="hr-refill" onClick={() => medalBank().refill()}>
-              {t.refill(REFILL)}
+              <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
           <p className={styles.meterNote} data-testid="hr-not-money">

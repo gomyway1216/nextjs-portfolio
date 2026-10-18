@@ -6,6 +6,7 @@ import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { RefillWords } from '../MedalCenter/KeysHint';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { CatFace, CatPaw, HandIcon, MedalIcon, type CatMood } from './art';
 import { HANDS, LAMPS, analyzeMachine, type Hand, type Outcome } from './engine';
@@ -597,7 +598,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
         </button>
         {medals.loaded && medals.balance === 0 && round === null && (
           <button type="button" className={styles.refill} data-testid="janken-refill" onClick={() => machine?.refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
         <p className={styles.keysHint}>{t.keysHint}</p>

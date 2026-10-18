@@ -7,7 +7,7 @@ import { REFILL } from '../MedalCenter/ledger';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
 import {
   BET_IDS,
@@ -615,6 +615,20 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     );
   };
 
+  /** A spot's name, broken (if at all) between its words: 「プレイヤー｜ペア」, never 「バンカーペ｜ア」. */
+  const spotName = (name: string) => {
+    const pair = /^(.+)(ペア)$/.exec(name);
+    return pair ? (
+      <>
+        {pair[1]}
+        <wbr />
+        {pair[2]}
+      </>
+    ) : (
+      name
+    );
+  };
+
   const spot = (id: BetId, pays: string, extraClass = '') => {
     const amount = bets[id] ?? 0;
     const lit = settledHand !== null && settleBet(id, 1, settledHand, round!.mode).outcome === 'win';
@@ -632,7 +646,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         data-bet={id}
         data-lit={lit ? 'true' : undefined}
       >
-        <span className={styles.spotLabel}>{t.betName[id]}</span>
+        <span className={styles.spotLabel}>{spotName(t.betName[id])}</span>
         <span className={styles.spotPays}>{pays}</span>
         {amount > 0 && (
           <span className={styles.spotStake} data-testid={`stake-${id}`}>
@@ -909,7 +923,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
             {outOfMedals && bankState.out.length > 0 && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="baccarat-out" />}
             {outOfMedals && bankState.out.length === 0 && (
               <button type="button" className={`${styles.btn} ${styles.refill}`} data-testid="baccarat-refill" onClick={() => medalBank().refill()}>
-                {t.refill(REFILL)}
+                <RefillWords text={t.refill(REFILL)} />
               </button>
             )}
             <div className={styles.chipRow} role="radiogroup" aria-label={t.betButtons}>

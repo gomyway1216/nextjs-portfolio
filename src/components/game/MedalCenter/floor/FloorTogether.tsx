@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FloorGame } from '@/lib/medalFloor/games';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
@@ -82,7 +82,7 @@ export function FloorNow({ words, floor, now, place, signInHref }: PartProps & {
       </h2>
       <div className={styles.nowBoard}>
         <FloorJackpotPanel standing={standingOf(place.state)} signInHref={signInHref} />
-        <div className={`${styles.panel} ${styles.ticker}`}>
+        <div className={`${styles.panel} ${styles.ticker}`} style={{ '--moments': HUB_MOMENTS_SHOWN } as CSSProperties}>
           <div className={styles.panelHead}>
             <h3 className={styles.panelTitle}>{t.feedTitle}</h3>
             <span className={styles.liveBadge} data-live={floor.live} data-testid="floor-live">

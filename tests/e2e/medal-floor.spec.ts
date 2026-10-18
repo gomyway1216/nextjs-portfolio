@@ -159,6 +159,39 @@ test('reads in Japanese', async ({ page }) => {
   await expect(together(page).getByTestId('floor-honesty')).toHaveText(ja.honesty);
 });
 
+test('the board by the door keeps its size while the floor is read: the machines under it do not move when the wins and the floor jackpot come in', async ({ page }) => {
+  // Both of the floor's answers are held until the page has drawn the board without them, then let go at once.
+  const held: (() => Promise<void>)[] = [];
+  await page.routeWebSocket(/firebaseio\.com/, (socket) => socket.close());
+  await page.route(/firebaseio\.com/, (route) => route.abort());
+  await page.route(/\/api\/game\/medal-floor\/jackpot\/wins/, (route) => route.fulfill({ status: 401, json: { error: 'No authorization token provided' } }));
+  await page.route(/\/api\/game\/medal-floor\/jackpot(\?|$)/, (route) => {
+    held.push(() =>
+      route.fulfill({ json: { now: NOW, available: true, amount: 3_214, seq: 3, v: 42, wins: [{ name: 'ABCDEFGHIJKL', tag: '0001', game: 'roulette', medals: 17_820, at: NOW - 2 * 3_600_000 }] } }),
+    );
+  });
+  await page.route(/\/api\/game\/medal-floor(\?|$)/, (route) => {
+    held.push(() => route.fulfill({ json: floor(FEED) }));
+  });
+  const place = () =>
+    page.evaluate(() => ({
+      machines: Math.round((document.querySelector('[data-testid="center-machines"]')?.getBoundingClientRect().top ?? 0) + window.scrollY),
+      board: Math.round(document.querySelector('[data-testid="floor-now"]')?.getBoundingClientRect().height ?? 0),
+    }));
+  for (const width of [320, 375, 1280]) {
+    held.length = 0;
+    await page.setViewportSize({ width, height: 800 });
+    await openCenter(page);
+    await expect(board(page).getByTestId('floor-feed-empty')).toBeVisible();
+    await expect.poll(() => held.length).toBe(2);
+    const before = await place();
+    await Promise.all(held.map((fulfill) => fulfill()));
+    await expect(board(page).getByTestId('floor-moment')).toHaveCount(3);
+    await expect(page.getByTestId('floor-jackpot-amount')).toHaveAttribute('data-amount', '3214');
+    expect(await place(), `${width} px`).toEqual(before);
+  }
+});
+
 test('a floor that cannot be reached says so, and the medal center works as before', async ({ page }) => {
   await fakeFloor(page, () => floor([], false));
   await openCenter(page);

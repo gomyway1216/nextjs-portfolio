@@ -151,8 +151,11 @@ export function FloorJackpotPanel({ standing, signInHref }: FloorJackpotPanelPro
     <div className={styles.panel} data-testid="floor-jackpot" data-live={jackpot.live}>
       <JackpotCounter amount={jackpot.unavailable ? null : jackpot.amount} t={t} locale={locale} size="big" testId="floor-jackpot-amount" />
       <Paid medals={paid} t={t} fmt={fmt} />
-      {jackpot.unavailable ? <p className={styles.last}>{t.jackpotUnavailable}</p> : <LastWin last={jackpot.wins[0]} t={t} fmt={fmt} now={now} />}
-      <JoinLine standing={standing} t={t} where="here" signInHref={signInHref} />
+      {/* Each line keeps the room of two while the pool and the player's place are read, so nothing under it moves when they arrive. */}
+      <div className={styles.slot}>{jackpot.unavailable ? <p className={styles.last}>{t.jackpotUnavailable}</p> : <LastWin last={jackpot.wins[0]} t={t} fmt={fmt} now={now} />}</div>
+      <div className={styles.slot}>
+        <JoinLine standing={standing} t={t} where="here" signInHref={signInHref} />
+      </div>
       <details className={styles.how} data-testid="jackpot-how">
         <summary className={styles.howSummary}>{t.jackpotMore}</summary>
         <p className={styles.lead}>{t.jackpotLead}</p>

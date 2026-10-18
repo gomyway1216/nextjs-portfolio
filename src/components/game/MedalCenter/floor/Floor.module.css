@@ -40,8 +40,12 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
-/* The latest big wins as the lines of an LED message board: one under the other, ruled, not boxed. */
+/* The latest big wins as the lines of an LED message board: one under the other, ruled, not boxed. Like a real board
+   it has a fixed number of lines (--moments, set from HUB_MOMENTS_SHOWN), each the same height, and keeps their room
+   while the floor is read, while it is quiet and when it cannot be reached: the machines under it never move when
+   the wins come in. */
 .ticker {
+  --moment-h: 4.6rem;
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1.5px) 0 0 / 5px 5px,
     linear-gradient(180deg, #1a0f45 0%, var(--fl-night) 100%);
@@ -49,8 +53,28 @@
 .ticker .feed {
   gap: 0;
 }
+.ticker .feed,
+.ticker .empty {
+  min-height: calc(var(--moments, 3) * var(--moment-h));
+}
+.ticker .empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  text-align: center;
+}
 .ticker .moment,
 .ticker .moment[data-big='true'] {
+  box-sizing: border-box;
+  height: var(--moment-h);
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.1rem;
+  overflow: hidden;
   padding: 0.45rem 0.15rem;
   border: 0;
   border-top: 1px dashed rgba(217, 210, 245, 0.25);
@@ -59,6 +83,19 @@
 }
 .ticker .moment:first-child {
   border-top: 0;
+}
+/* A line's win in two lines at the most, and where and when under it. */
+.ticker .momentText {
+  font-size: 0.9rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ticker .momentWhere {
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 .title {
   margin: 0.4rem 0 0;

@@ -20,6 +20,10 @@ import { arrived } from './streamedPage';
  * Vitals leave out: nothing is pressed while a page loads here, and Chromium marks the shifts of a new tab's first
  * page that way for its first half second or so (seen on the slot machine's note, 0.226 marked as input on a first
  * visit and not on a second).
+ *
+ * What is counted is what moves once the page's scripts are let go. The site's font can arrive after the first paint
+ * and reflow the text (it is shown with `font-display: swap`): that belongs to the font, the same on every page, not
+ * to the page, so it is waited out before the scripts are let go, and only what moves from then on is counted.
  */
 
 /**
@@ -112,14 +116,24 @@ export async function painted(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 }
 
-/** The shifts so far, and their sum. Waits two frames first, so that a shift just made has been measured. */
-export async function shiftsOn(page: Page): Promise<{ total: number; shifts: Shift[]; supported: boolean }> {
+/** The shifts so far (from `since`, a time on the page's clock), and their sum. Waits two frames first, so that a shift just made has been measured. */
+export async function shiftsOn(page: Page, since = 0): Promise<{ total: number; shifts: Shift[]; supported: boolean }> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  return page.evaluate(() => {
+  return page.evaluate((from) => {
     const record = window.__shifts;
     if (!record) return { total: 0, shifts: [], supported: false };
     record.flush();
-    return { total: record.list.reduce((sum, shift) => sum + shift.value, 0), shifts: record.list, supported: record.observer !== null };
+    const shifts = record.list.filter((shift) => shift.at >= from);
+    return { total: shifts.reduce((sum, shift) => sum + shift.value, 0), shifts, supported: record.observer !== null };
+  }, since);
+}
+
+/** Waits until the page's fonts are in and laid out, and returns the time on the page's clock from which to count. */
+async function fontsIn(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    return Math.floor(performance.now());
   });
 }
 
@@ -194,6 +208,8 @@ export async function loadShifts(page: Page, path: string, { awake = everythingL
   await expect(page.locator('h1').first()).toBeVisible();
   await arrived(page);
   await painted(page);
+  // The font is in (see above); from here on, whatever moves is the page's doing.
+  const since = await fontsIn(page);
   // The scripts arrive, the page wakes up and reads the medals.
   scripts.release();
   await awake(page);
@@ -201,5 +217,5 @@ export async function loadShifts(page: Page, path: string, { awake = everythingL
   floor.release();
   await answered(page);
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
-  return shiftsOn(page);
+  return shiftsOn(page, since);
 }

@@ -7,8 +7,8 @@ import { HELD_JACKPOT, SHIFT_BUDGET, describeShifts, everythingLoaded, loadShift
 // player's medals now (drawn by the server, and hidden before the first paint where it has been read), not the medals
 // as they are read, not the floor jackpot's strip as its amount comes in. Every machine on the floor is opened at 375
 // and 320 px as a phone on a slow line meets it (layoutShift.ts: its scripts held until the server's HTML has been
-// painted, the floor's answers until the page has woken up, every layout shift counted from the start), then again
-// once its note has been put away. The floor's API is faked; nothing reaches a real server.
+// painted, the floor's answers until the page has woken up, and every layout shift counted from then on), then
+// again once its note has been put away. The floor's API is faked; nothing reaches a real server.
 
 /** Machines whose medals are shown some other way than by `data-loaded`. */
 const AWAKE: Partial<Record<FloorGame, (page: Page) => Promise<void>>> = {

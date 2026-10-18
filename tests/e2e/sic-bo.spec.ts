@@ -10,6 +10,7 @@ import { pressUntil } from './pressUntil';
 import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
+import { instantScroll } from './instantScroll';
 
 // Moonlit Sic Bo plays with the medal center's medals. A roll is three numbers drawn from Math.random as SHAKE is
 // pressed (engine.ts), one for each die: a test that needs a particular roll queues them for the press (rigPresses.ts),
@@ -17,6 +18,8 @@ import { arrived } from './streamedPage';
 
 test.beforeEach(async ({ context }) => {
   await quietFloor(context);
+  // The page scrolls at once, not smoothly, so that a press lands where it was aimed (instantScroll.ts).
+  await instantScroll(context);
 });
 
 /** The numbers that make the dice fall on `faces`. */

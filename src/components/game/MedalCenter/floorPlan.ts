@@ -54,13 +54,15 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   craps: 'table',
   'three-card-poker': 'table',
   janken: 'kids',
+  // A fishing medal machine stands with the family machines, as Fishing Spirits (釣りスピリッツ) does on a real floor.
+  fishing: 'kids',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>([]);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -73,6 +75,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   baccarat: { en: 'Eight-deck Punto Banco, with the scoreboards.', ja: '8デッキのプント・バンコ。罫線つき。' },
   craps: { en: 'Roll the dice; the odds bet pays true odds.', ja: 'サイコロを振ろう。オッズベットは確率どおり。' },
   'three-card-poker': { en: 'Ante, see three cards, then play or fold.', ja: 'アンティを置き、3枚を見て勝負か降りるか。' },
+  fishing: { en: 'Cast for 1, 3 or 5 and reel in the harbor lord.', ja: '1・3・5枚でキャスト。港のヌシを釣り上げろ。' },
 };
 
 /** The corner a machine stands in: its own, or the new machines' when it has none yet. */

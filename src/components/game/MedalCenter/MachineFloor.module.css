@@ -411,6 +411,10 @@
 .tile[data-wide='true'] .screen {
   aspect-ratio: 2 / 1;
 }
+/* A wider screen crops the 16:9 cover: keep its top, where a cover has its title and its marquee. */
+.tile[data-wide='true'] .screen img {
+  object-position: center top;
+}
 .tile[data-wide='true'] .pitch {
   font-size: 0.88rem;
 }

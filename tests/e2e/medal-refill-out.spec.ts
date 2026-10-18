@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
@@ -87,6 +88,9 @@ async function loseTheDouble(page: Page) {
 }
 
 const OUT_EN = 'Some of your medals are still on a round at Video Poker. Finish it there and they come back to you; the free refill is for when none are left anywhere.';
+
+// The page scrolls at once, not smoothly: see instantScroll.
+test.beforeEach(async ({ context }) => instantScroll(context));
 
 test('no refill at the hub while the last medals are on a double-up: it says where they are, and gives the refill once they are lost', async ({ page }) => {
   await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);

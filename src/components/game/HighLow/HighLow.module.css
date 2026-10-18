@@ -1,0 +1,1267 @@
+/* High & Low Ladder. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette of its
+   own — a crimson body with gold trim, a green felt under the cards, a ladder of amber lamps — that reads on both. The
+   cards turn and slide by transform only, each on a layer of its own, so a phone moves them on its compositor; with
+   less motion asked for, nothing turns, slides, chases or blinks: the card is simply there. */
+
+.root {
+  --hl-crimson: #7a1028;
+  --hl-crimson-deep: #3d0713;
+  --hl-gold: #f2c14e;
+  --hl-gold-light: #ffe08a;
+  --hl-felt: #0f4d39;
+  --hl-felt-deep: #072b20;
+  --hl-focus: #ffd34d;
+  --pair-gap: 10px;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --hl-accent-text: #8f1730;
+  --hl-ahead: #15803d;
+  --hl-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --hl-accent-text: #fda4af;
+  --hl-ahead: #4ade80;
+  --hl-behind: #f87171;
+}
+
+.shell {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The machine's name is never broken inside a word: its words are kept whole, and 遊び方 moves under it when they do
+     not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleCards {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: #8f1730;
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 480px);
+}
+@media (min-width: 900px) {
+  .machine {
+    grid-template-columns: minmax(0, 480px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.6rem 0.6rem 0.9rem;
+  border-radius: 22px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 2px, transparent 2px calc(100% - 2px), rgba(0, 0, 0, 0.25) calc(100% - 2px)),
+    linear-gradient(180deg, #9b1a36 0%, var(--hl-crimson) 40%, var(--hl-crimson-deep) 100%);
+  border: 3px solid var(--hl-gold);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.3);
+  color: #fdf1f3;
+}
+
+/* The marquee: the sign in a ring of bulbs. */
+.marquee {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2a0710 0%, #12030a 100%);
+  border: 2px solid var(--hl-gold);
+  overflow: hidden;
+}
+.marquee::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 11px;
+  background-image: radial-gradient(circle, #fff6c9 0 1.6px, #f3b938 1.8px 2.6px, transparent 3px);
+  background-size: 11px 11px;
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% 6px no-repeat, linear-gradient(#000 0 0) bottom / 100% 6px no-repeat;
+  mask:
+    linear-gradient(#000 0 0) top / 100% 6px no-repeat,
+    linear-gradient(#000 0 0) bottom / 100% 6px no-repeat;
+  opacity: 0.85;
+}
+.marquee[data-chase='true']::before {
+  animation: hl-bulbs 0.5s steps(2) infinite;
+}
+@keyframes hl-bulbs {
+  to {
+    background-position: 11px 0;
+  }
+}
+.marqueeSuits {
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  color: var(--hl-gold-light);
+}
+.marqueeText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  padding: 0.25rem 0;
+}
+.marqueeMain {
+  font-size: clamp(1.1rem, 5.4vw, 1.5rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--hl-gold-light);
+  text-shadow:
+    0 0 6px rgba(255, 196, 64, 0.65),
+    0 2px 0 #7a4a00;
+  white-space: nowrap;
+}
+.marqueeSub {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  color: #ffd1d9;
+  white-space: nowrap;
+}
+
+/* ---------- The table: the ladder and the cards on green felt ---------- */
+.play {
+  min-width: 0;
+}
+.table {
+  display: grid;
+  grid-template-columns: minmax(74px, 0.36fr) minmax(0, 1fr);
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 60% 30%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(180deg, var(--hl-felt) 0%, var(--hl-felt-deep) 100%);
+  border: 2px solid #c8962a;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.55);
+}
+
+/* The ladder: twelve lamps, the top first. */
+.ladder {
+  list-style: none;
+  margin: 0;
+  padding: 4px 4px;
+  display: grid;
+  grid-template-rows: repeat(12, 1fr);
+  gap: 2px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1c0a06 0%, #120604 100%);
+  border: 1px solid #5c3a10;
+  min-width: 0;
+}
+.rung {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.55rem 0.62rem minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  min-height: 15px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #b6935a;
+  background: rgba(255, 255, 255, 0.02);
+}
+.rung[data-top='true'] {
+  color: #e8c27a;
+}
+.rungNo {
+  text-align: left;
+  font-size: 0.6rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.rungLamp {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6d4c1c, #3a2508 70%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+.rungPays {
+  text-align: right;
+  white-space: nowrap;
+}
+.rung[data-on='true'] {
+  color: #2a1600;
+  background: linear-gradient(180deg, #ffe48a 0%, #f2b632 100%);
+  box-shadow: 0 0 8px rgba(255, 200, 60, 0.55);
+}
+.rung[data-on='true'] .rungLamp {
+  background: radial-gradient(circle at 35% 30%, #fffbe0, #ffcc33 60%, #d18c00);
+  box-shadow: 0 0 6px 2px rgba(255, 214, 92, 0.9);
+}
+.rung[data-next='true'] {
+  outline: 1px dashed rgba(255, 224, 138, 0.8);
+  outline-offset: -1px;
+  color: #ffe08a;
+}
+.rung[data-fresh='true'] {
+  animation: hl-rung 0.5s ease-out;
+}
+@keyframes hl-rung {
+  0% {
+    transform: scale(1);
+    filter: brightness(2.2);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+.ladder[data-state='lost'] .rung[data-on='true'] {
+  color: #fff;
+  background: linear-gradient(180deg, #8a2a35 0%, #5b1720 100%);
+  box-shadow: none;
+}
+.ladder[data-state='lost'] .rung[data-on='true'] .rungLamp {
+  background: #2b0a0e;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+.ladder[data-state='won'] .rung[data-on='true'] {
+  animation: hl-won 0.9s ease-in-out 2;
+}
+@keyframes hl-won {
+  50% {
+    filter: brightness(1.45);
+  }
+}
+.ladder[data-attract='true'] .rung {
+  animation: hl-attract 2.4s linear infinite;
+  animation-delay: calc(var(--i) * 0.2s);
+}
+@keyframes hl-attract {
+  0%,
+  12% {
+    color: #2a1600;
+    background: #f2c14e;
+  }
+  20%,
+  100% {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+/* The cards. */
+.cards {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 2px 0;
+}
+.past {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  height: 24px;
+  overflow: hidden;
+  padding-left: 2px;
+}
+.past > span + span {
+  margin-left: -6px;
+}
+.mini {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 22px;
+  border-radius: 3px;
+  background: #fffdf6;
+  border: 1px solid #3b2a2a;
+  color: #1a1a1a;
+  font-size: 0.55rem;
+  font-weight: 900;
+  line-height: 0.95;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+}
+.mini[data-red='true'] {
+  color: #c8102e;
+}
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pair-gap);
+  max-width: 228px;
+  width: 100%;
+  margin: 0 auto;
+}
+.slotNames {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pair-gap);
+  max-width: 228px;
+  width: 100%;
+  margin: 0 auto;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: #bfe3cf;
+  white-space: nowrap;
+}
+.slot {
+  position: relative;
+  aspect-ratio: 5 / 7;
+  perspective: 700px;
+}
+.slot[data-slide='true'] {
+  z-index: 2;
+}
+.shadow {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -4%;
+  height: 10%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  filter: blur(4px);
+}
+.flipper {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+  will-change: transform;
+}
+.slot[data-up='true'] .flipper {
+  transform: rotateY(180deg);
+}
+/* The turn: lifted off the felt as it goes over, and laid down again face up. */
+.slot[data-turning='true'] .flipper {
+  animation: hl-turn 0.56s cubic-bezier(0.3, 0.6, 0.2, 1) both;
+}
+.slot[data-turning='true'] .shadow {
+  animation: hl-lift 0.56s cubic-bezier(0.3, 0.6, 0.2, 1) both;
+}
+@keyframes hl-turn {
+  0% {
+    transform: translateY(0) rotateY(0deg) scale(1);
+  }
+  35% {
+    transform: translateY(-12%) rotateY(62deg) scale(1.07);
+  }
+  70% {
+    transform: translateY(-6%) rotateY(152deg) scale(1.04);
+  }
+  100% {
+    transform: translateY(0) rotateY(180deg) scale(1);
+  }
+}
+@keyframes hl-lift {
+  35% {
+    transform: scale(0.82);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* A right guess's card slides across onto the left: the card to guess from now. */
+.slot[data-slide='true'] .flipper {
+  transform: translateX(calc(-100% - var(--pair-gap))) rotateY(180deg);
+  transition: transform 0.34s cubic-bezier(0.45, 0.05, 0.2, 1);
+}
+/* A fresh card dealt face down onto the right. */
+.slot[data-up='false'][data-turning='false'] .flipper {
+  animation: hl-deal 0.22s ease-out both;
+}
+@keyframes hl-deal {
+  from {
+    transform: translateY(-10%) rotateY(0deg);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) rotateY(0deg);
+    opacity: 1;
+  }
+}
+.flipper[data-calm='true'] {
+  animation: none !important;
+  transition: none !important;
+}
+.cardSide {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.cardFront {
+  transform: rotateY(180deg);
+}
+.face {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(160deg, #ffffff 0%, #fbf6e9 100%);
+  border: 1px solid #d9cfb8;
+  color: #161616;
+  container-type: inline-size;
+}
+.face[data-red='true'] {
+  color: #c8102e;
+}
+.corner {
+  position: absolute;
+  top: 5%;
+  left: 7%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+}
+.cornerLow {
+  top: auto;
+  left: auto;
+  bottom: 5%;
+  right: 7%;
+  transform: rotate(180deg);
+}
+.cornerRank {
+  font-size: 19cqw;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+.cornerSuit {
+  font-size: 15cqw;
+}
+.pip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48cqw;
+  line-height: 1;
+}
+.back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 3px solid #fffdf6;
+  background:
+    repeating-linear-gradient(45deg, rgba(242, 193, 78, 0.38) 0 1.5px, transparent 1.5px 8px),
+    repeating-linear-gradient(-45deg, rgba(242, 193, 78, 0.38) 0 1.5px, transparent 1.5px 8px),
+    radial-gradient(circle at 50% 50%, #a51d3c 0%, #6e0f24 80%);
+  box-shadow: inset 0 0 0 2px #8f1730;
+}
+.backLadder {
+  width: 34%;
+  height: 46%;
+  padding: 4%;
+  border-radius: 8px;
+  background: #5c0c1e;
+  border: 1.5px solid var(--hl-gold);
+  stroke: var(--hl-gold-light);
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+}
+
+/* Words over the cards: they come and go without moving anything. */
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 3;
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  pointer-events: none;
+  background: #12301f;
+  border: 2px solid var(--hl-gold);
+  color: var(--hl-gold-light);
+  transition:
+    transform 0.18s ease-out,
+    opacity 0.18s ease-out;
+}
+.banner[data-show='true'] {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+.banner[data-kind='lost'] {
+  background: #4a0a14;
+  border-color: #ff8a9a;
+  color: #ffe1e6;
+}
+.banner[data-kind='right'] {
+  background: #0d4a2c;
+  border-color: #7ee2a8;
+  color: #eafff2;
+}
+.banner[data-kind='top'],
+.banner[data-kind='won'] {
+  background: #3d2a00;
+  border-color: var(--hl-gold-light);
+  color: #fff4c4;
+}
+.resumedBadge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 3;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #2c4470;
+  border: 1px solid var(--hl-gold-light);
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.status {
+  margin: 0.5rem 0 0.45rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- The counters ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.7fr) minmax(0, 1.1fr);
+  gap: 0.4rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+  padding: 0.35rem 0.4rem 0.4rem;
+  border-radius: 10px;
+  background: #0b0507;
+  border: 2px solid #6b2a3a;
+  min-width: 0;
+}
+.meterWin {
+  border-color: var(--hl-gold-light);
+}
+.meterLabel {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f1c9d1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(20px, 6vw, 28px);
+}
+
+/* ---------- The buttons: HIGH, LOW and TAKE, or the bet and START, in the same place ---------- */
+.controls {
+  display: grid;
+  grid-template-rows: 60px 50px;
+  gap: 8px;
+  margin-top: 0.6rem;
+}
+.guesses {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.guessButton,
+.takeButton,
+.startButton,
+.betButton,
+.refill,
+.cardAwayButton {
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.guessButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  color: #fff;
+  font-weight: 900;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.3),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.guessButton[data-side='high'] {
+  background: linear-gradient(180deg, #e2483d 0%, #a71d1d 100%);
+}
+.guessButton[data-side='low'] {
+  background: linear-gradient(180deg, #2f6fd6 0%, #173f8a 100%);
+}
+.guessButton:active:not(:disabled),
+.takeButton:active:not(:disabled),
+.startButton:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+}
+.guessWord {
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.guessChance {
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+.takeButton {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 2px solid #fff4c4;
+  background: linear-gradient(180deg, #ffe07a 0%, #e0a21c 100%);
+  color: #2a1600;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.2),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.bets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.betsLabel {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #f1c9d1;
+  margin-right: 2px;
+  white-space: nowrap;
+}
+.betButton {
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 50%;
+  border: 2px solid #b98a3a;
+  background: radial-gradient(circle at 35% 30%, #fff6d5, #d9a43a 70%, #8d5d10);
+  color: #2a1600;
+  font-weight: 900;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.betButton[aria-checked='true'] {
+  border-color: #fff;
+  box-shadow:
+    0 0 0 3px var(--hl-gold-light),
+    0 0 12px rgba(255, 214, 92, 0.8);
+}
+.startButton {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 2px solid #c9f5d6;
+  background: linear-gradient(180deg, #2fbf62 0%, #157a3a 100%);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.25),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.guessButton:disabled,
+.takeButton:disabled,
+.startButton:disabled {
+  filter: grayscale(0.65) brightness(0.75);
+  cursor: default;
+}
+.message {
+  margin: 0.45rem 0 0;
+  /* Two lines held, so that nothing under it moves when a message comes and goes. */
+  min-height: 2.8em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+}
+.cabinet .btn {
+  background: #5c1426;
+  color: #fff;
+  border-color: #c7808f;
+}
+.guessButton:focus-visible,
+.takeButton:focus-visible,
+.startButton:focus-visible,
+.betButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--hl-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .bets {
+    gap: 4px;
+  }
+  .betButton {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 0.92rem;
+  }
+  .guessWord {
+    font-size: 1.02rem;
+  }
+  .takeButton {
+    font-size: 0.95rem;
+  }
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid var(--hl-gold-light);
+  background: #2c4470;
+  color: #fff;
+  font-weight: 800;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outNote a {
+  color: #ffe1a1;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #f1c9d1;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(242, 193, 78, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #f6dde2;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+
+/* The card in another tab's machine: this one waits. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(30, 4, 10, 0.92);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAwayButton {
+  min-height: 48px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--hl-gold-light);
+  background: #8f1730;
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ---------- Beside the cabinet ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+}
+.historyChip[data-won='true'] {
+  color: var(--games-route-fg);
+  border-color: #d9a43a;
+}
+.historyChip[data-top='true'] {
+  background: #f2c14e;
+  color: #2a1600;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pos {
+  color: var(--hl-ahead);
+}
+.neg {
+  color: var(--hl-behind);
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.45rem;
+  font-weight: 850;
+  color: var(--hl-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.drawList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.num[data-better='true'] {
+  font-weight: 850;
+  color: var(--hl-accent-text);
+}
+.num[data-better='true'] .percent {
+  color: var(--hl-accent-text);
+}
+.rankCell {
+  font-weight: 900;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+}
+.fraction {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.percent {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--games-route-muted);
+}
+/* The best-play chart: one row a rung, one column a card. */
+.chart {
+  table-layout: fixed;
+  min-width: 300px;
+}
+.chart thead th:first-child,
+.chartRow {
+  width: 4.6rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.oddsTable .chartHead,
+.oddsTable .chartCell {
+  padding: 0.3rem 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.chartCell {
+  font-weight: 900;
+  font-size: 0.78rem;
+}
+.chartCell[data-move='take'] {
+  background: rgba(242, 193, 78, 0.28);
+  color: var(--games-route-fg);
+}
+.chartCell[data-move='high'] {
+  color: #b91c1c;
+}
+.chartCell[data-move='low'] {
+  color: #1d4ed8;
+}
+:global(html.dark) .chartCell[data-move='high'] {
+  color: #fca5a5;
+}
+:global(html.dark) .chartCell[data-move='low'] {
+  color: #93c5fd;
+}
+.check {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.checkButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 11px;
+  border: none;
+  background: #8f1730;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.checkButton:disabled {
+  opacity: 0.6;
+}
+.checkButton:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.checkResult {
+  margin: 0.6rem 0 0.3rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.checkList {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Less motion: nothing turns, slides, chases or blinks ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .flipper,
+  .shadow,
+  .rung,
+  .marquee::before,
+  .banner {
+    animation: none !important;
+    transition: none !important;
+  }
+}

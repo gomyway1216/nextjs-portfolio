@@ -470,4 +470,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'high-low',
+    title: 'High & Low Ladder',
+    description: 'The card machine of the Medal Center: guess whether the next card is higher or lower, climb a twelve-rung ladder and TAKE your medals before a miss — with the best play for every card on every rung, worked out exactly: 89.96% back.',
+    thumbnail: '🪜',
+    path: '/games/high-low',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

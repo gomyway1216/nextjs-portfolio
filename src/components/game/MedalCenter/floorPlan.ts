@@ -64,13 +64,15 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   'ball-bingo': 'big',
   // An upright prize wheel stands among the big machines a floor is built round, as the casino's Big Six stands on its floor.
   'big-wheel': 'big',
+  // A card machine stands with the video machines: a screen of cards and a row of buttons, as a medal poker cabinet does.
+  'high-low': 'video',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -87,6 +89,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'horse-race': { en: 'Six horses on a mini track: win or quinella.', ja: 'ミニコースを6頭が走る。単勝か連複を買おう。' },
   'ball-bingo': { en: 'Drop balls through the pins; line up a 3×3 card.', ja: '釘を抜けるボールで3×3のビンゴをそろえよう。' },
   'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
+  'high-low': { en: 'Higher or lower? Climb 12 rungs, or TAKE.', ja: '次はハイかローか。12段のラダーを上ろう' },
 };
 
 /**
@@ -101,6 +104,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'three-card-poker': ['スリーカード', 'ポーカー'],
   'horse-race': ['ミニターフ', '競馬'],
   'big-wheel': ['星まつり', 'ビッグホイール'],
+  'high-low': ['ハイ＆ロー', 'ラダー'],
 };
 
 /** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */

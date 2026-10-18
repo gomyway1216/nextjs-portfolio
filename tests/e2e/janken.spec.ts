@@ -5,6 +5,7 @@ import { ROUND_KEY } from '../../src/components/game/Janken/round';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // Calico Janken plays with the medal center's medals. The cat's hand and the roulette's lamp are drawn with
@@ -44,10 +45,8 @@ async function cat(page: Page, draws: number[]) {
 /** Puts a medal in, retrying until hydration has attached the handler and the machine holds the card. */
 async function insert(page: Page) {
   const before = await shown(page);
-  await expect(async () => {
-    await page.getByTestId('janken-medal-in').click({ timeout: 1_000 });
-    expect(await shown(page)).toBe(before - 1);
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(page.getByTestId('janken-medal-in'), async () => (await shown(page)) < before);
+  expect(await shown(page)).toBe(before - 1);
   await expect(cabinet(page)).toHaveAttribute('data-phase', 'calling');
 }
 

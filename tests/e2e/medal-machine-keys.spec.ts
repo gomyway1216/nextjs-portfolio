@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // The table machines' keys on a desktop (MedalCenter/machineKeys.ts): the slot machine spins with Space or Enter and
@@ -55,10 +56,8 @@ test('roulette: Space spins the bets on the felt, R puts the last ones back, U t
   await expect(page.getByTestId('roulette-keys')).toHaveText('Keys: Space or Enter spins · R rebet · U undo');
   const meter = page.getByTestId('roulette-meter');
   // A medal on red, put there with the mouse; Space on the page spins it.
-  await expect(async () => {
-    await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click({ timeout: 1_000 });
-    await expect(meter).toHaveAttribute('data-bet', '1', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(page.getByRole('button', { name: /^Red \(1:1\)$/ }), async () => Number(await meter.getAttribute('data-bet')) > 0);
+  await expect(meter).toHaveAttribute('data-bet', '1');
   await blur(page);
   await page.keyboard.press('Space');
   await expect(page.locator('[data-spinning="false"]')).toBeVisible({ timeout: 15_000 });

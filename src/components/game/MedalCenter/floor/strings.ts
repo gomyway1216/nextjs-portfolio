@@ -11,6 +11,10 @@ import type { NameRefusal } from '@/lib/medalFloor/names';
 export interface FloorStrings {
   title: string;
   lead: string;
+  /** The medal center's front: the board by the door with the floor jackpot and the latest big wins, and the rankings further in. */
+  nowTitle: string;
+  togetherLead: string;
+  moreMoments: string;
   // The feed
   feedTitle: string;
   feedEmpty: string;
@@ -170,6 +174,9 @@ const jaMoment = (label: string | null, medals: string): string => {
 const en: FloorStrings = {
   title: 'TOGETHER ON THE FLOOR',
   lead: 'Big wins from everyone playing right now, and today’s and this week’s rankings.',
+  nowTitle: 'LIVE FROM THE FLOOR',
+  togetherLead: 'Today’s and this week’s rankings, and your own place on the floor.',
+  moreMoments: 'Every big win and ranking',
   feedTitle: 'Just now on the floor',
   feedEmpty: 'Quiet for now. The next big win shows up here.',
   feedUnavailable: 'The floor cannot be reached just now.',
@@ -264,6 +271,9 @@ const en: FloorStrings = {
 const ja: FloorStrings = {
   title: 'みんなのフロア',
   lead: 'いま遊んでいるみんなの大当たりと、今日と今週のランキングです。',
+  nowTitle: 'フロア速報',
+  togetherLead: '今日と今週のランキングと、あなたのフロアへの参加です。',
+  moreMoments: 'すべての大当たりとランキング',
   feedTitle: 'フロアのいま',
   feedEmpty: 'いまは静かです。次の大当たりがここに出ます。',
   feedUnavailable: 'いまフロアに接続できません。',

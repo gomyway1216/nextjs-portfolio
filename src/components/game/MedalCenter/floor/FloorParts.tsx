@@ -176,12 +176,14 @@ export interface PlaceCardProps {
   signInHref?: string;
   onJoin: (name: string | null) => void;
   onLeave: () => void;
+  /** An id for the card, for a link on the same page to come to it. */
+  id?: string;
 }
 
 /** The card's key: it starts over (its field showing the name the player has) whenever where they stand changes. */
 export const placeKey = (state: PlaceState): string => (state.kind === 'on' ? `on:${state.tag}:${state.name ?? ''}` : state.kind);
 
-export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave }: PlaceCardProps) {
+export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave, id }: PlaceCardProps) {
   const inputId = useId();
   const hintId = useId();
   const [name, setName] = useState(state.kind === 'on' ? (state.name ?? '') : '');
@@ -206,7 +208,7 @@ export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave
 
   const said = local ?? problem;
   return (
-    <div className={styles.place} data-testid="floor-place" data-state={state.kind}>
+    <div id={id} className={styles.place} data-testid="floor-place" data-state={state.kind}>
       <h3 className={styles.placeTitle}>{t.placeTitle}</h3>
       {state.kind === 'guest' && (
         <p className={styles.placeText}>

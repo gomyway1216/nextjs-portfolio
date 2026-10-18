@@ -21,7 +21,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.55rem;
+  gap: 0.4rem;
   min-width: 0;
 }
 
@@ -115,6 +115,36 @@
 }
 .link:focus-visible,
 .ownerButton:focus-visible {
+  outline: 3px solid var(--jp-frame-hi);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* On the medal center's front, the last win and the line on taking part each keep two lines' room (at their 0.92rem and
+   line height 1.5), whether they are one line or two, or not there yet. */
+.slot {
+  min-height: calc(2 * 1.5 * 0.92rem);
+}
+
+/* How the floor jackpot works, and which machines are linked to it: open under the counter on the medal center's front. */
+.how {
+  font-size: 0.92rem;
+  color: var(--jp-lead);
+}
+.how .lead,
+.how .linked {
+  margin-top: 0.4rem;
+}
+/* The summary keeps the browser's own open-and-shut triangle; its line is tall enough to tap. */
+.howSummary {
+  padding: 0.55rem 0;
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--games-route-fg, var(--jp-ink));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.howSummary:focus-visible {
   outline: 3px solid var(--jp-frame-hi);
   outline-offset: 2px;
   border-radius: 4px;

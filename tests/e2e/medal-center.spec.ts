@@ -141,12 +141,14 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   // At 320 px the floor still fits.
   await page.setViewportSize({ width: 320, height: 700 });
   expect(await sideways(page)).toBeLessThanOrEqual(320);
-  // On a desktop: the four tables in a row, and the pusher's and the video machines' corners side by side.
+  // On a desktop: the four tables in a row, and small corners side by side: the pusher with the big machines, the video
+  // machines with the candy shop.
   await page.setViewportSize({ width: 1280, height: 900 });
   const tables = await Promise.all(['roulette', 'blackjack', 'baccarat', 'craps'].map(box));
   for (const table of tables) expect(Math.abs(table.y - tables[0]!.y)).toBeLessThan(2);
-  const [pusherSign, videoSign] = [await page.getByTestId('center-zone-pusher').boundingBox(), await page.getByTestId('center-zone-video').boundingBox()];
-  expect(Math.abs(pusherSign!.y - videoSign!.y)).toBeLessThan(2);
+  const sign = async (zone: string) => (await page.getByTestId(`center-zone-${zone}`).boundingBox())!.y;
+  expect(Math.abs((await sign('pusher')) - (await sign('big')))).toBeLessThan(2);
+  expect(Math.abs((await sign('video')) - (await sign('kids')))).toBeLessThan(2);
   expect(errors).toEqual([]);
 });
 

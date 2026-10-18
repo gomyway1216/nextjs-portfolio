@@ -97,8 +97,8 @@ describe('the medal center’s front, as the server sends it', () => {
   it('lays the floor out in corners, as a real medal floor is, each under a sign that is a heading, each machine a cabinet whose lit name is its link', () => {
     const html = render();
     const t = getCenterStrings('en');
-    // The corners there are machines in, in the order a player walks onto them: the new machines by the door, the pusher, the
-    // video machines, the tables, the candy shop. A corner with no machine in it is not shown.
+    // The corners there are machines in, in the order a player walks onto them: the new machines by the door, the pusher and
+    // the big machines, the video machines and the candy shop, the tables. A corner with no machine in it is not shown.
     const shown = [...html.matchAll(/data-testid="center-zone-([a-z]+)"/g)].map((match) => match[1] as ZoneId);
     expect(shown).toEqual(ZONES.filter((zone) => FLOOR.some(({ id }) => zoneOf(id) === zone)));
     for (const zone of ['pusher', 'video', 'table', 'kids'] as const) expect(shown).toContain(zone);
@@ -121,8 +121,9 @@ describe('the medal center’s front, as the server sends it', () => {
       const link = html.match(new RegExp(`<h4[^>]*><a[^>]*data-testid="center-play-${id}"[^>]*>${name}</a></h4>`))?.[0] ?? '';
       expect(link, id).toContain(`href="${path}"`);
     }
-    // The pusher is a big cabinet; the others are not.
+    // The pusher and the horse race are big cabinets; the others are not.
     expect(html).toMatch(/data-machine="medal-pusher" data-zone="pusher" data-wide="true"/);
+    expect(html).toMatch(/data-machine="horse-race" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="slot-machine" data-zone="video" data-wide="false"/);
     // No plate says the same as every other one.
     expect(html).not.toContain('Plays with your medals.');
@@ -178,7 +179,9 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(zoneOf('kelly-criterion')).toBe('new');
     expect(isNewMachine('kelly-criterion')).toBe(true);
     expect(cornersOf(machines)[0]).toMatchObject({ zone: 'new', width: 1 });
-    expect(cornersOf(machines).map(({ zone }) => zone)).toEqual(['new', 'pusher', 'video', 'table', 'kids']);
+    const before = cornersOf(machines.slice(0, -1)).map(({ zone }) => zone);
+    expect(before).not.toContain('new');
+    expect(cornersOf(machines).map(({ zone }) => zone)).toEqual(['new', ...before]);
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={createI18nInstance('en')}>
         <MachineFloor machines={machines} language="en" t={getCenterStrings('en')} />

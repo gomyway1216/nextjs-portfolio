@@ -177,10 +177,10 @@ describe('the floor on the medal center’s front', () => {
   it('the rankings page draws what the floor will fill in where it will be, held unseen, so that nothing moves when it does', () => {
     const t = getFloorStrings('en');
     const html = inLanguage('en', <FloorRankings member={null} settled={false} owner={null} />);
-    // Every board, empty, its line held unseen.
+    // Every board, empty, its line held unseen, under its heading (an h2 for the medals won, an h3 for each machine's best).
     expect(html).toMatch(/data-testid="rankings-boards" data-floor-read="false"/);
-    for (const testId of ['rankings-won', ...FLOOR_GAMES.map((game) => `rankings-best-${game}`)]) {
-      expect(html, testId).toMatch(new RegExp(`data-testid="${testId}"><h4[^>]*>[^<]*</h4><p class="[^"]*unseen[^"]*" aria-hidden="true">${t.boardEmpty}</p>`));
+    for (const [testId, level] of [['rankings-won', 2], ...FLOOR_GAMES.map((game) => [`rankings-best-${game}`, 3] as const)] as const) {
+      expect(html, testId).toMatch(new RegExp(`data-testid="${testId}"><h${level}[^>]*>[^<]*</h${level}><p class="[^"]*unseen[^"]*" aria-hidden="true">${t.boardEmpty}</p>`));
     }
     // The note on when the floor's days start, held with a time of day that is the same on the server and in the browser.
     expect(html).toMatch(/<p class="[^"]*unseen[^"]*" data-testid="rankings-period-note" data-time-zone="Asia\/Tokyo" aria-hidden="true">Days start at midnight Japan time \(12:00 PM where you are\)/);

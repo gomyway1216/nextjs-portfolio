@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // No free refill while medals are out on a round ("Medals out" in MedalCenter/ledger.ts): a player whose last medals
@@ -68,10 +69,8 @@ async function lastMedalsOnADouble(page: Page) {
   await openVideoPoker(page);
   await expect(page.getByTestId('vp-medals')).toHaveText('5');
   await rig(page, dealNumbers(FULL_HOUSE));
-  await expect(async () => {
-    await page.getByRole('button', { name: 'DEAL', exact: true }).click({ timeout: 1_000 });
-    await expect(page.getByRole('button', { name: 'DRAW', exact: true })).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  // Pressed until the hand is dealt, and never again once it is: a deal that has landed takes DEAL away.
+  await pressUntil(page.getByRole('button', { name: 'DEAL', exact: true }), () => page.getByRole('button', { name: 'DRAW', exact: true }).isVisible());
   for (let i = 0; i < 5; i++) {
     const slot = page.locator(`[data-slot="${i}"]`);
     if ((await slot.getAttribute('aria-pressed')) !== 'true') await slot.click();

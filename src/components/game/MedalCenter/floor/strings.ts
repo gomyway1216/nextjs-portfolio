@@ -179,9 +179,10 @@ const jaMoment = (label: string | null, medals: string): string => {
     case 'ladder-top':
       return `ハイ＆ローのラダーをトップまで上って${medals}枚`;
     case 'sicbo-triple':
-      return `シックボーでゾロ目的中！${medals}枚`;
+      // 「ゾロ目が」, not 「ゾロ目的中」, which reads as 「ゾロ・目的・中」.
+      return `シックボーでゾロ目が的中！${medals}枚`;
     case 'sicbo-any-triple':
-      return `シックボーのゾロ目どれでもで${medals}枚`;
+      return `シックボーの「ゾロ目どれでも」で${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

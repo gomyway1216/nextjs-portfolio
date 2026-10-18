@@ -64,6 +64,11 @@ describe('the floor’s moments', () => {
     expect(marked).toContain('<span style="white-space:nowrap">3,000枚</span>');
     const html = plain(marked);
     expect(html).toContain('ジャックポット！523枚');
+    // The newest machines' named wins read as Japanese: never 「ゾロ目的中」 (「ゾロ・目的・中」).
+    const ja = getFloorStrings('ja');
+    expect(ja.moment('sicbo-triple', '181')).toBe('シックボーでゾロ目が的中！181枚');
+    expect(ja.moment('sicbo-any-triple', '31')).toBe('シックボーの「ゾロ目どれでも」で31枚');
+    expect(ja.moment('ladder-top', '2,000')).toBe('ハイ＆ローのラダーをトップまで上って2,000枚');
     expect(html).toContain('プレイヤー1234');
     expect(html).toContain('7が3つそろって3,000枚');
     expect(html).toContain('ダブルアップで160枚');

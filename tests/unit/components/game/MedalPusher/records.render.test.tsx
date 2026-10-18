@@ -145,6 +145,8 @@ describe('the first drawing, on the server and in the browser', () => {
     expect(shown(html, 'pusher-bonus-status')).toBe('Looking at your stamp card…');
     expect(count(html, /data-on="false" data-today="false"/g)).toBe(BONUS_CARD.length);
     expect(html).not.toContain('<button');
+    // The first day's button holds its place, unseen, so the line beside it wraps as it will once the book is read.
+    expect(html).toMatch(new RegExp(`<span class="[^"]*unseen[^"]*" aria-hidden="true">TAKE \\+${BONUS_CARD[0]}</span></section>`));
     expect(render(<BonusDot />)).toBe('');
     expect(render(<BonusStrip />, 'ja')).toContain('デイリーボーナス');
   });

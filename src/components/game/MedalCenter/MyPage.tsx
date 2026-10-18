@@ -48,6 +48,11 @@ const formatsFor = (language: 'en' | 'ja'): Formats => {
 export interface MyPageProps {
   /** Where a guest goes to sign in, so that the history is kept on an account. */
   signInHref?: string;
+  /**
+   * Whether the site expects a member, before it knows who is playing (AuthProvider's `presumedSignedIn`). Until the
+   * medals have been read, everyone else is shown the counter a guest will see, so it does not move when they are.
+   */
+  presumedMember?: boolean;
 }
 
 /**
@@ -56,17 +61,22 @@ export interface MyPageProps {
  * Medal Pusher's own record book, and the history of what happened to the
  * medals. A guest sees this device's; a member, the account's.
  */
-export const MyPage = ({ signInHref }: MyPageProps) => <MyPageView bank={useBank()} history={useMedalHistory()} book={useRecords()} signInHref={signInHref} />;
+export const MyPage = ({ signInHref, presumedMember }: MyPageProps) => (
+  <MyPageView bank={useBank()} history={useMedalHistory()} book={useRecords()} signInHref={signInHref} presumedMember={presumedMember} />
+);
 
 /** The page for a given state of the medals, their history and the Medal Pusher's book. */
-export const MyPageView = ({ bank, history, book, signInHref }: { bank: BankState; history: HistoryState; book: RecordsState } & MyPageProps) => {
+export const MyPageView = ({ bank, history, book, signInHref, presumedMember = false }: { bank: BankState; history: HistoryState; book: RecordsState } & MyPageProps) => {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getMyPageStrings(language);
   const f = formatsFor(language);
   const nameOf = (game: string): string => (game === CENTER ? t.centerName : game === FLOOR_JACKPOT ? t.floorName : translate(`games.${game}.title`));
   const account = bank.owner !== null;
-  const member = !bank.loaded ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
+  // Until the medals have been read: a guest's counter, unless a member is expected (most visitors are guests, and
+  // their counter then stays as it is when the medals come in).
+  const guest = bank.loaded ? !account : !presumedMember;
+  const member = !bank.loaded && presumedMember ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
   const doc = history.loaded ? history.history : null;
   const since = doc && doc.since > 0 ? f.date(doc.since) : null;
 
@@ -120,8 +130,8 @@ export const MyPageView = ({ bank, history, book, signInHref }: { bank: BankStat
             <span className={styles.unit}>{t.unit}</span>
           </p>
           <p className={styles.where} data-testid="mypage-where" data-where={history.where} data-kept={history.kept}>
-            {account ? t.whose.account : t.whose.guest} {history.kept ? t.where[history.where] : t.notKept}
-            {bank.loaded && !account && signInHref && (
+            {guest ? t.whose.guest : t.whose.account} {history.kept ? t.where[!bank.loaded && presumedMember ? 'checking' : history.where] : t.notKept}
+            {guest && signInHref && (
               <>
                 {' '}
                 <a className={styles.link} href={signInHref} data-testid="mypage-sign-in">

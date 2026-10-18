@@ -180,6 +180,17 @@
   font-size: 0.9rem;
   line-height: 1.5;
 }
+/* A line holding its place until the floor has been read. */
+.unseen {
+  visibility: hidden;
+}
+/* What is said while the floor is being read, over the line that holds its place: as tall as the taller of the two. */
+.holder {
+  display: grid;
+}
+.holder > * {
+  grid-area: 1 / 1;
+}
 
 /* ---------- The moments on show ---------- */
 .feed {

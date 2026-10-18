@@ -108,7 +108,7 @@ const en: MyPageStrings = {
   medals: (count) => `${count} medals`,
   memberGuest: 'Guest',
   memberAccount: 'Member',
-  memberChecking: 'Looking for your medals…',
+  memberChecking: 'Checking…',
   whose: { guest: 'This device’s history and records.', account: 'Your account’s history and records.' },
   where: {
     device: 'Kept on this device.',
@@ -193,7 +193,7 @@ const ja: MyPageStrings = {
   medals: (count) => `${count}枚`,
   memberGuest: 'ゲスト',
   memberAccount: '会員',
-  memberChecking: 'メダルを確認しています…',
+  memberChecking: '確認中…',
   whose: { guest: 'この端末の履歴と記録です。', account: 'アカウントの履歴と記録です。' },
   where: {
     device: 'この端末に保存しています。',

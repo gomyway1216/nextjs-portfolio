@@ -39,6 +39,23 @@ export interface VideoPokerStrings {
   betMax: string;
   /** The machine's keys, on a desktop. */
   keysHint: string;
+  // The double-up (doubleUp.ts)
+  doubleUp: string;
+  take: string;
+  dealer: string;
+  dealerAria: (card: string) => string;
+  pickAria: (n: number) => string;
+  pickedAria: (card: string, picked: boolean) => string;
+  picked: string;
+  /** The win on offer after the draw or a double-up, and how many double-ups are left. */
+  doubleOffer: (offer: string, left: number) => string;
+  doublePick: (stake: string) => string;
+  doubleWon: (offer: string) => string;
+  doublePush: (offer: string) => string;
+  doubleLost: (stake: string) => string;
+  doubleTaken: (offer: string) => string;
+  sayDouble: (stake: string, dealer: string) => string;
+  sayPicked: (card: string, dealer: string, result: string) => string;
   deal: string;
   draw: string;
   hold: string;
@@ -150,6 +167,7 @@ const en: VideoPokerStrings = {
     'Tap the cards you want to keep (HELD), then press DRAW: every other card is replaced once from the same deck. What the final hand wins, by the table at the top, goes into your medals.',
     'A pair of jacks or better is the lowest winning hand. A royal flush wins 250 medals for each medal bet, but 4,000 on a five-medal bet — which is why you bet five.',
     'A hand that has been dealt stays dealt: reload the page, or come back to it in another tab, and the same five cards are waiting, with the same cards to come.',
+    'After a win you may TAKE it, or DOUBLE UP: the dealer’s card is turned face up and you pick one of four face-down cards. Higher than the dealer’s card (aces high, suits not counted) doubles the medals; the same rank leaves them as they were; lower loses them. Up to four double-ups for one win, a tie counting as one. It is an even bet: it never changes the machine’s return, only how far it swings. A double-up begun stays begun: reload and the same dealer’s card is waiting.',
     'There are 32 ways to play every deal. The Best play panel shows the five best of them, plus your own hold, each with its exact expected return, counted over every card that could be drawn.',
     NOT_MONEY.en,
   ],
@@ -183,7 +201,22 @@ const en: VideoPokerStrings = {
   win: 'Win',
   net: 'Net medals',
   betOne: 'Bet one',
-  keysHint: 'Keys: 1–5 hold a card · Space or Enter deals and draws · B bet one · M bet max',
+  keysHint: 'Keys: 1–5 hold a card · Space or Enter deals and draws · B bet one · M bet max · D double up · T take · 1–4 pick a card',
+  doubleUp: 'DOUBLE UP',
+  take: 'TAKE',
+  dealer: 'DEALER',
+  dealerAria: (card) => `The dealer’s card: ${card}`,
+  pickAria: (n) => `Face-down card ${n}: pick it`,
+  pickedAria: (card, picked) => (picked ? `${card}, your pick` : card),
+  picked: 'PICK',
+  doubleOffer: (offer, left) => `${offer} medals won: DOUBLE UP (${left} left) or TAKE.`,
+  doublePick: (stake) => `${stake} medals on the double: pick a card higher than the dealer’s.`,
+  doubleWon: (offer) => `Higher! ${offer} medals now.`,
+  doublePush: (offer) => `Same rank: the ${offer} medals stay.`,
+  doubleLost: (stake) => `Lower: the ${stake} medals on the double are gone.`,
+  doubleTaken: (offer) => `${offer} medals taken.`,
+  sayDouble: (stake, dealer) => `Double up: ${stake} medals on it. The dealer’s card is ${dealer}. Pick one of four cards, 1 to 4.`,
+  sayPicked: (card, dealer, result) => `You picked ${card} against the dealer’s ${dealer}. ${result}`,
   betMax: 'Bet max',
   deal: 'DEAL',
   draw: 'DRAW',
@@ -314,6 +347,7 @@ const ja: VideoPokerStrings = {
     '残したいカードをタップして（HELD）、「ドロー」を押します。残さなかったカードは同じデッキから1回だけ引き直され、最終的な手で獲得したメダル（上の配当表のとおり）が持ちメダルに加わります。',
     'ジャック以上のワンペアが最低の当たりです。ロイヤルフラッシュは1枚ベットあたり250枚ですが、5枚ベットのときだけ4,000枚になります。だから5枚ベットが基本です。',
     '配られた手はそのまま残ります。ページを読み込み直しても、別のタブで開いても、同じ5枚と、同じ引き直しのカードが待っています。',
+    '当たりのあとは「受け取る」か「ダブルアップ」を選べます。ダブルアップでは親のカードが表になり、伏せた4枚から1枚を選びます。親より強ければ（Aが最強、スートは関係なし）メダルは2倍、同じ数字なら引き分けでそのまま、弱ければなくなります。1回の当たりにつき最大4回（引き分けも1回）。五分五分の勝負なので、マシンの還元率は変わらず、振れ幅だけが大きくなります。始めたダブルアップは、読み込み直しても同じ親のカードで続きます。',
     'どの配り方にも32通りの残し方があります。「最善手」パネルには、そのうち上位5通りと自分が選んだ残し方が、引く可能性のあるカードをすべて数えた正確な期待値つきで表示されます。',
     NOT_MONEY.ja,
   ],
@@ -347,7 +381,22 @@ const ja: VideoPokerStrings = {
   win: '獲得',
   net: 'メダル増減',
   betOne: '1枚追加',
-  keysHint: 'キー：1〜5 でホールド・Space か Enter でディール／ドロー・B で1枚追加・M でマックスベット',
+  keysHint: 'キー：1〜5 でホールド・Space か Enter でディール／ドロー・B で1枚追加・M でマックスベット・D でダブルアップ・T で受け取る・1〜4 でカードを選ぶ',
+  doubleUp: 'ダブルアップ',
+  take: '受け取る',
+  dealer: '親',
+  dealerAria: (card) => `親のカード：${card}`,
+  pickAria: (n) => `伏せたカード${n}を選ぶ`,
+  pickedAria: (card, picked) => (picked ? `${card}（選んだカード）` : card),
+  picked: '選択',
+  doubleOffer: (offer, left) => `${offer}枚獲得：ダブルアップ（あと${left}回）か、受け取るか。`,
+  doublePick: (stake) => `ダブルアップ ${stake}枚：親より強いカードを選んでください。`,
+  doubleWon: (offer) => `勝ち！${offer}枚になりました。`,
+  doublePush: (offer) => `引き分け：${offer}枚はそのままです。`,
+  doubleLost: (stake) => `負け：ダブルアップの${stake}枚はなくなりました。`,
+  doubleTaken: (offer) => `${offer}枚を受け取りました。`,
+  sayDouble: (stake, dealer) => `ダブルアップ ${stake}枚。親のカードは${dealer}。4枚のうち1枚を選んでください（1〜4）。`,
+  sayPicked: (card, dealer, result) => `${card}を選びました。親は${dealer}。${result}`,
   betMax: 'マックスベット',
   deal: 'ディール',
   draw: 'ドロー',

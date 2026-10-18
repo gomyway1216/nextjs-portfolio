@@ -29,7 +29,8 @@ import {
 } from './engine';
 import { CardBack, MiniCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
-import { cardsOf, createMedalPlay, deviceStore, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
+import { roundOutcome, type DoubleOutcome } from './doubleUp';
+import { canDouble, cardsOf, createMedalPlay, deviceStore, doubleOf, doublePending, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
 import { PRECOMPUTED } from './precomputed';
 import styles from './VideoPoker.module.css';
 
@@ -39,8 +40,8 @@ export const TIMING = { step: 90, flip: 340, settle: 200 } as const;
 export const CARD_WAIT = 1.5;
 /** How many digits the medal counter has: as many as the medal center's own. */
 export const MEDAL_PLACES = 7;
-/** The win meter's digits: the most a hand wins is 4,000. */
-export const WIN_PLACES = 4;
+/** The win meter's digits: the most a hand wins is 4,000, and four double-ups make that 64,000. */
+export const WIN_PLACES = 5;
 const TOP_HOLDS = 5;
 /** Holds within this of the best expectation count as the best play. */
 const EPS = 1e-9;
@@ -133,6 +134,13 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
   const [dealNo, setDealNo] = useState(0);
   const [announcement, setAnnouncement] = useState('');
   const [longWait, setLongWait] = useState(false);
+  /**
+   * A double-up's picked card still turning over: what it brings back is in the medals already, and is shown (and
+   * counted in) once the card is.
+   */
+  const [reveal, setReveal] = useState<{ back: number; outcome: DoubleOutcome } | null>(null);
+  /** Changes with every double-up, so that its cards mount (and flip) fresh. */
+  const [doubleNo, setDoubleNo] = useState(0);
 
   const busyRef = useRef(false);
   const handRef = useRef<SavedHand | null>(null);
@@ -285,8 +293,19 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
   // The bet and the pay table on the machine: the hand's while it is being played, and the next hand's once it is over.
   const inPlay = hand !== null && (phase === 'dealt' || revealing);
   const shownCoins = inPlay ? hand.coins : coins;
-  // The medals: what the medal center holds, less a win that is still being turned over.
-  const medalsNow = bankState.loaded ? Math.max(0, bankState.balance - (revealing && hand ? wonBy(hand) : 0)) : null;
+  // The double-ups of the win (doubleUp.ts): whether one waits for its pick, where the win stands, and the medals on the
+  // latest one (what was on offer before it).
+  const rounds = hand && phase === 'drawn' ? (hand.doubles ?? []) : [];
+  const doubling = hand !== null && doublePending(hand);
+  const lastRound = rounds.length > 0 ? rounds[rounds.length - 1] : null;
+  const lastOutcome = lastRound ? roundOutcome(lastRound) : null;
+  const lastStake = hand && rounds.length > 0 ? doubleOf({ ...hand, doubles: rounds.slice(0, -1) }).offer : 0;
+  const offer = hand && phase === 'drawn' ? doubleOf(hand).offer : 0;
+  const offerOpen = hand !== null && phase === 'drawn' && !revealing && !busy && canDouble(hand);
+  // The medals: what the medal center holds, less a win, or what a double-up brings back, that is still being turned over.
+  const medalsNow = bankState.loaded ? Math.max(0, bankState.balance - (revealing && hand ? wonBy(hand) : 0) - (reveal?.back ?? 0)) : null;
+  // The WIN meter: the win on offer, or, while a double-up waits or its card turns, the medals on it.
+  const winShown = !hand || phase !== 'drawn' || revealing ? 0 : doubling || reveal ? lastStake : offer;
   // Once they are, the win runs into the medals on the counter's LEDs, as a machine's credit meter counts it up
   // (countUp.ts); the WIN meter shows the whole win at once.
   // The machine's sound, off until the player switches it on; each medal of a win chirps as it is counted in.
@@ -308,7 +327,8 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
 
   const startDeal = (bet: number) => {
     const play = medals.current;
-    if (busyRef.current || handRef.current?.drawn === false || !play || !playable) return;
+    // A hand still dealt is drawn first, and a double-up begun is picked first; a win on offer is the player's already.
+    if (busyRef.current || handRef.current?.drawn === false || (handRef.current && doublePending(handRef.current)) || !play || !playable) return;
     if (bet > bankState.balance) {
       setError(t.noMedals);
       return;
@@ -401,6 +421,87 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
     if (dealt) holdCards(dealt.held ^ (1 << i));
   };
 
+  /** Puts the win on offer on a double-up: its medals go out, and the dealer's card is turned face up (medals.ts). */
+  const startDouble = () => {
+    const play = medals.current;
+    const won = handRef.current;
+    if (busyRef.current || !won || !play || !playable || !canDouble(won)) return;
+    const outcome = play.doubleUp(won.id);
+    if (outcome.kind === 'away') return;
+    if (outcome.kind === 'unsaved' || outcome.kind === 'short') {
+      setError(t.unsaved);
+      return;
+    }
+    if (outcome.kind === 'gone') {
+      resync();
+      return;
+    }
+    setError(null);
+    commitHand(outcome.hand);
+    setDoubleNo((n) => n + 1);
+    const dealer = outcome.hand.doubles![outcome.hand.doubles!.length - 1].dealer;
+    playSound('button');
+    playSound('card', 0.12);
+    setAnnouncement(t.sayDouble(fmt(outcome.stake), cardLabel(dealer)));
+    const wait = prefersReducedMotion() ? 0 : TIMING.flip;
+    commitBusy(wait > 0);
+    if (wait > 0) timers.current.push(setTimeout(() => commitBusy(false), wait));
+  };
+
+  /** Picks face-down card `index` of the double-up waiting: it turns over, and what it brings back goes into the medals. */
+  const pickCard = (index: number) => {
+    const play = medals.current;
+    const waiting = handRef.current;
+    if (busyRef.current || !waiting || !play || !playable || !doublePending(waiting)) return;
+    const outcome = play.pick(waiting.id, index);
+    if (outcome.kind === 'away') return;
+    if (outcome.kind === 'unsaved') {
+      setError(t.unsaved);
+      return;
+    }
+    if (outcome.kind === 'gone') {
+      resync();
+      return;
+    }
+    setError(null);
+    commitHand(outcome.hand);
+    const round = outcome.hand.doubles![outcome.hand.doubles!.length - 1];
+    playSound('card');
+    const settle = () => {
+      setReveal(null);
+      if (outcome.back > 0) payMedals();
+      if (outcome.outcome === 'win') playSound(outcome.offer >= 1000 ? 'big' : 'win');
+      else if (outcome.outcome === 'push') playSound('hold');
+      setStats((s) => ({ ...s, wagered: s.wagered + outcome.stake, paid: s.paid + outcome.back }));
+      const said =
+        outcome.outcome === 'win' ? t.doubleWon(fmt(outcome.offer)) : outcome.outcome === 'push' ? t.doublePush(fmt(outcome.offer)) : t.doubleLost(fmt(outcome.stake));
+      setAnnouncement(t.sayPicked(cardLabel(round.cards![index]), cardLabel(round.dealer), said));
+      commitBusy(false);
+    };
+    if (prefersReducedMotion()) {
+      settle();
+      return;
+    }
+    setReveal({ back: outcome.back, outcome: outcome.outcome });
+    commitBusy(true);
+    timers.current.push(setTimeout(settle, TIMING.flip + TIMING.settle));
+  };
+
+  /** Takes the win on offer: no more double-ups for it. The medals are the player's already; nothing moves. */
+  const takeWin = () => {
+    const play = medals.current;
+    const won = handRef.current;
+    if (busyRef.current || !won || !play || !playable || !canDouble(won)) return;
+    const taken = play.take(won.id);
+    if (!taken) {
+      resync();
+      return;
+    }
+    commitHand(taken);
+    playSound('button');
+    setAnnouncement(t.doubleTaken(fmt(doubleOf(taken).offer)));
+  };
+
   const betOne = () => {
     if (busyRef.current || phase === 'dealt') return;
     setCoins((c) => (c >= MAX_COINS ? 1 : c + 1));
@@ -424,9 +525,19 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
           ? { text: t.pressDeal, tone: 'idle' }
           : phase === 'dealt' || revealing
             ? { text: t.chooseHolds(shownCoins), tone: 'idle' }
-            : won !== null && won > 0 && finalRank !== null
-              ? { text: t.resultWin(t.hand[HANDS[finalRank]], won, fmt(won)), tone: 'win' }
-              : { text: t.resultLose, tone: 'idle' };
+            : doubling || reveal
+              ? { text: t.doublePick(fmt(lastStake)), tone: 'idle' }
+              : hand?.taken
+                ? { text: t.doubleTaken(fmt(offer)), tone: 'win' }
+                : lastOutcome === 'win'
+                  ? { text: t.doubleWon(fmt(offer)), tone: 'win' }
+                  : lastOutcome === 'push'
+                    ? { text: t.doublePush(fmt(offer)), tone: 'win' }
+                    : lastOutcome === 'lose'
+                      ? { text: t.doubleLost(fmt(lastStake)), tone: 'idle' }
+                      : won !== null && won > 0 && finalRank !== null
+                        ? { text: t.resultWin(t.hand[HANDS[finalRank]], won, fmt(won)), tone: 'win' }
+                        : { text: t.resultLose, tone: 'idle' };
   const canChange = phase !== 'dealt' && !busy;
   const net = stats.paid - stats.wagered;
 
@@ -434,11 +545,21 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
   useMachineKeys(active, (key) => {
     if (key === ' ' || key === 'Enter') {
       if (phase === 'dealt') drawNow();
-      else startDeal(coins);
+      else if (!doubling) startDeal(coins);
       return true;
     }
     if (/^[1-5]$/.test(key)) {
       if (phase === 'dealt' && !busy && playable) toggle(Number(key) - 1);
+      // While a double-up waits, 1–4 pick one of its four cards.
+      else if (doubling && key !== '5') pickCard(Number(key) - 1);
+      return true;
+    }
+    if (key === 'd') {
+      startDouble();
+      return true;
+    }
+    if (key === 't') {
+      takeWin();
       return true;
     }
     if (key === 'b') {
@@ -451,7 +572,8 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
     }
     return false;
   });
-  const refillDue = bankState.loaded && playable && bankState.balance === 0 && phase !== 'dealt';
+  // No refill while medals are on a double-up: they are the player's, and may come back.
+  const refillDue = bankState.loaded && playable && bankState.balance === 0 && phase !== 'dealt' && !doubling;
 
   const describe = (h: HoldValue) => {
     if (!hand) return null;
@@ -499,6 +621,43 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
             </tbody>
           </table>
 
+          {lastRound ? (
+            // A double-up, as a Sigma cabinet lays it out: the dealer's card face up on the left, four face down on the
+            // right, one to pick. Once picked, all four are turned over, the one picked marked.
+            <div className={styles.cardsRow} data-testid="vp-double" data-outcome={reveal ? 'turning' : (lastOutcome ?? 'waiting')}>
+              <span className={`${styles.slot} ${styles.dealerSlot}`}>
+                <span className={`${styles.heldTag} ${styles.dealerTag}`}>{t.dealer}</span>
+                <span aria-label={t.dealerAria(cardLabel(lastRound.dealer))} role="img" data-testid="vp-dealer">
+                  <PlayingCard key={`d${doubleNo}-${lastRound.dealer}`} card={lastRound.dealer} />
+                </span>
+              </span>
+              {[0, 1, 2, 3].map((i) => {
+                const card = lastRound.cards?.[i];
+                const mine = lastRound.pick === i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className={styles.slot}
+                    onClick={() => pickCard(i)}
+                    disabled={!doubling || busy || !playable}
+                    aria-label={card === undefined ? t.pickAria(i + 1) : t.pickedAria(cardLabel(card), mine)}
+                    data-pick={i}
+                    data-picked={mine ? 'true' : undefined}
+                  >
+                    <span className={styles.heldTag} data-held={mine ? 'true' : undefined}>
+                      {mine ? t.picked : doubling ? String(i + 1) : ''}
+                    </span>
+                    {card === undefined ? (
+                      <CardBack label={t.cardBack} />
+                    ) : (
+                      <PlayingCard key={`p${doubleNo}-${card}`} card={card} delay={mine ? 0 : TIMING.step * 2} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
           <div className={styles.cardsRow}>
             {[0, 1, 2, 3, 4].map((i) => {
               const card = cards[i] as number | undefined;
@@ -528,6 +687,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
               );
             })}
           </div>
+          )}
 
           <p className={styles.message} role="status" data-tone={message.tone} data-testid="vp-message">
             {message.text}
@@ -570,10 +730,10 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
           <div className={styles.meter}>
             <span className={styles.meterLabel}>{t.win}</span>
             <strong className={`${styles.srOnly} ${styles.meterNumber}`} data-testid="vp-win">
-              {fmt(won ?? 0)}
+              {fmt(winShown)}
             </strong>
             <span className={styles.meterLed}>
-              <SegmentDisplay value={won ?? 0} places={WIN_PLACES} tone="amber" />
+              <SegmentDisplay value={winShown} places={WIN_PLACES} tone="amber" />
             </span>
           </div>
         </div>
@@ -581,11 +741,29 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
           {NOT_MONEY[language]}
         </p>
 
+        {/* DOUBLE UP and TAKE, always on the cabinet and lit while a win may be doubled up; the next DEAL takes it too. */}
+        <div className={styles.doubleRow}>
+          <button type="button" className={`${styles.machineBtn} ${styles.doubleBtn}`} onClick={startDouble} disabled={!offerOpen || !playable} data-testid="vp-double-up" aria-keyshortcuts="D">
+            {t.doubleUp}
+          </button>
+          <button type="button" className={`${styles.machineBtn} ${styles.takeBtn}`} onClick={takeWin} disabled={!offerOpen || !playable} data-testid="vp-take" aria-keyshortcuts="T">
+            {t.take}
+          </button>
+        </div>
+        {/* What may be done with the win, in a line that keeps its place whether it says anything or not. */}
+        <div className={styles.offerSlot}>
+          {offerOpen && (
+            <p className={styles.offerLine} data-testid="vp-offer">
+              {t.doubleOffer(fmt(offer), doubleOf(hand).left)}
+            </p>
+          )}
+        </div>
+
         <div className={styles.controls}>
           <button type="button" className={styles.machineBtn} onClick={betOne} disabled={!canChange || !playable}>
             {t.betOne}
           </button>
-          <button type="button" className={styles.machineBtn} onClick={() => startDeal(MAX_COINS)} disabled={!canChange || !playable}>
+          <button type="button" className={styles.machineBtn} onClick={() => startDeal(MAX_COINS)} disabled={!canChange || doubling || !playable}>
             {t.betMax}
           </button>
           {phase === 'dealt' ? (
@@ -593,7 +771,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
               {t.draw}
             </button>
           ) : (
-            <button type="button" className={`${styles.machineBtn} ${styles.dealBtn}`} onClick={() => startDeal(coins)} disabled={busy || !playable}>
+            <button type="button" className={`${styles.machineBtn} ${styles.dealBtn}`} onClick={() => startDeal(coins)} disabled={busy || doubling || !playable}>
               {t.deal}
             </button>
           )}

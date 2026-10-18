@@ -614,6 +614,16 @@
   font-size: clamp(0.9rem, 2.6vw, 1.15rem);
   color: #fff;
 }
+/* On a phone a message can take two lines: the line keeps room for two, so that nothing under it jumps as it changes. */
+@media (max-width: 520px) {
+  .message {
+    min-height: 2.6em;
+    line-height: 1.3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
 .message[data-tone='win'] {
   color: var(--vp-yellow);
 }
@@ -765,6 +775,69 @@
   flex-wrap: wrap;
   margin-top: 0.8rem;
   align-items: center;
+}
+/* The double-up (doubleUp.ts). The dealer's card stands apart on the left, marked DEALER / 親. */
+.dealerSlot {
+  position: relative;
+  cursor: default;
+}
+/* A line in the gap between the dealer's card and the four, taking no width from either. */
+.dealerSlot::after {
+  content: '';
+  position: absolute;
+  top: 1.6rem;
+  bottom: 0.2rem;
+  right: calc(-0.5 * clamp(0.2rem, 1.2vw, 0.6rem) - 1px);
+  width: 2px;
+  background: rgba(253, 224, 71, 0.6);
+}
+.heldTag.dealerTag {
+  background: #fca5a5;
+  color: #111827;
+  border-color: #fca5a5;
+}
+/* DOUBLE UP and TAKE: always on the cabinet, lit while a win may be doubled up. */
+.doubleRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+.doubleRow .machineBtn {
+  min-height: 44px;
+  letter-spacing: 0.06em;
+}
+.doubleBtn:not(:disabled) {
+  background: linear-gradient(180deg, #fecaca, #f87171);
+  box-shadow:
+    0 3px 0 #05060a,
+    0 0 14px rgba(248, 113, 113, 0.7);
+}
+.takeBtn:not(:disabled) {
+  background: linear-gradient(180deg, #bbf7d0, #4ade80);
+  box-shadow:
+    0 3px 0 #05060a,
+    0 0 14px rgba(74, 222, 128, 0.6);
+}
+.offerSlot {
+  min-height: calc(0.82rem * 1.3 + 0.45rem);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.offerLine {
+  margin: 0.45rem 0 0;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: #fde68a;
+}
+/* On a phone the line can take two. */
+@media (max-width: 520px) {
+  .offerSlot {
+    min-height: calc(0.82rem * 2.6 + 0.45rem);
+  }
 }
 /* On a phone: Bet one and Bet max side by side, and DEAL / DRAW the whole width under them, the big button a thumb
    finds, as it is the biggest on the cabinet. Less frame round the screen, for the cards. */

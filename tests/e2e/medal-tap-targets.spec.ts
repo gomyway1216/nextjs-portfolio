@@ -17,8 +17,8 @@ import { arrived } from './streamedPage';
 //   spot says what it is to a screen reader);
 // - the site's own header, which is not the floor's;
 // - blackjack's strategy chart (its Odds tab): 34 rows by 10 columns of cells, each a button that explains its cell. At
-//   44 px a side the chart would be twice a phone's width; each cell is 30 × 28 px, over WCAG 2.5.8's 24 px, and Tab
-//   reaches every one.
+//   44 px a side the chart would be twice a phone's width. Its 30×28 cells are above WCAG 2.5.8's 24 px, and every
+//   cell is keyboard-reachable.
 //
 // The machines' first tabs are measured at both widths; every other tab (the odds, the simulations, the house edge) at
 // 375 px.

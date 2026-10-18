@@ -39,6 +39,9 @@ import { DEFAULT_DECKS as BACCARAT_DECKS } from '@/components/game/Baccarat/engi
 import { allBetOdds as crapsOdds, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
 import { pairPlusOdds, strategyOdds as tcpStrategy } from '@/components/game/ThreeCardPoker/analysis';
 import { PAIR_PLUS_TABLES } from '@/components/game/ThreeCardPoker/engine';
+import { ODDS_LIMITS as HORSE_ODDS, RETURN_MOST as HORSE_RETURN_MOST, TICKETS as HORSE_TICKETS, raceCard } from '@/components/game/HorseRace/card';
+import { toNumber } from '@/components/game/HorseRace/fraction';
+import { RACE_STAKE_MOST as HORSE_STAKE_MOST, TICKET_MAX as HORSE_TICKET_MAX } from '@/components/game/HorseRace/medalTable';
 import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
 import { BET_OPTIONS as FISHING_BETS, CHEST as FISHING_CHEST, FISH, MOST_MEDALS as FISHING_MOST, analyzeMachine as fishingOdds, valueOf as fishingValue } from '@/components/game/Fishing/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
@@ -126,6 +129,9 @@ describe('the most each machine can take from the player at once, for the medals
     expect(TCP_HAND_MAX).toBe(3 * TCP_SPOT_MAX);
     // One cast at its biggest bet.
     expect(FLOOR_RULES.fishing.stakeMost).toBe(Math.max(...FISHING_BETS));
+    // Every ticket of a horse race at its most.
+    expect(FLOOR_RULES['horse-race'].stakeMost).toBe(HORSE_STAKE_MOST);
+    expect(HORSE_STAKE_MOST).toBe(HORSE_TICKETS.length * HORSE_TICKET_MAX);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -162,6 +168,9 @@ describe('which machines are linked to the floor jackpot', () => {
       // The Ante and Play per medal wagered (the element of risk), or Pair Plus on either table.
       'three-card-poker': Math.max(1 - tcp.elementOfRisk, ...Object.values(PAIR_PLUS_TABLES).map((table) => 1 + pairPlusOdds(table).ev)),
       fishing: fishingValue(fishingOdds().rtp),
+      // The most any ticket of any race brings back: every card is priced to at most this (card.test.ts checks every
+      // ticket of hundreds of cards, and adds a few up exactly over all 720 finishing orders).
+      'horse-race': toNumber(HORSE_RETURN_MOST),
     };
   };
 
@@ -177,7 +186,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -287,6 +296,17 @@ describe('the most each machine can pay, from its own tables', () => {
     // Craps and Aces.
     const won = ([to, per]: readonly [number, number]) => CRAPS_SPOT_MAX * (to / per + 1);
     expect(resolveRoll(null, fullest(null), [1, 1]).returned).toBe(2 * CRAPS_SPOT_MAX + won(ONE_ROLL_PAYS.field[2]) + won(ONE_ROLL_PAYS.anyCraps) + won(ONE_ROLL_PAYS.aces));
+  });
+
+  it('Mini Turf Racing: a win ticket and a quinella both at their most, each at the longest odds the board can show', () => {
+    expect(FLOOR_RULES['horse-race'].most).toBe(HORSE_TICKET_MAX * (HORSE_ODDS.win.most + HORSE_ODDS.quinella.most));
+    expect(FLOOR_RULES['horse-race'].most).toBe(108_702);
+    // A race pays at most one win ticket and one quinella: no card's odds go past the board's.
+    for (let race = 1; race <= 40; race += 1) {
+      const card = raceCard('rules-test', race);
+      expect(Math.max(...card.winOdds)).toBeLessThanOrEqual(HORSE_ODDS.win.most);
+      expect(Math.max(...card.quinellaOdds)).toBeLessThanOrEqual(HORSE_ODDS.quinella.most);
+    }
   });
 
   it('three card poker: a straight flush against a dealer who qualifies', () => {

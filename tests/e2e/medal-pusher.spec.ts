@@ -16,6 +16,7 @@ import { resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -2317,6 +2318,9 @@ test('the odds tab lists the exact chances and works out a return', async ({ pag
   await expect(odds(page).getByTestId('pusher-calc-note')).toContainText('89%');
 });
 
+/** The seed the Simulation test's run is given (see the test). */
+const SIM_SEED = 125;
+
 test('the simulation measures the four aims and can be cancelled', async ({ page }) => {
   test.setTimeout(120_000);
   await openGame(page);
@@ -2325,6 +2329,14 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
   await sim(page).getByLabel('Medals per aim').selectOption('500');
 
   const run = sim(page).getByTestId('pusher-sim-run');
+  // The run is given its seed: the number Math.random gives as Run is pressed (sim.ts). A run of 500 medals swings
+  // widely, and where its medals go is physics in floating point, which each engine computes a little differently in
+  // the last bits, so the same seed plays a different run in each and a random one now and then lands far out in the
+  // tail. Over 200 runs in V8 the middle's share through a pocket went from 11% to 75% (median 17%), and twice the
+  // edges matched the middle; WebKit reached 75.4% in 40 runs, Firefox 78.6% once on production. Seed 125 plays an
+  // ordinary run in all three (through a pocket, middle and edges: Chromium 17.0% and 5.4%, Firefox 15.2% and 4.0%,
+  // WebKit 17.2% and 5.0%), so the bounds below are checked against a run like most, every time.
+  await rigPresses(page, [(SIM_SEED + 0.5) / 2 ** 31]);
   await run.click();
   await expect(sim(page).getByTestId('pusher-sim-result')).toBeVisible({ timeout: 90_000 });
   await expect(run).toHaveText('Run');

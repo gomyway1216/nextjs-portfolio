@@ -11,6 +11,7 @@ import { SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { WELCOME } from './ledger';
 import { bank as medalBank, useBank } from './bank';
+import { MachineFloor, type OpenMachine } from './MachineFloor';
 import { MedalsOut } from './MedalsOut';
 import { MEDAL_PUSHER_PATH, MY_PAGE_PATH } from './paths';
 import { getCenterStrings } from './strings';
@@ -20,9 +21,10 @@ import styles from './MedalCenter.module.css';
 export const COUNTER_PLACES = 7;
 
 /**
- * The machines on the floor. The Medal Pusher plays from the bank; the
- * casino games are to come onto it, each in a PR of its own, and are shown
- * as not open yet.
+ * The machines on the floor, each by its name at the bank and where it
+ * stands. A machine whose path is null is shown as coming, not open yet.
+ * Which corner of the floor each one stands in, and the line on its plate,
+ * are in floorPlan.ts: a machine with no line there stands with the new ones.
  */
 export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'medal-pusher', path: MEDAL_PUSHER_PATH },
@@ -59,16 +61,20 @@ export const MedalStack = ({ count }: { count: number }) => (
 export interface MedalCenterProps {
   /** Where a guest goes to sign in, so that the bank is kept on an account. */
   signInHref?: string;
-  /** The floor played together (floor/FloorTogether.tsx): its live wins and rankings, under the machines. */
+  /** The floor played together, by the door (floor/FloorTogether.tsx): the floor jackpot and the latest big wins, over the machines. */
+  now?: ReactNode;
+  /** The floor played together, further in: its rankings and the player's place on the floor, under the machines. */
   together?: ReactNode;
 }
 
 /**
- * The front of the medal center, as a Japanese arcade's medal counter: the
- * medals in the bank on a big LED counter, the daily bonus, the floor of
- * machines that play from the bank, and the one reset.
+ * The front of the medal center, as a Japanese arcade's medal floor: by the
+ * door, the medal counter (the medals in the bank on a big LED counter, the
+ * daily bonus) and the board with the floor jackpot and the latest big wins;
+ * then the floor of machines that play from the bank, corner by corner; then
+ * the rankings, how the medals work, and the one reset.
  */
-export const MedalCenter = ({ signInHref, together }: MedalCenterProps) => {
+export const MedalCenter = ({ signInHref, now, together }: MedalCenterProps) => {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getCenterStrings(language);
@@ -158,66 +164,73 @@ export const MedalCenter = ({ signInHref, together }: MedalCenterProps) => {
         </header>
         <p className={styles.lead}>{t.lead}</p>
 
-        {/* The counter: the medals held in the bank, on LED digits, and who the bank is for. */}
-        <section className={styles.counter} aria-labelledby="center-counter-label" data-testid="center-counter" data-loaded={state.loaded}>
-          <div className={styles.counterHead}>
-            <h2 id="center-counter-label" className={styles.counterLabel}>
-              {t.counterLabel}
-            </h2>
-            <span className={styles.member} data-testid="center-member" data-owner={account ? 'account' : 'guest'}>
-              {member}
-            </span>
-          </div>
-          <div className={styles.counterBody}>
-            <MedalStack count={state.balance === 0 ? 1 : Math.min(6, 2 + Math.floor(Math.log10(state.balance + 1)))} />
-            <div className={styles.led}>
-              <SegmentDisplay value={state.loaded ? state.balance : ''} places={COUNTER_PLACES} />
+        {/* By the door: the medal counter, and the floor's board beside it where there is room. */}
+        <div className={styles.entrance}>
+          <div className={styles.desk}>
+            {/* The counter: the medals held in the bank, on LED digits, and who the bank is for. */}
+            <section className={styles.counter} aria-labelledby="center-counter-label" data-testid="center-counter" data-loaded={state.loaded}>
+              <div className={styles.counterHead}>
+                <h2 id="center-counter-label" className={styles.counterLabel}>
+                  {t.counterLabel}
+                </h2>
+                <span className={styles.member} data-testid="center-member" data-owner={account ? 'account' : 'guest'}>
+                  {member}
+                </span>
+              </div>
+              <div className={styles.counterBody}>
+                <MedalStack count={state.balance === 0 ? 1 : Math.min(6, 2 + Math.floor(Math.log10(state.balance + 1)))} />
+                <div className={styles.led}>
+                  <SegmentDisplay value={state.loaded ? state.balance : ''} places={COUNTER_PLACES} />
+                </div>
+              </div>
+              <p className={styles.balance}>
+                <strong data-testid="center-balance">{state.loaded ? fmt(state.balance) : '—'}</strong>
+                <span className={styles.balanceUnit}>{t.unit}</span>
+              </p>
+              {state.owed > 0 && (
+                <p className={styles.owed} data-testid="center-owed">
+                  {t.owed(fmt(state.owed))}
+                </p>
+              )}
+              <p className={styles.where} data-testid="center-where" data-where={state.where} data-kept={state.kept}>
+                {state.kept ? t.where[state.where] : t.notKept}
+                {state.loaded && !account && state.kept && signInHref && (
+                  <>
+                    {' '}
+                    <a className={styles.link} href={signInHref} data-testid="center-sign-in">
+                      {t.signInInvite}
+                    </a>
+                  </>
+                )}
+              </p>
+              {state.loaded && state.balance === 0 && state.out.length === 0 && (
+                <button type="button" className={styles.refill} data-testid="center-refill" onClick={() => medalBank().refill()}>
+                  {t.refill(WELCOME)}
+                </button>
+              )}
+              {/* None to play with, and some still out on a round: they come back when it is finished, so no refill yet. */}
+              {state.loaded && state.balance === 0 && state.out.length > 0 && <MedalsOut games={state.out} language={language} className={styles.outNote} testId="center-out" />}
+              <p className={styles.notMoney} data-testid="center-not-money">
+                {t.notMoney}
+              </p>
+            </section>
+
+            {/* The player's own page: what happened to the medals, and the records at every machine. */}
+            <Link href={MY_PAGE_PATH} className={styles.myPage} data-testid="center-my-page">
+              <span className={styles.myPageTitle}>{t.myPage}</span>
+              <span className={styles.myPageNote}>{t.myPageNote}</span>
+              <span className={styles.myPageArrow} aria-hidden>
+                →
+              </span>
+            </Link>
+
+            {/* The daily bonus is the bank's, for every machine: the same stamp card the machines show. */}
+            <div className={styles.bonus} data-testid="center-bonus">
+              <BonusStrip />
             </div>
           </div>
-          <p className={styles.balance}>
-            <strong data-testid="center-balance">{state.loaded ? fmt(state.balance) : '—'}</strong>
-            <span className={styles.balanceUnit}>{t.unit}</span>
-          </p>
-          {state.owed > 0 && (
-            <p className={styles.owed} data-testid="center-owed">
-              {t.owed(fmt(state.owed))}
-            </p>
-          )}
-          <p className={styles.where} data-testid="center-where" data-where={state.where} data-kept={state.kept}>
-            {state.kept ? t.where[state.where] : t.notKept}
-            {state.loaded && !account && state.kept && signInHref && (
-              <>
-                {' '}
-                <a className={styles.link} href={signInHref} data-testid="center-sign-in">
-                  {t.signInInvite}
-                </a>
-              </>
-            )}
-          </p>
-          {state.loaded && state.balance === 0 && state.out.length === 0 && (
-            <button type="button" className={styles.refill} data-testid="center-refill" onClick={() => medalBank().refill()}>
-              {t.refill(WELCOME)}
-            </button>
-          )}
-          {/* None to play with, and some still out on a round: they come back when it is finished, so no refill yet. */}
-          {state.loaded && state.balance === 0 && state.out.length > 0 && <MedalsOut games={state.out} language={language} className={styles.outNote} testId="center-out" />}
-          <p className={styles.notMoney} data-testid="center-not-money">
-            {t.notMoney}
-          </p>
-        </section>
 
-        {/* The player's own page: what happened to the medals, and the records at every machine. */}
-        <Link href={MY_PAGE_PATH} className={styles.myPage} data-testid="center-my-page">
-          <span className={styles.myPageTitle}>{t.myPage}</span>
-          <span className={styles.myPageNote}>{t.myPageNote}</span>
-          <span className={styles.myPageArrow} aria-hidden>
-            →
-          </span>
-        </Link>
-
-        {/* The daily bonus is the bank's, for every machine: the same stamp card the machines show. */}
-        <div className={styles.bonus} data-testid="center-bonus">
-          <BonusStrip />
+          {now}
         </div>
 
         {/* The floor. */}
@@ -226,31 +239,7 @@ export const MedalCenter = ({ signInHref, together }: MedalCenterProps) => {
             {t.floorTitle}
           </h2>
           <p className={styles.sectionLead}>{t.floorLead}</p>
-          <ul className={styles.machines} data-testid="center-machines">
-            {FLOOR.filter(({ path }) => path !== null).map(({ id, path }) => {
-              const name = translate(`games.${id}.title`);
-              return (
-                <li key={id} className={styles.machine} data-open="true" data-machine={id}>
-                  <div className={styles.cover}>
-                    <Image src={getGameCoverPath(id)} alt="" fill sizes="(min-width: 900px) 520px, 92vw" />
-                    <span className={styles.lamp} data-open="true">
-                      {t.open}
-                    </span>
-                  </div>
-                  <div className={styles.machineText}>
-                    <h3 className={styles.machineName}>{name}</h3>
-                    <p className={styles.machineNote}>{t.playsFromBank}</p>
-                    {path && (
-                      <Link href={path} className={styles.play} data-testid={`center-play-${id}`}>
-                        {t.play}
-                        <span className={styles.srOnly}>: {name}</span>
-                      </Link>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <MachineFloor machines={FLOOR.filter((machine): machine is OpenMachine => machine.path !== null)} language={language} t={t} />
           {/* The machines still to come onto the floor, shown honestly as not open yet; none, once every one is open. */}
           {FLOOR.some(({ path }) => path === null) && (
             <>

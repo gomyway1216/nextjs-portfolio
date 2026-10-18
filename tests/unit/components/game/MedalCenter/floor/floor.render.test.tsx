@@ -8,8 +8,8 @@ import { MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { FloorJackpotOddsNote, FloorJackpotPanel, FloorJackpotStrip, JackpotWins } from '@/components/game/MedalCenter/floor/FloorJackpot';
 import { Board, BestAtEach, FeedList, PlaceCard, type PlaceState } from '@/components/game/MedalCenter/floor/FloorParts';
 import { FloorRankings } from '@/components/game/MedalCenter/floor/FloorRankings';
-import { FloorTogether } from '@/components/game/MedalCenter/floor/FloorTogether';
-import { MEDAL_RANKINGS_PATH } from '@/components/game/MedalCenter/floor/paths';
+import { FloorHub, HUB_MOMENTS_SHOWN } from '@/components/game/MedalCenter/floor/FloorTogether';
+import { FLOOR_PLACE_ANCHOR, MEDAL_RANKINGS_PATH } from '@/components/game/MedalCenter/floor/paths';
 import { getFloorStrings, type FloorStrings } from '@/components/game/MedalCenter/floor/strings';
 import { createI18nInstance } from '@/lib/i18n';
 import { FLOOR_GAMES } from '@/lib/medalFloor/games';
@@ -22,6 +22,15 @@ const words = (lang: 'en' | 'ja' = 'en') => {
   const locale = lang === 'ja' ? 'ja-JP' : 'en-US';
   return { t: getFloorStrings(lang), fmt: (n: number) => n.toLocaleString(locale), gameName: (game: string) => i18n.t(`games.${game}.title`) };
 };
+
+/** The medal center's front as the page puts it together: the floor played together by the door and under the machines. */
+const front = (lang: 'en' | 'ja' = 'en') =>
+  inLanguage(
+    lang,
+    <FloorHub member={null} settled signInHref="/signin">
+      {({ now, together }) => <MedalCenter signInHref="/signin" now={now} together={together} />}
+    </FloorHub>,
+  );
 
 const NOW = Date.UTC(2026, 9, 17, 6, 0, 0);
 const FEED: FloorFeedEntry[] = [
@@ -132,17 +141,27 @@ describe('a player’s place on the floor', () => {
 });
 
 describe('the floor on the medal center’s front', () => {
-  it('sits under the machines, before the plate, with the rankings’ link and the honest note, before anything is read', () => {
-    const html = inLanguage('en', <MedalCenter signInHref="/signin" together={<FloorTogether member={null} settled signInHref="/signin" />} />);
+  it('hangs its board by the door, after the medals and the daily bonus and over the machines, and keeps the rankings and the place card under them, before anything is read', () => {
+    const html = front();
     const t = getFloorStrings('en');
-    expect(html).toContain('data-testid="floor-together"');
-    expect(html.indexOf('center-machines')).toBeLessThan(html.indexOf('floor-together'));
-    expect(html.indexOf('floor-together')).toBeLessThan(html.indexOf('center-rules-title'));
-    expect(html).toContain(`href="${MEDAL_RANKINGS_PATH}"`);
+    const at = (id: string) => html.indexOf(`data-testid="${id}"`);
+    // The medals, the bonus, the board (the floor jackpot, then the latest big wins and whether they are live), the machines, the rankings, the plate.
+    const order = ['center-counter', 'center-bonus', 'floor-now', 'floor-jackpot', 'floor-live', 'floor-feed-empty', 'center-machines', 'floor-together', 'floor-rankings', 'floor-place'].map(at);
+    for (const index of order) expect(index).toBeGreaterThan(-1);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(at('floor-place')).toBeLessThan(html.indexOf('center-rules-title'));
+    // The board has a heading of its own, and the rankings theirs.
+    expect(html).toContain(`<h2 id="floor-now-title"`);
+    expect(html).toContain(`>${t.nowTitle}</h2>`);
+    expect(html).toContain(`>${t.title}</h2>`);
+    for (const id of ['floor-more-moments', 'floor-all-rankings']) expect(html.match(new RegExp(`<a[^>]*data-testid="${id}"[^>]*>`))?.[0]).toContain(`href="${MEDAL_RANKINGS_PATH}"`);
     expect(html).toContain(t.honesty);
     expect(html).toContain('data-state="guest"');
+    // The place card is where the floor jackpot's line sends a player who has not joined.
+    expect(html).toContain(`<div id="${FLOOR_PLACE_ANCHOR}" `);
     // Nothing time-based is in the server's render: the floor is read in the browser.
     expect(html).not.toContain('<time');
+    expect(HUB_MOMENTS_SHOWN).toBe(3);
   });
 
   it('the rankings page renders in Japanese with every machine’s board to come', () => {
@@ -155,7 +174,7 @@ describe('the floor on the medal center’s front', () => {
 
 describe('the floor jackpot', () => {
   it('is on the medal center’s front, over the moments, with a guest told how to take part, before anything is read', () => {
-    const html = inLanguage('en', <MedalCenter signInHref="/signin" together={<FloorTogether member={null} settled signInHref="/signin" />} />);
+    const html = front();
     const t = getFloorStrings('en');
     expect(html).toContain('data-testid="floor-jackpot"');
     expect(html.indexOf('floor-jackpot-amount')).toBeLessThan(html.indexOf('floor-feed-empty'));
@@ -172,6 +191,10 @@ describe('the floor jackpot', () => {
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
     const t = getFloorStrings('en');
     expect(inLanguage('en', <FloorJackpotPanel standing="off" />)).toContain(t.jackpotJoinHere);
+    // The place card is further down the page, past the machines: the line goes to it.
+    expect(inLanguage('en', <FloorJackpotPanel standing="off" />)).toContain(`href="#${FLOOR_PLACE_ANCHOR}" data-testid="jackpot-join-here">${t.jackpotJoinHere}</a>`);
+    // How it works, and the machines linked to it, open under the counter.
+    expect(inLanguage('en', <FloorJackpotPanel standing="off" />)).toMatch(/<details[^>]*data-testid="jackpot-how"><summary[^>]*>How it works<\/summary>/);
     expect(inLanguage('en', <FloorJackpotPanel standing="on" />)).toContain(t.jackpotIn);
     expect(inLanguage('en', <FloorJackpotPanel standing="none" />)).not.toContain('jackpot-join');
     expect(inLanguage('ja', <FloorJackpotPanel standing="off" />)).toContain('フロアジャックポット');

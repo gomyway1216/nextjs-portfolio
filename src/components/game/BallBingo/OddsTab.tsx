@@ -1,21 +1,23 @@
 'use client';
 
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { CARD, FULL_CARD_LINES, POCKETS, WEIGHT_TOTAL, analyzeMachine } from './engine';
+import { CARD, FULL_CARD_LINES, POCKETS, WEIGHT_TOTAL } from './engine';
+import { PUBLISHED_ODDS } from './odds';
 import { getStrings } from './i18n';
 import styles from './BallBingo.module.css';
 
 /**
  * The machine's exact odds: its return, the chance of every count of lines,
  * every pocket's weight, and the rules the figures follow. Nothing here is
- * counted from games played: it is the dynamic programming of engine.ts. This
- * tab never touches the player's medals.
+ * counted from games played: it is the dynamic programming of engine.ts,
+ * written out in odds.ts (and checked against it), so that opening the page
+ * never works it out again. This tab never touches the player's medals.
  */
 export const OddsTab = () => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
-  const odds = analyzeMachine();
+  const odds = PUBLISHED_ODDS;
   const num = (v: number, digits = 0) => v.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   const pct = (v: number, digits = 3) => `${num(v * 100, digits)}%`;
   /** A small chance, with enough places to read: 0.00784% rather than 0.008%. */

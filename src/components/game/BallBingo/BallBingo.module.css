@@ -721,8 +721,8 @@
 }
 .secondaryRow {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.7fr) minmax(0, 1.45fr);
+  gap: 0.35rem;
 }
 .secondaryRow .btn {
   padding-left: 0.3rem;
@@ -999,6 +999,15 @@
   .betMedal {
     width: 44px;
     height: 44px;
+  }
+  .secondaryRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.6fr) minmax(0, 1.6fr);
+    gap: 0.25rem;
+  }
+  .secondaryRow .btn {
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+    font-size: 0.78rem;
   }
 }
 

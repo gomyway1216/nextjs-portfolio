@@ -41,21 +41,21 @@ describe('the machine, as the server sends it', () => {
   });
 
   it('draws the field from the numbers the flights are worked out against: every pin, cup and pocket, numbered', () => {
-    const markup = render(<Board marks={0} frees={0} chance={false} waiting={false} pulling={false} flight={null} flightKey={0} flash={null} label="field" />);
+    const markup = render(<Board marks={0} frees={0} chance={false} waiting={false} pulling={false} speed={1} flight={null} flightKey={0} flash={null} label="field" />);
     // Every pin and the gradient that colours them.
     expect(markup.match(/fill="url\(#bb-pin\)"/g)).toHaveLength(PINS.length);
     for (const cup of CUPS) expect(markup).toContain(`data-testid="bingo-cup-${POCKETS[cup.pocket].id}"`);
     for (const foot of FOOT_POCKETS) expect(markup).toContain(`data-testid="bingo-pocket-${POCKETS[foot.pocket].id}"`);
     expect(markup.match(/data-open="true"/g)).toHaveLength(3);
     // The same drawing every time: nothing in it depends on when or where it is drawn.
-    expect(render(<Board marks={0} frees={0} chance={false} waiting={false} pulling={false} flight={null} flightKey={0} flash={null} label="field" />)).toBe(markup);
+    expect(render(<Board marks={0} frees={0} chance={false} waiting={false} pulling={false} speed={1} flight={null} flightKey={0} flash={null} label="field" />)).toBe(markup);
   });
 
   it('stands a ball in each pocket that holds one, shuts the cups whose lamps are out, and lights the card’s numbers and lines', () => {
     let state = START;
     for (const n of [2, 7, 6, 5]) state = after(state, pocketOfNumber(n));
     state = after(state, POCKETS.findIndex((p) => p.id === 'chance'));
-    const board = render(<Board marks={state.marks} frees={state.frees} chance={state.chance} waiting pulling={false} flight={null} flightKey={0} flash={null} label="field" />);
+    const board = render(<Board marks={state.marks} frees={state.frees} chance={state.chance} waiting pulling={false} speed={1} flight={null} flightKey={0} flash={null} label="field" />);
     expect(board.match(/data-filled="true"/g)).toHaveLength(4);
     expect(board).toMatch(/data-testid="bingo-cup-chance"[^>]*/);
     expect(board).toMatch(/data-kind="chance" data-open="false"/);

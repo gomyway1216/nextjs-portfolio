@@ -22,7 +22,6 @@ import {
   PAY_TABLE,
   POCKETS,
   after,
-  analyzeMachine,
   drawGame,
   linesOf,
   reachOf,
@@ -32,7 +31,8 @@ import {
   type GameState,
 } from './engine';
 import { getStrings } from './i18n';
-import { browserStorage, createTable, randomName, tabName, winOf, type Round, type Table } from './medals';
+import { PUBLISHED_ODDS } from './odds';
+import { SPEED_KEY, browserStorage, createTable, randomName, tabName, winOf, type Round, type Table } from './medals';
 import styles from './BallBingo.module.css';
 
 /** How many digits each LED has: the medals up to 9,999,999 (as the medal center's counter), the bet, the balls, a win (1,500 at most). */
@@ -47,12 +47,45 @@ export const CARD_WAIT = 1.5;
  */
 export const AUTO_GAP_MS = 260;
 export const PULL_MS = 150;
+/**
+ * How fast the balls fly: as the field's physics has them, or twice as fast (the quick mode of a real machine). Only the
+ * showing is quicker: every ball's pocket was drawn at START. The choice is kept on this device.
+ */
+export const SPEEDS = [1, 2] as const;
+export type Speed = (typeof SPEEDS)[number];
+const readSpeed = (): Speed => {
+  try {
+    return window.localStorage.getItem(SPEED_KEY) === '2' ? 2 : 1;
+  } catch {
+    return 1;
+  }
+};
+const speedListeners = new Set<() => void>();
+/** The speed on this page: read from the device once, then as the switch sets it (kept here too, for storage that keeps nothing). */
+let speedHere: Speed | null = null;
+const speedNow = (): Speed => (speedHere ??= readSpeed());
+const subscribeSpeed = (listener: () => void): (() => void) => {
+  speedListeners.add(listener);
+  return () => {
+    speedListeners.delete(listener);
+  };
+};
+const setSpeedHere = (speed: Speed): void => {
+  speedHere = speed;
+  try {
+    window.localStorage.setItem(SPEED_KEY, String(speed));
+  } catch {
+    // Not kept: the machine plays at this speed until the page is left.
+  }
+  for (const listener of [...speedListeners]) listener();
+};
 export const CALM_DROP_MS = 260;
 /** How long the next ball's flight is worked on in each frame while a ball is in the air, in ms. */
 const PLAN_SLICE_MS = 3;
 const RECENT_LIMIT = 8;
 
-const ODDS = analyzeMachine();
+/** The exact odds, as published (odds.ts): written out once, never worked out again as the page opens. */
+const ODDS = PUBLISHED_ODDS;
 
 /** An LED display, drawn again only when its number changes (a game's meters change a few times a ball). */
 const Led = memo(function Led({ value, places, tone }: { value: number | string; places: number; tone?: 'red' | 'amber' }) {
@@ -222,6 +255,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const [flash, setFlash] = useState<{ pocket: number; key: number } | null>(null);
   const [fresh, setFresh] = useState<number | null>(null);
   const [auto, setAuto] = useState(false);
+  // The server draws every machine at its own pace; the browser at the speed kept on this device.
+  const speed = useSyncExternalStore(subscribeSpeed, speedNow, () => 1 as Speed);
   const [stats, setStats] = useState<Stats>(NO_STATS);
   const [recent, setRecent] = useState<Recent[]>([]);
   const [announcement, setAnnouncement] = useState('');
@@ -328,7 +363,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
       later(live.current.calm ? 120 : 220, finishGame);
       return;
     }
-    if (autoRef.current) later(AUTO_GAP_MS, () => launchRef.current());
+    if (autoRef.current) later(AUTO_GAP_MS / speedNow(), () => launchRef.current());
   }, [finishGame, later, play]);
 
   /** Works on the next ball's flight, a slice at a time, while the ball before it is in the air. */
@@ -360,7 +395,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     setPulling(true);
     play('lever');
     if (!next.current || next.current.round !== round.id || next.current.ball !== ball) prepare(round, ball);
-    later(PULL_MS, () => {
+    later(PULL_MS / speedNow(), () => {
       setPulling(false);
       // The game was put away while the plunger was drawn (SKIP and a reset clear this timer; this is for anything else).
       if (gameRef.current !== on) {
@@ -524,6 +559,10 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     setBet(value);
     play('button');
   };
+  const toggleSpeed = () => {
+    setSpeedHere(speedNow() === 2 ? 1 : 2);
+    play('button');
+  };
   const toggleAuto = () => {
     const on = !autoRef.current;
     autoRef.current = on;
@@ -541,7 +580,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const outOfMedals = ready && !inGame && medals.balance === 0;
   const short = ready && !inGame && medals.balance > 0 && medals.balance < bet;
 
-  // On a desktop: Space or Enter starts a game or shoots the next ball, S skips, A switches AUTO, 1 2 3 choose the bet.
+  // On a desktop: Space or Enter starts a game or shoots the next ball, S skips, A switches AUTO, F the speed, 1 2 3 choose the bet.
   useMachineKeys(active, (key) => {
     if (key === ' ' || key === 'Enter') {
       if (canLaunch) launch();
@@ -554,6 +593,10 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     }
     if (key === 'a') {
       toggleAuto();
+      return true;
+    }
+    if (key === 'f') {
+      toggleSpeed();
       return true;
     }
     const value = BET_OPTIONS.find((b) => String(b) === key);
@@ -640,6 +683,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
             chance={state?.chance ?? false}
             waiting={canLaunch || pulling}
             pulling={pulling}
+            speed={speed}
             flight={flight}
             flightKey={flightKey}
             onDrop={dropSound}
@@ -729,6 +773,9 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
             </button>
             <button type="button" className={styles.btn} data-testid="bingo-auto" aria-pressed={auto} data-on={auto} onClick={toggleAuto}>
               {auto ? t.autoOn : t.auto}
+            </button>
+            <button type="button" className={styles.btn} data-testid="bingo-speed" aria-pressed={speed === 2} aria-label={t.speedAria} data-on={speed === 2} onClick={toggleSpeed}>
+              {t.speed}
             </button>
             <SoundSwitch control={sound} language={language} className={styles.btn} testId="bingo-sound" />
           </div>

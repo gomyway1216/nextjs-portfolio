@@ -52,6 +52,9 @@ export interface BingoStrings {
   skip: string;
   auto: string;
   autoOn: string;
+  /** The quick mode's switch, and what it says to a screen reader. */
+  speed: string;
+  speedAria: string;
   betAria: (n: number) => string;
   keysHint: string;
   /** The result line under the meters. */
@@ -146,7 +149,7 @@ const EN: BingoStrings = {
     `The two FREE pockets give the ball back with one more (up to ${FREE_MOST} a game). The CHANCE pocket keeps its ball and starts CHANCE TIME: ${CHANCE_BALLS} more balls.`,
     'When the balls run out (or every number is marked) the card is paid: 1 line 2 medals a medal bet, up to 500 for the full card. REACH lights when a line wants one more number.',
     `Every ball’s pocket is drawn from published chances when you press START, and the ball is then shot and bounced to it. In the long run the machine gives back ${rtp} of the medals bet, on any bet: worked out exactly on the Odds tab.`,
-    'SKIP drops the rest of a game’s balls at once; AUTO shoots them for you. You play with your medals from the Medal Game Center, the same medals as every machine there.',
+    'SKIP drops the rest of a game’s balls at once; AUTO shoots them for you; 2× makes them fly twice as fast. You play with your medals from the Medal Game Center, the same medals as every machine there.',
     NOT_MONEY.en,
   ],
   tabMachine: 'Machine',
@@ -178,8 +181,10 @@ const EN: BingoStrings = {
   skip: 'SKIP',
   auto: 'AUTO',
   autoOn: 'AUTO on',
+  speed: '2×',
+  speedAria: '2× speed: the balls fly twice as fast',
   betAria: (n) => `Bet ${n} medal${n === 1 ? '' : 's'} a game`,
-  keysHint: 'Keys: Space or Enter starts and launches · S skips · A auto · 1 2 3 choose the bet',
+  keysHint: 'Keys: Space or Enter starts and launches · S skips · A auto · F 2× speed · 1 2 3 choose the bet',
   ready: 'Choose a bet and press START.',
   inPlay: (left) => `${left} ball${left === 1 ? '' : 's'} to go.`,
   resultWin: (lines, medals) => `BINGO! ${lines === 1 ? '1 line' : `${lines} lines`}: ${medals} medals.`,
@@ -264,6 +269,7 @@ const EN: BingoStrings = {
     'The pocket of every ball of a game is drawn when START is pressed, from the chances above, and nothing after that changes it.',
     'The ball is then shot up the lane at a strength the machine picks, runs round the arch until it is too slow to hold to it, and falls under gravity through the pins, bouncing off each one: a physics model of the field, worked out without being drawn. The machine tries strengths until a ball comes down in the pocket drawn, and shows that flight. Nothing about the flight is invented except the strength of the shot.',
     'The field was set so that a ball shot at any strength lands about as often in each kind of pocket as the chances say: the flights you see are the field’s own.',
+    '2× shows the same flights at twice the pace. The pockets were drawn at START, so it changes nothing about the odds.',
   ],
   sourcesTitle: 'What it follows',
   sources: [
@@ -285,7 +291,7 @@ const JA: BingoStrings = {
     `FREEポケットはボールを返し、もう1球くれます（1ゲーム${FREE_MOST}回まで）。CHANCEポケットはボールを残してチャンスタイムになり、ボールが${CHANCE_BALLS}球増えます。`,
     'ボールがなくなる（またはすべての数字が開く）とカードの払い出しです。1ラインはベット1枚につき2枚、全部そろうと500枚。あと1つでラインになる数字があるとREACHが光ります。',
     `各ボールが入るポケットは、STARTを押したときに公開した確率で決まり、ボールはそのポケットまで打ち出され、跳ねて落ちます。長い目で見ると、どのベットでもメダルの${rtp}が戻ります。正確な計算は「確率」タブにあります。`,
-    'SKIPでそのゲームの残りのボールをまとめて落とし、AUTOで自動で打ち出します。遊ぶメダルはメダルゲームセンターの持ちメダルで、センターのどのマシンでも同じです。',
+    'SKIPでそのゲームの残りのボールをまとめて落とし、AUTOで自動で打ち出し、2×でボールが2倍の速さで飛びます。遊ぶメダルはメダルゲームセンターの持ちメダルで、センターのどのマシンでも同じです。',
     NOT_MONEY.ja,
   ],
   tabMachine: 'マシン',
@@ -316,8 +322,10 @@ const JA: BingoStrings = {
   skip: 'SKIP',
   auto: 'AUTO',
   autoOn: 'AUTO中',
+  speed: '2×',
+  speedAria: '2× 高速：ボールが2倍の速さで飛びます',
   betAria: (n) => `1ゲーム${n}枚ベット`,
-  keysHint: 'キー：Space か Enter でスタートと打ち出し・S でスキップ・A でオート・1 2 3 でベット',
+  keysHint: 'キー：Space か Enter でスタートと打ち出し・S でスキップ・A でオート・F で2倍速・1 2 3 でベット',
   ready: 'ベットを選んでSTARTを押してください。',
   inPlay: (left) => `残り${left}球。`,
   resultWin: (lines, medals) => `ビンゴ！ ${lines}ラインで${medals}枚。`,
@@ -402,6 +410,7 @@ const JA: BingoStrings = {
     'そのゲームのすべてのボールが入るポケットは、STARTを押したときに上の確率で決まり、その後は何も変わりません。',
     'ボールはマシンが選んだ強さでレーンを打ち上げられ、遅くなってアーチから離れるところまで回り、重力で釘の間を跳ねながら落ちます。盤面の物理モデルを、描かずに最後まで計算したものです。マシンは決まったポケットに入るまで打つ強さを変えて試し、その飛び方を見せます。作っているのは打つ強さだけで、飛び方はすべて物理です。',
     'どの強さで打っても、それぞれの種類のポケットにだいたい確率どおりに入るように盤面を調整しています。見えるボールの動きは盤面そのものの動きです。',
+    '2×は同じ飛び方を2倍の速さで見せます。ポケットはSTARTのときに決まっているので、確率は何も変わりません。',
   ],
   sourcesTitle: '参考にした実機',
   sources: [

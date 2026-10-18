@@ -67,15 +67,16 @@ export const FIELD = {
    * medals in five that left the field left it by the front, which is far more
    * than a real machine's field returns: there the shop sets the share with
    * the width of the side holes, and about half to six in ten is usual. At
-   * this reach, a fifth of the edge's length at each side, the best aim gets
-   * about 58 in 100 back from the field, and the rest of what the machine
-   * returns is the screen's games (lottery.ts).
+   * this reach, a little under a fifth of the edge's length at each side, the
+   * best aim gets about 58 in 100 back from the field, and the rest of what
+   * the machine returns is the screen's games (lottery.ts). It reached a
+   * fifth while the medals had no friction: a frictionless pile packed itself
+   * into lanes when it was fed slowly and gave more back then (`FRICTION`).
    * It was set here and not by opening the sides further back, because a
-   * longer open side takes much less from a field that is fed fast than from
-   * one fed slowly, and a hole at the corner takes the same from both:
+   * hole at the corner takes the same share however the field is fed:
    * scripts/medal-pusher-tune.ts measures the share for every way of playing.
    */
-  sideReach: 15.6,
+  sideReach: 14,
 } as const;
 
 /** The middle of the field, across: where the START holes are, the ball hatch, the towers' tubes either side. */
@@ -180,7 +181,7 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
  * aiming still tells. By the time a medal has been pushed the length of the
  * pusher the pile has spread it to either side, so holes spaced evenly across
  * the plate would take much the same share whatever column is fed. With the
- * three in the middle, about one medal in five ends up through one when the
+ * three in the middle, about one medal in four ends up through one when the
  * middle is fed, fewer when medals are fed anywhere at all, and few when they
  * are fed at the edges. The towers the arms set down stand between them
  * (`TUBE.site` in stacker.ts).
@@ -399,6 +400,54 @@ const R = MEDAL_RADIUS;
 const DIAMETER = R * 2;
 /** Relaxation passes per step: enough for a pusher that moves a fraction of a unit per step. */
 const ITERATIONS = 6;
+
+/**
+ * Friction: what a medal pressed against something does not slide along it
+ * by. Two medals that press on each other hold on to each other (`medals`),
+ * and a medal on the lower table pressed against a side wall or the
+ * pusher's face holds on to that (`walls`). Whatever the two have slid past
+ * each other since the step began is taken back: all of it while that is less
+ * than `stick` times how far they were pressing into each other, and `slide`
+ * times that when it is more, so a pair pressed hard enough still slides,
+ * less far. It is the friction of position-based dynamics (Macklin, Müller,
+ * Chentanez and Kim, "Unified Particle Physics for Real-Time Applications",
+ * 2014). Between medals it is worked out for every touching pair at once from
+ * where the pass of pushing apart left them, and each medal moves by the
+ * average of what its pairs ask of it, `relax` times over (they give one to
+ * two), so the order the pairs are visited in has no say in it.
+ *
+ * The numbers are a real medal's, from Engineering ToolBox's table of
+ * friction coefficients, clean and dry. Medal on a wall or the face is brass
+ * on steel: 0.51 to start it sliding and 0.44 once it slides. Medal on medal
+ * is metal on the same metal, which holds harder: nickel on nickel takes 0.7
+ * to 1.1 and 0.53 when clean, and a medal that has been through many hands
+ * is not clean, so it is taken between the two. Within that range the
+ * number only tilts the field's share a little: at brass on steel the field
+ * gave back about a point less fed five a second than fed slowly, at clean
+ * nickel on nickel about a point more, and between them the same at any
+ * pace. Any of them ends the crystal below.
+ *
+ * Without it the medals were frictionless discs, and a pile of identical
+ * frictionless discs pushed back and forth packs itself into a crystal, as
+ * sheared piles of identical grains do (Panaitescu, Reddy and Kudrolli, Phys.
+ * Rev. Lett. 108, 108001, 2012). Which crystal depended on how fast the
+ * machine was fed. Fed slowly, the lower table's medals stood in lanes along
+ * the push, which slid straight ahead and lost few medals off the open sides;
+ * fed two to four a second, they stood in rows across the table, and a row
+ * pushed from behind wedges its end medal sideways the moment the wall beside
+ * it stops. So the field gave back 59% of what left it at a medal every two
+ * seconds and 54% at three a second, which no real table does. A real pile has
+ * friction and lies jumbled at any pace; so does this one now, and the field
+ * gives back the same share of what leaves it however fast it is fed
+ * (scripts/medal-pusher-tune.ts has the table).
+ */
+export const FRICTION = { medals: { stick: 0.6, slide: 0.47 }, walls: { stick: 0.5, slide: 0.4 }, relax: 2 } as const;
+
+/** How much of a slip `slid` along something pressed into by `depth` friction (`by` one of FRICTION's pairs) takes back: all of it, or as much as it can. */
+function heldBack(slid: number, depth: number, by: { stick: number; slide: number }): number {
+  if (Math.abs(slid) <= by.stick * depth) return slid;
+  return Math.sign(slid) * by.slide * depth;
+}
 /**
  * Longer steps are cut into pieces no longer than this, so the pusher never
  * moves far at once. Whoever has something to settle between the pieces cuts
@@ -588,6 +637,22 @@ let cells = new Int32Array(512);
 /** Where each medal was before a step's pushing apart, to tell how far it has been moved. */
 let startX = new Float64Array(512);
 let startY = new Float64Array(512);
+/** Where each medal was before the pusher's face or the back wall moved it in this step: what has slid along what since is reckoned from here (`FRICTION`). */
+let fromX = new Float64Array(512);
+let fromY = new Float64Array(512);
+/** What the pairs' friction moves each medal by in a pass, summed, and how many pairs ask it to move. */
+let rubX = new Float64Array(512);
+let rubY = new Float64Array(512);
+let rubs = new Int32Array(512);
+/**
+ * The pairs pushed apart in this pass, five numbers each: the two medals,
+ * the line from the first to the second, and how far they pressed into each
+ * other. Only noted while the machine runs (`rubbing`): a pile being laid
+ * down when a machine is switched on is settled without friction.
+ */
+let contact = new Float64Array(5 * 2048);
+let contacts = 0;
+let rubbing = false;
 /** How many towers and balls stand on each table: they block the upper tier as well as the lower. */
 const tall = [0, 0];
 /** The towers an arm is pushing out, by id, in the step being worked out: nothing pushes one of them, and no wall stops one. */
@@ -599,14 +664,32 @@ const isPrize = (medal: Pick<Medal, 'ball' | 'jewel'>): boolean => medal.ball ||
 /** Whether something stands taller than a medal lying flat: a tower, a ball, or a jewel. */
 const isTall = (medal: Medal): boolean => isPrize(medal) || medal.stack > 1;
 
+/** Makes the lists kept for each medal long enough for `count` medals. */
+function roomFor(count: number): void {
+  if (links.length >= count) return;
+  links = new Int32Array(count * 2);
+  cells = new Int32Array(count * 2);
+  startX = new Float64Array(count * 2);
+  startY = new Float64Array(count * 2);
+  fromX = new Float64Array(count * 2);
+  fromY = new Float64Array(count * 2);
+  rubX = new Float64Array(count * 2);
+  rubY = new Float64Array(count * 2);
+  rubs = new Int32Array(count * 2);
+}
+
+/** Notes where every medal is before anything moves it in this step, for its friction to go by. */
+function noteWhereFrom(medals: Medal[]): void {
+  roomFor(medals.length);
+  for (let i = 0; i < medals.length; i++) {
+    fromX[i] = medals[i].x;
+    fromY[i] = medals[i].y;
+  }
+}
+
 function buildGrid(medals: Medal[]): void {
   const count = medals.length;
-  if (links.length < count) {
-    links = new Int32Array(count * 2);
-    cells = new Int32Array(count * 2);
-    startX = new Float64Array(count * 2);
-    startY = new Float64Array(count * 2);
-  }
+  roomFor(count);
   heads.fill(-1);
   tall[0] = tall[1] = 0;
   for (let i = 0; i < count; i++) {
@@ -628,11 +711,14 @@ const AHEAD = [1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * LI
 /** A medal's own cell and the eight round it. */
 const AROUND = [-COLUMNS - 1, -COLUMNS, -COLUMNS + 1, -1, 0, 1, COLUMNS - 1, COLUMNS, COLUMNS + 1].map((offset) => offset * LISTS);
 
+/** How hard a medal is to move: a tower on an arm not at all, a tower three times a medal, a medal or a prize once. */
+const weightOf = (medal: Medal): number => (held.size > 0 && held.has(medal.id) ? STACK.hold : medal.stack > 1 ? TOWER.weight : 1);
+
 /**
  * Pushes two touching medals apart: half the overlap each, or less for a tower and more for what leans on it.
- * A tower on an arm is not moved at all.
+ * A tower on an arm is not moved at all. While the machine runs, the pair is noted for its friction (`rub`).
  */
-function part(a: Medal, b: Medal): void {
+function part(a: Medal, b: Medal, i: number, j: number): void {
   let dx = b.x - a.x;
   let dy = b.y - a.y;
   const squared = dx * dx + dy * dy;
@@ -646,15 +732,26 @@ function part(a: Medal, b: Medal): void {
     dy = Math.sin(angle);
     distance = 1;
   }
-  const heldA = held.size > 0 && held.has(a.id);
-  const heldB = held.size > 0 && held.has(b.id);
-  const weightA = heldA ? STACK.hold : a.stack > 1 ? TOWER.weight : 1;
-  const weightB = heldB ? STACK.hold : b.stack > 1 ? TOWER.weight : 1;
-  const push = (reach - distance) / distance / (weightA + weightB);
+  const weightA = weightOf(a);
+  const weightB = weightOf(b);
+  const depth = reach - distance;
+  const push = depth / distance / (weightA + weightB);
   a.x -= dx * push * weightB;
   a.y -= dy * push * weightB;
   b.x += dx * push * weightA;
   b.y += dy * push * weightA;
+  if (!rubbing) return;
+  if (contact.length < (contacts + 1) * 5) {
+    const longer = new Float64Array(contact.length * 2);
+    longer.set(contact);
+    contact = longer;
+  }
+  const at = contacts++ * 5;
+  contact[at] = i;
+  contact[at + 1] = j;
+  contact[at + 2] = dx / distance;
+  contact[at + 3] = dy / distance;
+  contact[at + 4] = depth;
 }
 
 /**
@@ -664,20 +761,67 @@ function part(a: Medal, b: Medal): void {
  */
 function separate(medals: Medal[]): void {
   const count = medals.length;
+  contacts = 0;
   for (let i = 0; i < count; i++) {
     const a = medals[i];
     const cell = cells[i];
     // The rest of its own cell, then the cells ahead.
-    for (let j = links[i]; j !== -1; j = links[j]) part(a, medals[j]);
+    for (let j = links[i]; j !== -1; j = links[j]) part(a, medals[j], i, j);
     for (let n = 0; n < 4; n++) {
-      for (let j = heads[cell + AHEAD[n]]; j !== -1; j = links[j]) part(a, medals[j]);
+      for (let j = heads[cell + AHEAD[n]]; j !== -1; j = links[j]) part(a, medals[j], i, j);
     }
     if (a.tier === 1 && tall[a.level] > 0) {
       const below = cell - 1;
       for (let n = 0; n < 9; n++) {
-        for (let j = heads[below + AROUND[n]]; j !== -1; j = links[j]) if (isTall(medals[j])) part(a, medals[j]);
+        for (let j = heads[below + AROUND[n]]; j !== -1; j = links[j]) if (isTall(medals[j])) part(a, medals[j], i, j);
       }
     }
+  }
+}
+
+/**
+ * The friction between the pairs the pass just pushed apart (`FRICTION`).
+ * For each pair, what the two have slid past each other since the step
+ * began, square to the line between them, is what friction takes back,
+ * shared between them as their pushing apart was. Every pair is reckoned from
+ * where the pass left the medals, and each medal then moves by the average of
+ * what its pairs ask, `relax` times over.
+ */
+function rub(medals: Medal[]): void {
+  const count = medals.length;
+  rubX.fill(0, 0, count);
+  rubY.fill(0, 0, count);
+  rubs.fill(0, 0, count);
+  for (let at = 0; at < contacts * 5; at += 5) {
+    const i = contact[at];
+    const j = contact[at + 1];
+    const nx = contact[at + 2];
+    const ny = contact[at + 3];
+    const a = medals[i];
+    const b = medals[j];
+    const rx = a.x - fromX[i] - (b.x - fromX[j]);
+    const ry = a.y - fromY[i] - (b.y - fromY[j]);
+    const along = rx * nx + ry * ny;
+    const tx = rx - along * nx;
+    const ty = ry - along * ny;
+    const slid = Math.sqrt(tx * tx + ty * ty);
+    if (slid < 1e-9) continue;
+    const share = heldBack(slid, contact[at + 4], FRICTION.medals) / slid;
+    const weightA = weightOf(a);
+    const weightB = weightOf(b);
+    const toA = (share * weightB) / (weightA + weightB);
+    const toB = (share * weightA) / (weightA + weightB);
+    rubX[i] -= tx * toA;
+    rubY[i] -= ty * toA;
+    rubX[j] += tx * toB;
+    rubY[j] += ty * toB;
+    rubs[i]++;
+    rubs[j]++;
+  }
+  for (let i = 0; i < count; i++) {
+    if (rubs[i] === 0) continue;
+    medals[i].x += (FRICTION.relax * rubX[i]) / rubs[i];
+    medals[i].y += (FRICTION.relax * rubY[i]) / rubs[i];
   }
 }
 
@@ -745,8 +889,10 @@ const SETTLED = 0.004;
  * side by side — a packed but irregular pile, the way a played machine looks.
  */
 function fillTable(machine: Machine, count: number, level: Level, tier: Tier, yFrom: number, yTo: number): void {
-  // No arm holds anything on a machine that is only now being filled, whatever machine was run last.
+  // No arm holds anything on a machine that is only now being filled, whatever machine was run last, and a pile being
+  // laid down settles without friction.
   held.clear();
+  rubbing = false;
   const medals: Medal[] = [];
   for (let i = 0; i < count; i++) {
     const x = R + machine.rng() * (FIELD.width - DIAMETER);
@@ -1102,23 +1248,40 @@ export function clearPlate(machine: Pick<Machine, 'time' | 'medals'>): void {
   for (const medal of machine.medals) if (medal.level === 0 && isPrize(medal) && clearOfPlate(medal, front)) medal.grown = SETTLE.from;
 }
 
-/** Keeps every medal clear of the walls, the pusher's front face and, for a prize, the START plate on it; but a tower on an arm, which is where its arm has it. */
+/**
+ * Keeps every medal clear of the walls, the pusher's front face and, for a prize, the START plate on it; but a tower
+ * on an arm, which is where its arm has it. While the machine runs, a medal on the lower table that the face or a
+ * side wall stops rubs on it (`FRICTION`): what it has slid along the face or the wall since the step began is held
+ * back.
+ */
 function constrain(medals: Medal[], front: number): void {
-  for (const medal of medals) {
+  for (let i = 0; i < medals.length; i++) {
+    const medal = medals[i];
     if (held.size > 0 && held.has(medal.id)) continue;
     if (medal.level === 1) {
       if (medal.y < R) medal.y = R;
       if (medal.x < R) medal.x = R;
       else if (medal.x > FIELD.width - R) medal.x = FIELD.width - R;
     } else {
-      if (medal.y < front + R) medal.y = front + R;
-      // The plate's foot is as solid as the pusher's face for a ball or a jewel, which is too tall to pass under it.
-      if (isPrize(medal)) clearOfPlate(medal, front);
       // The open sides are a slot a medal high: a ball does not fit through, and neither does a jewel.
       if (isPrize(medal) || medal.y < FIELD.sideOpenFrom) {
-        if (medal.x < R) medal.x = R;
-        else if (medal.x > FIELD.width - R) medal.x = FIELD.width - R;
+        const depth = medal.x < R ? R - medal.x : medal.x > FIELD.width - R ? medal.x - (FIELD.width - R) : 0;
+        if (depth > 0) {
+          medal.x = medal.x < R ? R : FIELD.width - R;
+          // The walls stand still: anything a medal against one has moved along the table is a slide along it.
+          if (rubbing) medal.y -= heldBack(medal.y - fromY[i], depth, FRICTION.walls);
+        }
       }
+      // The face comes after the walls, so that what a wall holds back is never left inside the pusher.
+      if (medal.y < front + R) {
+        const depth = front + R - medal.y;
+        medal.y = front + R;
+        // The face moves straight out and back: anything a medal against it has moved across is a slide along it,
+        // and holding it back takes it no further than where it was, which was inside the walls.
+        if (rubbing) medal.x -= heldBack(medal.x - fromX[i], depth, FRICTION.walls);
+      }
+      // The plate's foot is as solid as the pusher's face for a ball or a jewel, which is too tall to pass under it.
+      if (isPrize(medal)) clearOfPlate(medal, front);
     }
   }
 }
@@ -1212,12 +1375,18 @@ function advance(machine: Machine, dt: number, events: StepEvents, halfWidth: nu
   }
   // A tower on an arm is where its arm has it, and nothing that leans on it moves it.
   holdTowers(machine, front, held);
+  // From here on what is pushed rubs on what it is pushed against: the face, a wall, another medal.
+  noteWhereFrom(machine.medals);
+  rubbing = true;
   constrain(machine.medals, front);
   buildGrid(machine.medals);
   for (let i = 0; i < ITERATIONS; i++) {
     separate(machine.medals);
+    rub(machine.medals);
     constrain(machine.medals, front);
   }
+  rubbing = false;
+  contacts = 0;
   settleUpperTier(machine.medals);
   constrain(machine.medals, front);
 

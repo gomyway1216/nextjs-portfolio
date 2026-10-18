@@ -10,6 +10,7 @@ import {
   DROP_INTERVAL,
   FALL_TIME,
   FIELD,
+  FRICTION,
   GAP,
   INITIAL,
   JEWEL_DROP,
@@ -19,6 +20,7 @@ import {
   MEDAL_RADIUS,
   MEDAL_SLIDE,
   MEDAL_THICKNESS,
+  MIDDLE,
   PLATE,
   PUSHER,
   RELEASE,
@@ -1168,6 +1170,80 @@ describe('medals two deep', () => {
   }, LONG);
 });
 
+describe('friction', () => {
+  const R = MEDAL_RADIUS;
+  /** Runs `body` with no friction between medals, or none against the walls and the face, or neither, and puts it back. */
+  function without<T>(what: { medals?: boolean; walls?: boolean }, body: () => T): T {
+    const friction = FRICTION as { medals: { stick: number; slide: number }; walls: { stick: number; slide: number } };
+    const kept = { medals: { ...friction.medals }, walls: { ...friction.walls } };
+    if (what.medals) Object.assign(friction.medals, { stick: 0, slide: 0 });
+    if (what.walls) Object.assign(friction.walls, { stick: 0, slide: 0 });
+    try {
+      return body();
+    } finally {
+      Object.assign(friction.medals, kept.medals);
+      Object.assign(friction.walls, kept.walls);
+    }
+  }
+
+  /**
+   * The pusher's face shoves a medal lying against it into another lying in front of it, the line between their
+   * middles `degrees` off the way the face moves, for 0.6 s (four units of its stroke): how far each moves.
+   */
+  const shove = (degrees: number) => {
+    const machine = machineWith([]);
+    const pushed = medalAt(MIDDLE, pusherFront(machine.time) + R + 0.01);
+    const angle = (degrees * Math.PI) / 180;
+    const ahead = medalAt(pushed.x + 2 * R * Math.sin(angle), pushed.y + 2 * R * Math.cos(angle) + 0.01);
+    machine.medals = [pushed, ahead];
+    const from = { pushed: pushed.x, x: ahead.x, y: ahead.y };
+    step(machine, 0.6);
+    return { pushed: pushed.x - from.pushed, across: ahead.x - from.x, along: ahead.y - from.y };
+  };
+
+  it('pushes two medals pressed together forward together, where without it the face squeezed them apart sideways', () => {
+    for (const degrees of [20, 30, 40]) {
+      const rubbing = shove(degrees);
+      // They move as one: the one in front goes the face's four units straight ahead, and the one against the face
+      // does not slide along it.
+      expect(rubbing.along).toBeGreaterThan(3.5);
+      expect(Math.abs(rubbing.across)).toBeLessThan(0.2);
+      expect(Math.abs(rubbing.pushed)).toBeLessThan(0.2);
+      // Without friction the one in front is squirted out to the side by most of a unit, and the other slides the
+      // other way along the face.
+      const slick = without({ medals: true, walls: true }, () => shove(degrees));
+      expect(slick.across).toBeGreaterThan(0.8);
+      expect(slick.pushed).toBeLessThan(-0.8);
+      expect(slick.along).toBeLessThan(rubbing.along / 2);
+    }
+  });
+
+  it('lets them slide past each other when the push is too slanted for it to hold', () => {
+    const steep = shove(60);
+    expect(steep.across).toBeGreaterThan(0.4);
+    expect(steep.along).toBeLessThan(2);
+  });
+
+  it('holds back a medal pressed against a side wall as it is pushed along it', () => {
+    /** A medal pushed by the face into one lying against the left wall, at 45 degrees: how far the one at the wall goes along it. */
+    const alongTheWall = () => {
+      const machine = machineWith([]);
+      const pushed = medalAt(R + 2 * R * Math.SQRT1_2, pusherFront(machine.time) + R + 0.01);
+      const atWall = medalAt(R, pushed.y + 2 * R * Math.SQRT1_2 - 0.02);
+      machine.medals = [pushed, atWall];
+      const from = atWall.y;
+      step(machine, 0.6);
+      expect(atWall.x).toBe(R);
+      return atWall.y - from;
+    };
+    // With the medals slick, so that only the wall holds it.
+    const rubbing = without({ medals: true }, alongTheWall);
+    const slick = without({ medals: true, walls: true }, alongTheWall);
+    expect(slick).toBeGreaterThan(0.6);
+    expect(rubbing).toBeLessThan(slick * 0.7);
+  });
+});
+
 describe('medal towers', () => {
   it('splits a prize into as few towers as will hold it, as even as they can be', () => {
     expect(TOWER.max).toBe(64);
@@ -1443,10 +1519,11 @@ describe('the side holes round the front corners', () => {
     return events;
   };
 
-  it('reach a fifth of the way along the front edge from each side, so the edge is over the tray for its middle three fifths', () => {
-    expect(FIELD.sideReach).toBe(15.6);
-    expect(FIELD.sideReach / FIELD.width).toBeCloseTo(0.2, 9);
-    expect(FIELD.width - 2 * FIELD.sideReach).toBeCloseTo(46.8, 9);
+  it('reach a little under a fifth of the way along the front edge from each side, so the edge is over the tray for nearly two thirds of it', () => {
+    expect(FIELD.sideReach).toBe(14);
+    expect(FIELD.sideReach / FIELD.width).toBeGreaterThan(0.17);
+    expect(FIELD.sideReach / FIELD.width).toBeLessThan(0.2);
+    expect(FIELD.width - 2 * FIELD.sideReach).toBeCloseTo(50, 9);
     // The holes are the ones that run down the open sides, turned round the corners: they take less of the front than they leave.
     expect(FIELD.sideReach).toBeGreaterThan(MEDAL_RADIUS * 2);
     expect(FIELD.sideReach * 2).toBeLessThan(FIELD.width / 2);

@@ -12,9 +12,9 @@ export const TIERS = ['miss', 'small', 'big', 'seven'] as const;
 export type Tier = (typeof TIERS)[number];
 
 /**
- * Chances out of 25,000 spins: a sugoroku line about once in 10.5, a
- * treasure line about once in 52, three sevens about once in 88. About one
- * spin in eight wins something.
+ * Chances out of 25,000 spins: a sugoroku line about once in 12, a
+ * treasure line about once in 60, three sevens about once in 100. About one
+ * spin in nine wins something.
  *
  * They were 1,240, 465 and 217 while the machine was tuned to give back
  * nearly all it took: a line came once in thirteen spins, and a spin was
@@ -24,14 +24,17 @@ export type Tier = (typeof TIERS)[number];
  * chests and the jackpot below). They were 3,125, 625 and 375, a spin worth
  * 3.19 medals, while about one medal in eight fed down the middle found a
  * START pocket; through the holes in the START plate about one in five does,
- * so a spin is worth less for the same return: 2.44 medals.
+ * so a spin was worth less for the same return: 2.44 medals. They were 2,390,
+ * 480 and 285 then. Since the medals have had friction, a pile carries more
+ * of them straight to the holes, about one in four fed down the middle, so a
+ * spin is worth less again: 2.13 medals.
  * How often the lines come is one of the numbers the machine's return is
  * tuned with. The others are how far the side holes reach round the front
  * corners (`FIELD.sideReach` in engine.ts), which is what the field gives
  * back, and how wide the pockets' wings open (`CHECKERS.wingWidth`):
  * scripts/medal-pusher-tune.ts measures them all.
  */
-export const SPIN_TABLE: Record<Tier, number> = { miss: 21845, small: 2390, big: 480, seven: 285 };
+export const SPIN_TABLE: Record<Tier, number> = { miss: 22240, small: 2091, big: 420, seven: 249 };
 export const SPIN_TOTAL = 25000;
 
 /** What a line leads to: a roll on the sugoroku board, a choice of chests, or a prize ball on the field. */

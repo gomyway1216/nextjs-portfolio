@@ -60,7 +60,9 @@ export const MAX_STOCK = 10;
  * ball it gives back about 79, 101 and 87, which is 89 of each hundred: a
  * little under the long run's share, and no head start. It had two balls
  * once, and two jewels, and that was one: about 99 of each hundred at
- * today's odds. `scripts/medal-pusher-tune.ts --first` measures all three.
+ * the odds of then. Those figures were measured before the medals had
+ * friction (`FRICTION` in engine.ts) and the lines were re-tuned for it;
+ * `scripts/medal-pusher-tune.ts --first` measures all three again.
  */
 export const START_BALLS = 1;
 /** Jewels lying on the field when a machine is switched on: one, near the front. It is worth a medal or so, and it is the first thing a new player sees collected. */

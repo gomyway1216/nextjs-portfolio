@@ -1830,9 +1830,10 @@ describe('the lucky lamp and the wings', () => {
     expect(riders(play(session, DT))).toEqual([]);
   });
 
-  it('starts a spin for about one medal in eight fed down the middle at two a second, and a third of them gold', () => {
+  it('starts a spin for about one medal in five or six fed down the middle at two a second, and a third of them gold', () => {
     // Three new machines, two hundred medals each, the two rails by turns. Over many more machines and medals the
-    // rate is about 12 in 100 (scripts/medal-pusher-tune.ts); a machine that is new starts a little under that.
+    // rate is about 18 in 100 (scripts/medal-pusher-tune.ts). It was about 12 while the START pockets were slots in
+    // the lip, and under 18 while the medals had no friction: a pile with friction carries more of them straight on.
     const fed = { medals: 0, started: 0, gold: 0, wasted: 0 };
     for (const seed of [10, 11, 12]) {
       const session = createSession(seed, { balls: 0, quickPick: true });
@@ -1853,8 +1854,8 @@ describe('the lucky lamp and the wings', () => {
       fed.wasted += session.wasted;
     }
     expect(fed.medals).toBe(600);
-    expect(fed.started / fed.medals).toBeGreaterThan(0.09);
-    expect(fed.started / fed.medals).toBeLessThan(0.15);
+    expect(fed.started / fed.medals).toBeGreaterThan(0.14);
+    expect(fed.started / fed.medals).toBeLessThan(0.24);
     // The lamp is on one slot in three, and the middle slot takes more than the two beside it.
     expect(fed.gold / fed.started).toBeGreaterThan(0.2);
     expect(fed.gold / fed.started).toBeLessThan(0.5);

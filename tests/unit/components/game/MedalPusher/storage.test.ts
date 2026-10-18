@@ -740,8 +740,12 @@ const jewelInAir = (save: Save): Row =>
   });
 /** Marks `count` more of the loose medals on the tables as jewels. */
 const moreJewels = (save: Save, count: number): void => {
-  // Only where a jewel can be: on the lower table, on the table itself, and not on its way down from the pusher's lip.
-  const plainOnes = save.machine.medals.filter((medal) => medal.ball === false && medal.stack === 1 && medal.tier === 0 && medal.level === 0 && medal.sinceDrop === -1 && medal.jewel !== true);
+  // Only where a jewel can be: on the lower table, on the table itself, not on its way down from the pusher's lip, and
+  // not where the START plate's foot would push it, which flat medals pass under.
+  const front = pusherFront(save.machine.time as number);
+  const plainOnes = save.machine.medals.filter(
+    (medal) => medal.ball === false && medal.stack === 1 && medal.tier === 0 && medal.level === 0 && medal.sinceDrop === -1 && medal.jewel !== true && !underPlate({ y: medal.y as number, ball: false, jewel: true }, front),
+  );
   if (plainOnes.length < count) throw new Error('the good save has too few medals for that');
   for (const medal of plainOnes.slice(0, count)) medal.jewel = true;
 };
@@ -3646,9 +3650,9 @@ describe('a save written when the arms were short and a fed medal went straight 
     expect(back.machine.time).toBeCloseTo(then.time, 9);
     // As many come down as came down then, those that left the rails and those that were in the air, but for the ten
     // of a tower (below), which came down one by one onto its lift then. What they do there is the new heap's
-    // business: it is not the field that game had.
+    // business: it is not the field that game had, and a medal of it may be on its way down the START plate.
     expect(total(events, 'landed')).toBeGreaterThanOrEqual(then.landed - 10);
-    expect([back.machine.rolling.length, back.machine.falling.length]).toEqual([then.rolling, then.falling]);
+    expect([back.machine.rolling.length, back.machine.falling.filter((medal) => medal.source !== 'slide').length]).toEqual([then.rolling, then.falling]);
     expect(then.resting).toHaveLength(5);
     for (const rest of then.resting) expect(back.machine.medals.find((m) => m.id === rest.id)?.level).toBe(1);
     // A roulette's number of ten is paid in these four seconds. That game raised it as a tower on a lift; now it is

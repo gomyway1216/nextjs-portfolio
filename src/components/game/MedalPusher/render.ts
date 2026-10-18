@@ -109,7 +109,7 @@ export const TABLE_WORDS = {
   getAt: 93.5,
   out: [
     [7.5, 84],
-    [10, 94.5],
+    [8.5, 94.5],
   ],
   washFrom: 89,
 } as const;

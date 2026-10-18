@@ -62,12 +62,12 @@ describe('the side holes at the front corners, as the cabinet has them', () => {
     expect((TRAY.to - TRAY.from - 2.6) / TRAY_BULBS).toBeCloseTo(96 / 30, 0);
   });
 
-  it('is a mouth that reads on a phone: as wide as three medals and as tall as the picture has room for', () => {
+  it('is a mouth that reads on a phone: as wide as two and a half medals and as tall as the picture has room for', () => {
     const PHONE = 345 / VIEW.width;
     const medal = (project(2 * R, 0, D).x - project(0, 0, D).x) * PHONE;
     const wide = (project(SIDE_HOLE.reach - SIDE_HOLE.cheek, 0, D).x - project(0, 0, D).x) * PHONE;
-    expect(wide).toBeGreaterThan(2.8 * medal);
-    expect(wide).toBeGreaterThan(45);
+    expect(wide).toBeGreaterThan(2.5 * medal);
+    expect(wide).toBeGreaterThan(40);
     // From the red edge down to the foot of the picture, which is where the cabinet's glass ends.
     const tall = (VIEW.height - project(0, 0, D).y) * PHONE;
     expect(tall).toBeGreaterThan(22);

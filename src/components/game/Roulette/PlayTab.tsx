@@ -483,7 +483,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             idleLabel={t.wheelIdle}
           />
 
-          <div className={styles.resultBadge} aria-live="polite" data-testid="roulette-result">
+          {/* Shown, not said: the announcement below says the number, its colour and what it paid, once. */}
+          <div className={styles.resultBadge} data-testid="roulette-result">
             {spinning ? (
               <span className={styles.noMoreBets}>{t.noMoreBets}</span>
             ) : (

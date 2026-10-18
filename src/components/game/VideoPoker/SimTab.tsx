@@ -15,6 +15,7 @@ import {
   type StrategiesResult,
 } from './sim';
 import styles from './VideoPoker.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const SESSION_OPTIONS = [500, 1_000, 2_000] as const;
@@ -136,7 +137,7 @@ export const SimTab = () => {
                 points: strategies[id].points,
               }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="vp-sim-strategies">
                 <thead>
                   <tr>
@@ -166,7 +167,7 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.stratNote}</p>
           </>
         )}

@@ -16,6 +16,7 @@ import { LAY_ODDS, PLACE_PAYS, TRUE_ODDS, WAYS, type BetId, type PointNumber, ty
 import { getStrings } from './i18n';
 import { stakeStep } from './medalTable';
 import styles from './Craps.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const BETS = [...allBetOdds()].sort((a, b) => toNumber(a.houseEdge) - toNumber(b.houseEdge));
 /** The bets that pay a fraction of their stake, and how many medals each takes at a time so that it pays whole medals. */
@@ -87,7 +88,7 @@ export const OddsTab = () => {
         <h3 id="craps-edge-title" className={styles.blockTitle}>
           {t.edgeTableTitle}
         </h3>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
               <tr>
@@ -116,7 +117,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.edgeNote}</p>
       </section>
 
@@ -125,7 +126,7 @@ export const OddsTab = () => {
           {t.wholeTitle}
         </h3>
         <p className={styles.note}>{t.wholeIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="craps-whole-medals">
             <thead>
               <tr>
@@ -144,7 +145,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.wholeNote}</p>
       </section>
 
@@ -153,7 +154,7 @@ export const OddsTab = () => {
           {t.passTitle}
         </h3>
         <p className={styles.note}>{t.passIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
               <tr>
@@ -196,7 +197,7 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-oddsfx-title">

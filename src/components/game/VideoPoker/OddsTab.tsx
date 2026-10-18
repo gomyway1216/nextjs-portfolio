@@ -8,6 +8,7 @@ import { HANDS, MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, type PayTableId } from './
 import { getStrings } from './i18n';
 import { CLASSES, DEALT_COUNTS, PRECOMPUTED } from './precomputed';
 import styles from './VideoPoker.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 type CallId = 'flushOverPair' | 'pairOverStraight' | 'breakFlush' | 'noKicker' | 'pairOverRoyal3';
 
@@ -118,7 +119,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.finalIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="vp-final-table">
             <thead>
               <tr>
@@ -154,7 +155,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-tables-title">
@@ -164,7 +165,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.tablesIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="vp-tables">
             <thead>
               <tr>
@@ -194,7 +195,7 @@ export const OddsTab = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-hold-title">

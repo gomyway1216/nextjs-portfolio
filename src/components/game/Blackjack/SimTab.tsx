@@ -14,6 +14,7 @@ import {
   type StrategiesResult,
 } from './sim';
 import styles from './Blackjack.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const ROUND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const COUNT_ROUND_OPTIONS = [100_000, 1_000_000] as const;
@@ -113,7 +114,7 @@ export const SimTab = () => {
                 points: result[id].points,
               }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="bj-sim-table">
                 <thead>
                   <tr>
@@ -146,7 +147,7 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.simNote}</p>
           </>
         )}
@@ -178,7 +179,7 @@ export const SimTab = () => {
               xLabel={t.countChartAxis}
               bars={counting.buckets.map((b) => ({ tc: b.tc, edge: -b.edge, range: 1.96 * b.se, share: b.rounds / counting.rounds }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="bj-count-table">
                 <thead>
                   <tr>
@@ -207,7 +208,7 @@ export const SimTab = () => {
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.countingNote}</p>
           </>
         )}

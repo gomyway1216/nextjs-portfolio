@@ -79,6 +79,7 @@ test('the medal center’s front shows the floor jackpot, its last win, and how 
   await expect(panel.getByTestId('jackpot-sign-in')).toHaveText(t.jackpotGuest);
   await expect(panel.getByTestId('jackpot-sign-in')).toHaveAttribute('href', /\/signin\?redirect=/);
   await expect(page.getByTestId('jackpot-honesty')).toHaveText(t.jackpotHonesty);
+  await expect(panel.getByTestId('jackpot-linked')).toHaveText('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette & Martingale, Three Card Poker.');
   // Over the moments on show.
   const order = await page.evaluate(() => {
     const at = (id: string) => [...document.querySelectorAll('[data-testid]')].findIndex((el) => el.getAttribute('data-testid') === id);
@@ -126,21 +127,32 @@ test('a floor jackpot that cannot be reached shows dashes and says so, and the m
   await expect(page.getByTestId('center-balance')).not.toHaveText('—');
 });
 
-test('every machine shows the floor jackpot over it, and its Odds tab says what it adds on top', async ({ page }) => {
+test('every machine shows the floor jackpot over it; a linked one’s Odds tab says what it adds on top, and a table that is not linked says play there takes no part', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const floor = await fakeFloor(page, () => jackpot(2_718));
   await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);
-  for (const path of ['/games/slot-machine', '/games/video-poker', '/games/medal-pusher']) {
+  for (const [path, linked] of [
+    ['/games/slot-machine', true],
+    ['/games/video-poker', false],
+    ['/games/medal-pusher', true],
+  ] as const) {
     expect((await page.goto(path))?.status()).toBe(200);
     await arrived(page);
     const strip = page.getByTestId('floor-jackpot-strip');
+    await expect(strip, path).toHaveAttribute('data-linked', String(linked));
     await expect(strip.getByTestId('floor-jackpot-strip-amount'), path).toHaveAttribute('data-amount', '2718');
     await expect(strip.getByTestId('floor-jackpot-strip-amount'), path).toContainText('2,718');
-    // A guest is shown the way to sign in and join the floor.
-    await expect(strip.getByTestId('jackpot-join'), path).toHaveAttribute('data-standing', 'guest');
-    await expect(strip.getByTestId('jackpot-sign-in'), path).toHaveText(t.jackpotGuest);
+    if (linked) {
+      // A guest is shown the way to sign in and join the floor.
+      await expect(strip.getByTestId('jackpot-join'), path).toHaveAttribute('data-standing', 'guest');
+      await expect(strip.getByTestId('jackpot-sign-in'), path).toHaveText(t.jackpotGuest);
+    } else {
+      // A table that is not linked says plainly that play there neither feeds the floor jackpot nor wins it.
+      await expect(strip.getByTestId('jackpot-not-linked'), path).toHaveText(t.jackpotNotLinked);
+      await expect(strip.getByTestId('jackpot-join'), path).toHaveCount(0);
+    }
     expect(await sideways(page), path).toBeLessThanOrEqual(0);
   }
   // The slot machine's Odds tab: its own return as before, and the floor jackpot's line under it.
@@ -151,9 +163,9 @@ test('every machine shows the floor jackpot over it, and its Odds tab says what 
   await expect(page.getByTestId('slot-rtp')).toHaveText('95.262%');
   const note = page.getByTestId('floor-jackpot-odds');
   await expect(note).toBeVisible();
-  await expect(note).toContainText('+ 5% of every medal played goes to the floor jackpot');
-  await expect(note).toContainText('1 in 40,000');
-  await expect(note).toContainText('7.5 medals for every 100 played');
+  await expect(note).toContainText('+ 1% of every medal played goes to the floor jackpot');
+  await expect(note).toContainText('1 in 150,000');
+  await expect(note).toContainText('1.67 medals for every 100 played');
   expect(floor.claims()).toBe(0);
   expect(errors).toEqual([]);
 });

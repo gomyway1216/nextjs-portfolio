@@ -1,6 +1,6 @@
 /**
  * The floor jackpot's draw, on the server only: a number in [0, 1) from
- * `node:crypto`, 48 bits of it, far finer than the 1 in 40,000 it is compared
+ * `node:crypto`, 48 bits of it, far finer than the 1 in 150,000 it is compared
  * with. Never the browser's: nothing a player's browser says can choose it.
  * Kept on its own so that the routes' tests can put a known number in.
  */

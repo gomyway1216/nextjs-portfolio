@@ -106,21 +106,21 @@ afterEach(() => {
 });
 
 describe('what feeds the floor jackpot', () => {
-  it('adds a twentieth of every medal a joined player plays, on top, and shows the pool live', async () => {
+  it('adds a hundredth of every medal a joined player plays, on top, and shows the pool live', async () => {
     await join('fake-token-ann', 'Lucky Cat');
     const answer = await report('fake-token-ann', { game: 'slot-machine', won: 0, played: 400 });
     expect(answer.status).toBe(200);
     expect(answer.body).toEqual({ counted: 0, best: false, shown: false, played: 400 });
-    expect(pool()).toMatchObject({ seq: 0, seed: JACKPOT_SEED, played: 400, amount: JACKPOT_SEED + 20 });
-    expect(live()).toMatchObject({ amount: JACKPOT_SEED + 20, seq: 0 });
+    expect(pool()).toMatchObject({ seq: 0, seed: JACKPOT_SEED, played: 400, amount: JACKPOT_SEED + 4 });
+    expect(live()).toMatchObject({ amount: JACKPOT_SEED + 4, seq: 0 });
     const v = live()!.v;
-    await report('fake-token-ann', { game: 'slot-machine', won: 30, played: 30 });
-    expect(pool()?.amount).toBe(JACKPOT_SEED + 21);
+    await report('fake-token-ann', { game: 'slot-machine', won: 30, played: 100 });
+    expect(pool()?.amount).toBe(JACKPOT_SEED + 5);
     expect(live()?.v).toBeGreaterThan(v);
     // Everybody can read it, and it names nobody's account.
     const shown = await jackpot();
     expect(shown.status).toBe(200);
-    expect(shown.body).toMatchObject({ available: true, amount: JACKPOT_SEED + 21, seq: 0, wins: [] });
+    expect(shown.body).toMatchObject({ available: true, amount: JACKPOT_SEED + 5, seq: 0, wins: [] });
     expect(shown.text).not.toContain('test-uid');
   });
 
@@ -151,6 +151,24 @@ describe('what feeds the floor jackpot', () => {
     expect((await report('fake-token-ann', { game: 'roulette', played: 500 })).body.played).toBe(500);
   });
 
+  it('takes no part of the medals played at a table that is not linked to it: no share, no draw', async () => {
+    await join('fake-token-ann', 'Lucky Cat');
+    for (const game of ['blackjack', 'video-poker', 'baccarat', 'craps'] as const) {
+      fakes.draws.push(0);
+      const answer = await report('fake-token-ann', { game, played: 5 });
+      expect(answer.status, game).toBe(200);
+      expect(answer.body, game).toEqual({ counted: 0, best: false, shown: false, played: 0 });
+    }
+    expect(pool()).toBeUndefined();
+    expect((await me('fake-token-ann')).due).toBeUndefined();
+    // Not even drawn for: the four numbers put in for the draws are all still there.
+    expect(fakes.draws).toEqual([0, 0, 0, 0]);
+    fakes.draws = [];
+    // The same player at a linked machine feeds it.
+    await report('fake-token-ann', { game: 'three-card-poker', played: 300 });
+    expect(pool()?.amount).toBe(JACKPOT_SEED + 3);
+  });
+
   it('takes nothing from a player who is not on the floor, a guest or a visitor with no token', async () => {
     expect((await report('fake-token-ann', { game: 'slot-machine', played: 90 })).status).toBe(403);
     expect((await report('fake-token-guest', { game: 'slot-machine', played: 90 })).status).toBe(403);
@@ -170,18 +188,18 @@ describe('the draw', () => {
     fakes.draws.push(winChance(300) - 1e-9);
     fakes.names.push('0badcafe');
     const won = await report('fake-token-ann', { game: 'slot-machine', played: 300 });
-    expect(won.body.jackpot).toEqual({ id: '20261017-0badcafe', medals: JACKPOT_SEED + 60, at: NOON });
+    expect(won.body.jackpot).toEqual({ id: '20261017-0badcafe', medals: JACKPOT_SEED + 12, at: NOON });
     expect(pool()).toMatchObject({ seq: 1, played: 0, extra: 0, amount: JACKPOT_SEED });
-    expect(winDoc('20261017-0badcafe')).toMatchObject({ state: 'pending', uid: 'test-uid-ann', medals: JACKPOT_SEED + 60 });
+    expect(winDoc('20261017-0badcafe')).toMatchObject({ state: 'pending', uid: 'test-uid-ann', medals: JACKPOT_SEED + 12 });
     // The whole floor sees it.
     const feed = Object.values(rtdb().at('medalFloor/feed') as Record<string, Record<string, unknown>>);
-    expect(feed).toContainEqual(expect.objectContaining({ name: 'Lucky Cat', game: 'slot-machine', label: 'floor-jackpot', medals: JACKPOT_SEED + 60 }));
-    expect(live()).toMatchObject({ amount: JACKPOT_SEED, seq: 1, last: { name: 'Lucky Cat', tag: expect.any(String), game: 'slot-machine', medals: JACKPOT_SEED + 60 } });
+    expect(feed).toContainEqual(expect.objectContaining({ name: 'Lucky Cat', game: 'slot-machine', label: 'floor-jackpot', medals: JACKPOT_SEED + 12 }));
+    expect(live()).toMatchObject({ amount: JACKPOT_SEED, seq: 1, last: { name: 'Lucky Cat', tag: expect.any(String), game: 'slot-machine', medals: JACKPOT_SEED + 12 } });
     expect(JSON.stringify(live())).not.toContain('test-uid');
     // It waits to go into their medals.
     expect((await me('fake-token-ann')).due).toBe(1);
     const shown = await jackpot();
-    expect(shown.body.wins).toEqual([{ name: 'Lucky Cat', tag: expect.any(String), game: 'slot-machine', medals: JACKPOT_SEED + 60, at: NOON }]);
+    expect(shown.body.wins).toEqual([{ name: 'Lucky Cat', tag: expect.any(String), game: 'slot-machine', medals: JACKPOT_SEED + 12, at: NOON }]);
     expect(shown.text).not.toContain('0badcafe');
   });
 
@@ -192,7 +210,7 @@ describe('the draw', () => {
     fakes.draws.push(0);
     const again = await report('fake-token-ann', { game: 'slot-machine', played: 200 });
     expect(again.body.jackpot).toBeUndefined();
-    expect(pool()).toMatchObject({ seq: 1, played: 200, amount: JACKPOT_SEED + 10 });
+    expect(pool()).toMatchObject({ seq: 1, played: 200, amount: JACKPOT_SEED + 2 });
     // Tomorrow, they may win again.
     vi.setSystemTime(Date.UTC(2026, 9, 17, 15, 0, 1));
     fakes.draws.push(0);
@@ -207,15 +225,15 @@ describe('the draw', () => {
     fakes.names.push('aaaaaaaa', 'bbbbbbbb');
     const [ann, ben] = await Promise.all([
       report('fake-token-ann', { game: 'roulette', played: 1_000 }),
-      report('fake-token-ben', { game: 'baccarat', played: 400 }),
+      report('fake-token-ben', { game: 'three-card-poker', played: 400 }),
     ]);
     // The two ran into each other on the pool, and the later one was run again on what the first left.
     expect(db().retries).toBeGreaterThan(0);
     const winners = [ann.body.jackpot, ben.body.jackpot].filter(Boolean);
     expect(winners).toHaveLength(1);
     const first = ann.body.jackpot ? { body: ann.body, other: 400 } : { body: ben.body, other: 1_000 };
-    expect(first.body.jackpot?.medals).toBeGreaterThanOrEqual(JACKPOT_SEED + 200);
-    expect(pool()).toMatchObject({ seq: 1, played: first.other, amount: JACKPOT_SEED + first.other / 20 });
+    expect(first.body.jackpot?.medals).toBeGreaterThanOrEqual(JACKPOT_SEED + 40);
+    expect(pool()).toMatchObject({ seq: 1, played: first.other, amount: JACKPOT_SEED + first.other / 100 });
   });
 });
 
@@ -224,7 +242,7 @@ describe('a win on its way into the player’s medals', () => {
     await join('fake-token-ann', 'Lucky Cat');
     fakes.draws.push(0);
     fakes.names.push(name);
-    const won = await report('fake-token-ann', { game: 'video-poker', played: 5 });
+    const won = await report('fake-token-ann', { game: 'slot-machine', played: 3 });
     return won.body.jackpot!.id;
   };
 
@@ -283,14 +301,14 @@ describe('the owner', () => {
     fakes.draws.push(0);
     fakes.names.push('deadbeef');
     const id = '20261017-deadbeef';
-    expect((await report('fake-token-ann', { game: 'slot-machine', played: 60 })).body.jackpot).toEqual({ id, medals: JACKPOT_SEED + 203, at: NOON });
+    expect((await report('fake-token-ann', { game: 'slot-machine', played: 60 })).body.jackpot).toEqual({ id, medals: JACKPOT_SEED + 40, at: NOON });
     // The floor plays on into the new pool.
-    await report('fake-token-ben', { game: 'baccarat', played: 400 });
-    expect(pool()?.amount).toBe(JACKPOT_SEED + 20);
+    await report('fake-token-ben', { game: 'three-card-poker', played: 400 });
+    expect(pool()?.amount).toBe(JACKPOT_SEED + 4);
 
     const { GET } = await adminRoute();
     const floor = (await (await GET(request('/admin', { token: 'fake-token-owner' }), undefined as never))!.json()) as FloorSummary;
-    expect(floor.jackpot?.owned).toEqual([expect.objectContaining({ id, state: 'pending', name: 'Cheater', game: 'slot-machine', medals: JACKPOT_SEED + 203 })]);
+    expect(floor.jackpot?.owned).toEqual([expect.objectContaining({ id, state: 'pending', name: 'Cheater', game: 'slot-machine', medals: JACKPOT_SEED + 40 })]);
     expect(JSON.stringify(floor.jackpot)).not.toContain('test-uid');
 
     expect(await owner({ action: 'void-jackpot', id }, 'fake-token-ann')).toBe(403);
@@ -298,8 +316,8 @@ describe('the owner', () => {
     expect(await owner({ action: 'void-jackpot', id })).toBe(200);
     expect(winDoc(id)?.state).toBe('void');
     // The pool gets back what the win took over the seed it was started again at: as if it had never been won.
-    expect(pool()).toMatchObject({ seq: 1, amount: JACKPOT_SEED + 20 + 203, wins: [] });
-    expect(live()).toMatchObject({ amount: JACKPOT_SEED + 20 + 203 });
+    expect(pool()).toMatchObject({ seq: 1, amount: JACKPOT_SEED + 4 + 40, wins: [] });
+    expect(live()).toMatchObject({ amount: JACKPOT_SEED + 4 + 40 });
     const feed = Object.values((rtdb().at('medalFloor/feed') ?? {}) as Record<string, Record<string, unknown>>);
     expect(feed.some((moment) => moment.label === 'floor-jackpot')).toBe(false);
     // It is not handed to the player, and their device saying it is paid after all is done all the same.
@@ -309,7 +327,7 @@ describe('the owner', () => {
     expect(winDoc(id)?.state).toBe('void');
     // Voided twice: done, and the pool is given back once.
     expect(await owner({ action: 'void-jackpot', id })).toBe(200);
-    expect(pool()?.amount).toBe(JACKPOT_SEED + 20 + 203);
+    expect(pool()?.amount).toBe(JACKPOT_SEED + 4 + 40);
   });
 
   it('a blocked player is handed none of their wins until the owner says what becomes of them', async () => {

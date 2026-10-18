@@ -9,7 +9,7 @@ import type { FloorRow } from '@/lib/medalFloor/types';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { MEDAL_CENTER_PATH } from '../paths';
 import { ownerAct, type OwnerAction } from './api';
-import { JackpotCounter, JackpotWins } from './FloorJackpot';
+import { JackpotCounter, JackpotWins, LinkedMachines } from './FloorJackpot';
 import { Board, FeedList, PeriodTabs, PlaceCard, placeKey, useServerNow, type PeriodChoice } from './FloorParts';
 import { getFloorStrings } from './strings';
 import { useFloor } from './useFloor';
@@ -109,6 +109,7 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
             {t.jackpotWinsTitle}
           </h2>
           <JackpotCounter amount={jackpot.unavailable ? null : jackpot.amount} t={t} locale={locale} size="small" testId="rankings-jackpot-amount" />
+          <LinkedMachines t={t} testId="rankings-jackpot-linked" />
           <JackpotWins wins={ownedWins ?? jackpot.wins} t={t} fmt={words.fmt} gameName={words.gameName} now={now} owner={ownedWins ? (id) => act({ action: 'void-jackpot', id }) : undefined} />
           {ownedWins && <p className={styles.note}>{t.jackpotVoidNote}</p>}
         </section>

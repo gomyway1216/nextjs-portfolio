@@ -1,18 +1,27 @@
 /**
  * The floor jackpot: one pool for the whole medal floor, held by the server,
- * that every joined player feeds as they play and any of them can win.
+ * that joined players feed as they play at the machines linked to it, and any
+ * of them can win.
  *
  * ## How it works
  *
- * - **What feeds it.** For every medal a joined player plays, the site adds a
- *   share to the pool: `JACKPOT_SHARE`, one medal for every 20 played (5%).
- *   The share is added *on top* of the stake, not taken out of it, so every
- *   machine still pays back exactly what its own odds say.
- * - **The draw.** Each medal played is also a ticket with a chance of
- *   `1 / JACKPOT_ONE_IN` (1 in 40,000) to win the whole pool. A report of
+ * - **What feeds it.** For every medal a joined player plays at a linked
+ *   machine, the site adds a share to the pool: `JACKPOT_SHARE`, one medal for
+ *   every 100 played (1%). The share is added *on top* of the stake, not taken
+ *   out of it, so every machine still pays back exactly what its own odds say.
+ * - **The draw.** Each of those medals is also a ticket with a chance of
+ *   `1 / JACKPOT_ONE_IN` (1 in 150,000) to win the whole pool. A report of
  *   `played` medals is drawn once, on the server, with `1 − (1 − q)^played`
  *   (`winChance`), from `node:crypto` randomness. The browser never draws.
  * - **Once won,** the pool starts again at `JACKPOT_SEED` (1,000).
+ * - **Which machines.** A machine is linked only if its best play, with the
+ *   floor jackpot's long-run value added, still brings back at most 100% of
+ *   the medals played (`linked`, from each machine's `bestReturn` in games.ts,
+ *   pinned against the games' own exact odds). The pusher, the slot machine,
+ *   Calico Janken, roulette and Three Card Poker are; blackjack, video poker,
+ *   baccarat and craps, whose best play already brings back 99% to 100%, are
+ *   not. As on a real floor, not every cabinet is on the progressive: play at
+ *   those tables neither feeds it nor draws for it.
  * - **Limits.** The medals played that take part are checked like the medals
  *   won: no faster than each machine can be played (games.ts), and at most
  *   `DAILY_PLAYED_MOST` (20,000) of one player's a floor day. One jackpot per
@@ -20,28 +29,29 @@
  *
  * ## Why these numbers
  *
- * The floor is small: a handful of signed-in players a day who have joined it,
- * each playing for half an hour to an hour. That is about 20,000 to 40,000
- * medals played a day that take part (a slot played at three medals a spin is
- * 100 to 250 medals a minute; the pusher's two rails feed up to 660).
+ * The owner's rule is that the machines pay like real ones: about 90%, and
+ * never more than 100%. So the floor jackpot adds little to each medal, and
+ * grows for a while before somebody hits it.
  *
- * - **How often.** With q = 1/40,000, the floor sees a hit every 40,000 medals
- *   played on average: once every one or two days at 20,000 to 40,000 a day
- *   (three to seven times a week), several times a day on a busy day of
- *   150,000, and about twice a week on a quiet day of 10,000.
- * - **How big.** On average the pool is hit after 40,000 medals have fed it a
- *   twentieth each: 2,000 on top of the seed, 3,000 medals in all
- *   (`MEAN_JACKPOT`). Half of all hits are under about 2,400 and one in ten is
- *   over 5,600, as a geometric wait gives.
  * - **What it is worth.** In the long run every medal that takes part brings
- *   back its share, 0.05, and its part of the seeds the site puts in, 1,000 for
- *   every 40,000 medals: `EXPECTED_PER_MEDAL` = c + seed × q = 0.075, 7.5 medals
- *   for every 100 played (a hair less, `exactPerMedal`, since a twentieth of a
- *   medal is never added). That is on top of each machine's own return, for
- *   joined players only, and only in the long run: the swing is enormous.
+ *   back its share, 0.01, and its part of the seeds the site puts in, 1,000 for
+ *   every 150,000 medals: `EXPECTED_PER_MEDAL` = c + seed × q ≈ 0.0167, 1.67
+ *   medals for every 100 played (a hair less, `exactPerMedal`, since a part of
+ *   a medal is never added). That is on top of each linked machine's own
+ *   return, for joined players only, and only in the long run.
+ * - **How big.** On average the pool is hit after 150,000 medals have fed it a
+ *   hundredth each: 1,500 on top of the seed, 2,500 medals in all
+ *   (`MEAN_JACKPOT`). Half of all hits are under about 2,000 and one in ten is
+ *   over 4,400, as a geometric wait gives.
+ * - **How often.** The floor is small: a handful of signed-in players a day
+ *   who have joined it, each playing half an hour to an hour, about 20,000 to
+ *   40,000 medals a day at the linked machines. That is a hit about once a week
+ *   (every 4 to 7.5 days); once a day on a busy day of 150,000; once a
+ *   fortnight on a quiet day of 10,000. A progressive that grows for a while is
+ *   part of the fun.
  * - **No farming.** One player's day takes part up to 20,000 medals, so the
  *   most anyone can have of winning in a day, whatever their browser reports,
- *   is 1 − (1 − q)^20,000 ≈ 39%, and at most one jackpot a day. Honest heavy
+ *   is 1 − (1 − q)^20,000 ≈ 12.5%, and at most one jackpot a day. Honest heavy
  *   players get the same chance as anyone who lies about their play.
  *
  * The owner can change any of these here; the Odds tabs say what they are.
@@ -49,17 +59,17 @@
  * Nothing here is money, and no word of it reaches a player as money.
  */
 
-import { FLOOR_GAMES, type FloorGame } from './games';
+import { FLOOR_GAMES, FLOOR_RULES, type FloorGame } from './games';
 import { isTag } from './names';
 
-/** The share of every medal played that the site adds to the pool: `medals` for every `per` played (5%). */
-export const JACKPOT_SHARE = { medals: 1, per: 20 } as const;
+/** The share of every medal played that the site adds to the pool: `medals` for every `per` played (1%). */
+export const JACKPOT_SHARE = { medals: 1, per: 100 } as const;
 /** The share as a fraction: c. */
 export const JACKPOT_C = JACKPOT_SHARE.medals / JACKPOT_SHARE.per;
 /** What the pool starts at, and starts at again once it has been won. The site puts it in. */
 export const JACKPOT_SEED = 1_000;
 /** Each medal played that takes part has a chance of one in this to win the pool. */
-export const JACKPOT_ONE_IN = 40_000;
+export const JACKPOT_ONE_IN = 150_000;
 /** The chance of each medal played: q. */
 export const JACKPOT_Q = 1 / JACKPOT_ONE_IN;
 
@@ -102,6 +112,16 @@ export const MEAN_JACKPOT = JACKPOT_SEED + JACKPOT_C * JACKPOT_ONE_IN;
 
 /** What a medal that takes part brings back in the long run, as published: c + seed × q. */
 export const EXPECTED_PER_MEDAL = JACKPOT_C + JACKPOT_SEED * JACKPOT_Q;
+
+/**
+ * Whether a machine is linked to the floor jackpot: its best play, with the
+ * floor jackpot's long-run value added, brings back at most 100% of the medals
+ * played. Play at a machine that is not linked neither feeds it nor draws for it.
+ */
+export const linked = (game: FloorGame): boolean => FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL <= 1;
+
+/** The machines linked to the floor jackpot, in the floor's order. */
+export const LINKED_GAMES: readonly FloorGame[] = FLOOR_GAMES.filter(linked);
 
 /**
  * The same, exactly, with whole medals: by the renewal-reward theorem, what a

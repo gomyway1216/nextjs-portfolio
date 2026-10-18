@@ -95,6 +95,7 @@
 
 .lead,
 .last,
+.linked,
 .joinLine {
   margin: 0;
   line-height: 1.5;
@@ -180,12 +181,14 @@
   color: var(--jp-gold);
 }
 .oddsLine,
-.oddsHonesty {
+.oddsHonesty,
+.odds .linked {
   margin: 0 0 0.45rem;
   line-height: 1.55;
   font-size: 0.88rem;
 }
-.oddsHonesty {
+.oddsHonesty,
+.odds .linked {
   margin: 0;
   color: var(--jp-soft);
   font-size: 0.82rem;
@@ -225,4 +228,7 @@
   font-size: 0.8rem;
   font-weight: 800;
   cursor: pointer;
+}
+.odds .linked {
+  margin-top: 0.45rem;
 }

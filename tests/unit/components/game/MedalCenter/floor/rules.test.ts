@@ -29,6 +29,17 @@ import { HAND_MAX as TCP_HAND_MAX, SPOT_MAX as TCP_SPOT_MAX } from '@/components
 import { DOUBLE_MAX, DOUBLE_RETURN } from '@/components/game/VideoPoker/doubleUp';
 import { HANDS, MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, ROYAL_SHORT_PAY, payout, type HandRank } from '@/components/game/VideoPoker/engine';
 import { games } from '@/components/game/constants/games';
+import { analyzeMachine as slotOdds } from '@/components/game/SlotMachine/engine';
+import { analyzeMachine as jankenOdds, valueOf as jankenValue } from '@/components/game/Janken/engine';
+import { HOUSE_EDGE as ROULETTE_EDGE } from '@/components/game/Roulette/engine';
+import { gameValue as blackjackValue } from '@/components/game/Blackjack/analysis';
+import { PRECOMPUTED as VIDEO_POKER_TABLES } from '@/components/game/VideoPoker/precomputed';
+import { ODDS_BETS as BACCARAT_BETS, betOdds as baccaratOdds, shoeOdds as baccaratShoe } from '@/components/game/Baccarat/analysis';
+import { DEFAULT_DECKS as BACCARAT_DECKS } from '@/components/game/Baccarat/engine';
+import { allBetOdds as crapsOdds, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
+import { pairPlusOdds, strategyOdds as tcpStrategy } from '@/components/game/ThreeCardPoker/analysis';
+import { PAIR_PLUS_TABLES } from '@/components/game/ThreeCardPoker/engine';
+import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -129,6 +140,46 @@ describe('the most each machine can take from the player at once, for the medals
     expect(CRAPS_DECIDED_MOST).toBe(held);
     expect(CRAPS_DECIDED_MOST).toBe(decided);
     expect(FLOOR_RULES.craps.stakeMost).toBe(CRAPS_DECIDED_MOST);
+  });
+});
+
+describe('which machines are linked to the floor jackpot', () => {
+  /** Each machine's best return, from its own exact odds: its best bet, played its best way, per medal played. */
+  const exactBest = (): Partial<Record<(typeof FLOOR_GAMES)[number], number>> => {
+    const shoe = baccaratShoe(BACCARAT_DECKS);
+    const tcp = tcpStrategy('optimal');
+    return {
+      'slot-machine': slotOdds().rtp,
+      janken: jankenValue(jankenOdds().rtp),
+      roulette: 1 - ROULETTE_EDGE,
+      blackjack: 1 - blackjackValue().houseEdge,
+      'video-poker': Math.max(...Object.values(VIDEO_POKER_TABLES).map((table) => table.payback)),
+      baccarat: Math.max(...BACCARAT_BETS.map((id) => 1 + baccaratOdds(id, shoe).ev)),
+      craps: Math.max(...crapsOdds().map((bet) => 1 - crapsNumber(bet.houseEdge))),
+      // The Ante and Play per medal wagered (the element of risk), or Pair Plus on either table.
+      'three-card-poker': Math.max(1 - tcp.elementOfRisk, ...Object.values(PAIR_PLUS_TABLES).map((table) => 1 + pairPlusOdds(table).ev)),
+    };
+  };
+
+  it('knows each machine’s best return from its own exact odds, rounded up', () => {
+    const exact = exactBest();
+    for (const [game, best] of Object.entries(exact)) {
+      const rule = FLOOR_RULES[game as (typeof FLOOR_GAMES)[number]];
+      expect(rule.bestReturn, game).toBeGreaterThanOrEqual(best!);
+      expect(rule.bestReturn - best!, game).toBeLessThan(1e-4);
+    }
+    // The Medal Pusher's is measured by its simulation, not worked out: the slowest feed down the middle, about 90%.
+    expect(FLOOR_RULES['medal-pusher'].bestReturn).toBe(0.902);
+  });
+
+  it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker']);
+    for (const game of FLOOR_GAMES) {
+      const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
+      expect(linked(game), game).toBe(withJackpot <= 1);
+    }
+    // The tables that are not: their best play is already near even, and the floor jackpot would take it over.
+    for (const game of ['blackjack', 'video-poker', 'baccarat', 'craps'] as const) expect(exactBest()[game]! + EXPECTED_PER_MEDAL, game).toBeGreaterThan(1);
   });
 });
 

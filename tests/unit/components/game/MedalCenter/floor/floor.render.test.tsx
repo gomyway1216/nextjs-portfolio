@@ -165,6 +165,8 @@ describe('the floor jackpot', () => {
     expect(html).toContain('data-standing="guest"');
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
+    // Which machines are linked to it, by name.
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -176,28 +178,48 @@ describe('the floor jackpot', () => {
   });
 
   it('is over every machine, small, with the way to the medal center to join', () => {
-    const html = inLanguage('en', <FloorJackpotStrip />);
+    const html = inLanguage('en', <FloorJackpotStrip game="slot-machine" />);
     expect(html).toContain('data-testid="floor-jackpot-strip"');
+    expect(html).toContain('data-linked="true"');
     expect(html).toContain('data-size="small"');
     expect(html).toContain('href="/games/medal-center"');
-    expect(inLanguage('ja', <FloorJackpotStrip />)).toContain(getFloorStrings('ja').jackpotJoinThere);
+    expect(inLanguage('ja', <FloorJackpotStrip game="slot-machine" />)).toContain(getFloorStrings('ja').jackpotJoinThere);
   });
 
-  it('says on every Odds tab what it adds, on top, and on what terms, in both languages', () => {
-    const en = inLanguage('en', <FloorJackpotOddsNote />);
-    expect(en).toContain('+ 5% of every medal played goes to the floor jackpot');
-    expect(en).toContain('1 medal for every 20 you play');
-    expect(en).toContain('1 in 40,000');
+  it('says plainly over a table that is not linked to it that play there neither feeds it nor wins it', () => {
+    for (const game of ['blackjack', 'video-poker', 'baccarat', 'craps'] as const) {
+      const html = inLanguage('en', <FloorJackpotStrip game={game} />);
+      expect(html, game).toContain('data-linked="false"');
+      expect(html, game).toContain(getFloorStrings('en').jackpotNotLinked);
+      expect(html, game).not.toContain('jackpot-join');
+    }
+    expect(inLanguage('ja', <FloorJackpotStrip game="craps" />)).toContain(getFloorStrings('ja').jackpotNotLinked);
+  });
+
+  it('says on every linked machine’s Odds tab what it adds, on top, and on what terms, in both languages', () => {
+    const en = inLanguage('en', <FloorJackpotOddsNote game="slot-machine" />);
+    expect(en).toContain('+ 1% of every medal played goes to the floor jackpot');
+    expect(en).toContain('1 medal for every 100 you play');
+    expect(en).toContain('1 in 150,000');
     expect(en).toContain('starts again at 1,000 medals');
-    expect(en).toContain('7.5 medals for every 100 played');
+    expect(en).toContain('1.67 medals for every 100 played');
     expect(en).toContain('first 20,000 medals');
     expect(en).toContain('exactly as shown');
     expect(en).toContain(getFloorStrings('en').jackpotHonesty);
-    const ja = inLanguage('ja', <FloorJackpotOddsNote />);
-    expect(ja).toContain('遊んだメダルの5%');
-    expect(ja).toContain('40,000分の1');
-    expect(ja).toContain('100枚につき7.5枚');
+    const ja = inLanguage('ja', <FloorJackpotOddsNote game="slot-machine" />);
+    expect(ja).toContain('遊んだメダルの1%');
+    expect(ja).toContain('150,000分の1');
+    expect(ja).toContain('100枚につき1.67枚');
     expect(ja).toContain('20,000枚まで');
+    expect(ja).toContain('対象のマシン：メダルプッシャー');
+  });
+
+  it('says on the Odds tab of a table that is not linked that it takes no part, with no figures', () => {
+    const en = inLanguage('en', <FloorJackpotOddsNote game="video-poker" />);
+    expect(en).toContain(getFloorStrings('en').jackpotRulesOut);
+    expect(en).not.toContain('150,000');
+    expect(en).not.toContain(getFloorStrings('en').jackpotHonesty);
+    expect(inLanguage('ja', <FloorJackpotOddsNote game="video-poker" />)).toContain(getFloorStrings('ja').jackpotRulesOut);
   });
 
   it('is shown on every machine on the floor, and under every one of their Odds tabs, which still never touch the medals', () => {
@@ -216,9 +238,9 @@ describe('the floor jackpot', () => {
     const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');
     for (const [game, [machine, odds]] of Object.entries(folders)) {
       const text = source(machine);
-      expect(text, game).toContain('<FloorJackpotStrip />');
+      expect(text, game).toContain(`<FloorJackpotStrip game="${game}" />`);
       // In the Odds tab's panel, straight after the tab.
-      expect(text, game).toMatch(new RegExp(`<${odds} />\\s*\\{/\\*[^*]*\\*/\\}\\s*<FloorJackpotOddsNote />`));
+      expect(text, game).toMatch(new RegExp(`<${odds} />\\s*\\{/\\*[^*]*\\*/\\}\\s*<FloorJackpotOddsNote game="${game}" />`));
       expect(source(`${machine.split('/')[0]}/${odds}.tsx`), game).not.toContain('MedalCenter');
     }
   });

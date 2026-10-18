@@ -48,7 +48,7 @@ export const Blackjack = () => {
         </div>
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
-        <FloorJackpotStrip />
+        <FloorJackpotStrip game="blackjack" />
 
         <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
@@ -75,7 +75,7 @@ export const Blackjack = () => {
         <div role="tabpanel" id="bj-panel-odds" aria-labelledby="bj-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
           {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
-          <FloorJackpotOddsNote />
+          <FloorJackpotOddsNote game="blackjack" />
         </div>
         <div role="tabpanel" id="bj-panel-sim" aria-labelledby="bj-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

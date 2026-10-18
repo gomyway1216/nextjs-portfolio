@@ -106,7 +106,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
         </div>
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
-        <FloorJackpotStrip />
+        <FloorJackpotStrip game="medal-pusher" />
 
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb, index) => (
@@ -142,7 +142,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
         <div role="tabpanel" id="pusher-panel-odds" aria-labelledby="pusher-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
           {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
-          <FloorJackpotOddsNote />
+          <FloorJackpotOddsNote game="medal-pusher" />
         </div>
         <div role="tabpanel" id="pusher-panel-sim" aria-labelledby="pusher-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

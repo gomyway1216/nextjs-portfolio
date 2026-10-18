@@ -597,7 +597,8 @@ export function createMedalTable({
       next: { ...next, id, pending },
       move: () => {
         const taken = bank.apply({ game: GAME, round: id, step, medals: -medals, era: next.era }) === 'applied';
-        // The medals played feed the floor jackpot, once, as each stake goes in: the bet, a double, a split, the insurance.
+        // The medal floor hears of the medals played, once, as each stake goes in: the bet, a double, a split, the insurance.
+        // (Blackjack is not linked to the floor jackpot, so the floor takes no part of them for it: lib/medalFloor/jackpot.ts.)
         if (taken) floorReport(GAME, { played: medals });
         return taken;
       },

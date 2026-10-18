@@ -95,7 +95,7 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
         )}
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
-        <FloorJackpotStrip />
+        <FloorJackpotStrip game="video-poker" />
 
         <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
@@ -122,7 +122,7 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
         <div role="tabpanel" id="vp-panel-odds" aria-labelledby="vp-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
           {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
-          <FloorJackpotOddsNote />
+          <FloorJackpotOddsNote game="video-poker" />
         </div>
         <div role="tabpanel" id="vp-panel-sim" aria-labelledby="vp-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

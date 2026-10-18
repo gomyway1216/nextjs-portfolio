@@ -68,7 +68,7 @@ export const Craps = ({ player, bankStore = null, legacy }: CrapsProps = {}) => 
         </div>
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
-        <FloorJackpotStrip />
+        <FloorJackpotStrip game="craps" />
 
         <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
@@ -95,7 +95,7 @@ export const Craps = ({ player, bankStore = null, legacy }: CrapsProps = {}) => 
         <div role="tabpanel" id="craps-panel-odds" aria-labelledby="craps-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
           {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
-          <FloorJackpotOddsNote />
+          <FloorJackpotOddsNote game="craps" />
         </div>
         <div role="tabpanel" id="craps-panel-sim" aria-labelledby="craps-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

@@ -84,7 +84,7 @@ export const Janken = ({ player, bankStore = null, legacyStores }: JankenProps =
         </div>
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
-        <FloorJackpotStrip />
+        <FloorJackpotStrip game="janken" />
 
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb, index) => (
@@ -115,7 +115,7 @@ export const Janken = ({ player, bankStore = null, legacyStores }: JankenProps =
         <div role="tabpanel" id="janken-panel-odds" aria-labelledby="janken-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
           {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
-          <FloorJackpotOddsNote />
+          <FloorJackpotOddsNote game="janken" />
         </div>
       </div>
 

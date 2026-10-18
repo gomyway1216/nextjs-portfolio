@@ -47,6 +47,7 @@ import {
   PENDING_MOST,
   compactDay,
   jackpotFrom,
+  linked,
   poolAmount,
   winChance,
   winShownFrom,
@@ -544,7 +545,9 @@ async function mirrorQuietly(pool: PoolDoc): Promise<void> {
  * floor, is blocked, or has reported too often this minute.
  *
  * The draw: each medal played that is believed is a ticket (jackpot.ts), so
- * the report wins with 1 − (1 − q)^played. The number it is drawn with comes
+ * the report wins with 1 − (1 − q)^played. Only the machines linked to the
+ * floor jackpot (jackpot.ts `linked`) feed it and draw: medals played at any
+ * other are not counted for it. The number it is drawn with comes
  * from `node:crypto`, once for the report, before its transaction: Firestore
  * may run a transaction more than once, and running it again never draws
  * again. A win takes the whole pool, the share of this report's medals in it,
@@ -559,7 +562,9 @@ export async function reportToFloor(uid: string, report: FloorReport, now: numbe
   const day = periodAt('day', now);
   const week = periodAt('week', now);
   const key = gameField(report.game);
-  const asked = report.played ?? 0;
+  // Medals played at a machine that is not linked to the floor jackpot take no part in it.
+  const offered = report.played ?? 0;
+  const asked = linked(report.game) ? offered : 0;
   const draw = asked > 0 ? drawUniform() : 1;
   const winId = asked > 0 ? `${compactDay(day.key)}-${drawName()}` : '';
   /** The pool's number the draw was made against: a pool somebody else has won since is not this draw's to win. */
@@ -674,7 +679,7 @@ export async function reportToFloor(uid: string, report: FloorReport, now: numbe
     }
   }
   const result: FloorReportResult = { counted: outcome.counted, best: outcome.best, shown };
-  if (asked > 0) result.played = outcome.played;
+  if (offered > 0) result.played = outcome.played;
   if (outcome.win) result.jackpot = { id: outcome.win.id, medals: outcome.win.medals, at: outcome.win.at };
   return result;
 }

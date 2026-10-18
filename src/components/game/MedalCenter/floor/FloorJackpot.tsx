@@ -4,14 +4,18 @@
  * The floor jackpot as the floor shows it: an LED counter of the medals in
  * the pool, live, on the medal center's front (`FloorJackpotPanel`) and, small,
  * on every machine (`FloorJackpotStrip`), with a line that tells a guest or a
- * player not on the floor how to take part, and the line every Odds tab gains
- * (`FloorJackpotOddsNote`). The page that shows it also pays the player's
- * floor jackpots into their medals (pagePayer.ts), and says so when it does.
+ * player not on the floor how to take part (or, at a machine that is not
+ * linked to it, that play there takes no part in it), and the line every Odds
+ * tab gains (`FloorJackpotOddsNote`). The page that shows it also pays the
+ * player's floor jackpots into their medals (pagePayer.ts), and says so when
+ * it does.
  */
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { DAILY_PLAYED_MOST, EXPECTED_PER_MEDAL, JACKPOT_C, JACKPOT_ONE_IN, JACKPOT_SEED, JACKPOT_SHARE, type JackpotWinShown } from '@/lib/medalFloor/jackpot';
+import { useTranslation } from 'react-i18next';
+import type { FloorGame } from '@/lib/medalFloor/games';
+import { DAILY_PLAYED_MOST, EXPECTED_PER_MEDAL, JACKPOT_C, JACKPOT_ONE_IN, JACKPOT_SEED, JACKPOT_SHARE, LINKED_GAMES, linked, type JackpotWinShown } from '@/lib/medalFloor/jackpot';
 import type { GameLanguage } from '../../constants/gameTranslations';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { useBank } from '../bank';
@@ -24,6 +28,18 @@ import { useFloorJackpot } from './useFloorJackpot';
 import styles from './FloorJackpot.module.css';
 
 const localeOf = (language: GameLanguage): string => (language === 'ja' ? 'ja-JP' : 'en-US');
+
+/** The machines linked to the floor jackpot, by name, in the page's language. */
+export function LinkedMachines({ t, testId }: { t: FloorStrings; testId: string }) {
+  const { t: translate } = useTranslation();
+  const { language } = useGameLanguage();
+  const names = LINKED_GAMES.map((game) => translate(`games.${game}.title`)).join(language === 'ja' ? '、' : ', ');
+  return (
+    <p className={styles.linked} data-testid={testId}>
+      {t.jackpotLinked(names)}
+    </p>
+  );
+}
 
 /** The counter: the medals in the pool in lit digits, or dashes until they are known. */
 export function JackpotCounter({ amount, t, locale, size, testId }: { amount: number | null; t: FloorStrings; locale: string; size: 'big' | 'small'; testId: string }) {
@@ -128,6 +144,7 @@ export function FloorJackpotPanel({ standing, signInHref }: FloorJackpotPanelPro
       <JackpotCounter amount={jackpot.unavailable ? null : jackpot.amount} t={t} locale={locale} size="big" testId="floor-jackpot-amount" />
       <Paid medals={paid} t={t} fmt={fmt} />
       <p className={styles.lead}>{t.jackpotLead}</p>
+      <LinkedMachines t={t} testId="jackpot-linked" />
       {jackpot.unavailable ? <p className={styles.last}>{t.jackpotUnavailable}</p> : <LastWin last={jackpot.wins[0]} t={t} fmt={fmt} now={now} />}
       <JoinLine standing={standing} t={t} where="here" signInHref={signInHref} />
     </div>
@@ -137,9 +154,10 @@ export function FloorJackpotPanel({ standing, signInHref }: FloorJackpotPanelPro
 /**
  * A machine's page: the floor jackpot, small, over the machine. Whether the
  * player takes part is what this device last heard of their place on the
- * floor; the medal center's front is where they join.
+ * floor; the medal center's front is where they join. A machine that is not
+ * linked to the floor jackpot says so instead: play there takes no part in it.
  */
-export function FloorJackpotStrip() {
+export function FloorJackpotStrip({ game }: { game: FloorGame }) {
   const { language } = useGameLanguage();
   const t = getFloorStrings(language);
   const locale = localeOf(language);
@@ -149,36 +167,55 @@ export function FloorJackpotStrip() {
   const joined = useKnownPlace(owner);
   const paid = usePaidShown(owner);
   const standing: JackpotStanding = !loaded ? 'unknown' : !owner ? 'guest' : joined ? 'on' : 'off';
+  const isLinked = linked(game);
   return (
-    <div className={styles.strip} data-testid="floor-jackpot-strip" data-live={jackpot.live}>
+    <div className={styles.strip} data-testid="floor-jackpot-strip" data-live={jackpot.live} data-linked={isLinked}>
       <JackpotCounter amount={jackpot.unavailable ? null : jackpot.amount} t={t} locale={locale} size="small" testId="floor-jackpot-strip-amount" />
       <div className={styles.stripText}>
         <Paid medals={paid} t={t} fmt={fmt} />
-        <JoinLine standing={standing} t={t} where="there" signInHref={`/signin?redirect=${encodeURIComponent(MEDAL_CENTER_PATH)}`} />
+        {isLinked ? (
+          <JoinLine standing={standing} t={t} where="there" signInHref={`/signin?redirect=${encodeURIComponent(MEDAL_CENTER_PATH)}`} />
+        ) : (
+          <p className={styles.joinLine} data-testid="jackpot-not-linked">
+            {t.jackpotNotLinked}
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-/** The line every machine's Odds tab gains: what the floor jackpot adds, and on what terms. */
-export function FloorJackpotOddsNote() {
+/**
+ * The line every machine's Odds tab gains: what the floor jackpot adds, and on
+ * what terms; or, at a machine that is not linked to it, that play there takes
+ * no part in it.
+ */
+export function FloorJackpotOddsNote({ game }: { game: FloorGame }) {
   const { language } = useGameLanguage();
   const t = getFloorStrings(language);
   const locale = localeOf(language);
   const fmt = (n: number) => n.toLocaleString(locale);
   const pct = `${(JACKPOT_C * 100).toLocaleString(locale, { maximumFractionDigits: 2 })}%`;
   const back = (EXPECTED_PER_MEDAL * 100).toLocaleString(locale, { maximumFractionDigits: 2 });
+  const isLinked = linked(game);
   return (
-    <section className={styles.odds} aria-labelledby="floor-jackpot-odds-title" data-testid="floor-jackpot-odds">
+    <section className={styles.odds} aria-labelledby="floor-jackpot-odds-title" data-testid="floor-jackpot-odds" data-linked={isLinked}>
       <h3 id="floor-jackpot-odds-title" className={styles.oddsTitle}>
         {t.jackpotTitle}
       </h3>
-      {t.jackpotRules(pct, fmt(JACKPOT_SHARE.per), fmt(JACKPOT_ONE_IN), fmt(JACKPOT_SEED), back, fmt(DAILY_PLAYED_MOST)).map((line) => (
-        <p key={line} className={styles.oddsLine}>
-          {line}
-        </p>
-      ))}
-      <p className={styles.oddsHonesty}>{t.jackpotHonesty}</p>
+      {isLinked ? (
+        <>
+          {t.jackpotRules(pct, fmt(JACKPOT_SHARE.per), fmt(JACKPOT_ONE_IN), fmt(JACKPOT_SEED), back, fmt(DAILY_PLAYED_MOST)).map((line) => (
+            <p key={line} className={styles.oddsLine}>
+              {line}
+            </p>
+          ))}
+          <p className={styles.oddsHonesty}>{t.jackpotHonesty}</p>
+        </>
+      ) : (
+        <p className={styles.oddsLine}>{t.jackpotRulesOut}</p>
+      )}
+      <LinkedMachines t={t} testId="floor-jackpot-odds-linked" />
     </section>
   );
 }

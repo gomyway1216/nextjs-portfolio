@@ -82,6 +82,12 @@ export interface FloorStrings {
   jackpotPaid: (medals: string) => string;
   /** The Odds tabs' line: the share, one medal for every `per`, the chance, the seed, what it brings back for every 100 played, and the day's most. */
   jackpotRules: (share: string, per: string, oneIn: string, seed: string, back: string, daily: string) => string[];
+  /** The machines linked to the floor jackpot, by name. */
+  jackpotLinked: (machines: string) => string;
+  /** Over a machine that is not linked: play there neither feeds nor wins it. */
+  jackpotNotLinked: string;
+  /** The Odds tab of a machine that is not linked. */
+  jackpotRulesOut: string;
   jackpotHonesty: string;
   jackpotWinsTitle: string;
   jackpotMore: string;
@@ -208,7 +214,7 @@ const en: FloorStrings = {
   hideMoment: 'Take off the floor',
   jackpotTitle: 'FLOOR JACKPOT',
   jackpotUnit: 'medals',
-  jackpotLead: 'One pool for the whole floor. Every medal played by the players on the floor adds to it, and any one of those medals can win all of it.',
+  jackpotLead: 'One pool for the whole floor. Every medal the players on the floor play at a linked machine adds to it, and any one of those medals can win all of it.',
   jackpotGuest: 'Sign in and join the floor to play for it.',
   jackpotJoinHere: 'Join the floor below to play for it.',
   jackpotJoinThere: 'Join the floor at the Medal Center to play for it.',
@@ -220,8 +226,12 @@ const en: FloorStrings = {
   jackpotRules: (share, per, oneIn, seed, back, daily) => [
     `+ ${share} of every medal played goes to the floor jackpot: the site adds 1 medal for every ${per} you play, on top of what you play. Nothing is taken out of it, so this machine’s own return is exactly as shown.`,
     `Each medal played is also a 1 in ${oneIn} chance to win the whole pool, which starts again at ${seed} medals once it is won. In the long run it brings back ${back} medals for every 100 played, but only in the long run: most players never win it.`,
-    `It is for players who are signed in and have joined the floor, on the first ${daily} medals each plays in a day (Japan time), with one floor jackpot a day at most.`,
+    `It is for players who are signed in and have joined the floor, on the first ${daily} medals each plays in a day (Japan time) at the linked machines, with one floor jackpot a day at most.`,
   ],
+  jackpotLinked: (machines) => `Linked machines: ${machines}.`,
+  jackpotNotLinked: 'This table isn’t linked to the floor jackpot: play here doesn’t feed it or win it.',
+  jackpotRulesOut:
+    'This table isn’t linked to the floor jackpot. Its best play already brings back nearly every medal played, so play here neither feeds the floor jackpot nor draws for it. As on a real floor, not every cabinet is on the progressive.',
   jackpotHonesty:
     'Like the rankings, the floor jackpot is for fun. The medals played that feed it are what players’ browsers report: the site checks each report against what that machine allows, but it cannot prove it. The draw itself is made on the site’s server, never in a browser.',
   jackpotWinsTitle: 'Last floor jackpots',
@@ -297,7 +307,7 @@ const ja: FloorStrings = {
   hideMoment: 'フロアから外す',
   jackpotTitle: 'フロアジャックポット',
   jackpotUnit: '枚',
-  jackpotLead: 'フロア全体でひとつのジャックポットです。フロアに参加しているプレイヤーが遊んだメダルで増えていき、そのメダルのどれか1枚が全部を当てます。',
+  jackpotLead: 'フロア全体でひとつのジャックポットです。フロアに参加しているプレイヤーが対象のマシンで遊んだメダルで増えていき、そのメダルのどれか1枚が全部を当てます。',
   jackpotGuest: 'サインインしてフロアに参加すると、ねらえます。',
   jackpotJoinHere: '下でフロアに参加すると、ねらえます。',
   jackpotJoinThere: 'メダルゲームセンターでフロアに参加すると、ねらえます。',
@@ -309,8 +319,12 @@ const ja: FloorStrings = {
   jackpotRules: (share, per, oneIn, seed, back, daily) => [
     `遊んだメダルの${share}がフロアジャックポットに入ります。遊んだメダル${per}枚につき1枚を、サイトが上乗せします。遊んだメダルから引くのではないので、このマシンの還元率は表示のとおりです。`,
     `さらに、遊んだメダル1枚1枚が${oneIn}分の1の確率でジャックポット全部を当てます。当たると${seed}枚からやり直しです。長い目で見ると、遊んだメダル100枚につき${back}枚が戻りますが、それは長い目で見た話で、ほとんどのプレイヤーは当てずに終わります。`,
-    `対象は、サインインしてフロアに参加しているプレイヤーが1日（日本時間）に遊んだメダルの${daily}枚まで。フロアジャックポットは1日1回までです。`,
+    `対象は、サインインしてフロアに参加しているプレイヤーが対象のマシンで1日（日本時間）に遊んだメダルの${daily}枚まで。フロアジャックポットは1日1回までです。`,
   ],
+  jackpotLinked: (machines) => `対象のマシン：${machines}`,
+  jackpotNotLinked: 'このテーブルはフロアジャックポットの対象外です。ここで遊んでも、ジャックポットは増えず、当たりもしません。',
+  jackpotRulesOut:
+    'このテーブルはフロアジャックポットの対象外です。いちばん良い遊び方では、すでに遊んだメダルのほとんどが戻るため、ここで遊んでもジャックポットは増えず、抽選もありません。本物のフロアと同じく、すべての台がジャックポットにつながっているわけではありません。',
   jackpotHonesty:
     'フロアジャックポットもランキングと同じくお楽しみ用です。ジャックポットを増やす「遊んだメダル」は、プレイヤーのブラウザーからの報告です。マシンが受け付けられる量と照らし合わせて確かめていますが、証明はできません。抽選そのものはサイトのサーバーで行い、ブラウザーでは行いません。',
   jackpotWinsTitle: '最近のフロアジャックポット',

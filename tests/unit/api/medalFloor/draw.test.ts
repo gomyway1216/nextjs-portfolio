@@ -6,7 +6,7 @@ import { isWinId } from '@/lib/medalFloor/jackpot';
 // The floor jackpot's draw, as the server makes it: from node:crypto, nothing a browser sends.
 
 describe('the server’s draw', () => {
-  it('is a number in [0, 1), fine enough for a 1 in 40,000 chance, and never the same twice in a row', () => {
+  it('is a number in [0, 1), fine enough for a 1 in 150,000 chance, and never the same twice in a row', () => {
     const draws = Array.from({ length: 2_000 }, () => drawUniform());
     for (const draw of draws) {
       expect(draw).toBeGreaterThanOrEqual(0);

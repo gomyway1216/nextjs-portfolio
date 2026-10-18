@@ -8,8 +8,9 @@
  *   floorReport('medal-pusher', { prize: { medals: 523, label: 'jackpot' } });              // a prize, before its medals land
  *
  * `won` is medals paid back to the player (they count toward "medals won");
- * `played` is medals the player put in to play (they feed the floor jackpot,
- * and are its tickets: lib/medalFloor/jackpot.ts); `prize` is one win, for the
+ * `played` is medals the player put in to play (at a machine linked to the
+ * floor jackpot they feed it and are its tickets: lib/medalFloor/jackpot.ts);
+ * `prize` is one win, for the
  * biggest-win boards and, when it is big enough, for the floor's feed. A
  * machine calls it where it takes a stake and where it pays, and nothing else.
  *
@@ -24,6 +25,7 @@
  */
 
 import { FLOOR_RULES, feedWorthy, isFloorGame, labelPays, type FloorGame } from '@/lib/medalFloor/games';
+import { linked } from '@/lib/medalFloor/jackpot';
 import { FLOOR_API } from './api';
 import { pageAccount, type FloorAccount } from './pageAccount';
 
@@ -223,7 +225,8 @@ export function createFloorReporter(deps: ReporterDeps) {
       if (!account || place === 'out') return;
       const rule = FLOOR_RULES[game];
       const won = whole(win.won);
-      const played = whole(win.played);
+      // Medals played are sent only from a machine linked to the floor jackpot: elsewhere they take no part in it.
+      const played = linked(game) ? whole(win.played) : 0;
       let moment: Moment | null = null;
       if (win.prize && Number.isSafeInteger(win.prize.medals) && win.prize.medals >= 1 && win.prize.medals <= rule.most) {
         // A name the floor does not know the amount for is left off; the win itself still counts.

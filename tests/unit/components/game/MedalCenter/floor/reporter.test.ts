@@ -260,6 +260,18 @@ describe('the floor reporter', () => {
     expect(h.reports()).toHaveLength(2);
   });
 
+  it('sends no medals played from a table that is not linked to the floor jackpot, only its wins', async () => {
+    const h = harness({ joined: true });
+    h.signIn('test-uid-ann');
+    h.reporter.report('craps', { played: 400 });
+    h.reporter.report('blackjack', { played: 10 });
+    await h.pass(FLUSH_MS);
+    expect(h.reports()).toEqual([]);
+    h.reporter.report('craps', { won: 60, played: 30, prize: { medals: 60 } });
+    await h.pass(FLUSH_MS);
+    expect(h.reports().map((call) => call.body)).toEqual([{ game: 'craps', won: 60, best: 60 }]);
+  });
+
   it('sends a guest’s medals played nowhere', async () => {
     const h = harness();
     h.reporter.report('roulette', { played: 500 });

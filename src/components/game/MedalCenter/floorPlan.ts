@@ -4,10 +4,10 @@
  *
  * A real Japanese medal floor (a Round One, a Taito Station) is laid out in
  * corners, each under a sign that hangs from the ceiling: the new machines by
- * the door (新台), the pushers and the other big machines in the middle, the
- * rows of video and slot machines with the kids' and candy shop corner
- * (駄菓子屋) beside them, and the casino tables at the back. The medal center's
- * front is laid out the same way (MachineFloor.tsx).
+ * the door (新台), the pushers with the rows of video and slot machines beside
+ * them, the other big machines in the middle, the kids' and candy shop corner
+ * (駄菓子屋), and the casino tables at the back. The medal center's front is
+ * laid out the same way (MachineFloor.tsx).
  *
  * The machines themselves are listed in `FLOOR` (MedalCenter.tsx). A machine
  * that comes onto the floor with no line here still shows: it stands with the
@@ -22,10 +22,10 @@ import type { GameLanguage } from '../constants/gameTranslations';
 
 /**
  * The corners of the floor, in the order a player walks onto them from the door. On a wide screen the corners stand
- * side by side where they fit, so this order also pairs them: the pusher with the big machines, the video machines with
- * the candy shop, and the tables across the back.
+ * side by side where they fit, so this order also pairs them: the pusher beside the video machines, then the big
+ * machines across the floor (two big cabinets fill a row), the candy shop, and the tables across the back.
  */
-export const ZONES = ['new', 'pusher', 'big', 'video', 'kids', 'table'] as const;
+export const ZONES = ['new', 'pusher', 'video', 'big', 'kids', 'table'] as const;
 export type ZoneId = (typeof ZONES)[number];
 
 type Words = Record<GameLanguage, string>;
@@ -61,13 +61,14 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   // A fishing medal machine stands with the family machines, as Fishing Spirits (釣りスピリッツ) does on a real floor.
   fishing: 'kids',
   'horse-race': 'big',
+  'ball-bingo': 'big',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -82,6 +83,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'three-card-poker': { en: 'Ante, see three cards, then play or fold.', ja: 'アンティを置き、3枚を見て勝負か降りるか。' },
   fishing: { en: 'Cast for 1, 3 or 5 and reel in the harbor lord.', ja: '1・3・5枚でキャスト。港のヌシを釣り上げろ。' },
   'horse-race': { en: 'Six horses on a mini track: win or quinella.', ja: 'ミニコースを6頭が走る。単勝か連複を買おう。' },
+  'ball-bingo': { en: 'Drop balls through the pins; line up a 3×3 card.', ja: '釘を抜けるボールで3×3のビンゴをそろえよう。' },
 };
 
 /** The corner a machine stands in: its own, or the new machines' when it has none yet. */

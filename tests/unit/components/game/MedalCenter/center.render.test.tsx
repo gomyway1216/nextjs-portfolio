@@ -98,7 +98,7 @@ describe('the medal center’s front, as the server sends it', () => {
     const html = render();
     const t = getCenterStrings('en');
     // The corners there are machines in, in the order a player walks onto them: the new machines by the door, the pusher and
-    // the big machines, the video machines and the candy shop, the tables. A corner with no machine in it is not shown.
+    // the video machines, the big machines, the candy shop, the tables. A corner with no machine in it is not shown.
     const shown = [...html.matchAll(/data-testid="center-zone-([a-z]+)"/g)].map((match) => match[1] as ZoneId);
     expect(shown).toEqual(ZONES.filter((zone) => FLOOR.some(({ id }) => zoneOf(id) === zone)));
     for (const zone of ['pusher', 'video', 'table', 'kids'] as const) expect(shown).toContain(zone);
@@ -121,9 +121,10 @@ describe('the medal center’s front, as the server sends it', () => {
       const link = html.match(new RegExp(`<h4[^>]*><a[^>]*data-testid="center-play-${id}"[^>]*>${name}</a></h4>`))?.[0] ?? '';
       expect(link, id).toContain(`href="${path}"`);
     }
-    // The pusher and the horse race are big cabinets; the others are not.
+    // The pusher, the horse race and the ball-drop bingo are big cabinets; the others are not.
     expect(html).toMatch(/data-machine="medal-pusher" data-zone="pusher" data-wide="true"/);
     expect(html).toMatch(/data-machine="horse-race" data-zone="big" data-wide="true"/);
+    expect(html).toMatch(/data-machine="ball-bingo" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="slot-machine" data-zone="video" data-wide="false"/);
     // No plate says the same as every other one.
     expect(html).not.toContain('Plays with your medals.');

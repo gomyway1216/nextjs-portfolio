@@ -41,8 +41,9 @@ const subscribe = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
-// On the server, and in the first drawing, it is not shown: the browser's storage says whether it is.
-const seenOnServer = () => true;
+// On the server, and in the first drawing, it is shown: the browser's storage is asked by its gate before the page is
+// painted, which hides it where it has been seen (MedalCenter/onceNote.tsx), so the table never moves for it.
+const seenOnServer = () => false;
 
 /** Whether the note is still to be shown. */
 export const useNoticeShown = (): boolean => !useSyncExternalStore(subscribe, seen, seenOnServer);

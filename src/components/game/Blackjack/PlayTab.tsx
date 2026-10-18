@@ -24,6 +24,7 @@ import {
   type Round,
 } from './engine';
 import { useCountUp } from '../MedalCenter/countUp';
+import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { KeysHint } from '../MedalCenter/KeysHint';
 import { useMachineSound } from '../MedalCenter/machineSounds';
@@ -36,6 +37,14 @@ import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
 
 const ACTIONS: Action[] = ['hit', 'stand', 'double', 'split'];
+
+/**
+ * The note that the table plays with the player's medals now: told once, the first time this browser shows the table
+ * since it came onto the medal floor, and kept on the page until it is put away or a hand is dealt. The server draws
+ * it, and its gate hides it before the page is painted where it has been told (MedalCenter/onceNote.tsx), so the table
+ * never moves for it.
+ */
+const NOTE = createOnceNote({ name: 'blackjack', storageKey: NOTICE_KEY, writeValue: 'seen', readWhenShown: true });
 
 /** The keys of the four moves, on a desktop: H hit, S stand, D double, P split. */
 export const KEY_ACTIONS: Readonly<Record<string, Action>> = { h: 'hit', s: 'stand', d: 'double', p: 'split' };
@@ -128,7 +137,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   const [dealNo, setDealNo] = useState(0);
   const [won, setWon] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  const [notice, setNotice] = useState(false);
+  const notice = NOTE.useShown();
   const [longWait, setLongWait] = useState(false);
   // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch beside the shoe.
   const sound = useMachineSound();
@@ -244,17 +253,6 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     setAnnouncement(t.sayReset);
   };
 
-  /** The first time this browser shows the table since it came onto the medal floor, it says so, once. */
-  const showNoticeOnce = () => {
-    try {
-      if (window.localStorage.getItem(NOTICE_KEY) !== null) return;
-      window.localStorage.setItem(NOTICE_KEY, 'seen');
-    } catch {
-      return;
-    }
-    setNotice(true);
-  };
-
   // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
   // each medal with its chirp; WIN shows the whole win at once. Every bet and every stake shows at once. The meter
   // shows the medals once the player's table is open (`open`, below).
@@ -264,14 +262,10 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   );
   const payMedals = medalMeter.pay;
 
-  const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t, payMedals: () => {} });
+  const live = useRef({ reconcile, openTable, afterReset, t, payMedals: () => {} });
   useEffect(() => {
-    live.current = { reconcile, openTable, afterReset, showNoticeOnce, t, payMedals };
+    live.current = { reconcile, openTable, afterReset, t, payMedals };
   });
-
-  useEffect(() => {
-    live.current.showNoticeOnce();
-  }, []);
 
   // The table's place at the medal center. It asks for the card as it is set up and plays with the player's medals
   // while it holds it. Everything at the table is written down as it happens, so there is nothing more to write as
@@ -386,7 +380,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     commitSave(step.save);
     setMessage(null);
     setWon(null);
-    setNotice(false);
+    NOTE.putAway();
     const r = step.save.round!;
     const fast = prefersReducedMotion();
     // The opening deal: player, dealer, player, the hole card; each slides out of the shoe in turn.
@@ -569,20 +563,23 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   return (
     <>
       {notice && (
-        <aside className={styles.notice} aria-labelledby="bj-notice-title" data-testid="bj-notice">
-          <h2 id="bj-notice-title" className={styles.noticeTitle}>
-            {t.noticeTitle}
-          </h2>
-          <p>{t.noticeBody}</p>
-          <div className={styles.noticeActions}>
-            <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="bj-notice-center">
-              {t.noticeLink}
-            </Link>
-            <button type="button" className={styles.btn} onClick={() => setNotice(false)} data-testid="bj-notice-dismiss">
-              {t.noticeDismiss}
-            </button>
-          </div>
-        </aside>
+        <>
+          <NoteGate name="blackjack" storageKey={NOTICE_KEY} />
+          <aside className={styles.notice} aria-labelledby="bj-notice-title" data-testid="bj-notice" {...noteAttributes('blackjack')}>
+            <h2 id="bj-notice-title" className={styles.noticeTitle}>
+              {t.noticeTitle}
+            </h2>
+            <p>{t.noticeBody}</p>
+            <div className={styles.noticeActions}>
+              <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="bj-notice-center">
+                {t.noticeLink}
+              </Link>
+              <button type="button" className={styles.btn} onClick={NOTE.putAway} data-testid="bj-notice-dismiss">
+                {t.noticeDismiss}
+              </button>
+            </div>
+          </aside>
+        </>
       )}
 
       <div className={styles.playGrid}>

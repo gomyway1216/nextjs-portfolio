@@ -68,6 +68,14 @@ export type JackpotStanding = 'guest' | 'off' | 'on' | 'unknown' | 'none';
 
 function JoinLine({ standing, t, where, signInHref }: { standing: JackpotStanding; t: FloorStrings; where: 'here' | 'there'; signInHref?: string }) {
   if (standing === 'none') return null;
+  // Until the medals have been read, the line a guest is shown, unseen: most visitors are guests, so the line keeps its
+  // height as it comes in, and nothing under it moves (a phone at 320 px wraps the other lines differently).
+  if (standing === 'unknown')
+    return (
+      <p className={`${styles.joinLine} ${styles.unseen}`} data-testid="jackpot-join" data-standing="unknown" aria-hidden="true">
+        {t.jackpotGuest}
+      </p>
+    );
   if (standing === 'on') return <p className={styles.joinLine} data-testid="jackpot-join" data-standing="on">{t.jackpotIn}</p>;
   if (standing === 'guest')
     return (

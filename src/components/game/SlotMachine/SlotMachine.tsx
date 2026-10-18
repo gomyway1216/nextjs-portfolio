@@ -4,11 +4,12 @@ import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank } from '../MedalCenter/bank';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import type { AccountStore } from '../MedalPusher/account';
 import { analyzeMachine } from './engine';
 import { getStrings } from './i18n';
-import { browserStorage, markNoticeRead, noticeRead } from './medals';
+import { NOTICE_KEY, browserStorage, markNoticeRead, noticeRead } from './medals';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
@@ -29,7 +30,8 @@ export interface SlotMachineProps {
 }
 
 // Whether the one-time note has been read on this device: kept in storage, and on this page too, for a browser whose
-// storage keeps nothing. Nothing is known of the device on the server, which draws the page as though it had been read.
+// storage keeps nothing. Nothing is known of the device on the server, which draws the note, and its gate hides it
+// before the page is painted where it has been read (MedalCenter/onceNote.tsx): the machine never moves for it.
 const noticeHeard = new Set<() => void>();
 let readHere = false;
 const subscribeNotice = (listener: () => void) => {
@@ -39,7 +41,7 @@ const subscribeNotice = (listener: () => void) => {
   };
 };
 const noticeIsRead = () => readHere || noticeRead(browserStorage());
-const readOnServer = () => true;
+const readOnServer = () => false;
 
 /** The one-time note that the machine plays with the player's medals now, until they have read it on this device. */
 const MedalsNotice = () => {
@@ -55,20 +57,23 @@ const MedalsNotice = () => {
     document.querySelector<HTMLElement>('[role="tab"][id^="slot-tab-"][aria-selected="true"]')?.focus();
   };
   return (
-    <section className={styles.notice} aria-labelledby="slot-notice-title" data-testid="slot-notice">
-      <h2 id="slot-notice-title" className={styles.noticeTitle}>
-        {t.noticeTitle}
-      </h2>
-      <p>{t.noticeBody}</p>
-      <div className={styles.noticeActions}>
-        <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="slot-notice-link">
-          {t.noticeLink}
-        </a>
-        <button type="button" className={styles.btn} data-testid="slot-notice-dismiss" onClick={dismiss}>
-          {t.noticeDismiss}
-        </button>
-      </div>
-    </section>
+    <>
+      <NoteGate name="slot-machine" storageKey={NOTICE_KEY} readValue="1" />
+      <section className={styles.notice} aria-labelledby="slot-notice-title" data-testid="slot-notice" {...noteAttributes('slot-machine')}>
+        <h2 id="slot-notice-title" className={styles.noticeTitle}>
+          {t.noticeTitle}
+        </h2>
+        <p>{t.noticeBody}</p>
+        <div className={styles.noticeActions}>
+          <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="slot-notice-link">
+            {t.noticeLink}
+          </a>
+          <button type="button" className={styles.btn} data-testid="slot-notice-dismiss" onClick={dismiss}>
+            {t.noticeDismiss}
+          </button>
+        </div>
+      </section>
+    </>
   );
 };
 

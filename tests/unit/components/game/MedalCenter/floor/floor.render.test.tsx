@@ -185,7 +185,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -200,13 +200,15 @@ describe('the floor jackpot', () => {
     expect(inLanguage('ja', <FloorJackpotPanel standing="off" />)).toContain('フロアジャックポット');
   });
 
-  it('is over every machine, small, with the way to the medal center to join', () => {
+  it('is over every machine, small; until the medals are read, its line holds a guest’s line’s place, unseen', () => {
     const html = inLanguage('en', <FloorJackpotStrip game="slot-machine" />);
     expect(html).toContain('data-testid="floor-jackpot-strip"');
     expect(html).toContain('data-linked="true"');
     expect(html).toContain('data-size="small"');
-    expect(html).toContain('href="/games/medal-center"');
-    expect(inLanguage('ja', <FloorJackpotStrip game="slot-machine" />)).toContain(getFloorStrings('ja').jackpotJoinThere);
+    // Most visitors are guests: their line comes in where it was held, and nothing under the strip moves.
+    const held = (language: 'en' | 'ja') => new RegExp(`<p class="[^"]*unseen[^"]*" data-testid="jackpot-join" data-standing="unknown" aria-hidden="true">${getFloorStrings(language).jackpotGuest}</p>`);
+    expect(html).toMatch(held('en'));
+    expect(inLanguage('ja', <FloorJackpotStrip game="slot-machine" />)).toMatch(held('ja'));
   });
 
   it('says plainly over a table that is not linked to it that play there neither feeds it nor wins it', () => {
@@ -259,6 +261,7 @@ describe('the floor jackpot', () => {
       fishing: ['Fishing/Fishing.tsx', 'OddsTab'],
       'horse-race': ['HorseRace/HorseRace.tsx', 'OddsTab'],
       'ball-bingo': ['BallBingo/BallBingo.tsx', 'OddsTab'],
+      'big-wheel': ['BigWheel/BigWheel.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
     const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');
@@ -295,7 +298,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank } from '../MedalCenter/bank';
+import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import type { AccountStore, Player } from '../MedalPusher/account';
 import { getStrings } from './i18n';
-import { deviceStore, markNoticeSeen, noticeSeen } from './medals';
+import { NOTICE_KEY } from './medals';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
@@ -16,6 +17,14 @@ import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/Fl
 import floorTabs from '../MedalCenter/tabs.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
+
+/**
+ * The note that the machine plays with the player's medals now: told once, on the first visit since the machine came
+ * onto the medal center's floor, and kept on the page until it is put away. Whatever is kept under its key counts as
+ * told; storage that cannot be read tells them again. The server draws it, and its gate hides it before the page is
+ * painted where it has been told (MedalCenter/onceNote.tsx), so the machine never moves for it.
+ */
+const NOTE = createOnceNote({ name: 'video-poker', storageKey: NOTICE_KEY, readWhenShown: true });
 
 export interface VideoPokerProps {
   /** Who is playing, as far as the site knows. Without one, a guest. */
@@ -29,7 +38,7 @@ export interface VideoPokerProps {
 export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPokerProps = {}) => {
   const [tab, setTab] = useState<Tab>('play');
   const [infoOpen, setInfoOpen] = useState(false);
-  const [notice, setNotice] = useState(false);
+  const notice = NOTE.useShown();
   const { language } = useGameLanguage();
   const t = getStrings(language);
 
@@ -40,16 +49,6 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
   useLayoutEffect(() => {
     medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? { machines, books } : {});
   }, [uid, settled, expected, bankStore, machines, books]);
-
-  // Told once, on the first visit since the machine came onto the medal center's floor.
-  useEffect(() => {
-    if (noticeSeen(deviceStore)) return;
-    const timer = setTimeout(() => {
-      setNotice(true);
-      markNoticeSeen(deviceStore);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'play', label: t.tabPlay },
@@ -78,20 +77,23 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
         </div>
 
         {notice && (
-          <section className={styles.notice} aria-labelledby="vp-notice-title" data-testid="vp-notice">
-            <h2 id="vp-notice-title" className={styles.noticeTitle}>
-              {t.noticeTitle}
-            </h2>
-            <p className={styles.noticeBody}>{t.noticeBody}</p>
-            <div className={styles.noticeActions}>
-              <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="vp-notice-center">
-                {t.noticeLink}
-              </a>
-              <button type="button" className={styles.btn} data-testid="vp-notice-dismiss" onClick={() => setNotice(false)}>
-                {t.noticeDismiss}
-              </button>
-            </div>
-          </section>
+          <>
+            <NoteGate name="video-poker" storageKey={NOTICE_KEY} />
+            <section className={styles.notice} aria-labelledby="vp-notice-title" data-testid="vp-notice" {...noteAttributes('video-poker')}>
+              <h2 id="vp-notice-title" className={styles.noticeTitle}>
+                {t.noticeTitle}
+              </h2>
+              <p className={styles.noticeBody}>{t.noticeBody}</p>
+              <div className={styles.noticeActions}>
+                <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="vp-notice-center">
+                  {t.noticeLink}
+                </a>
+                <button type="button" className={styles.btn} data-testid="vp-notice-dismiss" onClick={NOTE.putAway}>
+                  {t.noticeDismiss}
+                </button>
+              </div>
+            </section>
+          </>
         )}
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}

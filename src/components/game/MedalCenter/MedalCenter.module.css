@@ -206,6 +206,12 @@
   font-size: 0.88rem;
   line-height: 1.5;
 }
+.outNote {
+  margin: 0;
+  color: var(--mc-gold);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
 .where {
   margin: 0;
   color: var(--mc-ink-soft);

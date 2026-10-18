@@ -203,6 +203,7 @@ const medalsFor = (seat: { current: Seat | null }): TableMedals => ({
   apply: (move) => medalBank().apply(move),
   applied: (move) => medalBank().applied(move),
   forget: (game, keep) => medalBank().forget(game, keep),
+  settle: (game, keep) => medalBank().settle(game, keep),
 });
 
 /** A medal of the medal center's own, in its silver: copper-nickel with a raised rim and its star. */

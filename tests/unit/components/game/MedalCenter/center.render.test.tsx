@@ -3,6 +3,7 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { COUNTER_PLACES, FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
+import { MedalsOut } from '@/components/game/MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH, MEDAL_PUSHER_PATH } from '@/components/game/MedalCenter/paths';
 import { getCenterStrings } from '@/components/game/MedalCenter/strings';
 import { games } from '@/components/game/constants/games';
@@ -59,6 +60,31 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).not.toContain(t.soon);
     expect(t.resetDialogBody('2,480', true)).toContain('すべての端末');
     expect(getCenterStrings('en').resetDialogBody('2,480', false)).not.toContain('every device');
+  });
+
+  it('says why no refill is offered while medals are out on a round, with a way to each machine, and in no word of money', () => {
+    const out = (lang: 'en' | 'ja') =>
+      renderToStaticMarkup(
+        <I18nextProvider i18n={createI18nInstance(lang)}>
+          <MedalsOut games={['blackjack', 'video-poker']} language={lang} testId="center-out" />
+        </I18nextProvider>,
+      );
+    const en = out('en');
+    expect(en).toMatch(/data-testid="center-out" data-out="blackjack video-poker"/);
+    for (const id of ['blackjack', 'video-poker']) {
+      const game = games.find((entry) => entry.id === id)!;
+      // Each name goes to the machine, where the round is finished.
+      expect(en).toContain(`href="${game.path}"`);
+      expect(en).toContain(`>${game.title}</a>`);
+      expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(game.path);
+    }
+    const text = (html: string) => html.replace(/<[^>]+>/g, '');
+    expect(text(en)).toBe('Some of your medals are still on a round at Blackjack, Video Poker. Finish it there and they come back to you; the free refill is for when none are left anywhere.');
+    const ja = out('ja');
+    expect(text(ja)).toBe('ブラックジャック、ビデオポーカーで、まだメダルが勝負に出ています。そこで勝負を終えるとメダルが戻ります。無料のメダルは、どこにもメダルが残っていないときにもらえます。');
+    for (const words of [text(en), text(ja), getCenterStrings('en').rules.join(' '), getCenterStrings('ja').rules.join(' ')]) {
+      expect(words).not.toMatch(/bankroll|\bbank\b|deposit|withdraw|cash|money|dollar|balance|credit|\$|預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|所持金|収支/i);
+    }
   });
 
   it('is in the catalog under its own path', () => {

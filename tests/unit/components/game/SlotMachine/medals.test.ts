@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ledgerKey } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, medalsOutAt, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
 import { TOTAL_WAYS, analyzeMachine, paylineOf, type Stops } from '@/components/game/SlotMachine/engine';
 import {
   BET_OPTIONS,
@@ -150,6 +150,23 @@ describe('the medals a spin bets and wins', () => {
     browser.storage.set(ROUND_KEY, serializeRound({ v: 1, id: 'later', tab: 'taba', owner: null, era: 7, bet: 1, stops: JACKPOT, paid: false }));
     expect(table.bet(1, LOSS)).toEqual({ ok: false, why: 'unpaid' });
     expect(storedBalance(browser)).toBe(5);
+  });
+});
+
+describe('the medals out on a spin', () => {
+  it('are out while the reels spin, and none are once they stop, on a loss as on a win', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const { table } = slot(page);
+    await quiet(browser);
+    const out = () => medalsOutAt(stored(browser)!);
+    for (const stops of [LOSS, CHERRY]) {
+      const round = bet(table, 1, stops);
+      expect(out()).toEqual(['slot-machine']);
+      expect(page.bank.getState().out).toEqual(['slot-machine']);
+      expect(table.finish(round)).toBe(true);
+      expect(out()).toEqual([]);
+    }
   });
 });
 
@@ -383,9 +400,12 @@ describe('the card', () => {
     // The other tab plays as though it held the card too, and settles the first tab's round when it next looks.
     expect(two.table.payDue()?.id).toBe(round.id);
     expect(storedRound(browser)).toEqual({ ...round, paid: true });
-    // The first tab's reels stop: the round is written down as paid, so it pays nothing more.
-    const before = first.bank.balance();
+    // The first tab's reels stop: the round is written down as paid, so it pays nothing more. (Settling, the first tab
+    // reads the medals again, the second tab's pay among them.)
+    const before = storedBalance(browser);
+    expect(before).toBe(WELCOME - 1 + 1_000);
     expect(one.table.finish(round)).toBe(true);
+    expect(storedBalance(browser)).toBe(before);
     expect(first.bank.balance()).toBe(before);
     expect(storedRound(browser)).toBeNull();
     expect(two.table.payDue()).toBeNull();

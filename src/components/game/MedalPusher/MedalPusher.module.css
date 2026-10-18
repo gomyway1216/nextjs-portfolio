@@ -2730,6 +2730,13 @@
 .chest:focus-visible,
 .toggle:focus-visible,
 .feed:focus-visible,
+.outNote {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #ffe98a;
+  text-align: center;
+}
 .refill:focus-visible,
 .aimSlider:focus-visible {
   outline: 2px solid #ffffff;
@@ -2916,7 +2923,8 @@
 .cabinet:fullscreen .marquee,
 .cabinet:fullscreen .legendBelow,
 .cabinet:fullscreen .panel,
-.cabinet:fullscreen .refill {
+.cabinet:fullscreen .refill,
+.cabinet:fullscreen .outNote {
   flex: none;
   margin-top: 0;
 }
@@ -3092,7 +3100,8 @@
     align-self: start;
     text-align: left;
   }
-  .cabinet:fullscreen .refill {
+  .cabinet:fullscreen .refill,
+  .cabinet:fullscreen .outNote {
     grid-area: refill;
     align-self: start;
   }

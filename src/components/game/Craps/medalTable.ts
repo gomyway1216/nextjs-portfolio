@@ -444,6 +444,8 @@ export interface TablePurse {
   apply(move: Move): 'applied' | 'already' | null;
   applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
   forget(game: string, keep?: readonly string[]): boolean;
+  /** Says that the game's rounds but those in `keep` have no medals out any more: no refill is given while one does. */
+  settle(game: string, keep?: readonly string[]): boolean;
   restartDue(game: string): boolean;
   restarted(game: string): void;
   /** Whether this browser kept the medals' last write: read straight after a take or a give, whether that one was. */
@@ -462,6 +464,7 @@ export const purseOf = (bank: {
   apply(move: Move): 'applied' | 'already' | null;
   applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
   forget(game: string, keep?: readonly string[]): boolean;
+  settle(game: string, keep?: readonly string[]): boolean;
   restartDue(game: string): boolean;
   restarted(game: string): void;
   played?(report: { game: string; round: string; bet: number; won: number }): void;
@@ -478,6 +481,7 @@ export const purseOf = (bank: {
   apply: (move) => bank.apply(move),
   applied: (move) => bank.applied(move),
   forget: (game, keep) => bank.forget(game, keep),
+  settle: (game, keep) => bank.settle(game, keep),
   restartDue: (game) => bank.restartDue(game),
   restarted: (game) => bank.restarted(game),
   kept: () => bank.getState().kept,
@@ -664,6 +668,9 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       else seen = UNREAD;
     }
     square();
+    // Medals are out at the table while bets lie on it, and only then: none on it, none are out, even if the page that
+    // cleared it died before it could say so.
+    if (may() && !stuck && onTable(table) === 0) purse.settle(CRAPS_GAME);
   };
 
   /**
@@ -678,7 +685,7 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       const move = { game: CRAPS_GAME, round: moveRound(id, pending.n), step: MOVE_STEP };
       if (purse.applied(move)) return;
       if (pending.medals > 0) {
-        purse.apply({ ...move, medals: pending.medals });
+        purse.apply({ ...move, medals: pending.medals, out: onTable(table) > 0 });
         return;
       }
       const earlier = pending.before === null ? null : parseTable(pending.before);
@@ -711,7 +718,12 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
    * twice. A change that moves nothing is simply written. Returns why it was not made, or null.
    */
   const change = (before: Table, next: Table, medals: number): TableError | null => {
-    if (medals === 0) return commit({ ...next, pending: undefined }) ? null : 'notKept';
+    if (medals === 0) {
+      if (!commit({ ...next, pending: undefined })) return 'notKept';
+      // A roll that took every bet off the table and gave nothing back: none of its medals are out any more.
+      if (onTable(next) === 0) purse.settle(CRAPS_GAME);
+      return null;
+    }
     const id = before.id ?? newId();
     const n = (before.seq ?? 0) + 1;
     const plain: Table = { ...before };
@@ -719,7 +731,8 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
     const pending: Pending = { n, medals, before: serializeTable(plain) };
     if (!commit({ ...next, id, seq: n, pending })) return 'notKept';
     const move = { game: CRAPS_GAME, round: moveRound(id, n), step: MOVE_STEP };
-    const done = purse.apply({ ...move, medals });
+    // The table's medals are out while bets lie on it: the move says whether any still do.
+    const done = purse.apply({ ...move, medals, out: onTable(next) > 0 });
     if (done === 'applied' && medalsKept()) {
       // Made, and the table says so: the moves before it are let go of.
       purse.forget(CRAPS_GAME, [move.round]);

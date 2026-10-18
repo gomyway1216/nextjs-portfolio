@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BANK_KEY } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, medalsOutAt, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
 import { DOUBLE_MAX } from '@/components/game/VideoPoker/doubleUp';
 import {
   FLOOR_DOUBLE,
@@ -157,9 +157,27 @@ describe('a win put on a double-up', () => {
     const next = play.deal(5, '9/6');
     expect(next.kind).toBe('dealt');
     expect(storedBalance(browser)).toBe(WELCOME - 5 + 2 * WON - 5);
-    // The double-up's receipts went with the hand.
+    // The double-up's receipts went with the hand; the new hand's bet is out on it.
     const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
-    expect(receiptsOf(ledger, ledger.device).ids).toEqual([`${GAME}:${next.kind === 'dealt' ? next.hand.id : ''}:deal`]);
+    const nextId = next.kind === 'dealt' ? next.hand.id : '';
+    expect(receiptsOf(ledger, ledger.device).ids).toEqual([`${GAME}:${nextId}:deal`, `${GAME}:${nextId}:out`]);
+  });
+
+  it('has its medals out until its card is picked, and none once it is won, pushed or lost: nothing keeps a refill back', async () => {
+    for (const [dealer, card] of [
+      ['2♠', 'A♥'],
+      ['J♠', 'J♥'],
+      ['A♠', '3♣'],
+    ]) {
+      const { browser, play, id } = await won(double(dealer, card));
+      const out = () => medalsOutAt(parseLedger(browser.storage.get(BANK_KEY) ?? null)!);
+      // Drawn and paid: none out, the 45 on offer being in the medals already.
+      expect(out()).toEqual([]);
+      play.doubleUp(id);
+      expect(out()).toEqual([GAME]);
+      play.pick(id, 0);
+      expect(out(), `${dealer} against ${card}`).toEqual([]);
+    }
   });
 
   it('takes the win on offer without moving a medal, and offers no more double-ups for it', async () => {
@@ -187,6 +205,8 @@ describe('a win put on a double-up', () => {
     await quiet(browser);
     expect(again.play.read()).toEqual({ ok: true, hand: up.hand });
     expect(storedBalance(browser)).toBe(WELCOME - 5);
+    // The medals on the double are still out on it: no refill is given for them while it waits.
+    expect(medalsOutAt(parseLedger(browser.storage.get(BANK_KEY) ?? null)!)).toEqual([GAME]);
     // Reloading is no way out of it: the deal is refused until it is picked.
     expect(again.play.deal(1, '9/6').kind).toBe('inPlay');
     expect(again.play.pick(id, 0)).toMatchObject({ kind: 'picked', outcome: 'win', back: 2 * WON });

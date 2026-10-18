@@ -1,0 +1,13 @@
+/* The line that says why no refill is offered: some medals are out on a round at a machine. It takes the colours,
+   the size and the room of wherever it stands (the class it is given), the medal center's counter or a machine's:
+   only the names of the machines are its own. */
+.machine {
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.machine:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

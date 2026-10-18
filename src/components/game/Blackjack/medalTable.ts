@@ -362,6 +362,8 @@ export interface TableBank {
   apply: (move: Move) => 'applied' | 'already' | null;
   applied: (move: Pick<Move, 'game' | 'round' | 'step'>) => boolean;
   forget: (game: string, keep?: readonly string[]) => boolean;
+  /** Says that the game's rounds but those in `keep` have no medals out any more: no refill is given while any do. */
+  settle: (game: string, keep?: readonly string[]) => boolean;
   /** The medals that can be played now. */
   balance: () => number;
   owner: () => string | null;
@@ -565,6 +567,9 @@ export function createMedalTable({
     if (save.id !== undefined && save.paid && returned > 0 && !bank.applied({ game: GAME, round: save.id, step: PAY_STEP })) {
       bank.apply({ game: GAME, round: save.id, step: PAY_STEP, medals: returned, era: save.era });
     }
+    // Only the hand still in play has medals out: one settled, lost or pushed, has none, even if the page that settled
+    // it died before it could say so.
+    bank.settle(GAME, unsettled(save) && save.id !== undefined ? [save.id] : []);
     return changed;
   }
 
@@ -693,6 +698,8 @@ export function createMedalTable({
             }
           : null,
       );
+      // Settled: none of its medals are out any more, a hand lost included, which pays nothing.
+      if (given.ok) bank.settle(GAME);
       // The medal center takes nothing back only when this page no longer holds the card.
       return !given.ok && given.why === 'short' ? no('away') : given;
     },

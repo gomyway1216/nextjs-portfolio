@@ -301,6 +301,10 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
     const owner = bank.owner();
     const round = load(owner);
     if (round && round.paid && seen.has(round.id)) clear(owner, round.id);
+    // Only a round still to be paid has medals out: one paid, or lost, has none, even if the page that paid it died
+    // before it could say so.
+    const left = load(owner);
+    bank.settle(SLOT_GAME, left && !left.paid ? [left.id] : []);
     return paid;
   };
 

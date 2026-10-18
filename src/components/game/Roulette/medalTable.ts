@@ -205,6 +205,8 @@ export interface TableBank {
   apply(move: Move): 'applied' | 'already' | null;
   applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
   forget(game: string, keep?: readonly string[]): boolean;
+  /** Says that every spin but those in `keep` has no medals out any more: no refill is given while one does. */
+  settle(game: string, keep?: readonly string[]): boolean;
 }
 
 /** This device's storage. Every call may throw: storage can be blocked, full or switched off. */
@@ -384,6 +386,8 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       if (!write(key, serializeSpin({ ...record, paid: true, receipts: true }))) remove(key);
       staked.paid = true;
       if (record.won > 0) payWinnings(record);
+      // The ball has stopped: none of the spin's medals are out any more, a spin lost included, which pays nothing.
+      bank.settle(ROULETTE_GAME);
       return 'paid';
     },
 
@@ -402,7 +406,11 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       if (kept && kept.paid && kept.receipts && kept.won > 0 && current(kept) && !bank.applied({ game: ROULETTE_GAME, round: kept.id, step: PAY_STEP })) {
         payWinnings(kept);
       }
-      return unfinished();
+      const left = unfinished();
+      // Only a spin still to be finished has medals out: one settled has none, even if the page that settled it died
+      // before it could say so.
+      bank.settle(ROULETTE_GAME, left ? [left.id] : []);
+      return left;
     },
 
     /** The last spin these medals were settled on, for the table to show: null when there is none to show. */

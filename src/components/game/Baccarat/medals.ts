@@ -441,6 +441,8 @@ export interface Purse {
   apply: (move: Move) => 'applied' | 'already' | null;
   applied: (move: Pick<Move, 'game' | 'round' | 'step'>) => boolean;
   forget: (game: string, keep?: readonly string[]) => boolean;
+  /** Says that every coup but those in `keep` has no medals out any more: no refill is given while one does. */
+  settle: (game: string, keep?: readonly string[]) => boolean;
 }
 
 export interface TableHooks {
@@ -537,6 +539,9 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
     const ledger = ledgerNow();
     if (!ledger) return;
     const coup = parseCoup(store.read(coupKey(ledger.device)));
+    // Only a coup still to be paid has medals out: with none written down, none are, even if the page that struck the
+    // last one off died before it could say so.
+    if (!coup && holding()) purse.settle(GAME, open ? [open.id] : []);
     if (!coup || coup.id === open?.id) return;
     const { settled, paid, again } = pay(coup);
     if (settled && !again) hooks.resumed(coup, paid);

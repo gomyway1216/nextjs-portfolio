@@ -27,6 +27,10 @@ export interface CenterStrings {
   notKept: string;
   signInInvite: string;
   refill: (medals: number) => string;
+  /** Why no refill is offered to a player with no medals: some are out on a round at the machines put where `{games}` is. */
+  outAt: string;
+  /** What goes between two machines' names in `outAt`. */
+  outJoin: string;
   sayRefill: (medals: number) => string;
   sayBonus: (medals: number) => string;
   // The player's own page
@@ -88,6 +92,8 @@ const en: CenterStrings = {
   notKept: 'This browser is not keeping anything: your medals start again when the page is reloaded.',
   signInInvite: 'Sign in to keep your medals on your account.',
   refill: (medals) => `Out of medals — take ${medals} more`,
+  outAt: 'Some of your medals are still on a round at {games}. Finish it there and they come back to you; the free refill is for when none are left anywhere.',
+  outJoin: ', ',
   sayRefill: (medals) => `${medals} medals added to yours.`,
   sayBonus: (medals) => `Daily bonus: ${medals} medals added to yours.`,
   myPage: 'MY PAGE',
@@ -103,7 +109,7 @@ const en: CenterStrings = {
   rules: [
     'Every medal you drop at a machine comes out of your medals, and every medal you win is added to them as it lands. Nothing is left behind at the machine.',
     'Your medals stay until you reset them here. They do not run out after 30 days as a real arcade’s do.',
-    'Run out, and the attendant brings a free cupful of 100. Once a day there is the daily bonus.',
+    'Run out, and the attendant brings a free cupful of 100, once none of your medals are still on a round at a machine. Once a day there is the daily bonus.',
     'Your medals can be played at one machine at a time, like a member’s card in one cabinet: open a machine in another tab and the first one waits.',
   ],
   resetTitle: 'RESET',
@@ -141,6 +147,8 @@ const ja: CenterStrings = {
   notKept: 'このブラウザには保存できません。ページを読み込み直すと、メダルは最初からになります。',
   signInInvite: 'サインインすると、メダルをアカウントに保存できます。',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
+  outAt: '{games}で、まだメダルが勝負に出ています。そこで勝負を終えるとメダルが戻ります。無料のメダルは、どこにもメダルが残っていないときにもらえます。',
+  outJoin: '、',
   sayRefill: (medals) => `メダルが${medals}枚増えました。`,
   sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
   myPage: 'マイページ',
@@ -156,7 +164,7 @@ const ja: CenterStrings = {
   rules: [
     'マシンに入れたメダルは持ちメダルから減り、勝ったメダルは落ちたそばから持ちメダルに加わります。マシンに残しておくメダルはありません。',
     'メダルは、ここでリセットしない限り残ります。実際のお店のように30日で期限切れになることはありません。',
-    'メダルがなくなったら、店員さんが100枚を無料で持ってきます。1日1回、デイリーボーナスもあります。',
+    'メダルがなくなったら、店員さんが100枚を無料で持ってきます（マシンで勝負中のメダルが残っていないとき）。1日1回、デイリーボーナスもあります。',
     'メダルを遊べるマシンは一度に1台です。会員カードを1台の筐体に差すのと同じで、別のタブでマシンを開くと、先のマシンは待機します。',
   ],
   resetTitle: 'リセット',

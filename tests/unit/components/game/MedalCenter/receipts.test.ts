@@ -4,7 +4,9 @@ import { fromCloud, sizeOf, toCloud, ACCOUNT_LIMIT } from '@/components/game/Med
 import { BANK_KEY, ledgerKey, type Move, type SeatHandlers } from '@/components/game/MedalCenter/bank';
 import {
   LIMITS,
+  OUT_STEP,
   RECEIPTS,
+  REFILL,
   WELCOME,
   applyMove,
   balanceOf,
@@ -12,13 +14,17 @@ import {
   forgetReceipts,
   give,
   hasReceipt,
+  medalsOutAt,
   mergeLedgers,
   parseLedger,
   printOf,
   receiptOf,
   receiptsOf,
+  refill,
+  refillDue,
   resetLedger,
   serializeLedger,
+  settleRounds,
   take,
   type Ledger,
 } from '@/components/game/MedalCenter/ledger';
@@ -47,11 +53,13 @@ describe('a move of a round’s medals, in the ledger', () => {
     const staked = moved(start, r('round0001', 'stake'), -3);
     expect(balanceOf(staked)).toBe(WELCOME - 3);
     expect(hasReceipt(staked, r('round0001', 'stake'))).toBe(true);
-    expect(receiptsOf(staked, 'phone00001')).toEqual({ n: 1, ids: [r('round0001', 'stake')] });
+    // The stake is out on the round until it is paid: it holds a receipt that says so, written with the stake.
+    expect(receiptsOf(staked, 'phone00001')).toEqual({ n: 1, ids: [r('round0001', OUT_STEP), r('round0001', 'stake')] });
     // Tried again, it is not made again: the same ledger comes back.
     expect(applyMove(staked, r('round0001', 'stake'), -3)).toEqual({ ledger: staked, applied: false });
     const paid = moved(staked, r('round0001', 'pay'), 3000);
     expect(balanceOf(paid)).toBe(WELCOME - 3 + 3000);
+    expect(receiptsOf(paid, 'phone00001')).toEqual({ n: 2, ids: [r('round0001', 'pay'), r('round0001', 'stake')] });
     expect(applyMove(paid, r('round0001', 'pay'), 3000)).toEqual({ ledger: paid, applied: false });
     // A move of nothing is written down all the same.
     const marked = moved(paid, r('round0002', 'stake'), 0);
@@ -88,12 +96,13 @@ describe('a move of a round’s medals, in the ledger', () => {
     ledger = moved(ledger, r('a2', 'stake'), -1);
     ledger = moved(ledger, r('a1', 'stake', 'craps'), -1);
     ledger = moved(ledger, r('a1', 'stake', 'craps-two'), -1);
+    // A round let go of has no medals out any more either: its receipt saying so goes with the rest.
     const forgotten = forgetReceipts(ledger, 'craps');
-    expect(receiptsOf(forgotten, 'phone00001').ids).toEqual([r('a1', 'stake', 'craps-two'), r('a1', 'stake'), r('a2', 'stake')]);
+    expect(receiptsOf(forgotten, 'phone00001').ids).toEqual([r('a1', OUT_STEP, 'craps-two'), r('a1', 'stake', 'craps-two'), r('a1', OUT_STEP), r('a1', 'stake'), r('a2', OUT_STEP), r('a2', 'stake')]);
     expect(receiptsOf(forgotten, 'phone00001').n).toBe(5);
     expect(balanceOf(forgotten)).toBe(balanceOf(ledger));
     expect(forgetReceipts(forgotten, 'craps')).toBe(forgotten);
-    expect(receiptsOf(forgetReceipts(forgotten, 'slot-machine', ['a2']), 'phone00001').ids).toEqual([r('a1', 'stake', 'craps-two'), r('a2', 'stake')]);
+    expect(receiptsOf(forgetReceipts(forgotten, 'slot-machine', ['a2']), 'phone00001').ids).toEqual([r('a1', OUT_STEP, 'craps-two'), r('a1', 'stake', 'craps-two'), r('a2', OUT_STEP), r('a2', 'stake')]);
   });
 
   it('goes with the medals at a reset: every round from before it is void', () => {
@@ -103,6 +112,71 @@ describe('a move of a round’s medals, in the ledger', () => {
     // A copy of the era before, joined with the reset one, brings none of its receipts back.
     expect(mergeLedgers(reset, played).receipts).toEqual({});
     expect(mergeLedgers(played, reset).receipts).toEqual({});
+  });
+});
+
+describe('medals out on a round, in the ledger', () => {
+  it('are out from the stake until the round is paid, and no refill is due while any are', () => {
+    // All 100 on one spin: none left to play with, and none run out of either.
+    const staked = moved(createLedger('phone00001'), r('round0001', 'stake', 'roulette'), -WELCOME);
+    expect(balanceOf(staked)).toBe(0);
+    expect(medalsOutAt(staked)).toEqual(['roulette']);
+    expect(refillDue(staked)).toBe(false);
+    expect(refill(staked)).toBe(staked);
+    // The ball stops on a loss, and the spin pays nothing: its pay settles it all the same.
+    const lost = moved(staked, r('round0001', 'pay', 'roulette'), 0);
+    expect(medalsOutAt(lost)).toEqual([]);
+    expect(refillDue(lost)).toBe(true);
+    expect(balanceOf(refill(lost))).toBe(REFILL);
+  });
+
+  it('are out on each round that took medals, until each is settled; a move of nothing puts none out', () => {
+    let ledger = createLedger('phone00001');
+    ledger = moved(ledger, r('hand1', 'deal', 'video-poker'), -5);
+    ledger = moved(ledger, r('hand2', 'deal', 'blackjack'), -5);
+    ledger = moved(ledger, r('hand2', 'double0', 'blackjack'), -5);
+    ledger = moved(ledger, r('old1', 'deal', 'three-card-poker'), 0);
+    expect(medalsOutAt(ledger)).toEqual(['blackjack', 'video-poker']);
+    // A move that is neither a stake nor a pay leaves the round as it was, unless it says otherwise.
+    const won = moved(ledger, r('hand1', 'double1pay', 'video-poker'), 10);
+    expect(medalsOutAt(won)).toEqual(['blackjack', 'video-poker']);
+    const back = applyMove(ledger, r('hand1', 'double1pay', 'video-poker'), 10, false)!.ledger;
+    expect(medalsOutAt(back)).toEqual(['blackjack']);
+    const still = applyMove(ledger, r('table-1', 'move', 'craps'), 10, true)!.ledger;
+    expect(medalsOutAt(still)).toEqual(['blackjack', 'craps', 'video-poker']);
+    // A machine settles a round lost (no pay comes): its other receipts stay, so its moves are still known as made.
+    const settled = settleRounds(ledger, 'blackjack');
+    expect(medalsOutAt(settled)).toEqual(['video-poker']);
+    expect(hasReceipt(settled, r('hand2', 'double0', 'blackjack'))).toBe(true);
+    expect(receiptsOf(settled, 'phone00001').n).toBe(receiptsOf(ledger, 'phone00001').n + 1);
+    expect(settleRounds(settled, 'blackjack')).toBe(settled);
+    // And keeps the rounds still in play.
+    expect(medalsOutAt(settleRounds(ledger, 'blackjack', ['hand2']))).toEqual(['blackjack', 'video-poker']);
+    expect(balanceOf(settled)).toBe(balanceOf(ledger));
+  });
+
+  it('are no move of their own: nothing is made under the step that says so', () => {
+    const ledger = createLedger('phone00001');
+    expect(applyMove(ledger, r('round0001', OUT_STEP), 0)).toBeNull();
+    expect(applyMove(ledger, r('round0001', OUT_STEP), 5)).toBeNull();
+  });
+
+  it('count among what a device may hold: a stake that would hold one too many is not made', () => {
+    let ledger = createLedger('phone00001');
+    for (let i = 0; i < RECEIPTS.device - 1; i++) ledger = moved(ledger, r(`round${i}`, 'stake'), 0);
+    // One more stake would hold its receipt and the one that says its medals are out.
+    expect(applyMove(ledger, r('one-more', 'stake'), -1)).toBeNull();
+    expect(applyMove(ledger, r('one-more', 'stake'), 0)?.applied).toBe(true);
+  });
+
+  it('are only this device’s: another device’s round can be settled only there', () => {
+    const laptop = moved({ ...createLedger('phone00001'), device: 'laptop0001' }, r('round0009', 'stake', 'roulette'), -WELCOME);
+    expect(medalsOutAt(laptop)).toEqual(['roulette']);
+    const phone = mergeLedgers(createLedger('phone00001'), laptop);
+    expect(hasReceipt(phone, r('round0009', 'stake', 'roulette'))).toBe(true);
+    expect(medalsOutAt(phone)).toEqual([]);
+    // As kept, and read back.
+    expect(medalsOutAt(parseLedger(serializeLedger(laptop))!)).toEqual(['roulette']);
   });
 });
 
@@ -134,7 +208,7 @@ describe('receipts in two copies of one ledger', () => {
   it('keep both of two copies of a device’s receipts with the same count, which only two tabs without locks can make', () => {
     const one = moved(phone, r('round0001', 'stake'), -1);
     const other = moved(phone, r('round0002', 'stake'), -1);
-    expect(receiptsOf(mergeLedgers(one, other), 'phone00001')).toEqual({ n: 1, ids: [r('round0001', 'stake'), r('round0002', 'stake')] });
+    expect(receiptsOf(mergeLedgers(one, other), 'phone00001')).toEqual({ n: 1, ids: [r('round0001', OUT_STEP), r('round0001', 'stake'), r('round0002', OUT_STEP), r('round0002', 'stake')] });
   });
 
   it('keep the copy’s own device’s receipts whole, and other devices’ only while they fit', () => {
@@ -421,7 +495,7 @@ describe('a move of a round’s medals, at the bank', () => {
     expect(page.bank.applied({ ...STAKE, round: 'round0002' })).toBe(true);
     expect(page.bank.applied({ ...STAKE, game: 'roulette' })).toBe(true);
     const stored = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
-    expect(receiptsOf(stored, stored.device).ids).toEqual([r('round0001', 'stake', 'roulette'), r('round0002', 'stake')]);
+    expect(receiptsOf(stored, stored.device).ids).toEqual([r('round0001', OUT_STEP, 'roulette'), r('round0001', 'stake', 'roulette'), r('round0002', OUT_STEP), r('round0002', 'stake')]);
     // Another tab that does not hold the card lets go of nothing.
     const other = browser.open();
     other.bank.subscribe(() => undefined);

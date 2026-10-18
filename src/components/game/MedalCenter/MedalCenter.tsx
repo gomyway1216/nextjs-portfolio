@@ -11,6 +11,7 @@ import { SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { WELCOME } from './ledger';
 import { bank as medalBank, useBank } from './bank';
+import { MedalsOut } from './MedalsOut';
 import { MEDAL_PUSHER_PATH, MY_PAGE_PATH } from './paths';
 import { getCenterStrings } from './strings';
 import styles from './MedalCenter.module.css';
@@ -190,11 +191,13 @@ export const MedalCenter = ({ signInHref, together }: MedalCenterProps) => {
               </>
             )}
           </p>
-          {state.loaded && state.balance === 0 && (
+          {state.loaded && state.balance === 0 && state.out.length === 0 && (
             <button type="button" className={styles.refill} data-testid="center-refill" onClick={() => medalBank().refill()}>
               {t.refill(WELCOME)}
             </button>
           )}
+          {/* None to play with, and some still out on a round: they come back when it is finished, so no refill yet. */}
+          {state.loaded && state.balance === 0 && state.out.length > 0 && <MedalsOut games={state.out} language={language} className={styles.outNote} testId="center-out" />}
           <p className={styles.notMoney} data-testid="center-not-money">
             {t.notMoney}
           </p>

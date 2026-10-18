@@ -61,6 +61,21 @@
  * - A reset throws them all away with the medals: every round from before
  *   it is void.
  *
+ * ## Medals out: a round not yet settled
+ *
+ * Medals bet on a round are out of the player's medals until the round is
+ * settled, paid or lost. A player whose medals are all out on a round has
+ * none to play with, and still has not run out of them: they may come back.
+ * So a round with medals out holds one more receipt, under `OUT_STEP`, which
+ * no move is ever made under, and no free refill is given while this device
+ * holds any (`refillDue`). A move that takes medals writes it, in the same
+ * write as the medals it takes; the round's pay lets go of it in the same
+ * write as the medals it pays (`applyMove`); a machine lets go of it for a
+ * round lost, or settled some other way (`settleRounds`), and so does letting
+ * go of the round's receipts. Only a device's own count: another device's
+ * round can be settled only on that device, and one never played again would
+ * otherwise keep every other from a refill for good.
+ *
  * What comes back out of storage is not trusted: it is checked field by field
  * and kept within `LIMITS`.
  */
@@ -283,8 +298,12 @@ export const withClaimed = (ledger: Ledger, days: DaySet): Ledger => {
   return JSON.stringify(claimed) === JSON.stringify(ledger.claimed) ? ledger : { ...ledger, claimed };
 };
 
-/** Whether a free refill is due: the bank holds nothing to play with. */
-export const refillDue = (ledger: Ledger): boolean => balanceOf(ledger) <= 0;
+/**
+ * Whether a free refill is due: the bank holds nothing to play with, and no
+ * medals are out on a round on this device, to come back when it is settled
+ * (see "Medals out" above).
+ */
+export const refillDue = (ledger: Ledger): boolean => balanceOf(ledger) <= 0 && medalsOutAt(ledger).length === 0;
 
 /** The ledger with a free refill put in, when one is due; the same ledger when not. */
 export const refill = (ledger: Ledger): Ledger => (refillDue(ledger) ? give(ledger, REFILL) : ledger);
@@ -344,6 +363,17 @@ export function receiptOf(game: string, round: string, step: string): string | n
   return isReceipt(receipt) ? receipt : null;
 }
 
+/** The step every machine pays a round under: its last move, which settles it. */
+export const PAY_STEP = 'pay';
+/** The step of the receipt a round with medals out holds (see "Medals out" above). No move is ever made under it. */
+export const OUT_STEP = 'out';
+const OUT_SUFFIX = `:${OUT_STEP}`;
+const isOut = (receipt: string): boolean => receipt.endsWith(OUT_SUFFIX);
+/** The receipt that says the round of `receipt` has medals out. */
+const outOf = (receipt: string): string => `${receipt.slice(0, receipt.lastIndexOf(':'))}${OUT_SUFFIX}`;
+/** The round of one of `game`'s receipts. */
+const roundIn = (receipt: string, game: string): string => receipt.slice(game.length + 1, receipt.indexOf(':', game.length + 1));
+
 const NO_RECEIPTS: Receipts = { n: 0, ids: [] };
 /** A device's receipts, if the ledger keeps any for it. */
 export const receiptsOf = (ledger: Pick<Ledger, 'receipts'>, device: string): Receipts => (own(ledger.receipts, device) ? ledger.receipts[device] : NO_RECEIPTS);
@@ -384,20 +414,45 @@ const withReceipts = (ledger: Ledger, mine: Receipts): Ledger => ({ ...ledger, r
 /**
  * Makes the move a receipt names, once: `medals` given, or taken when below
  * nothing (none for 0), and the receipt written down with them in the same
- * ledger. `applied` false: the receipt was there already, the move was made
- * before, and the same ledger comes back. Null when it cannot be made: a
- * receipt or a number that will not do, more medals taken than the bank
- * holds, or as many receipts held on this device as it may hold.
+ * ledger. `out`: whether the round has medals out after the move (see
+ * "Medals out" above); left out, a move that takes medals puts them out, the
+ * round's pay settles it, and any other move leaves it as it was. `applied`
+ * false: the receipt was there already, the move was made before, and the
+ * same ledger comes back. Null when it cannot be made: a receipt or a number
+ * that will not do, more medals taken than the bank holds, or as many
+ * receipts held on this device as it may hold.
  */
-export function applyMove(ledger: Ledger, receipt: string, medals: number): { ledger: Ledger; applied: boolean } | null {
-  if (!isReceipt(receipt) || !Number.isSafeInteger(medals)) return null;
+export function applyMove(ledger: Ledger, receipt: string, medals: number, out?: boolean): { ledger: Ledger; applied: boolean } | null {
+  if (!isReceipt(receipt) || isOut(receipt) || !Number.isSafeInteger(medals)) return null;
   if (hasReceipt(ledger, receipt)) return { ledger, applied: false };
   const mine = receiptsOf(ledger, ledger.device);
-  if (mine.ids.length >= RECEIPTS.device || mine.n >= LIMITS.medals) return null;
+  const ids = new Set([...mine.ids, receipt]);
+  const after = out ?? (medals < 0 ? true : receipt.endsWith(`:${PAY_STEP}`) ? false : undefined);
+  if (after === true) ids.add(outOf(receipt));
+  else if (after === false) ids.delete(outOf(receipt));
+  if (ids.size > RECEIPTS.device || mine.n >= LIMITS.medals) return null;
   const moved = medals < 0 ? take(ledger, -medals) : medals > 0 ? give(ledger, medals) : ledger;
   if (!moved) return null;
-  return { ledger: withReceipts(moved, { n: mine.n + 1, ids: [...mine.ids, receipt].sort() }), applied: true };
+  return { ledger: withReceipts(moved, { n: mine.n + 1, ids: [...ids].sort() }), applied: true };
 }
+
+/**
+ * Lets go of the medals-out receipts of this device's rounds of `game`, all
+ * but those of the rounds in `keep`: they have no medals out any more (see
+ * "Medals out" above), being lost, or paid, or never played. Their other
+ * receipts stay. The same ledger comes back when there is nothing to let go of.
+ */
+export function settleRounds(ledger: Ledger, game: string, keep: readonly string[] = []): Ledger {
+  const mine = receiptsOf(ledger, ledger.device);
+  const prefix = `${game}:`;
+  const ids = mine.ids.filter((receipt) => !isOut(receipt) || !receipt.startsWith(prefix) || keep.includes(roundIn(receipt, game)));
+  if (ids.length === mine.ids.length || mine.n >= LIMITS.medals) return ledger;
+  return withReceipts(ledger, { n: mine.n + 1, ids });
+}
+
+/** The games this device has medals out on a round of, each once and in order (see "Medals out" above). */
+export const medalsOutAt = (ledger: Pick<Ledger, 'receipts' | 'device'>): string[] =>
+  [...new Set(receiptsOf(ledger, ledger.device).ids.filter(isOut).map((receipt) => receipt.slice(0, receipt.indexOf(':'))))].sort();
 
 /**
  * Lets go of this device's receipts for `game`'s rounds, except those of the
@@ -408,7 +463,7 @@ export function applyMove(ledger: Ledger, receipt: string, medals: number): { le
 export function forgetReceipts(ledger: Ledger, game: string, keep: readonly string[] = []): Ledger {
   const mine = receiptsOf(ledger, ledger.device);
   const prefix = `${game}:`;
-  const ids = mine.ids.filter((receipt) => !receipt.startsWith(prefix) || keep.includes(receipt.slice(prefix.length, receipt.indexOf(':', prefix.length))));
+  const ids = mine.ids.filter((receipt) => !receipt.startsWith(prefix) || keep.includes(roundIn(receipt, game)));
   if (ids.length === mine.ids.length || mine.n >= LIMITS.medals) return ledger;
   return withReceipts(ledger, { n: mine.n + 1, ids });
 }

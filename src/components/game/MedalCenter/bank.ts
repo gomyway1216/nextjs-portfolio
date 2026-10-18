@@ -123,6 +123,7 @@ import {
   hasReceipt,
   importPurse,
   markChecked,
+  medalsOutAt,
   mergeLedgers,
   parseLedger,
   printOf,
@@ -133,6 +134,7 @@ import {
   restartDue,
   restarted,
   serializeLedger,
+  settleRounds,
   spendable,
   take,
   withClaimed,
@@ -328,9 +330,17 @@ export interface BankState {
    * plays it here), or nobody's.
    */
   card: 'here' | 'asking' | 'away' | 'none';
+  /**
+   * The games with medals out on a round on this device, still to come back
+   * when it is settled ("Medals out" in ledger.ts): no free refill is given
+   * while there are any.
+   */
+  out: readonly string[];
 }
 
-export const WAITING: BankState = { loaded: false, balance: 0, owed: 0, owner: null, where: 'device', kept: true, apart: true, day: null, ledger: null, asking: false, claims: 0, card: 'none' };
+const NONE_OUT: readonly string[] = [];
+
+export const WAITING: BankState = { loaded: false, balance: 0, owed: 0, owner: null, where: 'device', kept: true, apart: true, day: null, ledger: null, asking: false, claims: 0, card: 'none', out: NONE_OUT };
 
 /** Something that happened to the bank that a machine on the page acts out. */
 export type BankEvent =
@@ -354,6 +364,12 @@ export interface Move {
   medals: number;
   /** The era of the medals the round was played in, when the machine knows it: a move for another era is not made. */
   era?: number;
+  /**
+   * Whether the round has medals out after the move ("Medals out" in
+   * ledger.ts). Left out, a move that takes medals puts them out and the
+   * round's pay (`pay`) settles it; any other move leaves it as it was.
+   */
+  out?: boolean;
 }
 
 /**
@@ -480,6 +496,7 @@ export function createBank(env: BankEnv) {
     const ledger = desk?.ledger ?? null;
     const balance = ledger ? balanceOf(ledger) : 0;
     const card: BankState['card'] = !seat ? 'none' : seat.held || !env.card.apart ? 'here' : seat.paused ? 'away' : waiting ? 'asking' : 'none';
+    const out = ledger ? medalsOutAt(ledger) : NONE_OUT;
     state = {
       loaded: started && desk !== null,
       balance: Math.max(0, balance),
@@ -493,6 +510,8 @@ export function createBank(env: BankEnv) {
       asking: asking !== null,
       claims,
       card,
+      // The same list while it says the same, so that a page that shows it is not told it changed.
+      out: out.length === state.out.length && out.every((game, index) => game === state.out[index]) ? state.out : out,
     };
     for (const listener of [...listeners]) listener();
   };
@@ -1231,7 +1250,7 @@ export function createBank(env: BankEnv) {
       fresh(at);
       if (move.era !== undefined && move.era !== at.ledger.era) return null;
       const receipt = receiptOf(move.game, move.round, move.step);
-      const moved = receipt === null ? null : applyMove(at.ledger, receipt, move.medals);
+      const moved = receipt === null ? null : applyMove(at.ledger, receipt, move.medals, move.out);
       if (!moved) return null;
       if (!moved.applied) return 'already';
       at.ledger = moved.ledger;
@@ -1268,6 +1287,26 @@ export function createBank(env: BankEnv) {
       }
       // The machine is done with every other round of the game: the history writes them down as over, a lost one too.
       noted({ type: 'over', game, keep });
+      return true;
+    },
+
+    /**
+     * Says that `game`'s rounds on this device, all but those in `keep`, have
+     * no medals out any more ("Medals out" in ledger.ts), by the page that
+     * holds the card: lost, or paid, or never played. A machine says so as a
+     * round of it is settled without a pay, and whenever it finds its rounds
+     * settled. Returns whether this page could (it holds the card).
+     */
+    settle(game: string, keep: readonly string[] = []): boolean {
+      const at = desk;
+      if (!at || !holding()) return false;
+      fresh(at);
+      const next = settleRounds(at.ledger, game, keep);
+      if (next !== at.ledger) {
+        at.ledger = next;
+        store(at);
+        publish();
+      }
       return true;
     },
 

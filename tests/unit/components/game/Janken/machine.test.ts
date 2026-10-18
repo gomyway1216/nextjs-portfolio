@@ -4,7 +4,7 @@ import { LAMPS, MAX_DOUBLES } from '@/components/game/Janken/engine';
 import { JANKEN_GAME, createMachine, type Happening, type RoundStorage } from '@/components/game/Janken/machine';
 import { ROUND_KEY, readRound, roundKey } from '@/components/game/Janken/round';
 import { BANK_KEY, ledgerKey } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, parseLedger, receiptsOf, restartDue, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, restartDue, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { BONUS_CARD } from '@/components/game/MedalPusher/records';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
@@ -92,11 +92,16 @@ describe('a round at the machine', () => {
   it('takes the medal on a loss and pays nothing, and throws a draw again for nothing', async () => {
     const browser = new FakeBrowser();
     const { machine, draws } = await opened(browser);
+    const out = () => medalsOutAt(parseLedger(browser.storage.get(BANK_KEY) ?? null)!);
     machine.insert();
+    // The medal is out on the round until it is thrown: no refill is given for it meanwhile.
+    expect(out()).toEqual([JANKEN_GAME]);
     draws.push(CAT.pa);
     expect(machine.press('gu')?.outcome).toBe('lose');
     expect(roundIn(browser)).toBeNull();
     expect(stored(browser)).toBe(WELCOME - 1);
+    // Lost: it pays nothing, and none of its medals are out any more.
+    expect(out()).toEqual([]);
 
     machine.insert();
     draws.push(CAT.gu, CAT.gu);
@@ -458,11 +463,13 @@ describe('a browser that dies between two writes', () => {
         await reopenedAndLeft(after);
         expect(stored(after), `died after ${reached} writes`).toBe(thrown ? WELCOME - 1 + won : WELCOME);
         expect(roundIn(after), `died after ${reached} writes`).toBeNull();
-        // The next medal in lets go of whatever receipts the round left: only its own are kept.
+        // No round in play: none of its medals are out, wherever the browser died.
+        expect(medalsOutAt(parseLedger(after.storage.get(BANK_KEY) ?? null)!), `died after ${reached} writes`).toEqual([]);
+        // The next medal in lets go of whatever receipts the round left: only its own are kept, and its medal is out on it.
         const next = await opened(after);
         expect(next.machine.insert()).toBe(true);
         const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
-        expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${JANKEN_GAME}:${roundIn(after)!.id}:in`]);
+        expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${JANKEN_GAME}:${roundIn(after)!.id}:in`, `${JANKEN_GAME}:${roundIn(after)!.id}:out`]);
       },
     );
     expect(writes).toBeGreaterThanOrEqual(5);

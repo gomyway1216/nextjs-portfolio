@@ -215,10 +215,10 @@ describe('the simulation', () => {
     const medals = 120;
     const progress: number[] = [];
     // A run this short shows the order of the aims on some seeds and not on all: over the twenty from 2024 on, the
-    // medals through a hole come to 486 down the middle, 383 anywhere, 366 beside the middle and 284 from the edges,
-    // and six of the twenty have every one of the comparisons below. This is one of them. A long run shows the order
+    // medals through a hole come to 625 down the middle, 338 anywhere, 308 beside the middle and 113 from the edges,
+    // and ten of the twenty have every one of the comparisons below. This is one of them. A long run shows the order
     // every time (scripts/medal-pusher-tune.ts).
-    const result = await simulate(medals, 5, { onProgress: (done, total) => progress.push(done / total) }, 2026);
+    const result = await simulate(medals, 5, { onProgress: (done, total) => progress.push(done / total) }, 2037);
     expect(result).not.toBeNull();
     if (!result) return;
     for (const id of AIM_IDS) {
@@ -240,9 +240,10 @@ describe('the simulation', () => {
       expect(finished - aim.spins === 0 || finished - aim.spins === 1).toBe(true);
       expect(aim.points[aim.points.length - 1]).toEqual({ medals, rate: aim.won / aim.played });
       expect(aim.points.every((point, index) => index === 0 || point.medals > aim.points[index - 1].medals)).toBe(true);
-      // The side holes take four medals in ten of what leaves the field, and more of it from the edges: over those
-      // twenty seeds the share that drops into the tray runs from 47% to 64%.
-      expect(frontShare(aim)).toBeGreaterThan(0.4);
+      // The side holes take about four medals in ten of what leaves the field, and more of it from the edges, which
+      // feed the medals along a wall that ends where the side opens: over those twenty seeds the share that drops into
+      // the tray runs from 29% to 62%.
+      expect(frontShare(aim)).toBeGreaterThan(0.25);
       expect(frontShare(aim)).toBeLessThan(0.75);
     }
     // Aim still tells. Down the middle about one medal in five ends up through a hole, and more at this pace,

@@ -152,14 +152,32 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).toMatch(/data-machine="slot-machine" data-zone="video" data-wide="false"/);
     expect(html).toMatch(/data-machine="high-low" data-zone="video" data-wide="false"/);
     // On the widest floor the three video machines stand beside the pusher, two columns of them, as a pair of corners
-    // does; the big machines, the candy shop and the tables each start a row of their own.
+    // does, and the pusher's cabinet stands as tall as their two rows; the big machines, the candy shop and the tables
+    // each start a row of their own.
     const spans = spansOf(cornersOf(FLOOR));
-    expect(cornersOf(FLOOR).map(({ zone }, i) => `${zone} ${spans[i].span}${spans[i].squeezed ? ' squeezed' : ''}`)).toEqual(['pusher 2', 'video 2 squeezed', 'big 4', 'kids 2', 'table 4']);
-    expect(html).toContain('data-zone="video" data-width="2" data-squeezed="true"');
+    expect(cornersOf(FLOOR).map(({ zone }, i) => `${zone} ${spans[i].span}${spans[i].squeezed ? ' squeezed' : ''}${spans[i].tall ? ' tall' : ''}`)).toEqual(['pusher 2 tall', 'video 2 squeezed', 'big 4', 'kids 2', 'table 4']);
+    expect(html).toContain('data-zone="video" data-width="2" data-squeezed="true" data-tall="false"');
+    expect(html).toContain('data-zone="pusher" data-width="2" data-squeezed="false" data-tall="true"');
+    // The tall cabinet's lower body, its tray of medals: on the pusher, and nowhere else.
+    expect(html.match(/data-testid="center-tray"/g)).toHaveLength(1);
+    const pusherTile = html.slice(html.indexOf('data-machine="medal-pusher"'), html.indexOf('data-machine="slot-machine"'));
+    expect(pusherTile).toContain('data-testid="center-tray"');
     // A corner too wide for two rows beside the one before it starts a row of its own; a big cabinet is never squeezed.
-    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 5 }])).toEqual([{ span: 2, squeezed: false }, { span: 4, squeezed: false }]);
-    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'big', width: 4 }])).toEqual([{ span: 2, squeezed: false }, { span: 4, squeezed: false }]);
-    expect(spansOf([{ zone: 'pusher', width: 2 }, { zone: 'video', width: 2 }])).toEqual([{ span: 2, squeezed: false }, { span: 2, squeezed: false }]);
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 5 }])).toEqual([
+      { span: 2, squeezed: false, tall: false },
+      { span: 4, squeezed: false, tall: false },
+    ]);
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'big', width: 4 }])).toEqual([
+      { span: 2, squeezed: false, tall: false },
+      { span: 4, squeezed: false, tall: false },
+    ]);
+    // Two corners that fit side by side on one row each: neither squeezed, neither stands taller.
+    expect(spansOf([{ zone: 'pusher', width: 2 }, { zone: 'video', width: 2 }])).toEqual([
+      { span: 2, squeezed: false, tall: false },
+      { span: 2, squeezed: false, tall: false },
+    ]);
+    // Any corner beside one squeezed onto more rows than its own stands as tall, a corner of small cabinets too.
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 3 }]).map(({ tall }) => tall)).toEqual([true, false]);
     expect(html).toMatch(/data-machine="sic-bo" data-zone="table" data-wide="false" data-new="true"/);
     // No plate says the same as every other one.
     expect(html).not.toContain('Plays with your medals.');

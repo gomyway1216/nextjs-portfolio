@@ -34,6 +34,25 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html.match(/<polygon[^>]*data-on="false"/g)?.length).toBe(COUNTER_PLACES * 7);
   });
 
+  it('draws a guest’s counter until the bank has been read, unless a member is expected, so that it does not move as the medals come in', () => {
+    const t = getCenterStrings('en');
+    // Without React's markers between the pieces of text.
+    const guest = render().replace(/<!-- -->/g, '');
+    expect(guest).toMatch(new RegExp(`data-testid="center-member" data-owner="guest">${t.memberGuest}<`));
+    expect(guest).toMatch(new RegExp(`data-testid="center-where"[^>]*>${t.where.device} <a[^>]*href="/signin"[^>]*data-testid="center-sign-in">${t.signInInvite}</a>`));
+    // A member the site expects is told their medals are being looked for, and is not asked to sign in.
+    const member = renderToStaticMarkup(
+      <I18nextProvider i18n={createI18nInstance('en')}>
+        <MedalCenter signInHref="/signin" presumedMember />
+      </I18nextProvider>,
+    ).replace(/<!-- -->/g, '');
+    expect(member).toMatch(new RegExp(`data-testid="center-member" data-owner="guest">${t.memberChecking}<`));
+    expect(member).toContain(t.where.checking);
+    expect(member).not.toContain('center-sign-in');
+    // Short enough to stay on the counter's line beside its name at a phone's width.
+    for (const language of ['en', 'ja'] as const) expect(getCenterStrings(language).memberChecking.length).toBeLessThanOrEqual(10);
+  });
+
   it('has the Medal Pusher and the casino games already on the medals open on the floor, and every casino game still to come shown as coming, with no way in yet', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';

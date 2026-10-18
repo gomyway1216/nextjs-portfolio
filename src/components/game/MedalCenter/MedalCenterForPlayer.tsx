@@ -34,7 +34,7 @@ export const MedalCenterForPlayer = () => {
   // The floor played together shows in two places on the front: its board by the door, and its rankings under the machines.
   return (
     <FloorHub member={member} settled={settled} signInHref={SIGN_IN}>
-      {({ now, together }) => <MedalCenter signInHref={SIGN_IN} now={now} together={together} />}
+      {({ now, together }) => <MedalCenter signInHref={SIGN_IN} presumedMember={presumedSignedIn} now={now} together={together} />}
     </FloorHub>
   );
 };

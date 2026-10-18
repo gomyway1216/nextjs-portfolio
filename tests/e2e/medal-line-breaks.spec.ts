@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Locator } from '@playwright/test';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { refillParts } from '../../src/components/game/MedalCenter/KeysHint';
+import { nameWords } from '../../src/components/game/MedalCenter/floorPlan';
 import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { holdFloor } from './layoutShift';
@@ -57,6 +58,30 @@ const linesOf = (target: Locator) =>
   });
 
 for (const width of WIDTHS) {
+  test(`the medal center's cabinet names break only between their words in Japanese at ${width} px`, async ({ browser }) => {
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/medal-center');
+    await arrived(page);
+    const names = page.locator('[data-machine] h4');
+    await expect(names).toHaveCount(FLOOR_GAMES.length);
+    for (const name of await names.all()) {
+      const id = await name.evaluate((el) => el.closest<HTMLElement>('[data-machine]')!.dataset.machine!);
+      const text = ((await name.textContent()) ?? '').trim();
+      // Where it may break: between its words, and at a space.
+      const words = nameWords(id, text).flatMap((word) => word.split(/(?<= )/));
+      const lines = (await linesOf(name)).map((line) => line.replace(/ /g, ''));
+      expect(lines.join(''), id).toBe(text.replace(/ /g, ''));
+      let at = 0;
+      const ends = new Set(words.map((word) => (at += word.replace(/ /g, '').length)));
+      let done = 0;
+      for (const line of lines.slice(0, -1)) {
+        done += line.length;
+        expect(ends.has(done), `${id} at ${width} px: 「${lines.join('｜')}」`).toBe(true);
+      }
+    }
+    await context.close();
+  });
+
   test(`every machine's name is on one line in Japanese at ${width} px`, async ({ browser }) => {
     test.setTimeout(120_000);
     const { context, page } = await phone(browser, width);
@@ -92,6 +117,23 @@ for (const width of WIDTHS) {
     const names = page.locator('[class*="handName"]');
     await expect(names).toHaveCount(2);
     for (const name of await names.all()) expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth), `${await name.textContent()} at ${width} px`).toBe(true);
+    await context.close();
+  });
+
+  test(`three card poker's spots keep their names whole, and baccarat's bet medals are one row, in Japanese at ${width} px`, async ({ browser }) => {
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/three-card-poker');
+    await arrived(page);
+    const labels = page.locator('[data-bet] > span:first-child');
+    await expect(labels).toHaveCount(3);
+    for (const label of await labels.all()) expect(await linesOf(label), `a spot at ${width} px`).toHaveLength(1);
+    await page.goto('/games/baccarat');
+    await arrived(page);
+    const medals = page.getByRole('radiogroup', { name: 'ベット', exact: true }).getByRole('radio');
+    await expect(medals).toHaveCount(5);
+    // One row: their middles at one height (the chosen medal is drawn a little larger).
+    const middles = await medals.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; }));
+    expect(Math.max(...middles) - Math.min(...middles), `the bet medals at ${width} px: ${middles.join(', ')}`).toBeLessThan(4);
     await context.close();
   });
 

@@ -89,6 +89,26 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
 };
 
+/**
+ * Where a long Japanese name may break on a cabinet's sign: between its words. The sign keeps a phrase whole where the
+ * browser can tell phrases apart, and a name too long for a line used to break wherever it ran out of room
+ * (「スリーカードポー｜カー」 at 320 px).
+ */
+export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
+  'medal-pusher': ['メダル', 'プッシャー'],
+  'slot-machine': ['スロット', 'マシン'],
+  'video-poker': ['ビデオ', 'ポーカー'],
+  'three-card-poker': ['スリーカード', 'ポーカー'],
+  'horse-race': ['ミニターフ', '競馬'],
+  'big-wheel': ['星まつり', 'ビッグホイール'],
+};
+
+/** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */
+export const nameWords = (id: string, name: string): readonly string[] => {
+  const words = Object.prototype.hasOwnProperty.call(NAME_WORDS, id) ? NAME_WORDS[id] : null;
+  return words && words.join('') === name ? words : [name];
+};
+
 /** The corner a machine stands in: its own, or the new machines' when it has none yet. */
 export const zoneOf = (id: string): ZoneId => (Object.prototype.hasOwnProperty.call(MACHINE_ZONES, id) ? MACHINE_ZONES[id] : 'new');
 

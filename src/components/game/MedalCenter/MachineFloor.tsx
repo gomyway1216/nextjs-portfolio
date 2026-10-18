@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +8,7 @@ import { isFloorGame } from '@/lib/medalFloor/games';
 import { linked } from '@/lib/medalFloor/jackpot';
 import { getGameCoverPath } from '../constants/games';
 import type { GameLanguage } from '../constants/gameTranslations';
-import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, pitchOf, plateReturn, zoneOf } from './floorPlan';
+import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, zoneOf } from './floorPlan';
 import type { CenterStrings } from './strings';
 import styles from './MachineFloor.module.css';
 
@@ -91,7 +92,12 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
                       {/* The lit name over the cabinet. Its link covers the whole cabinet. */}
                       <h4 className={styles.name}>
                         <Link href={path} className={styles.link} data-testid={`center-play-${id}`}>
-                          {name}
+                          {nameWords(id, name).map((word, i) => (
+                            <Fragment key={i}>
+                              {i > 0 && <wbr />}
+                              {word}
+                            </Fragment>
+                          ))}
                         </Link>
                       </h4>
                       <div className={styles.screen}>

@@ -853,10 +853,11 @@ const NO_PHONE_FULLSCREEN = {
 } as const;
 /**
  * How much of each control is its own to hit: how tall the strip through its middle is that takes the touch, whatever
- * the control looks like, and how wide the control is. A control that is not there is 0 by 0. The strip is counted
- * in points a pixel apart, from a thirty-second of a pixel below the middle: a strip a whole number of pixels tall
- * then has no point on either of its edges, where browsers differ (Chromium counts a box's top edge as in it,
- * Firefox neither edge), and is counted at its height in every browser.
+ * the control looks like, and how wide the control is. A control that is not there is 0 by 0. The strip is measured
+ * from its middle out to each edge, a pixel at a time and then to a 64th of one, and given to an eighth of a pixel:
+ * counted in whole pixels from the middle it was a pixel short or long by where its edges fell between them, and
+ * browsers differ there (Chromium counts a box's top edge as in it and Firefox neither, and Firefox puts a strip on
+ * the screen's own pixels), so the same 44 px strip was 44 in Chromium and 43 in Firefox.
  */
 function hitSizes(page: Page, ids: string[]) {
   return page.evaluate(
@@ -866,9 +867,21 @@ function hitSizes(page: Page, ids: string[]) {
         if (!element) return { id, tall: 0, wide: 0 };
         const rect = element.getBoundingClientRect();
         const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2 + 1 / 32;
-        let tall = 1;
-        for (const way of [-1, 1]) for (let d = 1; d < 40 && element.contains(document.elementFromPoint(x, y + way * d)); d++) tall++;
+        const y = rect.top + rect.height / 2;
+        const takes = (at: number) => element.contains(document.elementFromPoint(x, at));
+        /** How far from the middle the strip reaches one way: the furthest point in it, to a 64th of a pixel. */
+        const reach = (way: number) => {
+          let inside = 0;
+          while (inside < 40 && takes(y + way * (inside + 1))) inside++;
+          let outside = inside + 1;
+          for (let step = 0; step < 6; step++) {
+            const half = (inside + outside) / 2;
+            if (takes(y + way * half)) inside = half;
+            else outside = half;
+          }
+          return inside;
+        };
+        const tall = takes(y) ? Math.round((reach(-1) + reach(1)) * 8) / 8 : 0;
         return { id, tall, wide: Math.round(rect.width) };
       }),
     ids,
@@ -936,7 +949,7 @@ test.describe('in the hand, on a phone', () => {
   // function and can fill the screen; Firefox has no vibration, and WebKit on a phone has neither, as an iPhone.
   test.use({ viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 
-  test('the switches of feel are there, named, in one row, and remembered across a reload', async ({ page }) => {
+  test('the switches of feel are there, named, in one row, and remembered across a reload', async ({ page, browserName }) => {
     test.setTimeout(60_000);
     const trouble = watchForTrouble(page);
     await openGame(page);
@@ -972,7 +985,8 @@ test.describe('in the hand, on a phone', () => {
       expect(control.wide, `${control.id} is ${control.wide} px wide`).toBeGreaterThanOrEqual(44);
     }
     // Nothing in the cabinet is text to select, and a double tap on it does not zoom the page.
-    await expect(machine(page).getByTestId('pusher-credits')).toHaveCSS('user-select', 'none');
+    // (WebKit knows the property only by its prefixed name, which the stylesheet gives it too.)
+    await expect(machine(page).getByTestId('pusher-credits')).toHaveCSS(browserName === 'webkit' ? '-webkit-user-select' : 'user-select', 'none');
     await expect(feelSwitch(page, 'sweep')).toHaveCSS('touch-action', 'manipulation');
     await expect(aimSlider(page, 'left')).toHaveCSS('touch-action', 'pan-y');
 

@@ -2772,7 +2772,7 @@
 }
 /* Every control is at least 44 px to hit. The switches and the tabs were 32 to 37 px tall: they look as they did,
    and what takes the touch is a strip 44 px tall through the middle of each. The rows of switches are far enough
-   apart that the strips of two rows do not meet. The refill is simply that tall. */
+   apart that the strips of two rows do not meet, with a pixel to spare (see .feel). The refill is simply that tall. */
 .toggle,
 .tab {
   position: relative;
@@ -2850,13 +2850,15 @@
   bottom: -9px;
 }
 /* The switches of feel: one short row under the others. Under it comes whatever row a switch has opened, the sound
-   settings', and last, while the rails swing, a line that says what to do about it. */
+   settings', and last, while the rails swing, a line that says what to do about it. It stands a pixel further from
+   the row above than the two rows' 44 px strips need: in Chromium and WebKit a point up to a pixel above a box
+   still hits it, and with the strips 0.4 px apart Swing's took the foot of Auto's, which was 43.6 px Auto's own. */
 .feel {
   grid-column: 1 / -1;
   display: grid;
   gap: 0.35rem;
   min-width: 0;
-  margin-top: 0.1rem;
+  margin-top: calc(0.1rem + 1px);
 }
 .feelRow {
   display: flex;

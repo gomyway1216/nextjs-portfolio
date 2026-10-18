@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'shaker', 'dice'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -313,6 +313,13 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
       ping(t, 0.01 + i * 0.06, pitch(name) * 2, 0.16, 0.12);
     });
     for (const name of ['E6', 'G#6', 'B6']) note(t, 0.45, pitch(name), 0.5, 0.14, 0.01);
+    return t;
+  },
+  // A rung of the High & Low ladder lighting: three quick steps up and a bell on the last.
+  rung: (rate) => {
+    const t = take(0.42, rate);
+    ['G5', 'C6', 'E6'].forEach((name, i) => note(t, 0.01 + i * 0.045, pitch(name), 0.04, 0.3));
+    ping(t, 0.1, pitch('G6'), 0.24, 0.09);
     return t;
   },
   // The Sic Bo shaker (Moonlit Sic Bo): the platter's motor humming under the dome, and the three dice rattling

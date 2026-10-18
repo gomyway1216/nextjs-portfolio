@@ -25,6 +25,10 @@ export interface FloorStrings {
   moment: (label: string | null, medals: string) => string;
   /** "Player 1234": a player who has not chosen a name. */
   defaultName: (tag: string) => string;
+  /**
+   * How long ago, in whole units gone by, as a clock reads them: 59 min, then 1 h; 23 h, then 1 d; 36 h is 1 d. (Rounded,
+   * 59.6 minutes read "60 min ago" and a day and a half "2 d ago".)
+   */
   ago: (seconds: number) => string;
   // The boards
   rankingsTitle: string;
@@ -131,6 +135,8 @@ const enMoment = (label: string | null, medals: string): string => {
       return `hit ×400 on the big wheel: ${medals} medals`;
     case 'wheel-bonus':
       return `won on the big wheel’s second chance: ${medals} medals`;
+    case 'ladder-top':
+      return `climbed the High & Low ladder to the top: ${medals} medals`;
     case 'sicbo-triple':
       return `rolled a triple at Sic Bo: ${medals} medals`;
     case 'sicbo-any-triple':
@@ -170,6 +176,8 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `ビッグホイールで×400！${medals}枚`;
     case 'wheel-bonus':
       return `ビッグホイールのセカンドチャンスで${medals}枚`;
+    case 'ladder-top':
+      return `ハイ＆ローのラダーをトップまで上って${medals}枚`;
     case 'sicbo-triple':
       return `シックボーでゾロ目的中！${medals}枚`;
     case 'sicbo-any-triple':
@@ -194,9 +202,9 @@ const en: FloorStrings = {
   defaultName: (tag) => `Player ${tag}`,
   ago: (seconds) => {
     if (seconds < 45) return 'just now';
-    if (seconds < 3_600) return `${Math.max(1, Math.round(seconds / 60))} min ago`;
-    if (seconds < 86_400) return `${Math.round(seconds / 3_600)} h ago`;
-    return `${Math.round(seconds / 86_400)} d ago`;
+    if (seconds < 3_600) return `${Math.max(1, Math.floor(seconds / 60))} min ago`;
+    if (seconds < 86_400) return `${Math.floor(seconds / 3_600)} h ago`;
+    return `${Math.floor(seconds / 86_400)} d ago`;
   },
   rankingsTitle: 'RANKINGS',
   today: 'Today',
@@ -291,9 +299,9 @@ const ja: FloorStrings = {
   defaultName: (tag) => `プレイヤー${tag}`,
   ago: (seconds) => {
     if (seconds < 45) return 'たったいま';
-    if (seconds < 3_600) return `${Math.max(1, Math.round(seconds / 60))}分前`;
-    if (seconds < 86_400) return `${Math.round(seconds / 3_600)}時間前`;
-    return `${Math.round(seconds / 86_400)}日前`;
+    if (seconds < 3_600) return `${Math.max(1, Math.floor(seconds / 60))}分前`;
+    if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}時間前`;
+    return `${Math.floor(seconds / 86_400)}日前`;
   },
   rankingsTitle: 'ランキング',
   today: '今日',

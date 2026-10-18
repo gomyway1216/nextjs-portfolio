@@ -62,6 +62,28 @@ describe('the floor’s moments', () => {
     expect(html).toContain('2分前');
   });
 
+  it('say how long ago in whole units gone by: never "60 min" or "24 h", and a day and a half is a day', () => {
+    const MIN = 60;
+    const H = 3_600;
+    const D = 86_400;
+    const cases: [number, string, string][] = [
+      [10, 'just now', 'たったいま'],
+      [50, '1 min ago', '1分前'],
+      [119, '1 min ago', '1分前'],
+      [59.6 * MIN, '59 min ago', '59分前'],
+      [60 * MIN, '1 h ago', '1時間前'],
+      [100 * MIN, '1 h ago', '1時間前'],
+      [23.7 * H, '23 h ago', '23時間前'],
+      [24 * H, '1 d ago', '1日前'],
+      [36 * H, '1 d ago', '1日前'],
+      [6.5 * D, '6 d ago', '6日前'],
+    ];
+    for (const [seconds, en, ja] of cases) {
+      expect(getFloorStrings('en').ago(Math.round(seconds)), `${seconds} s`).toBe(en);
+      expect(getFloorStrings('ja').ago(Math.round(seconds)), `${seconds} s`).toBe(ja);
+    }
+  });
+
   it('say so when the floor is quiet or cannot be reached, and give the owner a way to take one off', () => {
     expect(renderToStaticMarkup(<FeedList {...words()} feed={[]} now={NOW} loading={false} unavailable={false} />)).toContain(getFloorStrings('en').feedEmpty);
     expect(renderToStaticMarkup(<FeedList {...words()} feed={[]} now={NOW} loading={false} unavailable />)).toContain(getFloorStrings('en').feedUnavailable);
@@ -204,7 +226,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, Moonlit Sic Bo.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -281,6 +303,7 @@ describe('the floor jackpot', () => {
       'horse-race': ['HorseRace/HorseRace.tsx', 'OddsTab'],
       'ball-bingo': ['BallBingo/BallBingo.tsx', 'OddsTab'],
       'big-wheel': ['BigWheel/BigWheel.tsx', 'OddsTab'],
+      'high-low': ['HighLow/HighLow.tsx', 'OddsTab'],
       'sic-bo': ['SicBo/SicBo.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
@@ -318,7 +341,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'sicbo-triple', 'sicbo-any-triple', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sicbo-triple', 'sicbo-any-triple', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 import { arrived } from './streamedPage';
 
-// The card tables', craps', video poker's, the horse race's, the big wheel's, Calico Janken's and Sic Bo's line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it
+// The card tables', craps', video poker's, the horse race's, the big wheel's, Calico Janken's, the High & Low Ladder's and Sic Bo's line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it
 // wraps between its parts and never inside one, so a key is never left at the end of a line with what it does on the
 // next ("R で" / 「同じベット」). On a touch screen, which has no keys, it is not shown.
 
@@ -15,6 +15,7 @@ const TABLES = [
   ['horse-race', 'hr-keys'],
   ['big-wheel', 'bw-keys'],
   ['janken', 'janken-keys'],
+  ['high-low', 'hl-keys'],
   ['sic-bo', 'sb-keys'],
 ] as const;
 

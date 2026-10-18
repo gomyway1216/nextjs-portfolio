@@ -17,6 +17,7 @@ const MACHINES = [
   { game: 'slot-machine', tabs: 3, buttons: { en: [], ja: [] } },
   { game: 'janken', tabs: 2, buttons: { en: [], ja: [] } },
   { game: 'roulette', tabs: 3, buttons: { en: [], ja: [] } },
+  { game: 'high-low', tabs: 2, buttons: { en: ['START'], ja: ['スタート'] } },
   // Its layout's parts are chosen with radio buttons, not tabs: only the table's two tabs are tabs.
   { game: 'sic-bo', tabs: 2, buttons: { en: ['Same bets', 'Undo', 'Clear'], ja: ['同じベット', '戻す', 'クリア'] } },
 ] as const;

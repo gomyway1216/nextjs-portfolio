@@ -471,6 +471,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'high-low',
+    title: 'High & Low Ladder',
+    description: 'The card machine of the Medal Center: guess whether the next card is higher or lower, climb a twelve-rung ladder and TAKE your medals before a miss — with the best play for every card on every rung, worked out exactly: 89.96% back.',
+    thumbnail: '🪜',
+    path: '/games/high-low',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'sic-bo',
     title: 'Moonlit Sic Bo',
     description: 'An electronic Sic Bo table at the Medal Center: put your medals on Small, Big, totals, doubles, triples and single numbers, watch three dice tumble under a glass dome, and see every winning area light up — on a real casino paytable, Small and Big bringing back 97.2%.',

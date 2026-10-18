@@ -1,11 +1,14 @@
 'use client';
 
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { gateMark, type HorseStrings } from './i18n';
+import type { HorseStrings } from './i18n';
 import { MARGINS, callsOf, progressAt, standingsAt, type Call, type RacePlan } from './race';
 import { GATE_COLOURS, type Horse } from './stable';
 import { CY, DISTANCE, FINISH_X, LENGTH, RAIL_IN, RAIL_OUT, START_X, VIEW, X0, X1, laneRadius, spotAt } from './geometry';
 import styles from './HorseRace.module.css';
+
+/** Marks a horse's number in the caller's line, round it on each side: the line is drawn with the number as a badge. */
+const GATE_IN_LINE = '\u0001';
 
 /** How long the field stands in the gate after START before the off, in seconds: the fanfare's length. */
 export const GATE_SECONDS = 2.1;
@@ -199,9 +202,11 @@ export const Track = memo(function Track({ field, run, skipped, onPost, onFinish
     return () => window.cancelAnimationFrame(frame);
   }, [run, skipped, field, calls]);
 
+  // A horse in the caller's line: its number on its saddle cloth's colour, as on the board under it, then its name. (A
+  // circled ①–⑥ in the line's small bold type read as ◎ on a phone.) The number is marked in the text and drawn below.
   const nameOf = (gate: number): string => {
     const horse = field[gate - 1];
-    return horse ? `${gateMark(gate)}${horse.name[language]}` : gateMark(gate);
+    return `${GATE_IN_LINE}${gate}${GATE_IN_LINE}${horse ? horse.name[language] : ''}`;
   };
   const line = run ? (callIndex >= 0 ? t.call(calls[callIndex], nameOf) : t.gateIn) : '';
   const photo = run && posted ? run.plan : null;
@@ -254,7 +259,15 @@ export const Track = memo(function Track({ field, run, skipped, onPost, onFinish
         {photo && <FinishPhoto plan={photo} field={field} t={t} />}
       </svg>
       <p className={styles.commentary} data-testid="hr-commentary" aria-hidden>
-        {line}
+        {line.split(GATE_IN_LINE).map((part, i) =>
+          i % 2 === 1 ? (
+            <span key={i} className={styles.callGate} style={{ background: GATE_COLOURS[Number(part) - 1]?.cloth, color: GATE_COLOURS[Number(part) - 1]?.number }}>
+              {part}
+            </span>
+          ) : (
+            part
+          ),
+        )}
       </p>
       <ol className={styles.runningOrder} data-testid="hr-order" aria-hidden data-order={order.join('')}>
         {order.map((gate, i) => (

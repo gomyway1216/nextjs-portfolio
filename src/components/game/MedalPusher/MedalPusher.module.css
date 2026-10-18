@@ -72,6 +72,7 @@
 /* The way back to the medal center's front, over the machine's name. */
 .centerLink {
   display: inline-flex;
+  gap: 0.3em;
   align-items: center;
   min-height: 44px;
   margin-bottom: 0.1rem;

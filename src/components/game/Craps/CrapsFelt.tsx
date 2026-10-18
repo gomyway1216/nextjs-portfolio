@@ -53,6 +53,8 @@ export interface CrapsFeltProps {
   /** The throw `id` has come to rest. */
   onSettled: (id: number) => void;
   sound: boolean;
+  /** A win is still running into the medals: the dice stay where they landed until it is in. */
+  holding?: boolean;
 }
 
 const ratioText = ([n, d]: Ratio) => `${n}:${d}`;
@@ -60,6 +62,14 @@ const toText = ([n, d]: Ratio) => (d === 1 ? `${n} TO 1` : `${n} FOR ${d}`);
 const KINDS: TableKind[] = ['half', 'full'];
 /** How long the dice take to fade in where motion is reduced, in milliseconds. */
 const CALM_MS = 260;
+/** How long the dice lie where they landed, the roll called, before the stickman pulls them back, in milliseconds. */
+const COLLECT_AFTER = 1500;
+/** How long the stickman's pull takes, in milliseconds. */
+const COLLECT_MS = 450;
+/** How long the shooter takes to pick the dice up before a throw, in seconds. */
+const PICK_UP = 0.15;
+/** The faces the dice show before the first roll. */
+const IDLE_FACES: readonly [number, number] = [5, 2];
 
 /** What each area pays, as the game shows it. */
 function paysOf(id: BetId, point: PointNumber | null, t: CrapsStrings): string {
@@ -565,18 +575,32 @@ interface DiceRefs {
   dice: (HTMLDivElement | null)[];
   shadows: (HTMLDivElement | null)[];
   scale: number;
+  /** Where the dice were last put: a throw picks them up from there. */
+  last?: readonly [DieState, DieState];
 }
 
-/** The dice as they lie in the hand before the first throw. */
-const inHand = (layout: TableLayout): readonly [DieState, DieState] => {
-  const { hand, die } = layout.throw;
-  return [
-    { x: hand.x - 0.35 * die, y: hand.y - 0.75 * die, z: 0, angle: -12, face: 5 },
-    { x: hand.x + 0.35 * die, y: hand.y + 0.75 * die, z: 0, angle: 9, face: 2 },
-  ];
+/** The dice where they lie between rolls (tableLayout.ts's `park`), showing `faces`. */
+const parkedOf = (layout: TableLayout, faces: readonly [number, number]): readonly [DieState, DieState] => [
+  { ...layout.park[0], z: 0, face: faces[0] },
+  { ...layout.park[1], z: 0, face: faces[1] },
+];
+
+const ease = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+/** The dice `u` of the way from `a` to `b` (0…1), turning the short way round; a die shows `b`'s face from halfway. */
+const between = (a: readonly [DieState, DieState], b: readonly [DieState, DieState], u: number): readonly [DieState, DieState] => {
+  const k = ease(u);
+  const one = (from: DieState, to: DieState): DieState => {
+    const turn = ((((to.angle - from.angle) % 360) + 540) % 360) - 180;
+    return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k, z: from.z + (to.z - from.z) * k, angle: from.angle + turn * k, face: k < 0.5 ? from.face : to.face };
+  };
+  return [one(a[0], b[0]), one(a[1], b[1])];
 };
 
 function place(layout: TableLayout, refs: DiceRefs, states: readonly [DieState, DieState]) {
+  refs.last = states;
   const { scale } = refs;
   if (scale <= 0) return;
   const size = layout.throw.die * scale;
@@ -665,17 +689,29 @@ function TableView({ layout, props, refs, label }: { layout: TableLayout; props:
  * thrown down the felt to land on the roll the game drew.
  */
 export function CrapsFelt(props: CrapsFeltProps) {
-  const { shown, onSettled, sound } = props;
+  const { shown, onSettled, sound, holding = false } = props;
   const refs = useRef<Record<TableKind, DiceRefs>>({ half: { dice: [], shadows: [], scale: 0 }, full: { dice: [], shadows: [], scale: 0 } });
   const wrapper = useRef<HTMLDivElement | null>(null);
-  /** What each table shows now: a throw at a moment, at rest, or the dice in the hand. */
-  const pose = useRef<{ plans: Record<TableKind, ThrowPlan> | null; t: number }>({ plans: null, t: Infinity });
+  /**
+   * What each table shows now: a throw `t` seconds in (picked up from `from` while `t` is still below 0), or at rest,
+   * `parked` of the way (0…1) from where it landed to where the stickman pulls the dice; with no throw, parked.
+   */
+  const pose = useRef<{ plans: Record<TableKind, ThrowPlan> | null; t: number; parked: number; from: Partial<Record<TableKind, readonly [DieState, DieState]>> }>({
+    plans: null,
+    t: Infinity,
+    parked: 1,
+    from: {},
+  });
   const settledRef = useRef(onSettled);
   const soundRef = useRef(sound);
+  const holdingRef = useRef(holding);
   useEffect(() => {
     settledRef.current = onSettled;
     soundRef.current = sound;
-  }, [onSettled, sound]);
+    holdingRef.current = holding;
+  }, [onSettled, sound, holding]);
+  /** The stickman is due to pull the dice back as soon as nothing holds them (the roll called, a win counted in). */
+  const collectDue = useRef<(() => void) | null>(null);
 
   const faces = shown?.faces;
   const seed = shown?.seed;
@@ -688,12 +724,22 @@ export function CrapsFelt(props: CrapsFeltProps) {
   );
 
   const draw = useCallback(() => {
-    const { plans: current, t } = pose.current;
+    const { plans: current, t, parked, from } = pose.current;
+    const root = wrapper.current;
     for (const kind of KINDS) {
       const layout = TABLES[kind];
-      const states = current ? (Number.isFinite(t) ? diceAt(current[kind], t) : restOf(current[kind])) : inHand(layout);
+      let states: readonly [DieState, DieState];
+      if (!current) states = parkedOf(layout, IDLE_FACES);
+      else if (Number.isFinite(t)) {
+        const start = diceAt(current[kind], 0);
+        states = t < 0 ? between(from[kind] ?? start, start, 1 + t / PICK_UP) : diceAt(current[kind], t);
+      } else {
+        const rest = restOf(current[kind]);
+        states = parked > 0 ? between(rest, parkedOf(layout, [rest[0].face, rest[1].face]), parked) : rest;
+      }
       place(layout, refs.current[kind], states);
     }
+    root?.setAttribute('data-dice', !current || (!Number.isFinite(t) && parked >= 1) ? 'parked' : Number.isFinite(t) ? 'thrown' : parked > 0 ? 'collecting' : 'landed');
   }, []);
 
   // Each table's dice are placed in pixels: they follow the table's width.
@@ -718,19 +764,50 @@ export function CrapsFelt(props: CrapsFeltProps) {
   useEffect(() => {
     const root = wrapper.current;
     if (!plans || id === undefined || !mode) {
-      pose.current = { plans: null, t: Infinity };
+      pose.current = { plans: null, t: Infinity, parked: 1, from: {} };
       draw();
       return;
     }
     root?.setAttribute('data-rolling', mode === 'animate' || mode === 'calm' ? 'true' : 'false');
-    /** The throw is at rest: the table says so, and so does the page that threw it. */
+    // Once the roll has been called and paid, the stickman pulls the dice back off the layout (`park` in
+    // tableLayout.ts), as he does at a real table: they never lie on the bets between rolls. A player who reduces
+    // motion sees them put there.
+    let collectTimer = 0;
+    let collectFrame = 0;
+    const collect = () => {
+      collectDue.current = null;
+      if (mode === 'calm' || reducedMotion()) {
+        pose.current = { ...pose.current, parked: 1 };
+        draw();
+        return;
+      }
+      let begun: number | null = null;
+      const pull = (now: number) => {
+        begun ??= now;
+        const u = Math.min(1, (now - begun) / COLLECT_MS);
+        pose.current = { ...pose.current, parked: u };
+        draw();
+        if (u < 1) collectFrame = window.requestAnimationFrame(pull);
+      };
+      collectFrame = window.requestAnimationFrame(pull);
+    };
+    /** The throw is at rest: the table says so, and so does the page that threw it; the stickman comes for the dice. */
     const finish = () => {
       root?.setAttribute('data-rolling', 'false');
       root?.setAttribute('data-settled', String(id));
       settledRef.current(id);
+      collectTimer = window.setTimeout(() => {
+        collectDue.current = collect;
+        if (!holdingRef.current) collect();
+      }, COLLECT_AFTER);
+    };
+    const stopCollecting = () => {
+      window.clearTimeout(collectTimer);
+      window.cancelAnimationFrame(collectFrame);
+      collectDue.current = null;
     };
     if (mode !== 'animate') {
-      pose.current = { plans, t: Infinity };
+      pose.current = { plans, t: Infinity, parked: mode === 'rest' ? 1 : 0, from: {} };
       draw();
       if (mode === 'rest') {
         root?.setAttribute('data-rolling', 'false');
@@ -744,12 +821,15 @@ export function CrapsFelt(props: CrapsFeltProps) {
         }, CALM_MS);
         return () => {
           window.clearTimeout(timer);
+          stopCollecting();
           root?.classList.remove(styles.diceCalm);
         };
       }
       finish();
-      return;
+      return stopCollecting;
     }
+    // The shooter picks the dice up from where they lie, then throws.
+    const from = { half: refs.current.half.last, full: refs.current.full.last };
     // Thrown: the dice are moved on every frame, and the throw's sounds are made as the dice reach them.
     let frame = 0;
     let start: number | null = null;
@@ -757,10 +837,10 @@ export function CrapsFelt(props: CrapsFeltProps) {
     const visible = (): TableKind => (root?.querySelector<HTMLElement>('[data-table-kind="full"]')?.offsetWidth ? 'full' : 'half');
     const tick = (now: number) => {
       start ??= now;
-      const t = (now - start) / 1000;
+      const t = (now - start) / 1000 - PICK_UP;
       const kind = visible();
       const plan = plans[kind];
-      pose.current = { plans, t };
+      pose.current = { plans, t, parked: 0, from };
       draw();
       if (soundRef.current) {
         while (heard < plan.events.length && plan.events[heard].t <= t) {
@@ -772,7 +852,7 @@ export function CrapsFelt(props: CrapsFeltProps) {
         while (heard < plan.events.length && plan.events[heard].t <= t) heard += 1;
       }
       if (t >= Math.max(plans.half.duration, plans.full.duration)) {
-        pose.current = { plans, t: Infinity };
+        pose.current = { plans, t: Infinity, parked: 0, from: {} };
         draw();
         finish();
         return;
@@ -780,8 +860,16 @@ export function CrapsFelt(props: CrapsFeltProps) {
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      stopCollecting();
+    };
   }, [plans, id, mode, draw]);
+
+  // A win counted in: the stickman, waiting for it, pulls the dice back now.
+  useEffect(() => {
+    if (!holding) collectDue.current?.();
+  }, [holding]);
 
   const label = shown ? props.t.diceLabel(shown.faces[0], shown.faces[1]) : props.t.trayIdle;
   return (

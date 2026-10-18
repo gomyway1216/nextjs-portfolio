@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // The double-up of video poker (doubleUp.ts): after a win the player may TAKE it, or DOUBLE UP: the dealer's card is
@@ -35,15 +36,8 @@ const firstNumbers = (dealer: string, card: string) => {
   return [(deck.indexOf(c(card)) + 0.5) / 51, 0.5, 0.5, 0.5];
 };
 
-/** Queues random numbers for the next presses; once they are used, Math.random is itself again. */
-async function rig(page: Page, numbers: number[]) {
-  await page.evaluate((queue) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const left = [...queue];
-    Math.random = () => (left.length > 0 ? left.shift()! : w.__random!());
-  }, numbers);
-}
+/** Queues random numbers for the next presses (and only for them: tests/e2e/rigPresses.ts); once used, Math.random is itself again. */
+const rig = (page: Page, numbers: number[]) => rigPresses(page, numbers);
 
 async function openVideoPoker(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);

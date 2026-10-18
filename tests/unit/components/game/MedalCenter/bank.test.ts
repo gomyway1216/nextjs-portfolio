@@ -272,9 +272,11 @@ describe('the card: one page at a time writes the bank', () => {
     const { seat, told } = machine(pusher);
     await quiet(browser);
     expect(seat.holding()).toBe(true);
-    // The hub's request is slow to reach the lock manager: the machine hears that it is wanted, lets the card go and asks
-    // for it again before the hub's request is in. The hub says it again with the next tick, and has the card then.
+    // The hub's request is slow to reach the lock manager, and the hub cannot ask the lock manager whether it is in: the
+    // machine hears that it is wanted, lets the card go and asks for it again before the hub's request is in. The hub
+    // says it again with the next tick, and has the card then.
     hub.lockLag = 4;
+    hub.answersQueued = false;
     hub.bank.claimBonus();
     await pass(3, [browser], [hub, pusher]);
     expect(heard).toEqual([{ type: 'bonus', medals: BONUS_CARD[0] }]);
@@ -289,6 +291,26 @@ describe('the card: one page at a time writes the bank', () => {
     expect(stored(browser)?.era).toBe(1);
     expect(storedBalance(browser)).toBe(WELCOME);
     expect(seat.holding()).toBe(true);
+  });
+
+  it('gets the card to the hub at once, no tick needed, when its request is slow to reach the lock manager', async () => {
+    const browser = new FakeBrowser();
+    const hub = browser.open();
+    const heard = hear(hub);
+    hub.bank.subscribe(() => undefined);
+    const pusher = browser.open();
+    const { seat, told } = machine(pusher);
+    await quiet(browser);
+    expect(seat.holding()).toBe(true);
+    // The hub's request takes a while to reach the lock manager, and the hub tells the machine it wants the card only
+    // once it is in: the machine, which asks for the card again at once, is behind it. No tick runs.
+    hub.lockLag = 4;
+    hub.bank.claimBonus();
+    await quiet(browser);
+    expect(heard).toEqual([{ type: 'bonus', medals: BONUS_CARD[0] }]);
+    expect(storedBalance(browser)).toBe(WELCOME + BONUS_CARD[0]);
+    expect(seat.holding()).toBe(true);
+    expect(told).toEqual(['granted', 'yielding moment', 'granted']);
   });
 
   it('pays a day once when two pages reach for it at the same moment', async () => {

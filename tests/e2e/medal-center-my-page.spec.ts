@@ -8,6 +8,7 @@ import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // The medal center's "my page" for a guest: the history of what happened to the medals after playing two machines,
@@ -74,11 +75,8 @@ async function fullHouse(page: Page) {
     queue.push((j - i + 0.5) / (52 - i));
     [deck[i], deck[j]] = [deck[j], deck[i]];
   });
-  await page.evaluate((numbers) => {
-    const original = Math.random;
-    const left = [...numbers];
-    Math.random = () => (left.length > 0 ? left.shift()! : original());
-  }, queue);
+  // Served only to the press that deals: the live site's other callers of Math.random do not take them.
+  await rigPresses(page, queue);
   await page.getByRole('button', { name: 'DEAL', exact: true }).click();
   const draw = page.getByRole('button', { name: 'DRAW', exact: true });
   await expect(draw).toBeVisible();
@@ -260,4 +258,38 @@ test('while a machine plays, writes only the part of the history its rounds chan
   const [wholeText, partText] = await page.evaluate((keys) => keys.map((key) => window.localStorage.getItem(key)), [HISTORY_KEY, partKey(HISTORY_KEY)]);
   expect(partText).toBeNull();
   expect(totalsOf(recordsOf(parseHistory(wholeText)!)).rounds).toBe(before.rounds + hands);
+});
+
+test('a floor jackpot is an entry of its own, with records apart from the machines’, at a phone’s width', async ({ page }) => {
+  // Winning one needs a signed-in player (the unit tests pay one into the medals through the real routes on fakes). Here
+  // the history this browser keeps already has one, as the bank writes it once the medals are in, and the page reads it.
+  await page.setViewportSize({ width: 375, height: 812 });
+  const from = Date.now() - 3_600_000;
+  const day = new Date(from).toISOString().slice(0, 10) as Observation['day'];
+  const steps: Observation[] = [
+    { type: 'move', game: 'slot-machine', round: 'reel0001', step: 'stake', medals: -3, at: from, day, left: WELCOME - 3 },
+    { type: 'move', game: 'slot-machine', round: 'reel0001', step: 'pay', medals: 6, at: from + 1_000, day, left: WELCOME + 3 },
+    { type: 'floor', id: '20261017-a1b2c3d4', medals: 2_431, at: from + 2_000, day, left: WELCOME + 3 + 2_431 },
+  ];
+  const kept = serializeHistory(steps.reduce(record, createHistory('testdevice01', from - 60_000)));
+  await page.addInitScript(
+    ([historyKey, history, bankKey, bank]) => {
+      if (window.localStorage.getItem(historyKey) === null) window.localStorage.setItem(historyKey, history);
+      if (window.localStorage.getItem(bankKey) === null) window.localStorage.setItem(bankKey, bank);
+    },
+    [HISTORY_KEY, kept, BANK_KEY, serializeLedger(give(createLedger('testdevice01'), 3 + 2_431))],
+  );
+  await openMyPage(page);
+  const floor = entries(page).and(page.locator('[data-kind="floor"]'));
+  await expect(floor).toHaveCount(1);
+  await expect(floor).toContainText('Medal floor');
+  await expect(floor).toContainText('FLOOR JACKPOT +2,431');
+  // Its records, apart from the machines': the machines' totals are what the slot machine did.
+  await expect(page.getByTestId('mypage-floor-wins')).toHaveText('1');
+  await expect(page.getByTestId('mypage-floor-biggest')).toHaveText('2,431');
+  await expect(page.getByTestId('mypage-total-won')).toHaveText('6');
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+  // And in Japanese.
+  await openMyPage(page, 'ja');
+  await expect(entries(page).and(page.locator('[data-kind="floor"]'))).toContainText('フロアジャックポット +2,431枚');
 });

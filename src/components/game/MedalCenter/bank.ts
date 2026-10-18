@@ -107,7 +107,7 @@
 import { useSyncExternalStore } from 'react';
 import { GUEST, createSync, fromCloud, slotFor, toCloud, type AccountStore, type Kept, type Player, type Slots, type Standing, type Status, type Sync, type Verdict } from '../MedalPusher/account';
 import { dayFrom, readDays, unionDays, type Day, type DaySet } from '../MedalPusher/records';
-import type { Observation } from './history';
+import { FLOOR_JACKPOT, type Observation } from './history';
 import { HISTORY_GAME_KEY, HISTORY_WAITING, createHistoryStore, type HistoryState } from './historyStore';
 import {
   REFILL,
@@ -271,6 +271,12 @@ export interface CardLock {
   apart: boolean;
   /** Asks for the card. `granted` runs once this page holds it, with what gives it back. Returns what withdraws the request while it waits. */
   ask: (granted: (release: () => void) => void) => () => void;
+  /**
+   * Resolves once the lock manager has every request this page has made so far (it handles a page's calls in the
+   * order they are made, so a question asked after them is answered after them). Without it, a request is taken to be
+   * in at once.
+   */
+  queued?: () => Promise<void>;
 }
 
 export interface BankEnv {
@@ -740,22 +746,42 @@ export function createBank(env: BankEnv) {
   /**
    * Asks for the card, telling the page that holds it why: for a machine to be played, for a moment, or not at all.
    *
-   * The request goes in before the holder is told. A holder that lets the card go asks for it again at once, when its
-   * machine is still to be played; told first, it could ask again before this page's request had reached the browser's
-   * lock manager, and take the card straight back, and this page would wait behind it for as long as the machine
-   * played. A page that waits with a job to do also says so again with every tick (`tick`), so that even a request
-   * that reached the lock manager late is next in a turn or two.
+   * The holder is told only once the request is in the browser's lock manager (`card.queued`). A holder that lets the
+   * card go asks for it again at once, when its machine is still to be played; told while this page's request was still
+   * on its way (a browser handles it apart from the page, and can be slow to), it could ask again first and take the
+   * card straight back, and this page would wait behind it for as long as the machine played. A page that waits with a
+   * job to do also says so again with every tick (`tick`): a browser whose lock manager cannot be asked, or a page
+   * whose word went astray, is next in a turn or two all the same.
    */
   const ask = (because: 'play' | 'moment' | null): void => {
+    let asked = false;
     if (!held && !waiting) {
       let answered = false;
       const withdraw = env.card.ask((release) => {
         answered = true;
         granted(release);
       });
-      if (!answered) waiting = withdraw;
+      if (!answered) {
+        waiting = withdraw;
+        asked = true;
+      }
     }
-    if (because) env.post({ kind: 'want', page: env.page, play: because === 'play' });
+    if (because) {
+      const say = (): void => env.post({ kind: 'want', page: env.page, play: because === 'play' });
+      if (asked && env.card.queued) {
+        // Said once the request is in, and only if this page is still waiting then: a card it was given meanwhile, or
+        // one it no longer wants, needs no word, and the word would only send the card round again.
+        const waits = waiting;
+        env.card.queued().then(
+          () => {
+            if (!held && waiting === waits) say();
+          },
+          () => {
+            if (!held && waiting === waits) say();
+          },
+        );
+      } else say();
+    }
     publish();
   };
 
@@ -1304,8 +1330,8 @@ export function createBank(env: BankEnv) {
           if (ledger !== at.ledger) {
             at.ledger = ledger;
             kept = store(at);
-            // Medals that are no machine's round: only what is left is noted in the history.
-            if (moved.applied) noted({ type: 'medals' });
+            // A floor jackpot is an entry of its own in the history; anything else from outside the machines, only what is left.
+            if (moved.applied) noted(move.game === FLOOR_JACKPOT ? { type: 'floor', id: move.round, medals: move.medals } : { type: 'medals' });
             sync?.save('moment');
           }
           // Made, but not kept by this browser's storage: it is in the medals on the page, and goes to the account with
@@ -1579,6 +1605,15 @@ const browserCard = (): CardLock => {
         if (!given) stop.abort();
       };
     },
+    // The lock manager answers a page's calls in the order they were made: a question asked after a request is
+    // answered once the request is in.
+    queued: () =>
+      apart && locks && typeof locks.query === 'function'
+        ? locks.query().then(
+            () => undefined,
+            () => undefined,
+          )
+        : Promise.resolve(),
   };
 };
 

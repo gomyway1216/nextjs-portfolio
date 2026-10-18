@@ -14,6 +14,7 @@ import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { createLedger, serializeLedger } from '../../src/components/game/MedalCenter/ledger';
 import { resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { pressUntil } from './pressUntil';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -122,10 +123,7 @@ async function expectFieldPainted(page: Page, timeout = 5_000) {
 /** Feeds one medal into a rail with its button, retrying until hydration has attached the handlers. */
 async function feedOne(page: Page, rail: Rail = 'left') {
   const before = await counter(page, 'played');
-  await expect(async () => {
-    await feedButton(page, rail).click({ timeout: 1_000 });
-    expect(await counter(page, 'played')).toBeGreaterThan(before);
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(feedButton(page, rail), async () => (await counter(page, 'played')) > before);
 }
 
 /** The rails that have a medal on them in the save the browser holds: 0 for the left, 1 for the right. */
@@ -2242,18 +2240,19 @@ test('the simulation measures the four aims and can be cancelled', async ({ page
 
   const rows = sim(page).getByTestId('pusher-sim-table').locator('tbody tr');
   await expect(rows).toHaveCount(4);
-  // Fed down the middle at this pace, about one medal in five ends up through a START pocket in the plate under the
-  // pusher's lip (19 in 100 over 36 long runs; a run this short swings widely, the most when a tower goes over through
-  // one or chance time opens the wings). Fed at the edges far fewer do (5 in 100 over the long runs), though some: the
-  // pile carries medals across, and what the screen pays lands all over the pusher. Into the tray went about 55% to
-  // 58% of the medals of the middle, anywhere and beside it over the long runs, and 37% of the edges': the side holes,
-  // which turn the front corners, take the rest, and medals fed along a wall go out of the open side where the wall
-  // ends (scripts/medal-pusher-tune.ts).
+  // Fed down the middle at this pace, about one medal in four ends up through a START pocket in the plate under the
+  // pusher's lip (23 in 100 over 36 long runs). A run this short swings widely: the most when a tower goes over through
+  // one, or when chance time opens the wings and, fed this fast, keeps them open: in about one such run in eight more
+  // than three medals in ten go through, and now and then more than half. Fed at the edges far fewer do (5 in 100
+  // over the long runs), though some: the pile carries medals across, and what the screen pays lands all over the
+  // pusher. Into the tray went about 55% to 58% of the medals of the middle, anywhere and beside it over the long runs,
+  // and 37% of the edges': the side holes, which turn the front corners, take the rest, and medals fed along a wall go
+  // out of the open side where the wall ends (scripts/medal-pusher-tune.ts).
   const cells = (aim: string) => sim(page).locator(`tr[data-aim="${aim}"] td`);
   const throughAPocket = async (aim: string) => Number(((await cells(aim).nth(3).textContent()) ?? '').replace('%', ''));
   const middle = await throughAPocket('centre');
   expect(middle).toBeGreaterThan(5);
-  expect(middle).toBeLessThan(40);
+  expect(middle).toBeLessThan(75);
   expect(await throughAPocket('edges')).toBeLessThan(middle);
   for (const aim of ['centre', 'anywhere', 'beside', 'edges']) {
     const front = Number(((await cells(aim).nth(2).textContent()) ?? '').replace('%', ''));

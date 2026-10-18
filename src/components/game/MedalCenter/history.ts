@@ -5,7 +5,8 @@
  * nothing anywhere reads it to decide a medal.
  *
  * The bank tells it what it does as it does it (bank.ts): a round's medals
- * moved under their receipt, the daily bonus, a refill, a reset. Two machines
+ * moved under their receipt, the daily bonus, a refill, a reset, a floor
+ * jackpot paid into the medals (MedalCenter/floor/jackpotPayer.ts). Two machines
  * say more than their medals do, and report it themselves: the Medal Pusher,
  * whose medals go in and come out a few at a time, says how many it fed and
  * how many came back, and what its prizes paid; and the craps table, whose
@@ -77,6 +78,14 @@ export const VISIT_GAP = 10 * 60_000;
 export const CENTER = 'medal-center';
 /** The Medal Pusher, which plays no rounds: medals go in and come out as the field moves. */
 export const PUSHER_GAME = 'medal-pusher';
+/**
+ * The medal floor's jackpot, won on the server and paid into the medals by
+ * the page (the same name its receipts carry: `JACKPOT_GAME` in
+ * lib/medalFloor/jackpot.ts). Its wins are entries of their own, and it keeps
+ * a row of records like a machine's: how many, how many medals, the biggest.
+ * It is no machine: the totals of the machines leave it out.
+ */
+export const FLOOR_JACKPOT = 'floor-jackpot';
 
 /**
  * The games whose machine reports each round whole (`round`), because their
@@ -97,8 +106,10 @@ export type EntryKind =
   | 'bonus'
   | 'refill'
   /** The medals reset at the medal center. */
-  | 'reset';
-const KINDS: readonly EntryKind[] = ['round', 'play', 'jackpot', 'bonus', 'refill', 'reset'];
+  | 'reset'
+  /** The medal floor's jackpot, paid into the medals: its game is `FLOOR_JACKPOT`, and its name the win's. */
+  | 'floor';
+const KINDS: readonly EntryKind[] = ['round', 'play', 'jackpot', 'bonus', 'refill', 'reset', 'floor'];
 
 export interface Entry {
   /** The device it happened on. */
@@ -144,7 +155,7 @@ export interface DayRow {
   d: string;
   bet: number;
   won: number;
-  /** Medals given: the daily bonus and refills. */
+  /** Medals given: the daily bonus, refills and floor jackpots. */
   free: number;
   rounds: number;
 }
@@ -186,6 +197,8 @@ export type Observation = (
   | { type: 'bonus' | 'refill'; medals: number }
   /** The medals reset: `thrown` thrown away, and `medals` to start again with. */
   | { type: 'reset'; thrown: number; medals: number }
+  /** A floor jackpot paid into the medals, under the win's own name (`id`). */
+  | { type: 'floor'; id: string; medals: number }
   /** Medals moved that are no round's (a chip on the craps table, a frame of the pusher): only what is left is noted. */
   | { type: 'medals' }
   /**
@@ -346,6 +359,20 @@ function counted(history: History, kind: 'bonus' | 'refill' | 'reset', o: Observ
 }
 
 /**
+ * A floor jackpot paid into the medals: an entry of its own, named by the
+ * win, so that the same win told twice is written once; the medals given on
+ * its day; and the floor jackpot's records, as a machine's are kept: one more
+ * won, its medals, the biggest.
+ */
+function floorJackpot(history: History, o: Extract<Observation, { type: 'floor' }>): History {
+  if (!isRound(o.id) || !isCount(o.medals) || o.medals === 0) return history;
+  if (findEntry(history, history.device, FLOOR_JACKPOT, o.id)) return history;
+  let next = withEntry(history, { d: history.device, g: FLOOR_JACKPOT, r: o.id, k: 'floor', t: o.at, bet: 0, won: o.medals, left: toLeft(o.left), done: 1 });
+  next = withDay(next, o.day, { free: o.medals });
+  return withRow(next, FLOOR_JACKPOT, (row) => ({ ...row, rounds: capped(row.rounds + 1), won: capped(row.won + o.medals), top: Math.max(row.top, o.medals), last: Math.max(row.last, o.at) }));
+}
+
+/**
  * The history with something that happened written in. The same history
  * comes back for anything that will not do: a moment or a day off the
  * calendar, a name or a number out of shape.
@@ -369,6 +396,8 @@ export function record(history: History, o: Observation): History {
       return counted(next, 'reset', o, o.thrown, o.medals);
     case 'medals':
       return next;
+    case 'floor':
+      return floorJackpot(next, o);
     case 'over':
       return !isGame(o.game) || REPORTS_ROUNDS.has(o.game) ? next : settleOpen(next, o.game, o.keep);
   }
@@ -657,9 +686,11 @@ export function recordsOf(history: History): GameRecord[] {
   return [...byGame.values()].sort((a, b) => b.last - a.last || (a.game < b.game ? -1 : 1));
 }
 
-/** Every game's records added together. */
+/** Every machine's records added together. The floor jackpot is no machine, and is left out: its records are its own. */
 export function totalsOf(records: readonly GameRecord[]): { rounds: number; bet: number; won: number } {
-  return records.reduce((sum, row) => ({ rounds: capped(sum.rounds + row.rounds), bet: capped(sum.bet + row.bet), won: capped(sum.won + row.won) }), { rounds: 0, bet: 0, won: 0 });
+  return records
+    .filter((row) => row.game !== FLOOR_JACKPOT)
+    .reduce((sum, row) => ({ rounds: capped(sum.rounds + row.rounds), bet: capped(sum.bet + row.bet), won: capped(sum.won + row.won) }), { rounds: 0, bet: 0, won: 0 });
 }
 
 /** What came back for each medal that went in, or null before any went in. */

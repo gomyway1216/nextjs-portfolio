@@ -88,7 +88,9 @@ export const OddsTab = () => {
         <table className={styles.chart} data-chart={section}>
           <thead>
             <tr>
-              <th />
+              <th>
+                <span className={styles.srOnly}>{t.chartCorner}</span>
+              </th>
               {VALUES.map((up) => (
                 <th key={up}>{upLabel(up)}</th>
               ))}

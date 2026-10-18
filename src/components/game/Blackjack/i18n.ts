@@ -117,6 +117,8 @@ export interface BlackjackStrings {
   chartHard: string;
   chartSoft: string;
   chartPairs: string;
+  /** The chart's corner cell, said to a screen reader: what the rows and the columns are. */
+  chartCorner: string;
   chartLegend: Record<AnalysisAction, string>;
   chartDiffers: string;
   cellDetail: (hand: string, up: string) => string;
@@ -285,6 +287,7 @@ const en: BlackjackStrings = {
   chartHard: 'Hard totals',
   chartSoft: 'Soft totals (with an ace counted as 11)',
   chartPairs: 'Pairs',
+  chartCorner: 'Your hand, against the dealer’s up card',
   chartLegend: { hit: 'H = hit', stand: 'S = stand', double: 'D = double', split: 'P = split', surrender: 'R = surrender' },
   chartDiffers:
     '* The standard six-deck chart (the table’s hint) doubles here instead. These are close calls — less than a hundredth of a bet apart — that the removal of the cards in play tips the other way in a real shoe.',
@@ -471,6 +474,7 @@ const ja: BlackjackStrings = {
   chartHard: 'ハード',
   chartSoft: 'ソフト（Aを11と数えている手）',
   chartPairs: 'ペア',
+  chartCorner: 'あなたの手とディーラーのアップカード',
   chartLegend: { hit: 'H = ヒット', stand: 'S = スタンド', double: 'D = ダブル', split: 'P = スプリット', surrender: 'R = サレンダー' },
   chartDiffers:
     '* 標準的な6デッキの表（テーブルのヒント）ではここはダブルです。ベット1単位あたり0.01にも満たない僅差で、実際のシューではすでに出ているカードの分だけ逆に傾きます。',

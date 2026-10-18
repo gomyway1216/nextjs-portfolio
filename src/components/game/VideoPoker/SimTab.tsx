@@ -108,9 +108,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="vp-sim-strategies-title">
-        <h3 id="vp-sim-strategies-title" className={styles.blockTitle}>
+        <h2 id="vp-sim-strategies-title" className={styles.blockTitle}>
           {t.stratTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.stratIntro}</p>
         <ul className={styles.ruleList}>
           {STRATEGY_IDS.map((id) => (
@@ -174,9 +174,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-sim-sessions-title">
-        <h3 id="vp-sim-sessions-title" className={styles.blockTitle}>
+        <h2 id="vp-sim-sessions-title" className={styles.blockTitle}>
           {t.sessionTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.sessionIntro}</p>
         <div className={styles.formRow}>
           {select(sessionCount, SESSION_OPTIONS, setSessionCount, sessionProgress !== null, t.sessionsLabel)}

@@ -598,7 +598,8 @@
   padding: 0.8rem 1.6rem;
   border-radius: 999px;
   border: 3px solid #fcd34d;
-  background: radial-gradient(circle at 50% 30%, #f87171, #dc2626 55%, #991b1b);
+  /* White SPIN at least 4.5:1 all over the button: the old highlight (#f87171) was 2.8:1. */
+  background: radial-gradient(circle at 50% 30%, #dc2626, #b91c1c 55%, #7f1d1d);
   color: #fff;
   font-size: 1.15rem;
   font-weight: 900;
@@ -1124,6 +1125,10 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--games-route-muted);
+}
+/* On the dark gold of a reel's stop the dark theme's muted grey is 3.4:1. */
+:global(html.dark) .stopWeight {
+  color: #d4d4d8;
 }
 @media (max-width: 560px) {
   .reelStrip li {

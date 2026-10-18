@@ -391,10 +391,10 @@ const TubArt = memo(function TubArt({ layout, t, language }: { layout: TableLayo
       {layout.middle && (
         <g>
           <rect x={layout.middle.x - 4} y={layout.middle.y - 4} width={layout.middle.w + 8} height={layout.middle.h + 8} fill="none" stroke={GOLD} strokeWidth={stroke} rx={8} />
-          <text x={layout.middle.x + layout.middle.w / 2} y={layout.middle.y + layout.middle.h - 34} fontSize={layout.type.small} fill="rgba(255,255,255,0.8)" fontWeight={800} textAnchor="middle" letterSpacing="0.12em">
+          <text x={layout.middle.x + layout.middle.w / 2} y={layout.middle.y + layout.middle.h - 34} fontSize={layout.type.small} fill="rgba(255,255,255,0.92)" fontWeight={800} textAnchor="middle" letterSpacing="0.12em">
             {language === 'ja' ? 'プロポジション' : 'PROPOSITION BETS'}
           </text>
-          <text x={layout.middle.x + layout.middle.w / 2} y={layout.middle.y + layout.middle.h - 14} fontSize={layout.type.small * 0.9} fill="rgba(255,255,255,0.65)" fontWeight={700} textAnchor="middle" letterSpacing="0.1em">
+          <text x={layout.middle.x + layout.middle.w / 2} y={layout.middle.y + layout.middle.h - 14} fontSize={layout.type.small * 0.9} fill="rgba(255,255,255,0.85)" fontWeight={700} textAnchor="middle" letterSpacing="0.1em">
             STICKMAN
           </text>
         </g>

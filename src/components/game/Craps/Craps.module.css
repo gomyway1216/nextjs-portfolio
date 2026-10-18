@@ -117,7 +117,8 @@
   cursor: not-allowed;
 }
 .btnPrimary {
-  background: linear-gradient(180deg, #ef4444, #b91c1c);
+  /* White ROLL at least 4.5:1 from the top of the gradient down (#ef4444 at the top was 3.8:1). */
+  background: linear-gradient(180deg, #dc2626, #b91c1c);
   color: #fff;
   border-color: transparent;
   font-weight: 850;

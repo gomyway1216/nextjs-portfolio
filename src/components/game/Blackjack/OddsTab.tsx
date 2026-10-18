@@ -84,12 +84,14 @@ export const OddsTab = () => {
 
   const renderChart = (section: Section, rows: Record<number, ChartCell[]>, title: string) => (
     <div className={styles.chartBlock}>
-      <h4 className={styles.subTitle}>{title}</h4>
+      <h3 className={styles.subTitle}>{title}</h3>
       <ScrollArea className={styles.tableWrap}>
         <table className={styles.chart} data-chart={section}>
           <thead>
             <tr>
-              <th />
+              <th>
+                <span className={styles.srOnly}>{t.chartCorner}</span>
+              </th>
               {VALUES.map((up) => (
                 <th key={up}>{upLabel(up)}</th>
               ))}
@@ -139,9 +141,9 @@ export const OddsTab = () => {
       <p className={styles.intro}>{t.oddsIntro}</p>
 
       <section className={styles.panel} aria-labelledby="bj-edge-title">
-        <h3 id="bj-edge-title" className={styles.blockTitle}>
+        <h2 id="bj-edge-title" className={styles.blockTitle}>
           {t.edgeHeadline}
-        </h3>
+        </h2>
         <div className={styles.headline}>
           <span className={styles.headlineValue} data-testid="bj-house-edge">
             {pct(value.houseEdge)}
@@ -168,9 +170,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-medal-title">
-        <h3 id="bj-medal-title" className={styles.blockTitle}>
+        <h2 id="bj-medal-title" className={styles.blockTitle}>
           {t.medalTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.medalIntro(MIN_BET, MAX_BET)}
         </p>
@@ -200,9 +202,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-dealer-title">
-        <h3 id="bj-dealer-title" className={styles.blockTitle}>
+        <h2 id="bj-dealer-title" className={styles.blockTitle}>
           {t.dealerTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.dealerIntro}
         </p>
@@ -242,9 +244,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-chart-title">
-        <h3 id="bj-chart-title" className={styles.blockTitle}>
+        <h2 id="bj-chart-title" className={styles.blockTitle}>
           {t.chartTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.chartIntro}
         </p>
@@ -259,7 +261,7 @@ export const OddsTab = () => {
         <div className={styles.cellInfo} aria-live="polite" data-testid="bj-cell-info">
           {picked && pickedCell ? (
             <>
-              <h4>{t.cellDetail(handName(picked.section, picked.row), upLabel(VALUES[picked.up]))}</h4>
+              <h3>{t.cellDetail(handName(picked.section, picked.row), upLabel(VALUES[picked.up]))}</h3>
               <ul className={styles.evList}>
                 {ranked.map(([a, ev]) => (
                   <li key={a} className={styles.evItem} data-best={a === pickedCell.best ? 'true' : undefined}>
@@ -292,9 +294,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-rules-title">
-        <h3 id="bj-rules-title" className={styles.blockTitle}>
+        <h2 id="bj-rules-title" className={styles.blockTitle}>
           {t.rulesTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.rulesIntro}
         </p>
@@ -323,9 +325,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-players-title">
-        <h3 id="bj-players-title" className={styles.blockTitle}>
+        <h2 id="bj-players-title" className={styles.blockTitle}>
           {t.playersTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.playersIntro}
         </p>

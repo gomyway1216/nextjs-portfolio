@@ -48,7 +48,8 @@ export const horseById = (id: string): Horse | undefined => STABLE.find((horse) 
 /**
  * The colour of each gate (枠), as on a Japanese racecourse's number cloths
  * and caps: 1 white, 2 black, 3 red, 4 blue, 5 yellow, 6 green, each with the
- * colour its number is printed in.
+ * colour its number is printed in. The green is a shade darker than the
+ * course's, so that its white number is at least 4.5:1 (#1f8f4e was 4.1:1).
  */
 export const GATE_COLOURS: readonly { cloth: string; number: string }[] = [
   { cloth: '#f5f5f5', number: '#1b1b1b' },
@@ -56,5 +57,5 @@ export const GATE_COLOURS: readonly { cloth: string; number: string }[] = [
   { cloth: '#d6262e', number: '#ffffff' },
   { cloth: '#1f5fbf', number: '#ffffff' },
   { cloth: '#f2d21b', number: '#1b1b1b' },
-  { cloth: '#1f8f4e', number: '#ffffff' },
+  { cloth: '#1a7f45', number: '#ffffff' },
 ];

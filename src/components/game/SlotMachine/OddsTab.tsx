@@ -123,9 +123,9 @@ export const OddsTab = () => {
       </ScrollArea>
 
       <section aria-labelledby="slot-virtual-title">
-        <h3 id="slot-virtual-title" className={styles.blockTitle}>
+        <h2 id="slot-virtual-title" className={styles.blockTitle}>
           {t.virtualReelTitle}
-        </h3>
+        </h2>
         <div className={styles.intro}>
           {t.virtualReelIntro.map((p, i) => (
             <p key={i}>{p}</p>

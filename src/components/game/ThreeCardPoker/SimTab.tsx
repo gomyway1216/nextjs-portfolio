@@ -52,9 +52,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="tcp-sim-title">
-        <h3 id="tcp-sim-title" className={styles.blockTitle}>
+        <h2 id="tcp-sim-title" className={styles.blockTitle}>
           {t.simTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>

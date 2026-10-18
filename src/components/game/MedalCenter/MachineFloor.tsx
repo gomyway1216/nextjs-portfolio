@@ -7,7 +7,7 @@ import { isFloorGame } from '@/lib/medalFloor/games';
 import { linked } from '@/lib/medalFloor/jackpot';
 import { getGameCoverPath } from '../constants/games';
 import type { GameLanguage } from '../constants/gameTranslations';
-import { WIDE_ZONES, ZONE_SIGNS, bestReturnPercent, cornersOf, isNewMachine, pitchOf, zoneOf } from './floorPlan';
+import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, pitchOf, plateReturn, zoneOf } from './floorPlan';
 import type { CenterStrings } from './strings';
 import styles from './MachineFloor.module.css';
 
@@ -84,7 +84,7 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
                   const name = translate(`games.${id}.title`);
                   const fresh = isNewMachine(id);
                   const jp = isLinked(id);
-                  const best = bestReturnPercent(id);
+                  const back = plateReturn(id);
                   const wide = WIDE_ZONES.has(zoneOf(id));
                   return (
                     <li key={id} className={styles.tile} data-open="true" data-machine={id} data-zone={zone} data-wide={wide} data-new={fresh} data-linked={jp}>
@@ -118,9 +118,9 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
                           {pitchOf(id, language) ?? translate(`games.${id}.description`)}
                         </p>
                         <p className={styles.foot}>
-                          {best !== null && (
+                          {back && (
                             <span className={styles.best} data-testid={`center-best-${id}`}>
-                              {t.bestReturn(percent(best))}
+                              {back.least === null ? t.bestReturn(percent(back.most)) : t.returnRange(percent(back.least), percent(back.most))}
                             </span>
                           )}
                           <span className={styles.playMark} aria-hidden>

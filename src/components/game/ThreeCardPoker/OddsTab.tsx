@@ -120,9 +120,9 @@ export const OddsTab = () => {
       <p className={styles.intro}>{t.oddsIntro(fmt(HAND_COUNT), fmt(DEALER_HANDS), fmt(TOTAL_COMBINATIONS))}</p>
 
       <section className={styles.panel} aria-labelledby="tcp-hands-title">
-        <h3 id="tcp-hands-title" className={styles.blockTitle}>
+        <h2 id="tcp-hands-title" className={styles.blockTitle}>
           {t.handsTitle}
-        </h3>
+        </h2>
         <div className={styles.modeRow} role="radiogroup" aria-label={t.payTableLabel}>
           <span className={styles.chipRowLabel}>{t.payTableLabel}:</span>
           {PAY_TABLE_IDS.map((id) => (
@@ -191,9 +191,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="tcp-ante-title">
-        <h3 id="tcp-ante-title" className={styles.blockTitle}>
+        <h2 id="tcp-ante-title" className={styles.blockTitle}>
           {t.anteTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.anteIntro(fmt(TOTAL_COMBINATIONS))}
         </p>
@@ -290,9 +290,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="tcp-threshold-title">
-        <h3 id="tcp-threshold-title" className={styles.blockTitle}>
+        <h2 id="tcp-threshold-title" className={styles.blockTitle}>
           {t.thresholdTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.7rem' }}>
           {t.thresholdIntro}
         </p>
@@ -351,9 +351,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="tcp-bonus-title">
-        <h3 id="tcp-bonus-title" className={styles.blockTitle}>
+        <h2 id="tcp-bonus-title" className={styles.blockTitle}>
           {t.bonusTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           {t.bonusIntro}
         </p>
@@ -393,9 +393,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="tcp-strategy-title">
-        <h3 id="tcp-strategy-title" className={styles.blockTitle}>
+        <h2 id="tcp-strategy-title" className={styles.blockTitle}>
           {t.strategyTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           {t.strategyIntro}
         </p>

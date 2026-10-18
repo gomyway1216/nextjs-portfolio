@@ -77,9 +77,9 @@ export const OddsTab = () => {
       </div>
 
       <section className={styles.panel} aria-labelledby="vp-payback-title">
-        <h3 id="vp-payback-title" className={styles.blockTitle}>
+        <h2 id="vp-payback-title" className={styles.blockTitle}>
           {t.paybackTitle}
-        </h3>
+        </h2>
         <div className={styles.headline}>
           <span className={styles.headlineValue} data-testid="vp-payback">
             {pct(data.payback, 4)}
@@ -113,9 +113,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-final-title">
-        <h3 id="vp-final-title" className={styles.blockTitle}>
+        <h2 id="vp-final-title" className={styles.blockTitle}>
           {t.finalTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.finalIntro}
         </p>
@@ -159,9 +159,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-tables-title">
-        <h3 id="vp-tables-title" className={styles.blockTitle}>
+        <h2 id="vp-tables-title" className={styles.blockTitle}>
           {t.tablesTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.tablesIntro}
         </p>
@@ -199,9 +199,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-hold-title">
-        <h3 id="vp-hold-title" className={styles.blockTitle}>
+        <h2 id="vp-hold-title" className={styles.blockTitle}>
           {t.holdTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.holdIntro}
         </p>
@@ -217,9 +217,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-calls-title">
-        <h3 id="vp-calls-title" className={styles.blockTitle}>
+        <h2 id="vp-calls-title" className={styles.blockTitle}>
           {t.callsTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.callsIntro}
         </p>
@@ -229,7 +229,7 @@ export const OddsTab = () => {
           <ul className={styles.callList} data-testid="vp-calls">
             {calls.map((c) => (
               <li key={c.id} className={styles.callItem} data-call={c.id}>
-                <h4>{t.callName[c.id]}</h4>
+                <h3>{t.callName[c.id]}</h3>
                 <div className={styles.callHand}>
                   {c.hand.map((x) => (
                     <MiniCard key={x} card={x} />

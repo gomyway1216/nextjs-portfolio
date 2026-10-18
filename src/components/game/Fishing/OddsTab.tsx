@@ -107,9 +107,9 @@ export const OddsTab = () => {
       </div>
 
       <section aria-labelledby="fishing-draws-title">
-        <h3 id="fishing-draws-title" className={styles.blockTitle}>
+        <h2 id="fishing-draws-title" className={styles.blockTitle}>
           {t.drawsTitle}
-        </h3>
+        </h2>
         <ol className={styles.drawList}>
           {t.draws.map((p, i) => (
             <li key={i}>{p}</li>
@@ -118,9 +118,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="fishing-fish-title">
-        <h3 id="fishing-fish-title" className={styles.blockTitle}>
+        <h2 id="fishing-fish-title" className={styles.blockTitle}>
           {t.fishTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.fishIntro}</p>
         <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="fishing-fish-table">
@@ -166,9 +166,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="fishing-chest-title">
-        <h3 id="fishing-chest-title" className={styles.blockTitle}>
+        <h2 id="fishing-chest-title" className={styles.blockTitle}>
           {t.chestTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.chestIntro}</p>
         <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="fishing-chest-table">
@@ -195,9 +195,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="fishing-real-title">
-        <h3 id="fishing-real-title" className={styles.blockTitle}>
+        <h2 id="fishing-real-title" className={styles.blockTitle}>
           {t.realTitle}
-        </h3>
+        </h2>
         {t.real.map((p, i) => (
           <p key={i} className={styles.note}>
             {p}
@@ -206,9 +206,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="fishing-sim-title" className={styles.sim}>
-        <h3 id="fishing-sim-title" className={styles.blockTitle}>
+        <h2 id="fishing-sim-title" className={styles.blockTitle}>
           {t.simTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simIntro}</p>
         <div className={styles.simControls}>
           <label htmlFor={ids.casts}>

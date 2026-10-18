@@ -4,5 +4,10 @@ import { buildGameMetadata } from '@/lib/games/gameMetadata';
 export const metadata = buildGameMetadata('horse-race');
 
 export default function HorseRacePage() {
-  return <HorseRaceForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <HorseRaceForPlayer />
+    </main>
+  );
 }

@@ -67,10 +67,10 @@ export const MedalCounter = ({ loaded, medals, onTable, won, labels, fmt, ledMed
   return (
     <section className={styles.counter} aria-labelledby="baccarat-counter-label" data-testid="baccarat-counter" data-loaded={loaded}>
       <div className={styles.counterMain}>
-        <h3 id="baccarat-counter-label" className={styles.counterLabel}>
+        <h2 id="baccarat-counter-label" className={styles.counterLabel}>
           <MedalIcon className={styles.counterMedal} />
           {labels.medals}
-        </h3>
+        </h2>
         <span className={styles.ledBig}>
           <SegmentDisplay value={loaded ? (ledMedals ?? medals) : ''} places={MEDAL_PLACES} />
         </span>

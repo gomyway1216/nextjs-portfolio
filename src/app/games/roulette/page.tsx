@@ -4,5 +4,10 @@ import { buildGameMetadata } from '@/lib/games/gameMetadata';
 export const metadata = buildGameMetadata('roulette');
 
 export default function RoulettePage() {
-  return <RouletteForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <RouletteForPlayer />
+    </main>
+  );
 }

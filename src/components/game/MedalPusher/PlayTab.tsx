@@ -1496,7 +1496,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             <SoundSettingsButton control={soundControl} strings={t} />
             <MakersPlate strings={t} />
           </div>
-          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
+          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} ready={feel.known} />
           <SoundSettingsPanel control={soundControl} strings={t} />
           <FeelNote strings={t} sweep={feel.prefs.sweep} />
           <PanelWarning strings={t} />

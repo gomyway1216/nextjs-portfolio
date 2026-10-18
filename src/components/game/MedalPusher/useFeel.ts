@@ -29,6 +29,12 @@ export interface Feel {
   prefs: FeelPrefs;
   /** Whether this device has a vibration motor. False on the server and in the first render, whatever the device. */
   motor: boolean;
+  /**
+   * Whether what the device can do has been read: false on the server and in the first render, true from the render
+   * that shows the switches this device has. A device that can neither vibrate nor fill the screen shows nothing new
+   * then, so this is what says the page has come to life in the browser.
+   */
+  known: boolean;
   /** Whether vibration is on: the player's choice, or the device's default until there is one. */
   vibrating: boolean;
   setSweep: (on: boolean) => void;
@@ -50,6 +56,7 @@ export interface Feel {
 export function useFeel(nowRef: RefObject<FeelNow>, wakeRef: RefObject<WakeKeeper | null>): Feel {
   const [prefs, setPrefs] = useState<FeelPrefs>(DEFAULT_FEEL);
   const [motor, setMotor] = useState(false);
+  const [known, setKnown] = useState(false);
   const [calm, setCalm] = useState(false);
   // The choices as they stand, for a switch that is thrown before the render that would show the last one.
   const chosen = useRef<FeelPrefs>(DEFAULT_FEEL);
@@ -64,6 +71,7 @@ export function useFeel(nowRef: RefObject<FeelNow>, wakeRef: RefObject<WakeKeepe
     chosen.current = readFeel(kept);
     setPrefs(chosen.current);
     setMotor(canVibrate());
+    setKnown(true);
     const less = window.matchMedia('(prefers-reduced-motion: reduce)');
     setCalm(less.matches);
     const follow = () => setCalm(less.matches);
@@ -112,6 +120,7 @@ export function useFeel(nowRef: RefObject<FeelNow>, wakeRef: RefObject<WakeKeepe
   return {
     prefs,
     motor,
+    known,
     vibrating,
     setSweep: (on) => {
       // The frame loop is told at once, not a render later: the hand that just took a slider is not swung away from it.

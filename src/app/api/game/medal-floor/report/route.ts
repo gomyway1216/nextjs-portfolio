@@ -6,15 +6,18 @@ import { FloorRefusal, reportToFloor, storeUnavailable } from '@/lib/medalFloor/
 import { clientIpFrom, isRateLimited } from '@/lib/rateLimit';
 
 // POST /api/game/medal-floor/report — a signed-in player's browser tells the
-// floor what one machine paid them: { game, won, best?, moment?: { medals, label? } }.
+// floor what one machine paid them and what they played on it:
+// { game, won, played?, best?, moment?: { medals, label? } }.
 //
 // The medals are the player's own, kept in their browser, so this is their
 // word. It is believed only within limits (lib/medalFloor/report.ts and
 // games.ts): a known machine, no win bigger than that machine can pay at all, a
-// named win only in an amount it pays, medals won no faster than the machine
-// can be played, a day's most, and REPORTS_PER_MINUTE reports a minute. The
-// account comes from the verified ID token, never from the body; the server's
-// clock decides when it happened.
+// named win only in an amount it pays, medals won and played no faster than
+// the machine can be played, a day's most of each, and REPORTS_PER_MINUTE
+// reports a minute. The medals played that are believed feed the floor jackpot
+// and are drawn for it, on the server (lib/medalFloor/jackpot.ts); a win comes
+// back as `jackpot`. The account comes from the verified ID token, never from
+// the body; the server's clock decides when it happened.
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 

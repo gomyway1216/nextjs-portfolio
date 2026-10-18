@@ -9,6 +9,7 @@ import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './ThreeCardPoker.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -44,6 +45,9 @@ export const ThreeCardPoker = () => {
           </button>
         </div>
 
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip />
+
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
@@ -68,6 +72,8 @@ export const ThreeCardPoker = () => {
         </div>
         <div role="tabpanel" id="tcp-panel-odds" aria-labelledby="tcp-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote />
         </div>
         <div role="tabpanel" id="tcp-panel-sim" aria-labelledby="tcp-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

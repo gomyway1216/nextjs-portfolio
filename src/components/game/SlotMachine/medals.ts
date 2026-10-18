@@ -385,6 +385,8 @@ export function createTable({ bank, storage, tab, name, events = {} }: TableDeps
         putBack(owner, was);
         return { ok: false, why: 'medals' };
       }
+      // The medals played feed the floor jackpot, once, as the stake goes in.
+      floorReport(SLOT_GAME, { played: medals });
       return { ok: true, round };
     },
 

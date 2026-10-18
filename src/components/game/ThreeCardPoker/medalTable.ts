@@ -367,6 +367,8 @@ export function createTable(medals: TableMedals, store: TableStore, newId: () =>
         writeText(key, was);
         return refuse('short');
       }
+      // The medals played feed the floor jackpot, once, as each stake goes in: the Ante and Pair Plus, then the Play bet.
+      floorReport(TCP_GAME, { played: stake });
       // The hand before this one is no longer kept: nothing will look at its receipts again.
       medals.forget(TCP_GAME, [hand.id!]);
       return { ok: true, hand };
@@ -385,6 +387,7 @@ export function createTable(medals: TableMedals, store: TableStore, newId: () =>
         keep(hand);
         return refuse('short');
       }
+      floorReport(TCP_GAME, { played: hand.bets.ante });
       return { ok: true, hand: next };
     },
 

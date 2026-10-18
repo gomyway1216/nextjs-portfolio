@@ -25,11 +25,11 @@ import { SPOT_MAX as ROULETTE_SPOT_MAX } from '@/components/game/Roulette/medalT
 import { PAY_RULES } from '@/components/game/SlotMachine/engine';
 import { BET_OPTIONS } from '@/components/game/SlotMachine/medals';
 import { ANTE_BONUS_PAYS, PAIR_PLUS_PAYS } from '@/components/game/ThreeCardPoker/engine';
-import { SPOT_MAX as TCP_SPOT_MAX } from '@/components/game/ThreeCardPoker/medalTable';
+import { HAND_MAX as TCP_HAND_MAX, SPOT_MAX as TCP_SPOT_MAX } from '@/components/game/ThreeCardPoker/medalTable';
 import { DOUBLE_MAX, DOUBLE_RETURN } from '@/components/game/VideoPoker/doubleUp';
 import { HANDS, MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, ROYAL_SHORT_PAY, payout, type HandRank } from '@/components/game/VideoPoker/engine';
 import { games } from '@/components/game/constants/games';
-import { FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
+import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
 // change to a game's payouts that the floor has not heard of fails this test instead of refusing a real win.
@@ -52,6 +52,83 @@ describe('the machines on the floor', () => {
         expect(named.max ?? 0, `${game} ${label}`).toBeLessThanOrEqual(rule.most);
       }
     }
+  });
+});
+
+/** Every spot of the roulette felt, each bet once: 151 of them. */
+function rouletteFelt(): Bet[] {
+  const felt: Bet[] = [];
+  for (let n = 0; n <= 36; n += 1) felt.push({ kind: 'straight', number: n });
+  for (let n = 1; n <= 33; n += 1) felt.push({ kind: 'split', numbers: [n, n + 3] });
+  for (let n = 1; n <= 35; n += 1) if (n % 3 !== 0) felt.push({ kind: 'split', numbers: [n, n + 1] });
+  for (let n = 1; n <= 32; n += 1) if (n % 3 !== 0) felt.push({ kind: 'corner', numbers: [n, n + 1, n + 3, n + 4] });
+  for (let n = 1; n <= 34; n += 3) felt.push({ kind: 'street', numbers: [n, n + 1, n + 2] });
+  for (let n = 1; n <= 31; n += 3) felt.push({ kind: 'line', numbers: [n, n + 1, n + 2, n + 3, n + 4, n + 5] });
+  for (const which of [1, 2, 3] as const) felt.push({ kind: 'dozen', which }, { kind: 'column', which });
+  for (const kind of ['red', 'black', 'odd', 'even', 'low', 'high'] as const) felt.push({ kind });
+  return felt;
+}
+
+/**
+ * The fullest craps table there can be with the line's point `point` (or none): every spot each at its most, the odds
+ * as far as they go. What a table cannot hold at once is left off (see the craps case below).
+ */
+function fullestCraps(point: PointNumber | null): CrapsBets {
+  const bets: CrapsBets = {};
+  for (const id of CRAPS_BET_IDS) {
+    if (isOddsBet(id)) continue;
+    const come = comePoint(id);
+    if (come) {
+      if (come.n !== point) bets[id] = crapsSpotLimit(come.kind === 'come' ? 'come' : 'dontCome', point, {});
+    } else if (point !== null || (id !== 'come' && id !== 'dontCome')) bets[id] = crapsSpotLimit(id, point, {});
+  }
+  for (const id of CRAPS_BET_IDS) {
+    if (!isOddsBet(id) || ((id === 'passOdds' || id === 'dontPassOdds') && point === null)) continue;
+    const most = maxOdds(id, point, bets);
+    if (most > 0) bets[id] = most - (most % crapsStakeStep(id, point));
+  }
+  return bets;
+}
+
+describe('the most each machine can take from the player at once, for the medals played', () => {
+  it('sizes each allowance of medals played to hold the biggest stake on top of ten minutes at the fastest', () => {
+    for (const game of FLOOR_GAMES) expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].perMinute);
+  });
+
+  it('from each machine’s own limits', () => {
+    // A medal fed at a time; a slot's biggest bet; a medal a round of janken.
+    expect(FLOOR_RULES['medal-pusher'].stakeMost).toBe(1);
+    expect(FLOOR_RULES['slot-machine'].stakeMost).toBe(Math.max(...BET_OPTIONS));
+    expect(FLOOR_RULES.janken.stakeMost).toBe(1);
+    // Every spot of the felt at its most.
+    expect(rouletteFelt()).toHaveLength(151);
+    expect(FLOOR_RULES.roulette.stakeMost).toBe(rouletteFelt().length * ROULETTE_SPOT_MAX);
+    // Four hands of the biggest bet, each doubled, and the insurance on the first.
+    expect(FLOOR_RULES.blackjack.stakeMost).toBe(MAX_HANDS * 2 * BLACKJACK_MAX_BET + Math.floor(BLACKJACK_MAX_BET / 2));
+    // Five coins a hand (a double-up puts back what was won, and is not counted).
+    expect(FLOOR_RULES['video-poker'].stakeMost).toBe(MAX_COINS);
+    // Every spot of the baccarat table at its most.
+    expect(FLOOR_RULES.baccarat.stakeMost).toBe(Object.values(BACCARAT_SPOT_MAX).reduce((sum, most) => sum + most, 0));
+    // An Ante, Pair Plus and a Play bet, each at its most.
+    expect(FLOOR_RULES['three-card-poker'].stakeMost).toBe(TCP_HAND_MAX);
+    expect(TCP_HAND_MAX).toBe(3 * TCP_SPOT_MAX);
+  });
+
+  it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
+    let held = 0;
+    let decided = 0;
+    for (const point of [null, ...POINT_NUMBERS]) {
+      const bets = fullestCraps(point);
+      held = Math.max(held, Object.values(bets).reduce<number>((sum, medals) => sum + (medals ?? 0), 0));
+      for (let a = 1; a <= 6; a += 1)
+        for (let b = 1; b <= 6; b += 1) {
+          const { results } = resolveRoll(point, bets, [a, b]);
+          decided = Math.max(decided, results.reduce((sum, r) => sum + (r.outcome === 'lose' || (r.outcome === 'win' && !r.staysUp) ? r.stake : 0), 0));
+        }
+    }
+    expect(CRAPS_DECIDED_MOST).toBe(held);
+    expect(CRAPS_DECIDED_MOST).toBe(decided);
+    expect(FLOOR_RULES.craps.stakeMost).toBe(CRAPS_DECIDED_MOST);
   });
 });
 

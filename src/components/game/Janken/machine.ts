@@ -365,6 +365,8 @@ export function createMachine({ bank, storage, random, newId = randomId }: Machi
         write(null);
         return false;
       }
+      // The medal played feeds the floor jackpot, once, as it goes in.
+      floorReport(JANKEN_GAME, { played: 1 });
       // Any round before this one is struck out: nothing will try its moves again.
       bank.forget(JANKEN_GAME, [next.id!]);
       tell({ type: 'inserted' });

@@ -593,7 +593,15 @@ export function createMedalTable({
     const earlier = typeof seen === 'string' ? parseTable(seen) : null;
     if (earlier) delete earlier.pending;
     const pending: Pending = { step, medals: -medals, before: earlier ? serializeTable(earlier) : null };
-    return { next: { ...next, id, pending }, move: () => bank.apply({ game: GAME, round: id, step, medals: -medals, era: next.era }) === 'applied' };
+    return {
+      next: { ...next, id, pending },
+      move: () => {
+        const taken = bank.apply({ game: GAME, round: id, step, medals: -medals, era: next.era }) === 'applied';
+        // The medals played feed the floor jackpot, once, as each stake goes in: the bet, a double, a split, the insurance.
+        if (taken) floorReport(GAME, { played: medals });
+        return taken;
+      },
+    };
   };
 
   return {

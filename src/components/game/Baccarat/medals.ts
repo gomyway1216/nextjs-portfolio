@@ -637,6 +637,8 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
           store.remove(key);
           return null;
         }
+        // The medals played feed the floor jackpot, once, as the stake goes in.
+        floorReport(GAME, { played: stake });
       }
       open = coup;
       return coup;

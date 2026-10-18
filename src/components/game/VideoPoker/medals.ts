@@ -512,6 +512,9 @@ export function createMedalPlay(env: MedalPlayEnv) {
         else removeKey(key());
         return { kind: 'short' };
       }
+      // The medals played feed the floor jackpot, once, as the bet goes in. (A double-up stakes what was just won, and
+      // is not counted as medals played.)
+      floorReport(GAME, { played: coins });
       // The hand before this one is no longer kept: nothing will look at its receipts again.
       bank.forget(GAME, [dealt.id]);
       return { kind: 'dealt', hand: dealt };

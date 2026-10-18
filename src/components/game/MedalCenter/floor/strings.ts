@@ -1,6 +1,6 @@
 /**
  * The medal floor's words, in English and Japanese: the live feed, the
- * rankings and a player's place on the floor. As everywhere in the medal
+ * rankings, a player's place on the floor and the floor jackpot. As everywhere in the medal
  * center, nothing may read as money: medals are medals (「メダル」), and no
  * bank's or cashier's word is used.
  */
@@ -64,6 +64,31 @@ export interface FloorStrings {
   unblock: string;
   hidden: string;
   hideMoment: string;
+  // The floor jackpot
+  jackpotTitle: string;
+  jackpotUnit: string;
+  jackpotLead: string;
+  /** For a guest: how to play for it. */
+  jackpotGuest: string;
+  /** For a signed-in player not on the floor, on the medal center's front (the place card is below) and at a machine. */
+  jackpotJoinHere: string;
+  jackpotJoinThere: string;
+  /** For a player on the floor. */
+  jackpotIn: string;
+  jackpotUnavailable: string;
+  jackpotLast: (name: string, medals: string, ago: string) => string;
+  jackpotNever: string;
+  /** Said when this page has just put a floor jackpot into the player's medals. */
+  jackpotPaid: (medals: string) => string;
+  /** The Odds tabs' line: the share, one medal for every `per`, the chance, the seed, what it brings back for every 100 played, and the day's most. */
+  jackpotRules: (share: string, per: string, oneIn: string, seed: string, back: string, daily: string) => string[];
+  jackpotHonesty: string;
+  jackpotWinsTitle: string;
+  jackpotMore: string;
+  // The owner's floor jackpot
+  jackpotVoid: string;
+  jackpotState: Record<'pending' | 'paid' | 'void', string>;
+  jackpotVoidNote: string;
 }
 
 const enMoment = (label: string | null, medals: string): string => {
@@ -84,6 +109,8 @@ const enMoment = (label: string | null, medals: string): string => {
       return `drew a straight flush: ${medals} medals`;
     case 'four-kind':
       return `drew four of a kind: ${medals} medals`;
+    case 'floor-jackpot':
+      return `hit the FLOOR JACKPOT: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -107,6 +134,8 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `ストレートフラッシュで${medals}枚`;
     case 'four-kind':
       return `フォーカードで${medals}枚`;
+    case 'floor-jackpot':
+      return `フロアジャックポット！${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }
@@ -177,6 +206,29 @@ const en: FloorStrings = {
   unblock: 'Unblock player',
   hidden: 'Hidden',
   hideMoment: 'Take off the floor',
+  jackpotTitle: 'FLOOR JACKPOT',
+  jackpotUnit: 'medals',
+  jackpotLead: 'One pool for the whole floor. Every medal played by the players on the floor adds to it, and any one of those medals can win all of it.',
+  jackpotGuest: 'Sign in and join the floor to play for it.',
+  jackpotJoinHere: 'Join the floor below to play for it.',
+  jackpotJoinThere: 'Join the floor at the Medal Center to play for it.',
+  jackpotIn: 'You are on the floor: every medal you play feeds it, and could win it.',
+  jackpotUnavailable: 'The floor jackpot cannot be reached just now.',
+  jackpotLast: (name, medals, ago) => `Last won by ${name}: ${medals} medals, ${ago}`,
+  jackpotNever: 'Nobody has won it yet.',
+  jackpotPaid: (medals) => `FLOOR JACKPOT! ${medals} medals are in your medals now.`,
+  jackpotRules: (share, per, oneIn, seed, back, daily) => [
+    `+ ${share} of every medal played goes to the floor jackpot: the site adds 1 medal for every ${per} you play, on top of what you play. Nothing is taken out of it, so this machine’s own return is exactly as shown.`,
+    `Each medal played is also a 1 in ${oneIn} chance to win the whole pool, which starts again at ${seed} medals once it is won. In the long run it brings back ${back} medals for every 100 played, but only in the long run: most players never win it.`,
+    `It is for players who are signed in and have joined the floor, on the first ${daily} medals each plays in a day (Japan time), with one floor jackpot a day at most.`,
+  ],
+  jackpotHonesty:
+    'Like the rankings, the floor jackpot is for fun. The medals played that feed it are what players’ browsers report: the site checks each report against what that machine allows, but it cannot prove it. The draw itself is made on the site’s server, never in a browser.',
+  jackpotWinsTitle: 'Last floor jackpots',
+  jackpotMore: 'How it works',
+  jackpotVoid: 'Void',
+  jackpotState: { pending: 'Not in their medals yet', paid: 'In their medals', void: 'Voided' },
+  jackpotVoidNote: 'Voiding gives the pool back what the win took over its starting medals, and takes it off the floor. Medals already in that player’s browser stay there.',
 };
 
 const ja: FloorStrings = {
@@ -243,6 +295,29 @@ const ja: FloorStrings = {
   unblock: '外すのをやめる',
   hidden: '非表示',
   hideMoment: 'フロアから外す',
+  jackpotTitle: 'フロアジャックポット',
+  jackpotUnit: '枚',
+  jackpotLead: 'フロア全体でひとつのジャックポットです。フロアに参加しているプレイヤーが遊んだメダルで増えていき、そのメダルのどれか1枚が全部を当てます。',
+  jackpotGuest: 'サインインしてフロアに参加すると、ねらえます。',
+  jackpotJoinHere: '下でフロアに参加すると、ねらえます。',
+  jackpotJoinThere: 'メダルゲームセンターでフロアに参加すると、ねらえます。',
+  jackpotIn: 'フロアに参加中：遊んだメダルがジャックポットを増やし、当たるチャンスにもなります。',
+  jackpotUnavailable: 'いまフロアジャックポットに接続できません。',
+  jackpotLast: (name, medals, ago) => `前回の当たり：${name}・${medals}枚（${ago}）`,
+  jackpotNever: 'まだだれも当てていません。',
+  jackpotPaid: (medals) => `フロアジャックポット！${medals}枚が持ちメダルに入りました。`,
+  jackpotRules: (share, per, oneIn, seed, back, daily) => [
+    `遊んだメダルの${share}がフロアジャックポットに入ります。遊んだメダル${per}枚につき1枚を、サイトが上乗せします。遊んだメダルから引くのではないので、このマシンの還元率は表示のとおりです。`,
+    `さらに、遊んだメダル1枚1枚が${oneIn}分の1の確率でジャックポット全部を当てます。当たると${seed}枚からやり直しです。長い目で見ると、遊んだメダル100枚につき${back}枚が戻りますが、それは長い目で見た話で、ほとんどのプレイヤーは当てずに終わります。`,
+    `対象は、サインインしてフロアに参加しているプレイヤーが1日（日本時間）に遊んだメダルの${daily}枚まで。フロアジャックポットは1日1回までです。`,
+  ],
+  jackpotHonesty:
+    'フロアジャックポットもランキングと同じくお楽しみ用です。ジャックポットを増やす「遊んだメダル」は、プレイヤーのブラウザーからの報告です。マシンが受け付けられる量と照らし合わせて確かめていますが、証明はできません。抽選そのものはサイトのサーバーで行い、ブラウザーでは行いません。',
+  jackpotWinsTitle: '最近のフロアジャックポット',
+  jackpotMore: 'しくみ',
+  jackpotVoid: '無効にする',
+  jackpotState: { pending: '持ちメダルに未反映', paid: '持ちメダルに反映済み', void: '無効' },
+  jackpotVoidNote: '無効にすると、当たりが始まりの枚数を超えて持っていった分がジャックポットに戻り、フロアからも外れます。そのプレイヤーのブラウザーにすでに入ったメダルはそのままです。',
 };
 
 export const getFloorStrings = (language: GameLanguage): FloorStrings => (language === 'ja' ? ja : en);

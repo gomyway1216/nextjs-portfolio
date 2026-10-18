@@ -866,8 +866,10 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
       // The medals' history counts the roll as one round: what the roll took off the table, and what it gave back.
       const decided = resolution.results.reduce((sum, r) => sum + (r.outcome === 'lose' || (r.outcome === 'win' && !r.staysUp) ? r.stake : 0), 0);
       if (decided > 0 || resolution.returned > 0) purse.rolled?.({ round: `${table.id ?? 'table'}-r${table.stats.rolls}`, bet: decided, won: resolution.returned });
-      // The medal floor hears of what the roll gave back, once, as it is given.
-      if (resolution.returned > 0) floorReport(CRAPS_GAME, { won: resolution.returned, prize: { medals: resolution.returned } });
+      // The medal floor hears of what the roll gave back, once, as it is given, and of the medals the roll decided: those
+      // are the medals played at the table (a bet put down and taken back again before a roll is not), and feed the
+      // floor jackpot.
+      if (resolution.returned > 0 || decided > 0) floorReport(CRAPS_GAME, { won: resolution.returned, played: decided, ...(resolution.returned > 0 ? { prize: { medals: resolution.returned } } : {}) });
       return { ok: true, value: { resolution, before } };
     },
   };

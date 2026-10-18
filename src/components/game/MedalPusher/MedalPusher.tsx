@@ -18,6 +18,7 @@ import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
 import { getWorksStrings } from './worksStrings';
 import styles from './MedalPusher.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'machine' | 'odds' | 'sim' | 'records';
 
@@ -104,6 +105,9 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
           </button>
         </div>
 
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip />
+
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb, index) => (
             <button
@@ -137,6 +141,8 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
         </div>
         <div role="tabpanel" id="pusher-panel-odds" aria-labelledby="pusher-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote />
         </div>
         <div role="tabpanel" id="pusher-panel-sim" aria-labelledby="pusher-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

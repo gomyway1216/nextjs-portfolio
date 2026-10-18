@@ -11,6 +11,7 @@ import { Cabinet } from './Cabinet';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import styles from './Janken.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'machine' | 'odds';
 
@@ -82,6 +83,9 @@ export const Janken = ({ player, bankStore = null, legacyStores }: JankenProps =
           </button>
         </div>
 
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip />
+
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb, index) => (
             <button
@@ -110,6 +114,8 @@ export const Janken = ({ player, bankStore = null, legacyStores }: JankenProps =
         </div>
         <div role="tabpanel" id="janken-panel-odds" aria-labelledby="janken-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote />
         </div>
       </div>
 

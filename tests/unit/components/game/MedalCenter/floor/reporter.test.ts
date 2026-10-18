@@ -13,21 +13,24 @@ interface Sent {
   keepalive: boolean;
 }
 
-function harness(options: { joined?: boolean | null; status?: () => number } = {}) {
+function harness(options: { joined?: boolean | null; status?: () => number; due?: number; reply?: (body: Record<string, unknown> | null) => unknown } = {}) {
   let now = 1_000_000;
   let signedIn: FloorAccount | null = null;
   const sent: Sent[] = [];
   const timers: { at: number; run: () => void; id: number }[] = [];
   let nextId = 1;
   let meAnswer = options.joined ?? null;
+  const due: string[] = [];
   const reporter = createFloorReporter({
     account: () => signedIn,
     fetch: (async (url: string, init?: RequestInit) => {
       const auth = (init?.headers as Record<string, string> | undefined)?.Authorization ?? null;
       sent.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null, token: auth ? auth.slice(7) : null, keepalive: init?.keepalive === true });
-      if (url.endsWith('/me')) return Response.json({ joined: meAnswer === true, name: null, tag: '1234', blocked: false }, { status: meAnswer === null ? 503 : 200 });
-      return Response.json({ counted: 0, best: false, shown: false }, { status: options.status?.() ?? 200 });
+      if (url.endsWith('/me')) return Response.json({ joined: meAnswer === true, name: null, tag: '1234', blocked: false, ...(options.due ? { due: options.due } : {}) }, { status: meAnswer === null ? 503 : 200 });
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+      return Response.json(options.reply?.(body) ?? { counted: 0, best: false, shown: false }, { status: options.status?.() ?? 200 });
     }) as typeof fetch,
+    jackpot: (uid) => due.push(uid),
     now: () => now,
     later: (run, ms) => {
       const id = nextId++;
@@ -46,6 +49,7 @@ function harness(options: { joined?: boolean | null; status?: () => number } = {
   return {
     reporter,
     sent,
+    due,
     reports: () => sent.filter((call) => call.url.endsWith('/report')),
     signIn(uid: string | null) {
       signedIn = uid ? { uid, token: async () => `token-of-${uid}` } : null;
@@ -158,7 +162,7 @@ describe('the floor reporter', () => {
     h.reporter.report('roulette', { won: 360, prize: { medals: 360 } });
     await h.pass(0);
     expect(h.reports()).toHaveLength(1);
-    expect(h.reporter.waiting('roulette')).toEqual({ won: 360, best: 360, moment: { medals: 360 } });
+    expect(h.reporter.waiting('roulette')).toEqual({ won: 360, played: 0, best: 360, moment: { medals: 360 } });
     status = 200;
     await h.pass(FLUSH_MS);
     expect(h.reports()).toHaveLength(2);
@@ -234,5 +238,50 @@ describe('the floor reporter', () => {
     expect(h.reports()).toEqual([]);
     await h.pass(FLUSH_MS);
     expect(h.reports().map((call) => call.body)).toEqual([{ game: 'three-card-poker', won: 45 }]);
+  });
+
+  it('adds up the medals played, sends them with the minute’s wins, and never more of them at once than the floor believes', async () => {
+    const h = harness({ joined: true });
+    h.signIn('test-uid-ann');
+    for (let spin = 0; spin < 40; spin += 1) h.reporter.report('slot-machine', { played: 3 });
+    h.reporter.report('slot-machine', { won: 30, prize: { medals: 30 } });
+    await h.pass(FLUSH_MS);
+    expect(h.reports().map((call) => call.body)).toEqual([{ game: 'slot-machine', won: 30, played: 120, best: 30 }]);
+    // A burst of play half as big as the floor believes at once goes now, and the rest is never more than it believes.
+    const rule = FLOOR_RULES['medal-pusher'];
+    h.reporter.report('medal-pusher', { played: rule.playBurst * 3 });
+    await h.pass(0);
+    expect(h.reports().at(-1)?.body).toEqual({ game: 'medal-pusher', won: 0, played: rule.playBurst });
+    expect(h.reporter.waiting('medal-pusher')).toBeNull();
+    // Nothing that is not a count of medals is sent.
+    h.reporter.report('slot-machine', { played: Number.NaN });
+    h.reporter.report('slot-machine', { played: -3 });
+    await h.pass(FLUSH_MS);
+    expect(h.reports()).toHaveLength(2);
+  });
+
+  it('sends a guest’s medals played nowhere', async () => {
+    const h = harness();
+    h.reporter.report('roulette', { played: 500 });
+    await h.pass(FLUSH_MS * 2);
+    expect(h.sent).toEqual([]);
+  });
+
+  it('tells the page’s payer when a report won the floor jackpot, or the floor says one is waiting', async () => {
+    const h = harness({ joined: true, reply: (body) => (body?.played ? { counted: 0, best: false, shown: false, played: body.played, jackpot: { id: '20261017-a1b2c3d4', medals: 3_000, at: 1 } } : undefined) });
+    h.signIn('test-uid-ann');
+    h.reporter.report('slot-machine', { won: 30 });
+    await h.pass(FLUSH_MS);
+    expect(h.due).toEqual([]);
+    h.reporter.report('slot-machine', { played: 3 });
+    await h.pass(FLUSH_MS);
+    expect(h.due).toEqual(['test-uid-ann']);
+    // A player who is not on the floor any more still has their win waiting: it is theirs.
+    const left = harness({ joined: false, due: 1 });
+    left.signIn('test-uid-ben');
+    left.reporter.report('janken', { played: 1 });
+    await left.pass(0);
+    expect(left.due).toEqual(['test-uid-ben']);
+    expect(left.reports()).toEqual([]);
   });
 });

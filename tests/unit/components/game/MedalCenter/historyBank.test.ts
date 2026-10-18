@@ -457,3 +457,24 @@ describe('the history of a player who is signed in', () => {
     expect(shown(page)?.since).toBe(1_700_000_000_000);
   });
 });
+
+describe('a floor jackpot paid into the medals', () => {
+  it('is in the history as a floor jackpot, once, with the medals it left', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    page.bank.watchHistory(() => undefined);
+    await quiet(browser);
+    const move = { game: 'floor-jackpot', round: '20261017-a1b2c3d4', step: 'pay', medals: 2_431 };
+    const paid = page.bank.credit(move, () => true);
+    await quiet(browser);
+    expect(await paid).toBe('applied');
+    const again = page.bank.credit(move, () => true);
+    await quiet(browser);
+    expect(await again).toBe('already');
+    const floor = shown(page)?.entries.filter((one) => one.k === 'floor');
+    expect(floor).toEqual([expect.objectContaining({ g: 'floor-jackpot', r: '20261017-a1b2c3d4', bet: 0, won: 2_431, left: WELCOME + 2_431 })]);
+    expect(rounds(shown(page))).toEqual({ rounds: 0, bet: 0, won: 0 });
+    await pass(2, [browser], [page]);
+    expect(stored(browser)?.entries.filter((one) => one.k === 'floor')).toHaveLength(1);
+  });
+});

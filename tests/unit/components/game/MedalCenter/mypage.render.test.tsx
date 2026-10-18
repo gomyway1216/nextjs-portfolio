@@ -148,3 +148,33 @@ describe('the way to the my page', () => {
     expect(wrap(<MedalCenter signInHref="/signin" />, 'ja')).toContain('マイページ');
   });
 });
+
+describe('a floor jackpot on the my page', () => {
+  const withJackpot = (): History =>
+    [
+      { type: 'floor', id: '20261017-a1b2c3d4', medals: 2_431, at: T0 + 300_000, day: DAY, left: 2_531 },
+      { type: 'floor', id: '20261019-0badcafe', medals: 1_200, at: T0 + 2 * 86_400_000, day: '2026-10-19', left: 3_731 },
+    ].reduce((history, step) => record(history, step as Observation), historyOf());
+
+  it('lists each win as an entry of its own, under the floor jackpot’s name', () => {
+    const html = view('en', 'test-player-1', withJackpot());
+    const t = getMyPageStrings('en');
+    expect(html.match(/data-kind="floor"/g)).toHaveLength(2);
+    expect(textOf(html)).toContain(`${t.floorName} FLOOR JACKPOT +2,431`);
+    expect(t.floorName).toBe('Medal floor');
+    expect(textOf(html)).toContain('FLOOR JACKPOT +1,200');
+    expect(textOf(view('ja', 'test-player-1', withJackpot()))).toContain('フロアジャックポット +2,431枚');
+  });
+
+  it('keeps its records apart from the machines’: how many, how many medals, the biggest, the last', () => {
+    const html = view('en', 'test-player-1', withJackpot());
+    expect(html).toContain('data-testid="mypage-floor-jackpot"');
+    expect(html).toMatch(/data-testid="mypage-floor-wins">2</);
+    expect(html).toMatch(/data-testid="mypage-floor-medals">3,631</);
+    expect(html).toMatch(/data-testid="mypage-floor-biggest">2,431</);
+    // The machines' totals are what the machines did: the floor jackpot is not in them.
+    expect(html).toMatch(/data-testid="mypage-total-won">357</);
+    // Nobody who has not won one is shown the card.
+    expect(view('en', 'test-player-1')).not.toContain('mypage-floor-jackpot');
+  });
+});

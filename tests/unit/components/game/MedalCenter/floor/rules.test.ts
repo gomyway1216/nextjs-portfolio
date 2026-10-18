@@ -40,6 +40,7 @@ import { allBetOdds as crapsOdds, toNumber as crapsNumber } from '@/components/g
 import { pairPlusOdds, strategyOdds as tcpStrategy } from '@/components/game/ThreeCardPoker/analysis';
 import { PAIR_PLUS_TABLES } from '@/components/game/ThreeCardPoker/engine';
 import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
+import { BET_OPTIONS as FISHING_BETS, CHEST as FISHING_CHEST, FISH, MOST_MEDALS as FISHING_MOST, analyzeMachine as fishingOdds, valueOf as fishingValue } from '@/components/game/Fishing/engine';
 import { BET_OPTIONS as BINGO_BETS, FULL_CARD_LINES, MOST_WIN as BINGO_MOST, analyzeMachine as bingoOdds, paysFor as bingoPays } from '@/components/game/BallBingo/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
@@ -124,6 +125,8 @@ describe('the most each machine can take from the player at once, for the medals
     // An Ante, Pair Plus and a Play bet, each at its most.
     expect(FLOOR_RULES['three-card-poker'].stakeMost).toBe(TCP_HAND_MAX);
     expect(TCP_HAND_MAX).toBe(3 * TCP_SPOT_MAX);
+    // One cast at its biggest bet.
+    expect(FLOOR_RULES.fishing.stakeMost).toBe(Math.max(...FISHING_BETS));
     // Ball Bingo: a game's bet at its biggest.
     expect(FLOOR_RULES['ball-bingo'].stakeMost).toBe(Math.max(...BINGO_BETS));
   });
@@ -161,6 +164,7 @@ describe('which machines are linked to the floor jackpot', () => {
       craps: Math.max(...crapsOdds().map((bet) => 1 - crapsNumber(bet.houseEdge))),
       // The Ante and Play per medal wagered (the element of risk), or Pair Plus on either table.
       'three-card-poker': Math.max(1 - tcp.elementOfRisk, ...Object.values(PAIR_PLUS_TABLES).map((table) => 1 + pairPlusOdds(table).ev)),
+      fishing: fishingValue(fishingOdds().rtp),
       // The same on every bet: worked out over every state a game can be in.
       'ball-bingo': bingoOdds().rtp,
     };
@@ -178,7 +182,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'ball-bingo']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'ball-bingo']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -295,6 +299,17 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES['three-card-poker'].most).toBe(most);
   });
 
+  it('Big Catch Harbor: the harbor’s lord on the biggest bet, and every lord and treasure chest there is', () => {
+    const top = Math.max(...FISHING_BETS);
+    const lord = FISH.find((fish) => fish.id === 'lord')!.pays!;
+    expect(FLOOR_RULES.fishing.most).toBe(FISHING_MOST);
+    expect(FLOOR_RULES.fishing.most).toBe(Math.max(...FISH.map((fish) => fish.pays ?? 0), ...FISHING_CHEST.map((prize) => prize.pays)) * top);
+    expect(FLOOR_RULES.fishing.most).toBe(1_500);
+    expect(FLOOR_RULES.fishing.labels['harbor-lord'].amounts).toEqual(FISHING_BETS.map((bet) => lord * bet));
+    expect(FLOOR_RULES.fishing.labels.treasure.amounts).toEqual(sorted(FISHING_CHEST.flatMap((prize) => FISHING_BETS.map((bet) => prize.pays * bet))));
+    expect(FLOOR_RULES.fishing.bestReturn).toBe(0.9);
+  });
+
   it('Ball Bingo: the full card on the biggest bet, and the full card on every bet', () => {
     expect(FLOOR_RULES['ball-bingo'].most).toBe(BINGO_MOST);
     expect(BINGO_MOST).toBe(bingoPays(FULL_CARD_LINES) * Math.max(...BINGO_BETS));
@@ -324,6 +339,10 @@ describe('named wins and the feed', () => {
     expect(labelPays('video-poker', 'double-up', 45)).toBe(false);
     expect(labelPays('slot-machine', 'constructor', 1)).toBe(false);
     expect(labelPays('roulette', 'seven3', 1_000)).toBe(false);
+    expect(labelPays('fishing', 'harbor-lord', 900)).toBe(true);
+    expect(labelPays('fishing', 'harbor-lord', 600)).toBe(false);
+    expect(labelPays('fishing', 'treasure', 1_000)).toBe(true);
+    expect(labelPays('fishing', 'treasure', 400)).toBe(false);
     expect(labelPays('ball-bingo', 'full-card', 1_500)).toBe(true);
     expect(labelPays('ball-bingo', 'full-card', 1_499)).toBe(false);
   });
@@ -337,6 +356,9 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('slot-machine', 50)).toBe(false);
     expect(feedWorthy('roulette', 360)).toBe(true);
     expect(feedWorthy('medal-pusher', 50, 'bowl')).toBe(false);
+    expect(feedWorthy('fishing', 300, 'harbor-lord')).toBe(true);
+    expect(feedWorthy('fishing', 10, 'treasure')).toBe(false);
+    expect(feedWorthy('fishing', 150)).toBe(true);
     expect(feedWorthy('ball-bingo', 500, 'full-card')).toBe(true);
     expect(feedWorthy('ball-bingo', 100)).toBe(false);
   });

@@ -790,42 +790,51 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
               {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
             </p>
 
-            {round?.phase === 'insurance' && !busy && (
-              <div className={styles.insuranceBox} data-testid="bj-insurance">
-                <span>{t.insuranceFor(t.medals(String(insuranceCost(round))))}</span>
-                <div className={styles.insuranceChoices}>
-                  <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard} aria-label={t.insuranceYesAria}>
-                    {t.insuranceYes}
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.btn}
-                    onClick={() => onInsurance(false)}
-                    disabled={!holdingCard}
-                    data-hint={showHint ? 'true' : undefined}
-                    aria-label={t.insuranceNoAria}
-                  >
-                    {t.insuranceNo}
-                  </button>
+            {/*
+              The insurance offer takes the place of HIT / STAND / DOUBLE / SPLIT while it is asked, in the same room, as a
+              machine's buttons turn to YES and NO: nothing on the panel moves as it comes and goes.
+            */}
+            <div className={styles.moveArea}>
+              {round?.phase === 'insurance' && !busy && (
+                <div className={styles.insuranceBox} data-testid="bj-insurance">
+                  <span className={styles.insuranceAsk}>{t.insuranceFor(t.medals(String(insuranceCost(round))))}</span>
+                  <div className={styles.insuranceChoices}>
+                    <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard} aria-label={t.insuranceYesAria}>
+                      {t.insuranceYes}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      onClick={() => onInsurance(false)}
+                      disabled={!holdingCard}
+                      data-hint={showHint ? 'true' : undefined}
+                      aria-label={t.insuranceNoAria}
+                    >
+                      {t.insuranceNo}
+                    </button>
+                  </div>
                 </div>
-                {showHint && <span className={styles.muted}>{t.insuranceAdvice}</span>}
-              </div>
-            )}
+              )}
 
-            <div className={styles.actionRow} role="group" aria-label={t.yourMove}>
-              {ACTIONS.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  className={styles.actionBtn}
-                  data-action={a}
-                  data-hint={showHint && playing && hint === a ? 'true' : undefined}
-                  onClick={() => onAction(a)}
-                  disabled={!playing || !can?.[a]}
-                >
-                  {t.action[a]}
-                </button>
-              ))}
+              <div
+                className={`${styles.actionRow} ${round?.phase === 'insurance' && !busy ? styles.actionRowAway : ''}`}
+                role="group"
+                aria-label={t.yourMove}
+              >
+                {ACTIONS.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    className={styles.actionBtn}
+                    data-action={a}
+                    data-hint={showHint && playing && hint === a ? 'true' : undefined}
+                    onClick={() => onAction(a)}
+                    disabled={!playing || !can?.[a]}
+                  >
+                    {t.action[a]}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <p className={`${styles.message} ${message?.error ? styles.messageError : ''}`} role="status" data-testid="bj-message">
@@ -843,6 +852,12 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
               {showHint && playing && hint && (
                 <span className={styles.hintText} data-testid="bj-hint">
                   {t.hintSays(t.action[hint])}
+                </span>
+              )}
+              {/* While insurance is offered, the strategy's word on it, where the hint for a move is shown. */}
+              {showHint && round?.phase === 'insurance' && !busy && (
+                <span className={styles.hintText} data-testid="bj-hint">
+                  {t.insuranceAdvice}
                 </span>
               )}
             </div>

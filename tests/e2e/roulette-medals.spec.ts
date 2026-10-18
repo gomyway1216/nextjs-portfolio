@@ -8,6 +8,7 @@ import { ROULETTE_RESULTS_STORAGE_KEY } from '../../src/components/game/Roulette
 import { NOTICE_KEY, ROULETTE_GAME, SPIN_KEY, parseSpin, winningsOf, type SpinRecord } from '../../src/components/game/Roulette/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { boardNumbers, openRoulette, placeFirstBet, settledResult, shownBet, shownMedals, spinButton } from './roulettePage';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Roulette on the medal center's floor: it plays with the player's medals, the ones every game there shares. A bet
@@ -77,16 +78,12 @@ test('a bet takes medals when the wheel spins, a win puts medals back, and the m
   await expect(page.locator('[data-machine="roulette"]')).toHaveAttribute('data-open', 'true');
 });
 
-/** The next spin comes up `n`. */
-const comeUp = (page: Page, n: number) =>
-  page.evaluate((pocket) => {
-    const w = window as unknown as { __random: () => number };
-    w.__random = Math.random;
-    Math.random = () => {
-      Math.random = w.__random;
-      return (pocket + 0.5) / 37;
-    };
-  }, n);
+/**
+ * The next spin comes up `n`: the number SPIN draws, served only to the press that spins (rigPresses). The page's other
+ * callers of Math.random get real ones; a number handed to the first caller, whoever it was, went to the floor's live
+ * strip on the live site whenever it drew first.
+ */
+const comeUp = (page: Page, n: number) => rigPresses(page, [(n + 0.5) / 37]);
 
 test('Rebet puts the last spin’s bets back on the felt, after a reload too, and only when the medals cover them', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });

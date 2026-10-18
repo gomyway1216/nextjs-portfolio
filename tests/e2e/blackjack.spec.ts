@@ -94,10 +94,7 @@ test('the odds tab explains every cell of the chart and the edge of every bet in
   await openBlackjack(page, 'ja');
   await page.getByRole('tab', { name: '確率' }).click();
   await expect(page.getByTestId('bj-house-edge')).toHaveText('0.512%');
-  await expect(async () => {
-    await page.locator('[data-cell="hard-12-2"]').click({ timeout: 1_000 });
-    await expect(page.getByTestId('bj-cell-info')).toContainText('12 対 ディーラーの2', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(page.locator('[data-cell="hard-12-2"]'), async () => (await page.getByTestId('bj-cell-info').allTextContents()).some((text) => text.includes('12 対 ディーラーの2')));
   await expect(page.locator('[data-cell="hard-12-2"]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('[data-cell="pairs-8-11"]').click();
   await expect(page.getByTestId('bj-cell-info')).toContainText('8,8 対 ディーラーのA');
@@ -364,6 +361,79 @@ test('on a phone nothing over the buttons changes height as a shoe’s first han
         expect(await overflowing(), `${width} ${language} ${shown}`).toEqual([]);
         await context.close();
       }
+    }
+  }
+});
+
+test('the insurance offer takes the place of the move buttons, so nothing on the panel moves while it is asked, on a phone or a desk', async ({ browser }) => {
+  test.setTimeout(120_000);
+  for (const [width, height, phone] of [
+    [320, 740, true],
+    [375, 812, true],
+    [1280, 900, false],
+  ] as const) {
+    for (const language of ['en', 'ja'] as const) {
+      const where = `${width} ${language}`;
+      const context = await browser.newContext({ viewport: { width, height }, isMobile: phone, hasTouch: phone });
+      const page = await context.newPage();
+      // The shoe is shuffled from Math.random on the first deal: a constant one (0.01) deals an ace over a 6 against 5 5,
+      // and insurance is offered.
+      await page.addInitScript(() => {
+        const random = Math.random;
+        const w = window as unknown as { __shuffle?: number };
+        Math.random = () => w.__shuffle ?? random();
+      });
+      await openBlackjack(page, language);
+      if (await page.getByTestId('bj-notice-dismiss').isVisible()) await page.getByTestId('bj-notice-dismiss').click();
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      /** Where an element is on the page. */
+      const box = (selector: string) =>
+        page.locator(selector).first().evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top + window.scrollY, bottom: r.bottom + window.scrollY, left: r.left, right: r.right };
+        });
+      const hit = 'button[data-action="hit"]';
+      const message = '[data-testid="bj-message"]';
+      const before = { hit: await box(hit), message: await box(message) };
+
+      await pressUntil(page.getByTestId('bj-max-bet'), async () => (await page.getByTestId('bj-bet').textContent())?.trim() === '10');
+      await page.evaluate(() => ((window as unknown as { __shuffle?: number }).__shuffle = 0.01));
+      await dealButton(page).click();
+      const offer = page.getByTestId('bj-insurance');
+      await expect(offer).toBeVisible();
+      await page.evaluate(() => delete (window as unknown as { __shuffle?: number }).__shuffle);
+      // The buttons under the offer, and what is under them, are where they were.
+      expect(Math.abs((await box(hit)).top - before.hit.top), where).toBeLessThan(1);
+      expect(Math.abs((await box(message)).top - before.message.top), where).toBeLessThan(1);
+      // The offer sits in the room of the move buttons, its question whole and its YES and NO inside it.
+      const room = await box('[data-testid="bj-insurance"]');
+      const moves = await page.locator('button[data-action]').evaluateAll((els) => {
+        const rects = els.map((el) => el.getBoundingClientRect());
+        return { top: Math.min(...rects.map((r) => r.top)) + window.scrollY, bottom: Math.max(...rects.map((r) => r.bottom)) + window.scrollY };
+      });
+      expect(room.top, where).toBeGreaterThanOrEqual(moves.top - 1);
+      expect(room.bottom, where).toBeLessThanOrEqual(moves.bottom + 1);
+      for (const answer of await offer.getByRole('button').all()) {
+        const r = await answer.evaluate((el) => {
+          const b = el.getBoundingClientRect();
+          return { top: b.top + window.scrollY, bottom: b.bottom + window.scrollY, left: b.left, right: b.right };
+        });
+        expect(r.top, where).toBeGreaterThanOrEqual(room.top - 1);
+        expect(r.bottom, where).toBeLessThanOrEqual(room.bottom + 1);
+        expect(r.left, where).toBeGreaterThanOrEqual(room.left - 1);
+        expect(r.right, where).toBeLessThanOrEqual(room.right + 1);
+      }
+      expect(await offer.locator('span').first().evaluate((el) => el.scrollWidth <= el.clientWidth), where).toBe(true);
+      await expect(offer.locator('span').first()).toHaveText(language === 'en' ? 'Insurance for 5 medals?' : 'インシュランスは5枚です。');
+      // The strategy's word on it is where the hint for a move is shown.
+      await expect(page.getByTestId('bj-hint')).toContainText(language === 'en' ? 'Basic strategy: never.' : 'ベーシックストラテジーでは掛けません。');
+
+      // Answered, the offer goes and the move buttons are there to press, where they were.
+      await offer.getByRole('button', { name: language === 'en' ? 'No insurance' : '掛けない', exact: true }).click();
+      await expect(offer).toHaveCount(0);
+      await expect(page.locator(hit)).toBeEnabled();
+      expect(Math.abs((await box(hit)).top - before.hit.top), where).toBeLessThan(1);
+      await context.close();
     }
   }
 });

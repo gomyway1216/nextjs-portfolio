@@ -166,12 +166,12 @@ describe('the generator and the pusher', () => {
     expect(CHECKERS.halfWidth).toBe(1.27);
     expect(CHECKERS.halfWidth).toBeGreaterThan(0);
     expect(CHECKERS.halfWidth).toBeLessThan(MEDAL_RADIUS / 2);
-    // With their wings open the slots take medals from a little further to the side: more than a tenth as wide
-    // again, and well short of the 1.7 they took before they were narrowed, which paid fast play too well. Even
-    // so they do not run into each other, and keep to the middle of the lip.
-    expect(CHECKERS.wingWidth).toBe(1.42);
-    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth * 1.1);
-    expect(CHECKERS.wingWidth).toBeLessThan(1.7);
+    // With their wings open the slots take medals from further to the side: a third as wide again, the 1.7 they
+    // took before they were narrowed to 1.42 while fast play was paid too well. With friction in the pile it no
+    // longer is, and the wings give back to steady fast play some of what the pile takes from it. Even so they
+    // do not run into each other, and keep to the middle of the lip.
+    expect(CHECKERS.wingWidth).toBe(1.7);
+    expect(CHECKERS.wingWidth).toBeGreaterThan(CHECKERS.halfWidth * 1.3);
     expect(CHECKERS.wingWidth).toBeLessThan(MEDAL_RADIUS);
     const winged = MEDAL_RADIUS + CHECKERS.wingWidth;
     expect(2 * winged).toBeLessThan(centre - left);

@@ -23,6 +23,7 @@ function jackpot(amount: number, available = true): FloorJackpotView {
     available,
     amount: available ? amount : 0,
     seq: available ? 3 : 0,
+    v: available ? 42 : 0,
     wins: available
       ? [
           { name: 'Lucky Cat', tag: '0001', game: 'roulette', medals: 4_321, at: NOW - 2 * 3_600_000 },
@@ -79,7 +80,7 @@ test('the medal center’s front shows the floor jackpot, its last win, and how 
   await expect(panel.getByTestId('jackpot-sign-in')).toHaveText(t.jackpotGuest);
   await expect(panel.getByTestId('jackpot-sign-in')).toHaveAttribute('href', /\/signin\?redirect=/);
   await expect(page.getByTestId('jackpot-honesty')).toHaveText(t.jackpotHonesty);
-  await expect(panel.getByTestId('jackpot-linked')).toHaveText('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette & Martingale, Three Card Poker, Ball Bingo.');
+  await expect(panel.getByTestId('jackpot-linked')).toHaveText('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette & Martingale, Three Card Poker, Big Catch Harbor, Ball Bingo.');
   // Over the moments on show.
   const order = await page.evaluate(() => {
     const at = (id: string) => [...document.querySelectorAll('[data-testid]')].findIndex((el) => el.getAttribute('data-testid') === id);
@@ -122,7 +123,7 @@ test('reads in Japanese, with no money words', async ({ page }) => {
 test('a floor jackpot that cannot be reached shows dashes and says so, and the medal center works as before', async ({ page }) => {
   await fakeFloor(page, () => jackpot(0, false));
   await openCenter(page);
-  await expect(page.getByTestId('floor-jackpot-amount')).toContainText('– – – –');
+  await expect(page.getByTestId('floor-jackpot-amount')).toContainText('–,–––');
   await expect(page.getByTestId('floor-jackpot')).toContainText(t.jackpotUnavailable);
   await expect(page.getByTestId('center-balance')).not.toHaveText('—');
 });
@@ -183,4 +184,39 @@ test('the rankings page lists the last floor jackpots, with no owner’s control
   await expect(wins.nth(0)).toContainText('Roulette');
   await expect(wins.nth(1)).toContainText('Player 1234');
   await expect(section.getByTestId('jackpot-void')).toHaveCount(0);
+});
+
+test('a machine’s floor jackpot strip keeps its height when the amount comes in, so nothing under it moves', async ({ browser }) => {
+  test.setTimeout(120_000);
+  for (const width of [320, 375] as const) {
+    for (const language of ['en', 'ja'] as const) {
+      for (const path of ['/games/blackjack', '/games/slot-machine']) {
+        const where = `${path} ${width} ${language}`;
+        const context = await browser.newContext({ viewport: { width, height: 800 }, isMobile: true, hasTouch: true });
+        await context.addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
+        const page = await context.newPage();
+        await page.routeWebSocket(/firebaseio\.com/, (socket) => socket.close());
+        await page.route(/firebaseio\.com/, (route) => route.abort());
+        await page.route(/\/api\/game\/medal-floor(\?|$)/, (route) => route.fulfill({ json: emptyFloor() }));
+        // The amount is held back until the strip has been measured without it, as on a slow line.
+        let release: () => void = () => undefined;
+        const released = new Promise<void>((resolve) => (release = resolve));
+        await page.route(/\/api\/game\/medal-floor\/jackpot(\?|$)/, async (route) => {
+          await released;
+          await route.fulfill({ json: jackpot(1_000) });
+        });
+        await page.goto(path);
+        await arrived(page);
+        const strip = page.getByTestId('floor-jackpot-strip');
+        await expect(strip.getByTestId('floor-jackpot-strip-amount')).toHaveAttribute('data-amount', '');
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        const waiting = await strip.evaluate((el) => el.getBoundingClientRect().height);
+        release();
+        await expect(strip.getByTestId('floor-jackpot-strip-amount')).toHaveAttribute('data-amount', '1000');
+        const shown = await strip.evaluate((el) => el.getBoundingClientRect().height);
+        expect(Math.abs(shown - waiting), where).toBeLessThan(0.5);
+        await context.close();
+      }
+    }
+  }
 });

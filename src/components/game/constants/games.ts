@@ -435,6 +435,15 @@ export const games: Game[] = [
     category: 'Puzzle',
   },
   {
+    id: 'fishing',
+    title: 'Big Catch Harbor',
+    description: 'A fishing medal machine at the Medal Center: cast for 1, 3 or 5 medals, reel in whatever bites — from tiny fry to a treasure chest and the harbor’s giant lord — and see why exactly 90 of every 100 medals come back.',
+    thumbnail: '🎣',
+    path: '/games/fishing',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'ball-bingo',
     title: 'Ball Bingo',
     description: 'A ball-drop bingo of the Medal Center: shoot balls through the pins into numbered pockets, line up a 3×3 card, catch FREE and CHANCE for more balls — and see the exact odds of every line, and why about 90 of every 100 medals come back.',

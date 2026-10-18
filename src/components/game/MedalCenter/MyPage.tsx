@@ -9,7 +9,7 @@ import { ACHIEVEMENT_IDS, lifetimeReturn, viewOf } from '../MedalPusher/records'
 import { useRecords, type RecordsState } from '../MedalPusher/recordsStore';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useBank, useMedalHistory, type BankState } from './bank';
-import { CENTER, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
+import { CENTER, FLOOR_JACKPOT, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
 import type { HistoryState } from './historyStore';
 import { COUNTER_PLACES, FLOOR, MedalStack } from './MedalCenter';
 import { getMyPageStrings, type MyPageStrings } from './myPageStrings';
@@ -64,7 +64,7 @@ export const MyPageView = ({ bank, history, book, signInHref }: { bank: BankStat
   const { t: translate } = useTranslation();
   const t = getMyPageStrings(language);
   const f = formatsFor(language);
-  const nameOf = (game: string): string => (game === CENTER ? t.centerName : translate(`games.${game}.title`));
+  const nameOf = (game: string): string => (game === CENTER ? t.centerName : game === FLOOR_JACKPOT ? t.floorName : translate(`games.${game}.title`));
   const account = bank.owner !== null;
   const member = !bank.loaded ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
   const doc = history.loaded ? history.history : null;
@@ -259,6 +259,7 @@ const RecordsSection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
           </div>
         </dl>
       </div>
+      <FloorJackpotCard row={byGame.get(FLOOR_JACKPOT) ?? null} t={t} f={f} />
       {played.length > 0 && (
         <ul className={styles.games}>
           {played.map(({ id, path }) => (
@@ -288,6 +289,35 @@ const RecordsSection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
         </div>
       )}
     </section>
+  );
+};
+
+/** The floor jackpot's own records, once one has been won: how many, how many medals, the biggest, the last. */
+const FloorJackpotCard = ({ row, t, f }: { row: GameRecord | null; t: MyPageStrings; f: Formats }) => {
+  if (!row || row.rounds === 0) return null;
+  return (
+    <div className={styles.totals} data-testid="mypage-floor-jackpot">
+      <h3 className={styles.cardTitle}>{t.floorTitle}</h3>
+      <p className={styles.sectionLead}>{t.floorLead}</p>
+      <dl className={styles.figures}>
+        <div>
+          <dt>{t.floorWins}</dt>
+          <dd data-testid="mypage-floor-wins">{f.n(row.rounds)}</dd>
+        </div>
+        <div>
+          <dt>{t.floorMedals}</dt>
+          <dd data-testid="mypage-floor-medals">{f.n(row.won)}</dd>
+        </div>
+        <div>
+          <dt>{t.floorBiggest}</dt>
+          <dd data-testid="mypage-floor-biggest">{f.n(row.top)}</dd>
+        </div>
+        <div>
+          <dt>{t.floorLast}</dt>
+          <dd data-testid="mypage-floor-last">{row.last > 0 ? f.date(row.last) : t.none}</dd>
+        </div>
+      </dl>
+    </div>
   );
 };
 
@@ -404,6 +434,8 @@ function whatHappened(entry: Entry, t: MyPageStrings, f: Formats): string {
       return t.refill(f.n(entry.won));
     case 'reset':
       return t.reset(f.n(entry.bet), f.n(entry.won));
+    case 'floor':
+      return t.floorJackpot(f.n(entry.won));
   }
 }
 

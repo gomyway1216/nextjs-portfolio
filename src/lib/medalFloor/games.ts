@@ -41,6 +41,7 @@ export const FLOOR_GAMES = [
   'baccarat',
   'craps',
   'three-card-poker',
+  'fishing',
   'ball-bingo',
 ] as const;
 
@@ -152,6 +153,13 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   // Best return: 97.99% of every medal wagered on the Ante and Play, played the best way (Pair Plus: 97.68% at most).
   'three-card-poker': rule(500, 900, 100, 30, 0.9799, {
     'straight-flush': { min: 1, max: 500, feed: true },
+  }),
+  // Big Catch Harbor: the harbor's lord pays ×300 on a cast of up to 5 medals, 1,500; a treasure chest ×10 to ×200.
+  // About 120 casts a minute at the quickest, every one skipped to its end, at 5 medals: 600. Taken: one cast at 5.
+  // Best return: 90%, exactly, at every bet.
+  fishing: rule(1_500, 600, 150, 5, 0.9, {
+    'harbor-lord': { amounts: [300, 900, 1_500], feed: true },
+    treasure: { amounts: times([10, 20, 50, 200], [1, 3, 5]), feed: false },
   }),
   // A full card pays 500 a medal bet, on a bet of up to 3: 1,500. Taken: three medals a game. A game can be played in a
   // couple of seconds with SKIP: about 180 games a minute at the very quickest.

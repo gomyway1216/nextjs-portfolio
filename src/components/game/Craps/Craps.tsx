@@ -85,7 +85,7 @@ export const Craps = ({ player, bankStore = null, legacy }: CrapsProps = {}) => 
         {/* Every panel stays mounted (inactive ones are hidden) so switching tabs
             never drops the table or a roll that is still tumbling. */}
         <div role="tabpanel" id="craps-panel-play" aria-labelledby="craps-tab-play" hidden={tab !== 'play'}>
-          <PlayTab settled={settled} />
+          <PlayTab settled={settled} active={tab === 'play'} />
         </div>
         <div role="tabpanel" id="craps-panel-odds" aria-labelledby="craps-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />

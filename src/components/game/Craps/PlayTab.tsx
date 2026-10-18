@@ -6,9 +6,12 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { useCountUp } from '../MedalCenter/countUp';
+import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { TICK_GAP, createSpeaker, type MachineSound, type Speaker } from '../MedalCenter/machineSounds';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
-import { rollDice, type BetId } from './engine';
+import { rollDice, type BetId, type RollResolution } from './engine';
 import { crapsTable, mayPlayTable, playTableHere, seatTable, settleTable, tableStore } from './crapsTable';
 import { CrapsFelt, type ShownThrow } from './CrapsFelt';
 import { BET_SIZES, CRAPS_GAME, lastRoll, onTable, pressAmount, spotLimit, stakeStep, tableKey, type Table, type TableError } from './medalTable';
@@ -111,12 +114,24 @@ const prefersReducedMotion = () => typeof window !== 'undefined' && typeof windo
 /** The seed a throw kept from before seeds were kept is shown with: the same one every time for the same table. */
 const seedOf = (table: Table): number => (table.last?.seed ?? Math.imul(table.stats.rolls + 1, 0x9e3779b1)) >>> 0;
 
+/** A proposition that pays this many to one or more (3 or 11, 2 or 12) wins with the big fanfare. */
+const BIG_PAYS = 15;
+
+/** The fanfare a roll's dice land to: none for a roll that won nothing (a loss is silent, as on the machines). */
+export function fanfareOf(resolution: Pick<RollResolution, 'results'>): MachineSound | null {
+  const wins = resolution.results.filter((r) => r.outcome === 'win');
+  if (wins.length === 0) return null;
+  return wins.some((r) => r.profit >= BIG_PAYS * r.stake) ? 'big' : 'win';
+}
+
 export interface PlayTabProps {
   /** Whether the site knows who is playing. Until it does, no medal is played. */
   settled?: boolean;
+  /** Whether the table's tab is the one shown: its keys work only then. */
+  active?: boolean;
 }
 
-export const PlayTab = ({ settled = true }: PlayTabProps) => {
+export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
@@ -139,6 +154,8 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   const [held, setHeld] = useState<{ table: Table; returned: number } | null>(null);
   const rollingRef = useRef(false);
   const throws = useRef(0);
+  // What the dice in the air bring when they land: the fanfare, and whether the medals coming back are a win.
+  const landing = useRef<{ fanfare: MachineSound | null } | null>(null);
   const strings = useRef(t);
   useEffect(() => {
     strings.current = t;
@@ -218,6 +235,35 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   const bets = shown.bets;
   const canPlay = bankState.loaded && settled && bankState.where !== 'checking' && bankState.card === 'here' && !rolling;
   const medals = Math.max(0, bankState.balance - (held?.returned ?? 0));
+
+  // The floor's medal sounds (MedalCenter/machineSounds.ts), under this table's own switch, beside the throw's: a medal
+  // set down on the felt, the fanfare as the dice land on a win, and the chirp of each medal counted in. The switch is
+  // kept on this device, but a browser lets a page make a noise only after a press: the speaker is woken by the next one.
+  const speaker = useRef<Speaker | null>(null);
+  const lastTick = useRef(-Infinity);
+  useEffect(() => {
+    const made = createSpeaker();
+    speaker.current = made;
+    return () => {
+      made.close();
+      if (speaker.current === made) speaker.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!chosen.sound) speaker.current?.set(false);
+  }, [chosen.sound]);
+  const wake = () => {
+    if (chosen.sound && speaker.current && !speaker.current.on()) speaker.current.set(true);
+  };
+  const tick = useCallback(() => {
+    const now = performance.now() / 1000;
+    if (now - lastTick.current < TICK_GAP) return;
+    lastTick.current = now;
+    speaker.current?.play('tick');
+  }, []);
+  // The counter does not jump to a win: the medals run in one by one as the dice settle (MedalCenter/countUp.ts).
+  const medalMeter = useCountUp(bankState.loaded ? medals : null, tick);
+  const { pay: payMedals } = medalMeter;
   const staked = onTable(shown);
   const net = shown.stats.net;
   // The dice lie where the last throw left them, a reload or another tab's throw included; before any, in the hand.
@@ -244,11 +290,13 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
       setMessage(t.tableError(wanted.error, spotLimit(id, now.point, now.bets)));
       return;
     }
+    wake();
     const done = machine.place(id, wanted.amount);
     if (!done.ok) {
       setMessage(errorText(done.error, id));
       return;
     }
+    speaker.current?.play('chip');
     const step = stakeStep(id, now.point);
     if (wanted.amount < size) setMessage(t.upTo(t.betName[id], spotLimit(id, now.point, now.bets)));
     else if (wanted.amount > size) setMessage(t.stepped(t.betName[id], step));
@@ -272,8 +320,10 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
   };
   const repeat = () => {
     if (rollingRef.current) return;
+    wake();
     const done = crapsTable().repeat();
     setMessage(done.ok ? null : errorText(done.error));
+    if (done.ok) speaker.current?.play('chip');
   };
 
   const roll = () => {
@@ -288,6 +338,8 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
     }
     const { resolution, before } = done.value;
     if (chosen.sound) void unlockThrowSounds();
+    wake();
+    landing.current = { fanfare: fanfareOf(resolution) };
     rollingRef.current = true;
     setRolling(true);
     setMessage(null);
@@ -296,18 +348,43 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
     setThrown({ id: throws.current, faces: resolution.dice, seed, mode: chosen.quick ? 'quick' : prefersReducedMotion() ? 'calm' : 'animate' });
   };
 
-  const settle = useCallback((id: number) => {
-    if (!rollingRef.current || id !== throws.current) return;
-    rollingRef.current = false;
-    setRolling(false);
-    setHeld(null);
-  }, []);
+  const settle = useCallback(
+    (id: number) => {
+      if (!rollingRef.current || id !== throws.current) return;
+      rollingRef.current = false;
+      setRolling(false);
+      // The dice have landed: a win's medals run into the counter to its fanfare.
+      const landed = landing.current;
+      landing.current = null;
+      if (landed?.fanfare) {
+        payMedals();
+        speaker.current?.play(landed.fanfare);
+      }
+      setHeld(null);
+    },
+    [payMedals],
+  );
 
   const toggleSound = () => {
     const next = !chosen.sound;
     if (next) void unlockThrowSounds();
+    speaker.current?.set(next);
+    if (next) speaker.current?.play('button');
     choiceStore.set({ sound: next });
   };
+
+  // On a desktop, as on a machine's panel: Space or Enter rolls, R puts the last roll's bets back and U takes the last
+  // medal off. Each does what its button does, and nothing while the button could not be pressed.
+  useMachineKeys(active, (key) => {
+    if (key === ' ' || key === 'Enter') {
+      if (canPlay) roll();
+    } else if (key === 'r') {
+      if (canPlay) repeat();
+    } else if (key === 'u') {
+      if (canPlay) undo();
+    } else return false;
+    return true;
+  });
 
   return (
     <div className={styles.playLayout}>
@@ -340,7 +417,9 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
               {t.yourMedals}
             </h2>
             <div className={styles.counterLed}>
-              <SegmentDisplay value={bankState.loaded ? medals : ''} places={MEDAL_PLACES} />
+              <span data-testid="craps-medals-led" data-shown={medalMeter.shown ?? ''}>
+                <SegmentDisplay value={medalMeter.shown ?? ''} places={MEDAL_PLACES} />
+              </span>
             </div>
             <p className={styles.counterText}>
               <strong data-testid="craps-medals">{bankState.loaded ? fmt(medals) : '—'}</strong> {t.unit}
@@ -477,6 +556,9 @@ export const PlayTab = ({ settled = true }: PlayTabProps) => {
               {t.quickRoll}
             </button>
           </div>
+          <p className={styles.keysHint} data-testid="craps-keys">
+            {t.keysHint}
+          </p>
         </div>
 
         {/* The medals are in a machine in another tab: this table waits, with its bets on it, until it is played here again. */}

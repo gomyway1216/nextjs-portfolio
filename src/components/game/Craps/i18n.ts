@@ -55,6 +55,8 @@ export interface CrapsStrings {
   quickRoll: string;
   puckOn: string;
   puckOff: string;
+  /** The table's keys, on a desktop. */
+  keysHint: string;
   comeOut: string;
   pointIs: (n: number) => string;
   event: (event: RollEvent, total: number, point: number | null) => string;
@@ -289,6 +291,7 @@ const EN: CrapsStrings = {
   quickRoll: 'Quick roll',
   puckOn: 'ON',
   puckOff: 'OFF',
+  keysHint: 'Keys: Space or Enter rolls · R repeat bets · U undo',
   comeOut: 'Coming out',
   pointIs: (n) => `The point is ${n}`,
   event: (event, total, point) => {
@@ -499,6 +502,7 @@ const JA: CrapsStrings = {
   quickRoll: 'クイックロール',
   puckOn: 'ON',
   puckOff: 'OFF',
+  keysHint: 'キー：Space か Enter でロール・R で前回と同じ賭け・U で取り消し',
   comeOut: 'カムアウト',
   pointIs: (n) => `ポイントは ${n}`,
   event: (event, total, point) => {

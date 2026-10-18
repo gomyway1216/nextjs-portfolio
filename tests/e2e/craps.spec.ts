@@ -442,6 +442,115 @@ test('the throw is heard with the sound switched on, and the switch is kept', as
   expect(errors).toEqual([]);
 });
 
+test('with the sound on a medal is heard going down, the dice land on a win to a fanfare, and the counter counts the medals in', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  // A headless browser has nothing to listen with: every sound the page starts is noted instead, with its length
+  // (as in medal-machine-sound.spec.ts). The floor's sounds are the medal set down (0.16 s), the fanfare (0.9 s) and the
+  // chirp of a medal counted in (under 0.05 s); the throw's own knocks and clicks are cut from one second of noise.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sounds: number[] };
+    w.__sounds = [];
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds.push(this.buffer?.duration ?? 0);
+      return start.apply(this, args);
+    };
+  });
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number[] }).__sounds);
+  await openCraps(page);
+  await firstBet(page); // Pass 5, with the sound off: nothing is heard
+  expect(await heard()).toEqual([]);
+  await page.getByTestId('craps-sound').click();
+  await expect.poll(async () => (await heard()).length).toBe(1);
+  await betSpot(page, /^Pass Line \(1:1\)/).click(); // Pass 10
+  await expect.poll(async () => (await heard()).length).toBe(2);
+  expect((await heard())[1]).toBeCloseTo(0.16, 2);
+  await expect(medalsShown(page)).toHaveText(String(WELCOME - 10));
+
+  // Every number the counter's LEDs show from here on.
+  await page.evaluate(() => {
+    const w = window as unknown as { shownSeen: number[] };
+    w.shownSeen = [];
+    const led = document.querySelector('[data-testid="craps-medals-led"]')!;
+    const read = () => {
+      const n = Number(led.getAttribute('data-shown'));
+      if (w.shownSeen[w.shownSeen.length - 1] !== n) w.shownSeen.push(n);
+    };
+    read();
+    new MutationObserver(read).observe(led, { attributes: true, attributeFilter: ['data-shown'] });
+  });
+  // A natural 11: the Pass Line's 10 comes back with 10 more.
+  await forceNextRoll(page, [6, 5]);
+  expect(await rollAndSettle(page)).toEqual([6, 5]);
+  await expect(page.getByTestId('craps-medals-led')).toHaveAttribute('data-shown', String(WELCOME + 10), { timeout: 5_000 });
+  await expect(medalsShown(page)).toHaveText(String(WELCOME + 10));
+  const seen = await page.evaluate(() => (window as unknown as { shownSeen: number[] }).shownSeen);
+  // The counter held still while the dice were in the air, then ran up medal by medal.
+  expect(seen[0]).toBe(WELCOME - 10);
+  expect(seen[seen.length - 1]).toBe(WELCOME + 10);
+  expect(seen.length).toBeGreaterThanOrEqual(5);
+  for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThan(seen[i - 1]);
+  const sounds = (await heard()).slice(2);
+  expect(sounds.filter((d) => Math.abs(d - 0.9) < 0.01)).toHaveLength(1);
+  expect(sounds.filter((d) => d < 0.05).length).toBeGreaterThanOrEqual(3);
+
+  // A seven-out is silent apart from the dice: no fanfare, nothing counted in.
+  await betSpot(page, /^Pass Line \(1:1\)/).click(); // Pass 5
+  await forceNextRoll(page, [2, 4]);
+  await rollAndSettle(page); // the point is 6
+  const quiet = (await heard()).length;
+  await forceNextRoll(page, [3, 4]);
+  await rollAndSettle(page);
+  await page.waitForTimeout(300);
+  expect((await heard()).slice(quiet).filter((d) => Math.abs(d - 0.9) < 0.01 || d < 0.05)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('on a desk the keys play the table as its buttons do: U takes a medal off, Space and Enter roll, R puts the bets back', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openCraps(page);
+  await expect(page.getByTestId('craps-keys')).toHaveText('Keys: Space or Enter rolls · R repeat bets · U undo');
+  await firstBet(page); // Pass 5
+  if (await page.getByTestId('craps-notice-close').isVisible()) await page.getByTestId('craps-notice-close').click();
+  const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await blur();
+  await page.keyboard.press('u');
+  await expect(onTable(page)).toHaveText('0');
+  await betSpot(page, /^Pass Line \(1:1\)/).click(); // Pass 5 again
+  await blur();
+
+  // Space rolls a natural 7, and does not scroll the page.
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await forceNextRoll(page, [3, 4]);
+  let before = await felt(page).getAttribute('data-settled');
+  await page.keyboard.press('Space');
+  await expect.poll(() => felt(page).getAttribute('data-settled'), { timeout: 10_000 }).not.toBe(before);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  await expect(medalsShown(page)).toHaveText(String(WELCOME + 5));
+  await expect(onTable(page)).toHaveText('0');
+
+  // R puts the Pass Line back; Enter rolls craps 2.
+  await page.keyboard.press('r');
+  await expect(onTable(page)).toHaveText('5');
+  await forceNextRoll(page, [1, 1]);
+  before = await felt(page).getAttribute('data-settled');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => felt(page).getAttribute('data-settled'), { timeout: 10_000 }).not.toBe(before);
+  await expect(medalsShown(page)).toHaveText(String(WELCOME));
+  expect((await storedTable(page))?.stats.rolls).toBe(2);
+
+  // On the odds tab the keys are the page's again.
+  await page.getByRole('tab', { name: 'Exact odds' }).click();
+  await blur();
+  await page.keyboard.press('r');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  await page.getByRole('tab', { name: 'Play' }).click();
+  await expect(onTable(page)).toHaveText('0');
+  expect((await storedTable(page))?.stats.rolls).toBe(2);
+});
+
 test('Quick roll skips the throw, and a reduced-motion player sees the dice appear where they rest', async ({ page }) => {
   await openCraps(page);
   await firstBet(page);

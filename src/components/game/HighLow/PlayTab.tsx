@@ -125,12 +125,14 @@ function Ladder({ bet, lit, state, fresh, attract, t }: { bet: number; lit: numb
               style={{ '--i': TOP - rung } as CSSProperties}
               aria-label={t.rungAria(rung, medals, on)}
             >
+              {/* The top's number is its star: its name is in its label, and in the Odds tab's ladder. */}
               <span className={styles.rungNo} aria-hidden="true">
-                {rung === TOP ? t.topLamp : rung}
+                {rung === TOP ? '★' : rung}
               </span>
               <span className={styles.rungLamp} aria-hidden="true" />
+              {/* In plain digits, as a lamp panel prints them: 2000 fits the narrowest ladder where 2,000 did not. */}
               <span className={styles.rungPays} aria-hidden="true">
-                {medals.toLocaleString('en-US')}
+                {medals}
               </span>
             </li>
           );

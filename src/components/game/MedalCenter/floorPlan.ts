@@ -138,6 +138,34 @@ export function cornersOf<T extends { id: string }>(machines: readonly T[]): Flo
   });
 }
 
+/** The most columns the floor has side by side, on its widest layout. */
+export const PLAN_COLUMNS = 4;
+
+/**
+ * How many of the floor's columns each corner takes on its widest layout, the corners laid in order as a row fills:
+ * as many as its machines need, up to a whole row. A corner of small cabinets too wide for the columns left beside the
+ * corner before it, but that fits in two rows of them, takes those columns (`squeezed`), its cabinets on two rows, so
+ * that the pair still stands side by side (the third video machine beside the pusher) rather than half a row being
+ * left empty.
+ */
+export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): { span: number; squeezed: boolean }[] {
+  let used = 0;
+  return corners.map(({ zone, width }) => {
+    let span = Math.min(width, PLAN_COLUMNS);
+    let squeezed = false;
+    const rest = PLAN_COLUMNS - used;
+    if (used > 0 && span > rest) {
+      if (!WIDE_ZONES.has(zone) && width <= 2 * rest) {
+        span = rest;
+        squeezed = true;
+      } else used = 0;
+    }
+    used += span;
+    if (used >= PLAN_COLUMNS) used = 0;
+    return { span, squeezed };
+  });
+}
+
 /**
  * Where the floor's rule for a machine (`bestReturn` in src/lib/medalFloor/games.ts) is not a figure a player can get
  * by playing, the return its plate shows instead, as a fraction of the medals played, from the machine's own exact

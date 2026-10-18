@@ -8,7 +8,7 @@ import { isFloorGame } from '@/lib/medalFloor/games';
 import { linked } from '@/lib/medalFloor/jackpot';
 import { getGameCoverPath } from '../constants/games';
 import type { GameLanguage } from '../constants/gameTranslations';
-import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, zoneOf } from './floorPlan';
+import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, spansOf, zoneOf } from './floorPlan';
 import type { CenterStrings } from './strings';
 import styles from './MachineFloor.module.css';
 
@@ -25,9 +25,6 @@ interface MachineFloorProps {
 
 const isLinked = (id: string): boolean => isFloorGame(id) && linked(id);
 
-/** The most columns a corner fills side by side, as the plan's widest layout has them. */
-const PLAN_COLUMNS = 4;
-
 /**
  * The floor of machines, laid out as a real medal floor is: corner by corner,
  * each under its hanging sign, each machine a small cabinet with its name lit
@@ -41,6 +38,7 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
   const other: GameLanguage = language === 'ja' ? 'en' : 'ja';
   const percent = (value: number) => `${value.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   const corners = cornersOf(machines);
+  const spans = spansOf(corners);
   const anyNew = machines.some(({ id }) => isNewMachine(id));
   const anyLinked = machines.some(({ id }) => isLinked(id));
 
@@ -66,10 +64,11 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
       </div>
 
       <div className={styles.plan} data-testid="center-machines">
-        {corners.map(({ zone, machines: here, width }) => {
+        {corners.map(({ zone, machines: here }, index) => {
           const titleId = `center-zone-${zone}-title`;
+          const { span, squeezed } = spans[index];
           return (
-            <div key={zone} className={styles.zone} data-zone={zone} data-width={Math.min(width, PLAN_COLUMNS)} data-testid={`center-zone-${zone}`}>
+            <div key={zone} className={styles.zone} data-zone={zone} data-width={span} data-squeezed={squeezed} data-testid={`center-zone-${zone}`}>
               {/* The sign over the corner, hung from the ceiling. */}
               <div className={styles.sign}>
                 <h3 id={titleId} className={styles.signTitle}>

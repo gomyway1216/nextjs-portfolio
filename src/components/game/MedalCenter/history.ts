@@ -62,10 +62,10 @@ export const HISTORY_LIMITS = {
   /** Devices a day keeps the totals of. Beyond that, the ones that did least that day are left out. */
   dayDevices: 3,
   /**
-   * Games a history keeps records for: every machine on the floor and the floor jackpot (thirteen with Ball Bingo),
-   * and room for a few more.
+   * Games a history keeps records for: every machine on the floor and the floor jackpot (fifteen with the High & Low
+   * Ladder), and room for a few more.
    */
-  games: 16,
+  games: 20,
   /** Devices a game keeps the records of. Beyond that, the ones that played it least are left out. */
   gameDevices: 4,
   /** Any count of medals. Nobody plays near it. */

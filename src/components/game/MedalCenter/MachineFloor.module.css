@@ -113,6 +113,13 @@
     grid-column: span 3;
   }
 }
+/* A corner squeezed beside the one before it on the widest layout (floorPlan.ts, `spansOf`) has a row of its own on a
+   narrower one, its cabinets side by side. */
+@media (min-width: 480px) and (max-width: 679.98px) {
+  .zone[data-squeezed='true'] {
+    grid-column: 1 / -1;
+  }
+}
 
 /* The sign, hung from the ceiling on two wires. */
 .sign {

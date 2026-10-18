@@ -324,7 +324,7 @@ describe('a browser that dies between two writes', () => {
           machine.table.guess(id, 'high', KING);
           machine.table.take(id);
           const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
-          expect(receiptsOf(ledger, ledger.device).ids.sort(), at).toEqual([`${HIGH_LOW_GAME}:${id}:${PAY_STEP}`, `${HIGH_LOW_GAME}:${id}:${STAKE_STEP}`].sort());
+          expect([...receiptsOf(ledger, ledger.device).ids].sort(), at).toEqual([`${HIGH_LOW_GAME}:${id}:${PAY_STEP}`, `${HIGH_LOW_GAME}:${id}:${STAKE_STEP}`].sort());
         },
       );
       expect(writes).toBeGreaterThanOrEqual(take || won > 0 ? 3 : 2);

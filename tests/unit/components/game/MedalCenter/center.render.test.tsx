@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { COUNTER_PLACES, FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MachineFloor } from '@/components/game/MedalCenter/MachineFloor';
-import { MACHINE_PITCHES, MACHINE_ZONES, PLATE_RETURNS, ZONES, ZONE_SIGNS, cornersOf, isNewMachine, plateReturn, zoneOf, type ZoneId } from '@/components/game/MedalCenter/floorPlan';
+import { MACHINE_PITCHES, MACHINE_ZONES, PLATE_RETURNS, ZONES, ZONE_SIGNS, cornersOf, isNewMachine, plateReturn, spansOf, zoneOf, type ZoneId } from '@/components/game/MedalCenter/floorPlan';
 import { ODDS_OPTIONS, allBetOdds, combinedDontPassEdge, combinedPassEdge, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
 import { RETURN_LEAST as HORSE_RETURN_LEAST, RETURN_MOST as HORSE_RETURN_MOST } from '@/components/game/HorseRace/card';
 import { toNumber as horseNumber } from '@/components/game/HorseRace/fraction';
@@ -150,6 +150,15 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).toMatch(/data-machine="big-wheel" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="slot-machine" data-zone="video" data-wide="false"/);
     expect(html).toMatch(/data-machine="high-low" data-zone="video" data-wide="false"/);
+    // On the widest floor the three video machines stand beside the pusher, two columns of them, as a pair of corners
+    // does; the big machines, the candy shop and the tables each start a row of their own.
+    const spans = spansOf(cornersOf(FLOOR));
+    expect(cornersOf(FLOOR).map(({ zone }, i) => `${zone} ${spans[i].span}${spans[i].squeezed ? ' squeezed' : ''}`)).toEqual(['pusher 2', 'video 2 squeezed', 'big 4', 'kids 2', 'table 4']);
+    expect(html).toContain('data-zone="video" data-width="2" data-squeezed="true"');
+    // A corner too wide for two rows beside the one before it starts a row of its own; a big cabinet is never squeezed.
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 5 }])).toEqual([{ span: 2, squeezed: false }, { span: 4, squeezed: false }]);
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'big', width: 4 }])).toEqual([{ span: 2, squeezed: false }, { span: 4, squeezed: false }]);
+    expect(spansOf([{ zone: 'pusher', width: 2 }, { zone: 'video', width: 2 }])).toEqual([{ span: 2, squeezed: false }, { span: 2, squeezed: false }]);
     // No plate says the same as every other one.
     expect(html).not.toContain('Plays with your medals.');
   });

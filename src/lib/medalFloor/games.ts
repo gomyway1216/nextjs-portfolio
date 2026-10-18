@@ -44,6 +44,7 @@ export const FLOOR_GAMES = [
   'fishing',
   'horse-race',
   'ball-bingo',
+  'big-wheel',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -172,6 +173,16 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   // Best return: 89.974% (worked out by dynamic programming over every state a card can be in), on any bet.
   'ball-bingo': rule(1_500, 1_000, 150, 3, 0.8998, {
     'full-card': { amounts: [500, 1_000, 1_500], feed: true },
+  }),
+  // Star Festival Big Wheel: a second chance's ×10 lamp on the ×40, 400 a medal, on up to 99 medals: 39,600. Every
+  // number of the board pays its number a medal (×2 to ×40), and on a second chance that times the lamp (×2, ×3, ×10).
+  // A spin every two seconds or so at the quickest (SPIN, then skip): 6,000 a minute, as the other tables. Taken: all
+  // seven numbers at their most, 693.
+  // Best return: 90%, exactly, on every number.
+  // Named: the ×400, and any other second-chance win, each on 1 to 99 medals.
+  'big-wheel': rule(39_600, 6_000, 400, 693, 0.9, {
+    'wheel-400': { amounts: times([400], Array.from({ length: 99 }, (_, i) => i + 1)), feed: true },
+    'wheel-bonus': { amounts: times(times([2, 4, 5, 8, 10, 20, 40], [2, 3, 10]), Array.from({ length: 99 }, (_, i) => i + 1)), feed: false },
   }),
 };
 

@@ -127,6 +127,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `fished up a treasure chest: ${medals} medals`;
     case 'full-card':
       return `filled the whole bingo card: ${medals} medals`;
+    case 'wheel-400':
+      return `hit ×400 on the big wheel: ${medals} medals`;
+    case 'wheel-bonus':
+      return `won on the big wheel’s second chance: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -158,6 +162,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `宝箱を釣り上げて${medals}枚`;
     case 'full-card':
       return `ビンゴカードが全部そろって${medals}枚`;
+    case 'wheel-400':
+      return `ビッグホイールで×400！${medals}枚`;
+    case 'wheel-bonus':
+      return `ビッグホイールのセカンドチャンスで${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

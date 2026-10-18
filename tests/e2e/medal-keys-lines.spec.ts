@@ -2,15 +2,16 @@ import { test, expect } from '@playwright/test';
 
 import { arrived } from './streamedPage';
 
-// The card tables' and craps' line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it wraps between its
-// parts and never inside one, so a key is never left at the end of a line with what it does on the next ("R で" /
-// 「同じベット」). On a touch screen, which has no keys, it is not shown.
+// The card tables', craps' and video poker's line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it
+// wraps between its parts and never inside one, so a key is never left at the end of a line with what it does on the
+// next ("R で" / 「同じベット」). On a touch screen, which has no keys, it is not shown.
 
 const TABLES = [
   ['blackjack', 'bj-keys'],
   ['baccarat', 'baccarat-keys'],
   ['three-card-poker', 'tcp-keys'],
   ['craps', 'craps-keys'],
+  ['video-poker', 'vp-keys'],
 ] as const;
 
 /** The parts of the keys line that break inside themselves, as they are laid out now. */

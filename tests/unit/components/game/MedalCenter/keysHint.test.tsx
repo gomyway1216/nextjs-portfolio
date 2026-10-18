@@ -6,8 +6,9 @@ import { getStrings as blackjack } from '@/components/game/Blackjack/i18n';
 import { getStrings as craps } from '@/components/game/Craps/i18n';
 import { KeysHint, keyParts } from '@/components/game/MedalCenter/KeysHint';
 import { getStrings as threeCardPoker } from '@/components/game/ThreeCardPoker/i18n';
+import { getStrings as videoPoker } from '@/components/game/VideoPoker/i18n';
 
-const LINES = (['en', 'ja'] as const).flatMap((language) => [blackjack, baccarat, threeCardPoker, craps].map((strings) => strings(language).keysHint));
+const LINES = (['en', 'ja'] as const).flatMap((language) => [blackjack, baccarat, threeCardPoker, craps, videoPoker].map((strings) => strings(language).keysHint));
 
 describe('a keys line', () => {
   it('is cut into its parts, the separator kept with the part before it, and nothing lost', () => {

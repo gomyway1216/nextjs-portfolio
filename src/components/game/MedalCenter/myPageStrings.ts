@@ -48,6 +48,13 @@ export interface MyPageStrings {
   last: string;
   inARow: (count: number, shown: string) => string;
   notPlayedTitle: string;
+  // The floor jackpot's records
+  floorTitle: string;
+  floorLead: string;
+  floorWins: string;
+  floorMedals: string;
+  floorBiggest: string;
+  floorLast: string;
   notPlayed: string;
   play: string;
   none: string;
@@ -73,6 +80,10 @@ export interface MyPageStrings {
   bonus: (medals: string) => string;
   refill: (medals: string) => string;
   reset: (thrown: string, start: string) => string;
+  /** Where a floor jackpot was won, where a machine's name would go: the floor itself. */
+  floorName: string;
+  /** A floor jackpot paid into the medals. */
+  floorJackpot: (medals: string) => string;
   up: (count: string) => string;
   down: (count: string) => string;
   even: string;
@@ -127,6 +138,12 @@ const en: MyPageStrings = {
   last: 'Last played',
   inARow: (count, shown) => `${shown} ${count === 1 ? 'round' : 'rounds'} won in a row`,
   notPlayedTitle: 'Not played yet',
+  floorTitle: 'FLOOR JACKPOT',
+  floorLead: 'The medal floor’s shared jackpot, won while playing a linked machine on the floor. It is not counted in the machines’ figures above.',
+  floorWins: 'Times won',
+  floorMedals: 'Medals won',
+  floorBiggest: 'Biggest',
+  floorLast: 'Last won',
   notPlayed: 'Not played since your history began.',
   play: 'Play',
   none: '—',
@@ -150,6 +167,8 @@ const en: MyPageStrings = {
   bonus: (medals) => `Daily bonus: ${medals} medals`,
   refill: (medals) => `Free medals from the attendant: ${medals}`,
   reset: (thrown, start) => `Medals reset: ${thrown} thrown away, started again with ${start}`,
+  floorName: 'Medal floor',
+  floorJackpot: (medals) => `FLOOR JACKPOT +${medals}`,
   up: (count) => `${count} medals up`,
   down: (count) => `${count} medals down`,
   even: 'even',
@@ -204,6 +223,12 @@ const ja: MyPageStrings = {
   last: '最後に遊んだ日',
   inARow: (_count, shown) => `${shown}連勝`,
   notPlayedTitle: 'まだ遊んでいないマシン',
+  floorTitle: 'フロアジャックポット',
+  floorLead: 'メダルフロアみんなのジャックポットです。フロアの対象のマシンで遊んでいるときに当たります。上のマシンの記録には含みません。',
+  floorWins: '当たった回数',
+  floorMedals: '獲得したメダル',
+  floorBiggest: '最高',
+  floorLast: '最後に当たった日',
   notPlayed: '履歴が始まってから、まだ遊んでいません。',
   play: '遊ぶ',
   none: '—',
@@ -227,6 +252,8 @@ const ja: MyPageStrings = {
   bonus: (medals) => `デイリーボーナス：${medals}枚`,
   refill: (medals) => `店員さんから無料のメダル：${medals}枚`,
   reset: (thrown, start) => `メダルをリセット：${thrown}枚を捨てて、${start}枚からやり直し`,
+  floorName: 'メダルフロア',
+  floorJackpot: (medals) => `フロアジャックポット +${medals}枚`,
   up: (count) => `${count}枚プラス`,
   down: (count) => `${count}枚マイナス`,
   even: 'プラスマイナスなし',

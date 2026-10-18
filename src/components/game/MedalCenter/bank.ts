@@ -107,7 +107,7 @@
 import { useSyncExternalStore } from 'react';
 import { GUEST, createSync, fromCloud, slotFor, toCloud, type AccountStore, type Kept, type Player, type Slots, type Standing, type Status, type Sync, type Verdict } from '../MedalPusher/account';
 import { dayFrom, readDays, unionDays, type Day, type DaySet } from '../MedalPusher/records';
-import type { Observation } from './history';
+import { FLOOR_JACKPOT, type Observation } from './history';
 import { HISTORY_GAME_KEY, HISTORY_WAITING, createHistoryStore, type HistoryState } from './historyStore';
 import {
   REFILL,
@@ -1304,8 +1304,8 @@ export function createBank(env: BankEnv) {
           if (ledger !== at.ledger) {
             at.ledger = ledger;
             kept = store(at);
-            // Medals that are no machine's round: only what is left is noted in the history.
-            if (moved.applied) noted({ type: 'medals' });
+            // A floor jackpot is an entry of its own in the history; anything else from outside the machines, only what is left.
+            if (moved.applied) noted(move.game === FLOOR_JACKPOT ? { type: 'floor', id: move.round, medals: move.medals } : { type: 'medals' });
             sync?.save('moment');
           }
           // Made, but not kept by this browser's storage: it is in the medals on the page, and goes to the account with

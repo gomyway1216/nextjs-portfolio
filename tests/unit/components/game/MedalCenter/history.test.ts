@@ -4,6 +4,7 @@ import { ACCOUNT_LIMIT, fromCloud, sizeOf, toCloud } from '@/components/game/Med
 import {
   ACCOUNT_BUDGET,
   CENTER,
+  FLOOR_JACKPOT,
   HISTORY_LIMITS,
   accountSizeOf,
   PUSHER_GAME,
@@ -25,6 +26,7 @@ import {
   type History,
   type Observation,
 } from '@/components/game/MedalCenter/history';
+import { JACKPOT_GAME } from '@/lib/medalFloor/jackpot';
 
 // The medals' history as arithmetic (history.ts): what is written for each thing the bank and the machines say, how
 // two copies are joined, the bounds, and the text. Nothing here touches a browser or an account.
@@ -424,5 +426,46 @@ describe('what the page is shown', () => {
       { t: Date.UTC(2026, 9, 10, 20), left: 60 },
       { t: at(1), left: 105 },
     ]);
+  });
+});
+
+describe('a floor jackpot', () => {
+  const won = (id: string, medals: number) => ({ type: 'floor' as const, id, medals });
+
+  it('is an entry of its own, named by the win, its medals given on its day, and records of its own', () => {
+    expect(FLOOR_JACKPOT).toBe(JACKPOT_GAME);
+    const history = play(fresh(), [stake('spin0001', 5), pay('spin0001', 0), { ...won('20261017-a1b2c3d4', 2_431), left: 2_526 }]);
+    expect(entry(history, '20261017-a1b2c3d4')).toEqual({ d: 'phone00001', g: FLOOR_JACKPOT, r: '20261017-a1b2c3d4', k: 'floor', t: at(2), bet: 0, won: 2_431, left: 2_526, done: 1 });
+    expect(dayTotals(history)[0]).toMatchObject({ bet: 5, won: 0, free: 2_431, rounds: 1 });
+    expect(row(history, FLOOR_JACKPOT)).toEqual({ game: FLOOR_JACKPOT, rounds: 1, bet: 0, won: 2_431, top: 2_431, best: 0, last: at(2) });
+    // It is no machine: the machines' totals leave it out.
+    expect(totalsOf(recordsOf(history))).toEqual({ rounds: 1, bet: 5, won: 0 });
+  });
+
+  it('is written once however often it is told, and adds up over several wins', () => {
+    let history = play(fresh(), [won('20261017-a1b2c3d4', 2_431), won('20261017-a1b2c3d4', 2_431)]);
+    expect(history.entries.filter((one) => one.k === 'floor')).toHaveLength(1);
+    history = play(history, [won('20261019-0badcafe', 1_200)], 10);
+    expect(row(history, FLOOR_JACKPOT)).toMatchObject({ rounds: 2, won: 3_631, top: 2_431, last: at(10) });
+    // Nothing that will not do is written: a name out of shape, or no medals.
+    expect(play(fresh(), [won('Not A Name!', 5), won('20261017-a1b2c3d4', 0)]).entries).toEqual([]);
+  });
+
+  it('reads back from its text, and a history written before there were floor jackpots reads as it did', () => {
+    const before = play(fresh(), [stake('spin0001', 5), pay('spin0001', 35), { type: 'bonus', medals: 40 }]);
+    const old = serializeHistory(before);
+    expect(old).not.toContain('floor');
+    expect(parseHistory(old)).toEqual(before);
+    const after = play(before, [won('20261017-a1b2c3d4', 2_431)], 5);
+    expect(parseHistory(serializeHistory(after))).toEqual(after);
+  });
+
+  it('joins with another device’s copy: each device’s wins once, the records of both', () => {
+    const phone = play(fresh('phone00001'), [won('20261017-a1b2c3d4', 2_431)]);
+    const laptop = play(fresh('laptop0001'), [won('20261018-0badcafe', 1_000)], 3);
+    const joined = mergeHistories(phone, laptop);
+    expect(joined.entries.filter((one) => one.k === 'floor').map((one) => one.r)).toEqual(['20261018-0badcafe', '20261017-a1b2c3d4']);
+    expect(row(joined, FLOOR_JACKPOT)).toMatchObject({ rounds: 2, won: 3_431, top: 2_431 });
+    expect(mergeHistories(joined, phone)).toEqual(joined);
   });
 });

@@ -228,14 +228,18 @@ export function GlobalToolbar() {
   useEffect(() => {
     if (!isGameSubPage) return;
     let cancelled = false;
-    import('@/components/game/constants/gameNav').then(({ findGameByPath }) => {
-      if (!cancelled) {
-        setCurrentGameState({
-          pathname,
-          game: findGameByPath(pathname) ?? null,
-        });
-      }
-    });
+    import('@/components/game/constants/gameNav')
+      .then(({ findGameByPath }) => {
+        if (!cancelled) {
+          setCurrentGameState({
+            pathname,
+            game: findGameByPath(pathname) ?? null,
+          });
+        }
+      })
+      // The catalog's chunk did not load: the page is going (a reload or a link cuts the load off, and Safari then
+      // fails it) or the network dropped it. The bar keeps its plain label; nothing is thrown at the page.
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };

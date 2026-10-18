@@ -175,8 +175,37 @@
   .morePart {
     order: 3;
   }
-  .buttonsPart > .betRow {
+  .buttonsPart .betArea > .betRow {
     margin-top: 0;
+  }
+  /*
+   * The bet and the moves in one place, one over the other: between hands the bet and DEAL, during a hand HIT / STAND /
+   * DOUBLE / SPLIT, right where DEAL was pressed, so a hand's cards and the buttons that play them are on the screen
+   * together. The one not in use keeps its room out of sight (and out of a screen reader's way): nothing under them
+   * moves as a hand begins and ends.
+   */
+  .playSpot {
+    display: grid;
+    align-items: start;
+  }
+  .playSpot > .betArea,
+  .playSpot > .moveArea {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+  .playSpot[data-phase='bet'] > .moveArea,
+  .playSpot[data-phase='hand'] > .betArea {
+    visibility: hidden;
+  }
+  /* The moves' two rows take the room of the bet buttons' two rows, so DOUBLE and SPLIT are where CLEAR and DEAL were. */
+  .playSpot .actionRow {
+    margin-top: 0;
+    gap: 0.45rem;
+  }
+  .playSpot .actionBtn {
+    height: 44px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
   .morePart > .hintRow:first-child {
     margin-top: 0;

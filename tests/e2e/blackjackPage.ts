@@ -38,7 +38,11 @@ export async function medalsShown(page: Page): Promise<number> {
   return Number(((await page.getByTestId('bj-medals').textContent()) ?? '').replace(/,/g, ''));
 }
 
-export const dealButton = (page: Page) => page.getByRole('button', { name: /^(DEAL|ディール)$/ });
+/**
+ * DEAL. On a phone it is out of sight during a hand (the moves take its place, PlayTab's play spot), so it is looked up
+ * hidden or not: whether it can be pressed is still known then (it cannot).
+ */
+export const dealButton = (page: Page) => page.getByRole('button', { name: /^(DEAL|ディール)$/, includeHidden: true });
 
 export async function cardsIn(page: Page, selector: string): Promise<Card[]> {
   return page.locator(`${selector} [data-rank]`).evaluateAll((els) =>

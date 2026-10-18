@@ -438,7 +438,7 @@ const ja: BlackjackStrings = {
   feltRules: 'ディーラーはすべての17でスタンド・インシュランスは2対1',
   holeCard: 'ディーラーの伏せ札',
   hintToggle: 'ベーシックストラテジーのヒントを表示',
-  keysHint: 'キー: Space か Enter でディール・H ヒット・S スタンド・D ダブル・P スプリット・I / N インシュランス・B 1枚ベット・M MAXベット',
+  keysHint: 'キー：Space か Enter でディール・H でヒット・S でスタンド・D でダブル・P でスプリット・I / N でインシュランス・B で1枚ベット・M でMAXベット',
   hintSays: (action) => `ベーシックストラテジー：${action}`,
   evTitle: '各選択肢の期待値',
   evNote:

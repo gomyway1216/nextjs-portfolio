@@ -94,10 +94,7 @@ test('the odds tab explains every cell of the chart and the edge of every bet in
   await openBlackjack(page, 'ja');
   await page.getByRole('tab', { name: '確率' }).click();
   await expect(page.getByTestId('bj-house-edge')).toHaveText('0.512%');
-  await expect(async () => {
-    await page.locator('[data-cell="hard-12-2"]').click({ timeout: 1_000 });
-    await expect(page.getByTestId('bj-cell-info')).toContainText('12 対 ディーラーの2', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(page.locator('[data-cell="hard-12-2"]'), async () => (await page.getByTestId('bj-cell-info').allTextContents()).some((text) => text.includes('12 対 ディーラーの2')));
   await expect(page.locator('[data-cell="hard-12-2"]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('[data-cell="pairs-8-11"]').click();
   await expect(page.getByTestId('bj-cell-info')).toContainText('8,8 対 ディーラーのA');

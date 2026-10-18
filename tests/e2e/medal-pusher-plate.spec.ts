@@ -8,6 +8,7 @@ import { getPlateStrings } from '../../src/components/game/MedalPusher/plateStri
 import { MAX_STOCK } from '../../src/components/game/MedalPusher/session';
 import { getWorksStrings } from '../../src/components/game/MedalPusher/worksStrings';
 import { settled } from './medalPusherPage';
+import { pressUntil } from './pressUntil';
 
 // The cabinet's instruction plate: what the How to play button opens, and the compact one on the cabinet's front.
 // The unit tests hold what is printed on it to the lottery's tables. These hold it to the page: that it opens as a
@@ -35,10 +36,7 @@ async function played(page: Page): Promise<number> {
 
 /** Presses something that opens the plate, retrying until hydration has attached its handler. */
 async function openPlate(page: Page, opener: ReturnType<Page['getByTestId']>) {
-  await expect(async () => {
-    await opener.click({ timeout: 1_000 });
-    await expect(dialog(page)).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(opener, () => dialog(page).isVisible());
 }
 
 /** Every test id in the page that is there more than once. */

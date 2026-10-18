@@ -8,6 +8,7 @@ import { handOdds } from '../../src/components/game/ThreeCardPoker/analysis';
 import { decide, evaluate, settle, type Bets, type Card, type Decision, type Rank, type Suit } from '../../src/components/game/ThreeCardPoker/engine';
 import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand, tableKey } from '../../src/components/game/ThreeCardPoker/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 
@@ -73,12 +74,9 @@ async function chooseStep(page: Page, n: number) {
   }).toPass({ timeout: 20_000 });
 }
 
-/** Clicks the Ante until hydration has attached handlers and the table holds the member's card. */
+/** Clicks the Ante until hydration has attached handlers and the table holds the member's card: one Ante, never two. */
 async function firstAnte(page: Page) {
-  await expect(async () => {
-    await anteSpot(page).click({ timeout: 1_000 });
-    await expect(onTable(page)).not.toHaveText('0', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(anteSpot(page), async () => (await onTable(page).textContent()) !== '0');
 }
 
 async function cardsOf(page: Page, side: 'player' | 'dealer'): Promise<Card[]> {

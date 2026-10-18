@@ -14,6 +14,7 @@ import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { createLedger, serializeLedger } from '../../src/components/game/MedalCenter/ledger';
 import { resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { pressUntil } from './pressUntil';
 
 // The field is physics with a random seed, so the tests check what must hold
 // whatever the medals do: the purse, the counters and the controls.
@@ -122,10 +123,7 @@ async function expectFieldPainted(page: Page, timeout = 5_000) {
 /** Feeds one medal into a rail with its button, retrying until hydration has attached the handlers. */
 async function feedOne(page: Page, rail: Rail = 'left') {
   const before = await counter(page, 'played');
-  await expect(async () => {
-    await feedButton(page, rail).click({ timeout: 1_000 });
-    expect(await counter(page, 'played')).toBeGreaterThan(before);
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(feedButton(page, rail), async () => (await counter(page, 'played')) > before);
 }
 
 /** The rails that have a medal on them in the save the browser holds: 0 for the left, 1 for the right. */

@@ -8,6 +8,7 @@ import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // The medal center's "my page" for a guest: the history of what happened to the medals after playing two machines,
@@ -74,11 +75,8 @@ async function fullHouse(page: Page) {
     queue.push((j - i + 0.5) / (52 - i));
     [deck[i], deck[j]] = [deck[j], deck[i]];
   });
-  await page.evaluate((numbers) => {
-    const original = Math.random;
-    const left = [...numbers];
-    Math.random = () => (left.length > 0 ? left.shift()! : original());
-  }, queue);
+  // Served only to the press that deals: the live site's other callers of Math.random do not take them.
+  await rigPresses(page, queue);
   await page.getByRole('button', { name: 'DEAL', exact: true }).click();
   const draw = page.getByRole('button', { name: 'DRAW', exact: true });
   await expect(draw).toBeVisible();

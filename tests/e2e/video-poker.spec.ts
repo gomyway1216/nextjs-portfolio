@@ -6,6 +6,7 @@ import { analyzeHand } from '../../src/components/game/VideoPoker/analysis';
 import { HANDS, PAY_TABLES, payout, rankCards } from '../../src/components/game/VideoPoker/engine';
 import { HAND_KEY, NOTICE_KEY } from '../../src/components/game/VideoPoker/medals';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Hands are random: the tests read the cards off the screen, recompute the
@@ -47,11 +48,8 @@ async function rig(page: Page, cards: string[]) {
     queue.push((j - i + 0.5) / (52 - i));
     [deck[i], deck[j]] = [deck[j], deck[i]];
   });
-  await page.evaluate((numbers) => {
-    const original = Math.random;
-    const left = [...numbers];
-    Math.random = () => (left.length > 0 ? left.shift()! : original());
-  }, queue);
+  // Served only to the press that deals: the live site's other callers of Math.random do not take them.
+  await rigPresses(page, queue);
 }
 
 /** Deals the rigged full house at five medals. */

@@ -6,6 +6,7 @@ import { PHYSICAL_STOPS, REELS, evaluateLine, type Line, type SymbolId } from '.
 import { NOTICE_KEY, ROUND_KEY, SLOT_GAME, parseRound } from '../../src/components/game/SlotMachine/medals';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // Spins are random, so these checks read what was drawn and verify that the
@@ -40,8 +41,9 @@ async function medals(page: Page): Promise<number> {
 /** Presses SPIN once the machine takes bets (its medals read, the card here, the page hydrated). */
 async function spin(page: Page) {
   await expect(spinButton(page)).toBeEnabled({ timeout: 20_000 });
-  await spinButton(page).click();
-  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+  // An enabled SPIN can still be pressed before hydration has attached its handler: pressed again only while no spin
+  // has started, so never twice.
+  await pressUntil(spinButton(page), async () => (await reelWindow(page).getAttribute('data-spinning')) === 'true');
 }
 
 /** The next spins land on 7-7-7: virtual stop 0 of every reel is its 7. Put back with `unforce`. */

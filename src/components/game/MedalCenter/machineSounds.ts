@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'fanfare', 'gate', 'hooves', 'bell'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -225,6 +225,32 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     knock(t, 0.19, 1100, 0.2, 0.008);
     return t;
   },
+  // A float landing on the water (Big Catch Harbor): a soft splash, and two bubbles rising.
+  splash: (rate) => {
+    const t = take(0.5, rate);
+    hiss(t, 0.0, 0.22, 1, 700, 91, true);
+    hiss(t, 0.01, 0.12, 0.6, 1800, 92);
+    bubble(t, 0.16, 380, 900, 0.07, 0.35);
+    bubble(t, 0.27, 460, 1100, 0.06, 0.25);
+    return t;
+  },
+  // A bite: the float pulled under with a plunk, and a bubble.
+  bite: (rate) => {
+    const t = take(0.36, rate);
+    knock(t, 0.002, 150, 0.9, 0.05);
+    hiss(t, 0.002, 0.08, 0.5, 900, 101);
+    bubble(t, 0.1, 300, 700, 0.09, 0.4);
+    return t;
+  },
+  // The reel's ratchet: four quick clicks of the pawl.
+  ratchet: (rate) => {
+    const t = take(0.2, rate);
+    for (let i = 0; i < 4; i++) {
+      knock(t, 0.002 + i * 0.042, 1900, 0.5, 0.004);
+      hiss(t, 0.002 + i * 0.042, 0.01, 0.6, 4200, 111 + i);
+    }
+    return t;
+  },
   // The horse-racing machine's fanfare before the off: the machine's own call of a few rising notes on its speaker,
   // a held top note, and an answer up to the octave.
   fanfare: (rate) => {
@@ -272,6 +298,18 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     return t;
   },
 };
+
+/** A bubble rising through water: a sine that sweeps up in pitch, swelling and dying away. */
+function bubble(t: Take, at: number, from: number, to: number, length: number, level: number): void {
+  const start = Math.floor(at * t.rate);
+  const total = Math.min(t.out.length - start, Math.ceil(length * t.rate));
+  let phase = 0;
+  for (let i = 0; i < total; i++) {
+    const s = i / t.rate;
+    phase += (TAU * (from + (to - from) * (s / length) ** 2)) / t.rate;
+    t.out[start + i] += level * Math.sin(phase) * Math.sin(Math.PI * (s / length));
+  }
+}
 
 /** A sound as samples at `rate` per second: worked out, brought to `PEAK` at its loudest, and faded in and out over a few ms. */
 export function renderSound(sound: MachineSound, rate: number): Float32Array {

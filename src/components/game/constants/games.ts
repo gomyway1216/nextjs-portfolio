@@ -435,6 +435,15 @@ export const games: Game[] = [
     category: 'Puzzle',
   },
   {
+    id: 'fishing',
+    title: 'Big Catch Harbor',
+    description: 'A fishing medal machine at the Medal Center: cast for 1, 3 or 5 medals, reel in whatever bites — from tiny fry to a treasure chest and the harbor’s giant lord — and see why exactly 90 of every 100 medals come back.',
+    thumbnail: '🎣',
+    path: '/games/fishing',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'horse-race',
     title: 'Mini Turf Racing',
     description: 'A horse-racing medal machine on a miniature track: six horses, win and quinella tickets bought with your medals, a race run to a result drawn at the off — and the exact odds of every ticket, all of them bringing back 89.5% to 90%.',

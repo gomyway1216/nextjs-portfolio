@@ -43,6 +43,7 @@ import { ODDS_LIMITS as HORSE_ODDS, RETURN_MOST as HORSE_RETURN_MOST, TICKETS as
 import { toNumber } from '@/components/game/HorseRace/fraction';
 import { RACE_STAKE_MOST as HORSE_STAKE_MOST, TICKET_MAX as HORSE_TICKET_MAX } from '@/components/game/HorseRace/medalTable';
 import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
+import { BET_OPTIONS as FISHING_BETS, CHEST as FISHING_CHEST, FISH, MOST_MEDALS as FISHING_MOST, analyzeMachine as fishingOdds, valueOf as fishingValue } from '@/components/game/Fishing/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -126,6 +127,8 @@ describe('the most each machine can take from the player at once, for the medals
     // An Ante, Pair Plus and a Play bet, each at its most.
     expect(FLOOR_RULES['three-card-poker'].stakeMost).toBe(TCP_HAND_MAX);
     expect(TCP_HAND_MAX).toBe(3 * TCP_SPOT_MAX);
+    // One cast at its biggest bet.
+    expect(FLOOR_RULES.fishing.stakeMost).toBe(Math.max(...FISHING_BETS));
     // Every ticket of a horse race at its most.
     expect(FLOOR_RULES['horse-race'].stakeMost).toBe(HORSE_STAKE_MOST);
     expect(HORSE_STAKE_MOST).toBe(HORSE_TICKETS.length * HORSE_TICKET_MAX);
@@ -164,6 +167,7 @@ describe('which machines are linked to the floor jackpot', () => {
       craps: Math.max(...crapsOdds().map((bet) => 1 - crapsNumber(bet.houseEdge))),
       // The Ante and Play per medal wagered (the element of risk), or Pair Plus on either table.
       'three-card-poker': Math.max(1 - tcp.elementOfRisk, ...Object.values(PAIR_PLUS_TABLES).map((table) => 1 + pairPlusOdds(table).ev)),
+      fishing: fishingValue(fishingOdds().rtp),
       // The most any ticket of any race brings back: every card is priced to at most this (card.test.ts checks every
       // ticket of hundreds of cards, and adds a few up exactly over all 720 finishing orders).
       'horse-race': toNumber(HORSE_RETURN_MOST),
@@ -182,7 +186,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'horse-race']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -294,11 +298,6 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(resolveRoll(null, fullest(null), [1, 1]).returned).toBe(2 * CRAPS_SPOT_MAX + won(ONE_ROLL_PAYS.field[2]) + won(ONE_ROLL_PAYS.anyCraps) + won(ONE_ROLL_PAYS.aces));
   });
 
-  it('three card poker: a straight flush against a dealer who qualifies', () => {
-    const most = 2 * TCP_SPOT_MAX + 2 * TCP_SPOT_MAX + TCP_SPOT_MAX * ANTE_BONUS_PAYS.straightFlush + TCP_SPOT_MAX * (PAIR_PLUS_PAYS.straightFlush + 1);
-    expect(FLOOR_RULES['three-card-poker'].most).toBe(most);
-  });
-
   it('Mini Turf Racing: a win ticket and a quinella both at their most, each at the longest odds the board can show', () => {
     expect(FLOOR_RULES['horse-race'].most).toBe(HORSE_TICKET_MAX * (HORSE_ODDS.win.most + HORSE_ODDS.quinella.most));
     expect(FLOOR_RULES['horse-race'].most).toBe(108_702);
@@ -308,6 +307,22 @@ describe('the most each machine can pay, from its own tables', () => {
       expect(Math.max(...card.winOdds)).toBeLessThanOrEqual(HORSE_ODDS.win.most);
       expect(Math.max(...card.quinellaOdds)).toBeLessThanOrEqual(HORSE_ODDS.quinella.most);
     }
+  });
+
+  it('three card poker: a straight flush against a dealer who qualifies', () => {
+    const most = 2 * TCP_SPOT_MAX + 2 * TCP_SPOT_MAX + TCP_SPOT_MAX * ANTE_BONUS_PAYS.straightFlush + TCP_SPOT_MAX * (PAIR_PLUS_PAYS.straightFlush + 1);
+    expect(FLOOR_RULES['three-card-poker'].most).toBe(most);
+  });
+
+  it('Big Catch Harbor: the harbor’s lord on the biggest bet, and every lord and treasure chest there is', () => {
+    const top = Math.max(...FISHING_BETS);
+    const lord = FISH.find((fish) => fish.id === 'lord')!.pays!;
+    expect(FLOOR_RULES.fishing.most).toBe(FISHING_MOST);
+    expect(FLOOR_RULES.fishing.most).toBe(Math.max(...FISH.map((fish) => fish.pays ?? 0), ...FISHING_CHEST.map((prize) => prize.pays)) * top);
+    expect(FLOOR_RULES.fishing.most).toBe(1_500);
+    expect(FLOOR_RULES.fishing.labels['harbor-lord'].amounts).toEqual(FISHING_BETS.map((bet) => lord * bet));
+    expect(FLOOR_RULES.fishing.labels.treasure.amounts).toEqual(sorted(FISHING_CHEST.flatMap((prize) => FISHING_BETS.map((bet) => prize.pays * bet))));
+    expect(FLOOR_RULES.fishing.bestReturn).toBe(0.9);
   });
 
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
@@ -332,6 +347,10 @@ describe('named wins and the feed', () => {
     expect(labelPays('video-poker', 'double-up', 45)).toBe(false);
     expect(labelPays('slot-machine', 'constructor', 1)).toBe(false);
     expect(labelPays('roulette', 'seven3', 1_000)).toBe(false);
+    expect(labelPays('fishing', 'harbor-lord', 900)).toBe(true);
+    expect(labelPays('fishing', 'harbor-lord', 600)).toBe(false);
+    expect(labelPays('fishing', 'treasure', 1_000)).toBe(true);
+    expect(labelPays('fishing', 'treasure', 400)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -343,5 +362,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('slot-machine', 50)).toBe(false);
     expect(feedWorthy('roulette', 360)).toBe(true);
     expect(feedWorthy('medal-pusher', 50, 'bowl')).toBe(false);
+    expect(feedWorthy('fishing', 300, 'harbor-lord')).toBe(true);
+    expect(feedWorthy('fishing', 10, 'treasure')).toBe(false);
+    expect(feedWorthy('fishing', 150)).toBe(true);
   });
 });

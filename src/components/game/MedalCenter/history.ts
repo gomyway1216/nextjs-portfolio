@@ -62,7 +62,7 @@ export const HISTORY_LIMITS = {
   /** Devices a day keeps the totals of. Beyond that, the ones that did least that day are left out. */
   dayDevices: 3,
   /**
-   * Games a history keeps records for: every machine on the floor and the floor jackpot (twelve with the horse race),
+   * Games a history keeps records for: every machine on the floor and the floor jackpot (thirteen with Ball Bingo),
    * and room for a few more.
    */
   games: 16,

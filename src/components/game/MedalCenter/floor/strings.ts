@@ -125,6 +125,8 @@ const enMoment = (label: string | null, medals: string): string => {
       return `landed the Harbor Lord: ${medals} medals`;
     case 'treasure':
       return `fished up a treasure chest: ${medals} medals`;
+    case 'full-card':
+      return `filled the whole bingo card: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -154,6 +156,8 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `港のヌシを釣り上げて${medals}枚`;
     case 'treasure':
       return `宝箱を釣り上げて${medals}枚`;
+    case 'full-card':
+      return `ビンゴカードが全部そろって${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

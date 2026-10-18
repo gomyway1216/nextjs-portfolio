@@ -145,6 +145,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `hit the jackpot at the whale’s blowhole: ${medals} medals`;
     case 'whale-ride':
       return `rode the whale on Whale Isle: ${medals} medals`;
+    case 'maze-big':
+      return `flicked a medal into BIG WIN in the candy shop maze: ${medals} medals`;
+    case 'maze-win':
+      return `flicked a medal into WIN in the candy shop maze: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -191,6 +195,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `くじら島すごろくでジャックポット！${medals}枚`;
     case 'whale-ride':
       return `くじら島すごろくのくじらライドで${medals}枚`;
+    case 'maze-big':
+      return `駄菓子屋メダルめいろで大当たり！${medals}枚`;
+    case 'maze-win':
+      return `駄菓子屋メダルめいろで当たり！${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

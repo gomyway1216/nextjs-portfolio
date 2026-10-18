@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FloorGame } from '@/lib/medalFloor/games';
+import type { FloorBoards } from '@/lib/medalFloor/types';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { FLOOR_PLACE_ANCHOR, MEDAL_RANKINGS_PATH } from './paths';
 import { FloorJackpotPanel, type JackpotStanding } from './FloorJackpot';
@@ -100,6 +101,9 @@ export function FloorNow({ words, floor, now, place, signInHref }: PartProps & {
   );
 }
 
+/** The hub's boards as they are drawn while the floor is being read: empty, every line held unseen. */
+const HELD: Pick<FloorBoards, 'won' | 'best'> = { won: [], best: {} };
+
 /**
  * Further in, under the machines: today's and this week's rankings, short,
  * and the player's own place on the floor, which they are off until they join.
@@ -108,6 +112,8 @@ export function FloorTogether({ words, floor, place, signInHref }: PartProps) {
   const { t } = words;
   const [period, setPeriod] = useState<PeriodChoice>('day');
   const boards = floor.summary ? (period === 'day' ? floor.summary.day : floor.summary.week) : null;
+  // While the floor is being read, the boards are drawn empty, their lines held unseen: they come in where they were.
+  const shown = boards ?? (floor.summary === null && !floor.unavailable ? HELD : null);
 
   return (
     <section className={styles.together} aria-labelledby="floor-together-title" data-testid="floor-together">
@@ -121,10 +127,11 @@ export function FloorTogether({ words, floor, place, signInHref }: PartProps) {
           <h3 className={styles.panelTitle}>{t.rankingsTitle}</h3>
           <PeriodTabs value={period} onChange={setPeriod} t={t} />
         </div>
-        {boards && (
-          <div className={styles.boards} data-period={period}>
-            <Board {...words} title={t.wonBoard} rows={boards.won} testId="floor-won" />
-            <BestAtEach {...words} boards={boards} />
+        {/* `data-floor-read`, not `data-loaded`: that one says the page has read the player's own medals. */}
+        {shown && (
+          <div className={styles.boards} data-period={period} data-floor-read={boards !== null}>
+            <Board {...words} title={t.wonBoard} rows={shown.won} testId="floor-won" holding={!boards} />
+            <BestAtEach {...words} boards={shown} holding={!boards} />
           </div>
         )}
         <Link href={MEDAL_RANKINGS_PATH} className={styles.more} data-testid="floor-all-rankings">

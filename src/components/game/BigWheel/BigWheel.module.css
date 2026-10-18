@@ -437,7 +437,8 @@
 }
 .banner[data-kind='bonus'],
 .banner[data-kind='chance'] {
-  background: linear-gradient(90deg, #6b2fb8, #e0559a, #f0a63a);
+  /* Purple to magenta: the white words stay at least 4.5:1 across it. */
+  background: linear-gradient(90deg, #5b25a3, #a82a6e);
   color: #fff;
 }
 .resumedBadge {
@@ -687,7 +688,8 @@
   min-height: 60px;
   border-radius: 16px;
   border: 3px solid #fff1b8;
-  background: linear-gradient(180deg, #ff6fb0 0%, #d63384 55%, #8f1f5a 100%);
+  /* The white SPIN is large type: at least 3:1 over the whole button, its lightest top included (3.9:1). */
+  background: linear-gradient(180deg, #d94a90 0%, #b8286f 55%, #7f1a4f 100%);
   color: #fff;
   font-weight: 900;
   font-size: 1.25rem;

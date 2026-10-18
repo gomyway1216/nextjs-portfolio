@@ -164,6 +164,27 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   expect(errors).toEqual([]);
 });
 
+test('on a desk the pusher stands as tall as the video machines beside it, its tray of medals filling the cabinet, and the two corners end level', async ({ page }) => {
+  await openCenter(page);
+  const bottom = (id: string) => page.locator(id).evaluate((el) => el.getBoundingClientRect().bottom);
+  const tray = page.getByTestId('center-tray');
+  for (const width of [1280, 1024, 900, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    const where = `${width} px`;
+    // The two corners side by side end level, and so do their cabinets: the pusher's and the video corner's last row.
+    expect(Math.abs((await bottom('[data-testid="center-zone-pusher"]')) - (await bottom('[data-testid="center-zone-video"]'))), where).toBeLessThanOrEqual(3);
+    expect(Math.abs((await bottom('li[data-machine="medal-pusher"]')) - (await bottom('[data-testid="center-zone-video"] li:last-child'))), where).toBeLessThanOrEqual(3);
+    // The extra height is the cabinet's lower body, a tray of medals, not a blank panel: drawn, and taller than a strip.
+    await expect(tray, where).toBeVisible();
+    expect((await tray.boundingBox())!.height, where).toBeGreaterThan(60);
+  }
+  // Where the video machines have a row of their own, the pusher is as it always was: no tray.
+  await page.setViewportSize({ width: 600, height: 900 });
+  await expect(tray).toBeHidden();
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(tray).toBeHidden();
+});
+
 test('every cabinet’s cover loads once it is scrolled into view, at a phone’s width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const broken: string[] = [];

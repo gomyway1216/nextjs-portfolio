@@ -7,6 +7,10 @@ import { WELCOME, rowOf, serializeLedger, take } from '../../src/components/game
 import { betStep, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, spot } from './baccaratPage';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { arrived } from './streamedPage';
+import { quietFloor } from './quietFloor';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Baccarat on the medal floor: it plays with the player's medals from the Medal Game Center. These check the medals
 // (a bet takes them at the deal, a win puts them back, once), the card that one tab at a time holds, the reset, a

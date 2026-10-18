@@ -655,15 +655,26 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         <div className={styles.tableSide}>
           <div className={`${styles.part} ${styles.cardsPart}`}>
             <div className={styles.tableTop}>
+              {/* Two lines, the same before a shoe's first deal and after it: the shoe and the hand beside the sound switch, and
+                  the cards left and the burn card under them. */}
               <div className={styles.shoeBar} data-testid="shoe-info">
                 {shoeView.number === 0 ? (
-                  <span>{t.shoeWaiting}</span>
+                  <>
+                    <span className={styles.shoeRow}>
+                      <span className={styles.shoeStrong}>{t.shoeNew}</span>
+                    </span>
+                    <span className={styles.shoeRow}>{t.shoeWaiting}</span>
+                  </>
                 ) : (
                   <>
-                    <span className={styles.shoeStrong}>{t.shoeLabel(shoeView.number)}</span>
-                    <span>{t.handInShoe(shoeView.hand)}</span>
-                    <span data-testid="cards-left">{t.cardsLeft(shoeView.cardsLeft)}</span>
-                    {shoeView.burnCard && <span className={styles.muted}>{t.burnInfo(cardLabel(shoeView.burnCard), shoeView.burned)}</span>}
+                    <span className={styles.shoeRow}>
+                      <span className={styles.shoeStrong}>{t.shoeLabel(shoeView.number)}</span>
+                      <span>{t.handInShoe(shoeView.hand)}</span>
+                    </span>
+                    <span className={styles.shoeRow}>
+                      <span data-testid="cards-left">{t.cardsLeft(shoeView.cardsLeft)}</span>
+                      {shoeView.burnCard && <span className={styles.muted}>{t.burnInfo(cardLabel(shoeView.burnCard), shoeView.burned)}</span>}
+                    </span>
                   </>
                 )}
               </div>

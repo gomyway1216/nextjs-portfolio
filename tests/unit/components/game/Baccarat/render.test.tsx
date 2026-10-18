@@ -64,7 +64,8 @@ describe('PlayTab', () => {
     // BET buttons of medals, the first one chosen.
     expect([...markup.matchAll(/data-step="(\d+)"/g)].map((m) => Number(m[1]))).toEqual([...BET_STEPS]);
     expect(markup).toMatch(/aria-checked="true" aria-label="Bet 1 medal a press"/);
-    expect(markup).toContain('A fresh eight-deck shoe is shuffled on the first deal.');
+    expect(markup).toContain('>New shoe<');
+    expect(markup).toContain('Eight decks, shuffled on the first deal');
     // Live odds for the first hand = the eight-deck edges, at the EZ table.
     expect(markup).toMatch(/data-live="banker"><td>Banker<\/td><td[^>]*>43\.606%<\/td><td[^>]*>1\.018%</);
     expect(markup).toMatch(/data-live="tie"><td>Tie<\/td><td[^>]*>9\.516%<\/td><td[^>]*>14\.360%</);

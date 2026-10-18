@@ -6,6 +6,7 @@ import { nameWords } from '../../src/components/game/MedalCenter/floorPlan';
 import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
 import { numberForFace, numberForLamp } from '../../src/components/game/Sugoroku/engine';
+import { numbersFor as mazeNumbers } from '../../src/components/game/CoinMaze/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -451,6 +452,44 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), SG_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+// ── Candy Shop Medal Maze ───────────────────────────────────────────────────
+
+const CM_WORDS = ['メダル', 'ゲート', '開いたら', 'はじこう', 'アウト', '閉まって', '持ちメダル', '当たり', '大当たり', 'タイミング', 'ぴったり', 'ふつう', '腕前', '目をつぶって', '戻り', '割合', '回数', '差し引き', '抜けた', 'スキップ', '確率', '設定', 'ポケット', 'もらえる'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`the Candy Shop Medal Maze's status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/coin-maze');
+    await arrived(page);
+    const machine = page.getByTestId('cm-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('cm-status');
+    const said = await brokenIn(status, CM_WORDS);
+    // A medal at the first gate (the line that asks for the flick), then skipped: the second gate's blind flick hits it shut.
+    await rigPresses(page, mazeNumbers({ gates: [0, 0, 0, 0], phases: [0, 0, 0, 0], wobbles: [true, true, true, true], blinds: [1, 7, 1, 1], pins: [true, true, false, false] }));
+    await pressUntil(page.getByTestId('cm-drop'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    await expect(machine).toHaveAttribute('data-phase', 'wait', { timeout: 10_000 });
+    said.push(...(await brokenIn(status, CM_WORDS)));
+    await page.getByTestId('cm-skip').click();
+    await expect(machine).toHaveAttribute('data-result', 'out-2');
+    await expect(status).toContainText('アウト');
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(status, CM_WORDS)));
+    said.push(...(await brokenIn(page.locator('#cm-session-title ~ dl dt'), CM_WORDS)));
+    await page.locator('#cm-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('cm-gates-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), CM_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

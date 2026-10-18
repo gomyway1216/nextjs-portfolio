@@ -447,7 +447,9 @@
     inset 0 -4px 0 rgba(0, 0, 0, 0.22),
     0 3px 0 rgba(0, 0, 0, 0.35);
 }
-.dropSlot {
+/* The slot drawn over the word, not a part of the button's words. */
+.dropButton::before {
+  content: '';
   width: 30px;
   height: 7px;
   border-radius: 4px;
@@ -851,6 +853,9 @@
   margin: 0;
   padding-left: 1.3rem;
   display: grid;
+  /* A rule may be narrower than its longest phrase (Safari and Firefox keep Japanese words whole): it breaks inside it
+     rather than push the page sideways. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   font-size: 0.9rem;
   line-height: 1.55;

@@ -3,7 +3,7 @@
 import { memo, type RefObject } from 'react';
 import { POCKETS, SIDES, STAGES, type Pocket } from './engine';
 import type { CoinMazeStrings } from './i18n';
-import { BOARD_H, BOARD_W, CUPS, GATE_FOOT, GATE_LENGTH, GATE_X, HOLES, HOLE_W, PINS, PIN_R, POCKET_TOP, POCKET_W, POCKET_X, R, SHELVES, SLOT } from './scene';
+import { BOARD_H, BOARD_W, CUPS, CUP_LIP, GATE_FOOT, GATE_LENGTH, GATE_X, HOLES, HOLE_W, PINS, PIN_R, POCKET_TOP, POCKET_W, POCKET_X, R, SHELVES, SLOT } from './scene';
 import styles from './CoinMaze.module.css';
 
 /**
@@ -39,7 +39,7 @@ const Cup = ({ s }: { s: number }) => {
   const { x, y } = CUPS[s];
   const right = SIDES[s] === 'right';
   const wall = right ? x + R + 4 : x - R - 4;
-  const lip = right ? x - R - 4 : x + R + 4;
+  const lip = CUP_LIP[s];
   return (
     <path
       d={`M ${lip} ${y + R + 3} L ${wall} ${y + R + 3} L ${wall} ${y - R - 6}`}

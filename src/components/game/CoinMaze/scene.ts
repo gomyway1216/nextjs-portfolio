@@ -31,14 +31,16 @@ const G = 1500;
 
 /** Where the medal sits in each lever's cup. */
 export const CUPS: readonly { x: number; y: number }[] = Array.from({ length: STAGES }, (_, s) => ({ x: SIDES[s] === 'right' ? 268 : 32, y: 78 + 74 * s }));
-/** The plane of each gate, across its cup's mouth. */
-export const GATE_X: readonly number[] = CUPS.map((cup, s) => (SIDES[s] === 'right' ? cup.x - 24 : cup.x + 24));
+/** The plane of each gate, across its cup's mouth: a medal's width and a little in front of the cup's lip. */
+export const GATE_X: readonly number[] = CUPS.map((cup, s) => (SIDES[s] === 'right' ? cup.x - 30 : cup.x + 30));
+/** The lip of each cup's floor, on the gate's side: the medal rests over the floor, and drops past its lip. */
+export const CUP_LIP: readonly number[] = CUPS.map((cup, s) => (SIDES[s] === 'right' ? cup.x - 7 : cup.x + 7));
 /** The gate's hinge, at the foot of the cup's mouth, and its flap's length: shut, the flap stands up across the mouth; open, it lies down flat toward the middle of the case, a drawbridge the medal flies over. */
 export const GATE_FOOT = (s: number): number => CUPS[s].y + 12;
 export const GATE_LENGTH = 26;
 /** The OUT hole under each gate: its middle. */
-export const HOLES: readonly { x: number; y: number }[] = CUPS.map((cup, s) => ({ x: GATE_X[s] + (SIDES[s] === 'right' ? 6 : -6), y: cup.y + 30 }));
-export const HOLE_W = 36;
+export const HOLES: readonly { x: number; y: number }[] = CUPS.map((cup, s) => ({ x: (GATE_X[s] + CUP_LIP[s]) / 2, y: cup.y + 30 }));
+export const HOLE_W = 32;
 
 /** A shelf: the line a medal rolls on, from its high end to its low end at the wall, over the cup it feeds. */
 export interface Shelf {
@@ -235,8 +237,8 @@ export const CONTACT_MS = 80;
 /** How long a medal wobbles on a gate's edge, in seconds. */
 const WOBBLE = 0.42;
 /** How long the lob across the case takes, in seconds: straight through, and after a graze took some of its push. */
-const LOB = 0.32;
-const LOB_GRAZED = 0.4;
+const LOB = 0.3;
+const LOB_GRAZED = 0.34;
 
 /**
  * The medal's way from cup `s` after a flick that ended `end`: through the gate to the next cup (or into the pins from
@@ -285,7 +287,7 @@ export function flickTrack(s: number, end: StageEnd, calm: boolean): Track {
       length: 0.1,
       at: (t) => {
         const u = t / 0.1;
-        return { x: met.x - inward * 7 * Math.sin(u * Math.PI * 0.5), y: met.y - 3 * Math.sin(u * Math.PI), turn: met.turn - spin * 0.05 * u, tip: 1 - 0.3 * Math.sin(u * Math.PI), shown: 1 };
+        return { x: met.x - inward * 3 * Math.sin(u * Math.PI * 0.5), y: met.y - 3 * Math.sin(u * Math.PI), turn: met.turn - spin * 0.05 * u, tip: 1 - 0.3 * Math.sin(u * Math.PI), shown: 1 };
       },
       sound: 'clack',
       cue: 'clack',

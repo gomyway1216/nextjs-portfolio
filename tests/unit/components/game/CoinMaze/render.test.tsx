@@ -9,7 +9,7 @@ import { GATE_KINDS, GATE_PATTERNS, OPENING, PIN_ROWS, POCKETS, STAGES, TIMEOUT,
 import { getStrings, type CoinMazeStrings } from '@/components/game/CoinMaze/i18n';
 import { OddsTab } from '@/components/game/CoinMaze/OddsTab';
 import { MEDAL_PLACES, PlayTab, WIN_PLACES, phrasesOf } from '@/components/game/CoinMaze/PlayTab';
-import { BOARD_H, BOARD_W, CUPS, FUNNEL, HOLES, POCKET_REST_Y, POCKET_X, R, SHELVES, cuesOf, dropTrack, flickTrack, gateLook, pinsTrack, poseAt, type Track } from '@/components/game/CoinMaze/scene';
+import { BOARD_H, BOARD_W, CUPS, CUP_LIP, FUNNEL, GATE_X, HOLES, POCKET_REST_Y, POCKET_X, R, SHELVES, cuesOf, dropTrack, flickTrack, gateLook, pinsTrack, poseAt, type Track } from '@/components/game/CoinMaze/scene';
 import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
@@ -76,16 +76,20 @@ describe('the medal’s way', () => {
     for (let i = 1; i < poses.length; i++) expect(Math.hypot(poses[i].x - poses[i - 1].x, poses[i].y - poses[i - 1].y)).toBeLessThan(6);
   });
 
-  it('sails through an open gate to the next cup, and from the fourth into the funnel over the pins', () => {
-    for (let s = 0; s < STAGES; s++) {
-      const way = flickTrack(s, 'through', false);
+  it('sails through an open gate (or squeezes through after a graze) to the next cup, and from the fourth into the funnel over the pins', () => {
+    const flights: [number, StageEnd][] = [];
+    for (let stage = 0; stage < STAGES; stage++) flights.push([stage, 'through'], [stage, 'graze-through']);
+    for (const [s, end] of flights) {
+      const way = flickTrack(s, end, false);
       const poses = along(way);
       expect(poses[0]).toMatchObject({ x: CUPS[s].x, y: CUPS[s].y });
-      const end = poses.at(-1)!;
-      if (s + 1 < STAGES) expect(end).toMatchObject({ x: CUPS[s + 1].x, y: CUPS[s + 1].y, shown: 1 });
-      else expect(end).toMatchObject({ x: FUNNEL.x, y: FUNNEL.y });
+      const last = poses.at(-1)!;
+      if (s + 1 < STAGES) expect(last).toMatchObject({ x: CUPS[s + 1].x, y: CUPS[s + 1].y, shown: 1 });
+      else expect(last).toMatchObject({ x: FUNNEL.x, y: FUNNEL.y });
       expect(cuesOf(way)[0]).toMatchObject({ sound: 'spring', cue: 'launch' });
       for (let i = 1; i < poses.length; i++) expect(Math.hypot(poses[i].x - poses[i - 1].x, poses[i].y - poses[i - 1].y)).toBeLessThan(8);
+      // Clear of the gate's foot and the cup's lip: the medal never goes below its cup until it lands on the next shelf.
+      for (const pose of poses.slice(0, Math.round(0.05 * 240))) expect(pose.y).toBeLessThanOrEqual(CUPS[s].y + 1);
       // Never through the shelf over its own cup: the lob passes under it.
       const shelf = SHELVES[s];
       for (const pose of poses) {
@@ -93,16 +97,24 @@ describe('the medal’s way', () => {
         const hi = Math.max(shelf.from.x, shelf.to.x);
         if (pose.x < lo || pose.x > hi || pose.y > CUPS[s].y + 2) continue;
         const line = shelf.from.y + ((shelf.to.y - shelf.from.y) * (pose.x - shelf.from.x)) / (shelf.to.x - shelf.from.x);
-        expect(pose.y - R, `gate ${s + 1}`).toBeGreaterThan(line);
+        expect(pose.y - R, `gate ${s + 1}, ${end}`).toBeGreaterThan(line + 2);
       }
     }
   });
 
   it('clacks against a shut gate, wobbles on a half-open one, and drops into the OUT hole, out of sight', () => {
-    for (const end of ['shut', 'graze-out', 'timeout'] as StageEnd[]) {
-      const way = flickTrack(1, end, false);
-      const last = poseAt(way, way.length);
-      expect(last).toMatchObject({ x: HOLES[1].x, y: HOLES[1].y, shown: 0 });
+    for (const s of [0, 1]) {
+      for (const end of ['shut', 'graze-out', 'timeout'] as StageEnd[]) {
+        const way = flickTrack(s, end, false);
+        const poses = along(way);
+        expect(poses.at(-1)).toMatchObject({ x: HOLES[s].x, y: HOLES[s].y, shown: 0 });
+        // It drops between the gate and the cup's lip, never through the cup's floor or the gate.
+        for (const pose of poses) {
+          if (pose.y <= CUPS[s].y + R + 3) continue;
+          expect(Math.min(Math.abs(pose.x - GATE_X[s]), Math.abs(pose.x - CUP_LIP[s])), `gate ${s + 1}, ${end}`).toBeGreaterThanOrEqual(R - 0.5);
+          expect(Math.sign(pose.x - GATE_X[s])).not.toBe(Math.sign(pose.x - CUP_LIP[s]));
+        }
+      }
     }
     expect(cuesOf(flickTrack(1, 'shut', false)).map((c) => c.sound)).toContain('clack');
     const grazed = flickTrack(2, 'graze-through', false);

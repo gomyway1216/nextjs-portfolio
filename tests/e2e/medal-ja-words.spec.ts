@@ -32,6 +32,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'HIGH & LOW': 'the High & Low Ladder’s marquee, over 「ラダー」',
   'SIC BO': 'the Sic Bo table’s marquee, under 「月夜の大小」',
   'WHALE ISLE': 'Whale Isle Sugoroku’s marquee, over 「すごろく」',
+  'MEDAL MAZE': 'the candy shop maze’s hand-painted sign, over 「だがしや」',
   // Lamps, pockets and reel symbols on a playfield, as real medal machines print them.
   JACKPOT: 'the pusher’s jackpot lamp',
   START: 'the pusher’s START pockets and the START buttons of the cabinets',
@@ -39,7 +40,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   BONUS: 'the Big Wheel’s bonus segments',
   FREE: 'Ball Bingo’s FREE pockets',
   CHANCE: 'Ball Bingo’s CHANCE pocket',
-  OUT: 'Ball Bingo’s OUT pockets',
+  OUT: 'Ball Bingo’s OUT pockets, and the OUT holes of the candy shop maze',
   GF: 'the pusher’s model number, 「型式 GF-777」',
   // A cabinet's main button, printed in English on the real thing.
   SPIN: 'the roulette and slot machines’ main button',

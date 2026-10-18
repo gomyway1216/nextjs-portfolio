@@ -650,7 +650,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (!active) return;
     const up = (event: KeyboardEvent) => {
       if (keyName(event.key) !== ' ' || !keyPulled.current) return;
-      if (!forTheMachine({ ...event, repeat: false })) return;
+      // A key let go is never a repeat; otherwise it is the machine's as its press was (a KeyboardEvent's fields are
+      // getters, so they are named one by one).
+      if (!forTheMachine({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, isComposing: event.isComposing, target: event.target })) return;
       keyPulled.current = false;
       event.preventDefault();
       release();
@@ -795,7 +797,6 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           {/* DROP, the lever and Skip: always in the same place, so nothing moves as a play goes on. */}
           <div className={styles.controls}>
             <button type="button" className={styles.dropButton} data-testid="cm-drop" aria-label={t.dropAria} onClick={(event) => drop(event.currentTarget)} disabled={!canDrop || bankState.balance < STAKE}>
-              <span className={styles.dropSlot} aria-hidden="true" />
               <span className={styles.dropWords}>{t.drop}</span>
             </button>
             <button

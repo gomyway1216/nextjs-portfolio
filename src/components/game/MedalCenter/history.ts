@@ -92,11 +92,11 @@ export const FLOOR_JACKPOT = 'floor-jackpot';
 
 /**
  * The games whose machine reports each round whole (`round`), because their
- * moves of medals are not rounds: the craps table's moves are chips going onto
- * the table and coming off it, a few to a roll, and a roll that loses every
- * bet moves none.
+ * moves of medals are not rounds: the craps table's and the Sic Bo table's
+ * moves are medals going onto the layout and coming off it, a few to a roll,
+ * and a roll that loses every bet moves none.
  */
-export const REPORTS_ROUNDS: ReadonlySet<string> = new Set(['craps']);
+export const REPORTS_ROUNDS: ReadonlySet<string> = new Set(['craps', 'sic-bo']);
 
 /** What an entry is. */
 export type EntryKind =

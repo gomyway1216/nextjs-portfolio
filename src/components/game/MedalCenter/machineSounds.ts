@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'shaker', 'dice'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -315,6 +315,29 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     for (const name of ['E6', 'G#6', 'B6']) note(t, 0.45, pitch(name), 0.5, 0.14, 0.01);
     return t;
   },
+  // The Sic Bo shaker (Moonlit Sic Bo): the platter's motor humming under the dome, and the three dice rattling
+  // against the glass and the felt, thick at first and thinning as the shake ends.
+  shaker: (rate) => {
+    const t = take(1.5, rate);
+    hiss(t, 0.0, 1.42, 0.35, 140, 131, true);
+    const next = noise(132);
+    for (let i = 0; i < 70; i++) {
+      const at = 0.01 + 1.36 * ((i + 0.5 + next() * 0.45) / 70);
+      const level = 0.55 + 0.3 * next();
+      knock(t, at, 1500 + 700 * next(), level * 0.45, 0.004);
+      hiss(t, at, 0.012, level * 0.5, 3600 + 1200 * next(), 140 + i);
+      if (i % 3 === 0) ping(t, at + 0.002, 4300 + 900 * next(), level * 0.12, 0.01);
+    }
+    return t;
+  },
+  // A die dropping onto the felt and coming to rest: a soft knock and the tick of its corner.
+  dice: (rate) => {
+    const t = take(0.12, rate);
+    knock(t, 0.001, 420, 0.7, 0.012);
+    hiss(t, 0.001, 0.02, 0.5, 2400, 211);
+    knock(t, 0.035, 900, 0.25, 0.005);
+    return t;
+  },
 };
 
 /** A bubble rising through water: a sine that sweeps up in pitch, swelling and dying away. */
@@ -350,7 +373,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7 };
 
 export interface Speaker {
   on: () => boolean;

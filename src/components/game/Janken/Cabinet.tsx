@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, 
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
+import { KeysHint } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -547,9 +548,11 @@ export const Cabinet = ({ active }: CabinetProps) => {
                   <HandIcon hand={hand} className={styles.handIcon} />
                 </span>
                 <span className={styles.handLabel}>{t.hands[hand]}</span>
-                <span className={styles.handSub} aria-hidden>
-                  {t.handsSub[hand]}
-                </span>
+                {t.handsSub && (
+                  <span className={styles.handSub} aria-hidden>
+                    {t.handsSub[hand]}
+                  </span>
+                )}
                 <kbd className={styles.kbd}>{i + 1}</kbd>
               </button>
             ))}
@@ -600,7 +603,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
             {t.refill(REFILL)}
           </button>
         )}
-        <p className={styles.keysHint}>{t.keysHint}</p>
+        <KeysHint text={t.keysHint} className={styles.keysHint} testId="janken-keys" />
         <p className={styles.centerNote}>
           {t.centerNote}{' '}
           <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="janken-center-note-link">

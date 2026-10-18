@@ -58,6 +58,14 @@ const times = (values: readonly number[], by: readonly number[]): number[] => [.
 export const PUSHER_JACKPOT_MOST = 10_000;
 /** Calico Janken's lamps (1, 2, 3, 5, 10) doubled one to four times: what a double-up can pay. */
 const JANKEN_DOUBLE_UPS = times([1, 2, 3, 5, 10], [2, 4, 8, 16]);
+/**
+ * Every win a hand of video poker pays, on every pay table and every bet of one to five coins: each line of the tables
+ * a coin (jacks or better 1, two pair 2, three of a kind 3, a straight 4, a flush 5 or 6, a full house 6 to 9, four of
+ * a kind 25, a straight flush 50), and a royal flush 250 a coin, or 4,000 on five.
+ */
+const VIDEO_POKER_WINS = [...times([1, 2, 3, 4, 5, 6, 7, 8, 9, 25, 50], [1, 2, 3, 4, 5]), 250, 500, 750, 1_000, 4_000];
+/** A video poker win doubled up one to four times (a push keeps it as it is): what a double won can bring back. */
+const VIDEO_POKER_DOUBLE_UPS = times(VIDEO_POKER_WINS, [2, 4, 8, 16]);
 
 /**
  * How the allowance is sized: a burst big enough for the machine's biggest win
@@ -92,11 +100,13 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   roulette: rule(17_820, 6_000, 360),
   // Split to four hands, each doubled and won: 4 × 40 = 160.
   blackjack: rule(160, 1_500, 60),
-  // A royal flush on five coins: 4,000 (250 a coin on fewer). Four of a kind 25 a coin, a straight flush 50.
-  'video-poker': rule(4_000, 900, 125, {
+  // A royal flush on five coins, 4,000 (250 a coin on fewer), doubled up four times: 64,000. Four of a kind 25 a coin,
+  // a straight flush 50; a double won brings back twice what was on it.
+  'video-poker': rule(64_000, 900, 125, {
     royal: { amounts: [250, 500, 750, 1_000, 4_000], feed: true },
     'straight-flush': { amounts: [50, 100, 150, 200, 250], feed: true },
     'four-kind': { amounts: [25, 50, 75, 100, 125], feed: false },
+    'double-up': { amounts: VIDEO_POKER_DOUBLE_UPS, feed: false },
   }),
   // A Dragon 7 with both pairs on the EZ table: 100 pushed + 20 × 41 + 2 × 20 × 12 = 1,400.
   baccarat: rule(1_400, 6_000, 200),

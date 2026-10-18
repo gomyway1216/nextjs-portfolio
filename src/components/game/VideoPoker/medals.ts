@@ -204,6 +204,8 @@ export const cardsOf = (h: SavedHand): number[] => (h.drawn ? drawCards({ hand: 
 export const wonBy = (h: SavedHand): number => (h.drawn ? payout(rankCards(cardsOf(h)), PAY_TABLES[h.payId], h.coins) : 0);
 /** The hands the medal floor names when they are won. */
 const FLOOR_HANDS: Partial<Record<number, string>> = { 9: 'royal', 8: 'straight-flush', 7: 'four-kind' };
+/** What the medal floor calls a double-up won. */
+export const FLOOR_DOUBLE = 'double-up';
 /** Where a drawn hand's win stands after its double-ups: worked out from the cards, never read from storage. */
 export const doubleOf = (h: SavedHand): DoubleState => doubleState(wonBy(h), h.doubles ?? []);
 /** Whether a double-up waits for its pick: its medals are out, and the hand is not over until it is picked. */
@@ -636,7 +638,10 @@ export function createMedalPlay(env: MedalPlayEnv) {
       } else memory = { key: key(), hand: next };
       const outcome = roundOutcome(picked)!;
       const back = stake * DOUBLE_RETURN[outcome];
-      if (back > 0) move(next, doublePayStep(n), back);
+      const paid = back > 0 ? move(next, doublePayStep(n), back) : null;
+      // The medal floor hears of a double won once, as its medals go in: what it made, the stake again (the stake was
+      // counted as it was won), and the medals it brought back for the boards. A push or a loss makes nothing.
+      if (outcome === 'win' && paid === 'applied') floorReport(GAME, { won: back - stake, prize: { medals: back, label: FLOOR_DOUBLE } });
       return { kind: 'picked', hand: next, outcome, stake, back, offer: doubleOf(next).offer };
     },
 

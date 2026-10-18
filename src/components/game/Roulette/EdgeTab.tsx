@@ -51,7 +51,7 @@ export const EdgeTab = () => {
 
   return (
     <div>
-      <h2 className={styles.blockTitle} style={{ color: 'var(--rl-gold)' }}>{t.edgeTitle}</h2>
+      <h2 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.edgeTitle}</h2>
 
       <div className={styles.formGrid} style={{ marginBottom: '1rem' }}>
         <label className={styles.field}>
@@ -92,8 +92,8 @@ export const EdgeTab = () => {
       {result && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className={styles.statGrid}>
-            <Stat label={t.theoretical} value={fmtPct(-HOUSE_EDGE)} accent="var(--rl-gold)" />
-            <Stat label={t.empirical} value={fmtPct(result.finalEdge)} accent="#38bdf8" />
+            <Stat label={t.theoretical} value={fmtPct(-HOUSE_EDGE)} accent="var(--rl-gold-text)" />
+            <Stat label={t.empirical} value={fmtPct(result.finalEdge)} accent="var(--rl-sky-text)" />
           </div>
 
           <div>

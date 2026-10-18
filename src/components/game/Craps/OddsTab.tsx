@@ -157,7 +157,9 @@ export const OddsTab = () => {
           <table className={styles.oddsTable}>
             <thead>
               <tr>
-                <th />
+                <th>
+                  <span className={styles.srOnly}>{t.colPassWay}</span>
+                </th>
                 <th className={styles.num}>{t.colChance}</th>
                 <th className={styles.num}>{t.colMake}</th>
                 <th className={styles.num}>{t.colContribution}</th>

@@ -9,12 +9,19 @@
   --vp-red: #ef4444;
   --vp-win: #16a34a;
   --vp-lose: #ef4444;
+  /* The verdict as text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
+  --vp-win-text: #15803d;
+  --vp-lose-text: #b91c1c;
   --cw: 86px;
   --ch: 122px;
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --vp-win-text: #4ade80;
+  --vp-lose-text: #f87171;
 }
 @media (max-width: 720px) {
   .root {
@@ -1036,10 +1043,10 @@
   font-weight: 750;
 }
 .verdict[data-good='true'] {
-  color: var(--vp-win);
+  color: var(--vp-win-text);
 }
 .verdict[data-good='false'] {
-  color: var(--vp-lose);
+  color: var(--vp-lose-text);
 }
 .note {
   margin: 0.5rem 0 0;

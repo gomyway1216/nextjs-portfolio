@@ -51,6 +51,8 @@ export interface CenterStrings {
   jpSay: string;
   /** A machine's best return, as its Odds tab publishes it. */
   bestReturn: (percent: string) => string;
+  /** The return of a machine every play of which brings back a figure in a range (each race of the horse race). */
+  returnRange: (least: string, most: string) => string;
   /** How many machines stand in a corner. */
   machineCount: (count: number) => string;
   /** The key to the plates, under the floor's lead. */
@@ -122,11 +124,12 @@ const en: CenterStrings = {
   jpBadge: 'FLOOR JP',
   jpSay: 'Linked to the floor jackpot.',
   bestReturn: (percent) => `Best return ${percent}`,
+  returnRange: (least, most) => `Return ${least}–${most}`,
   machineCount: (count) => (count === 1 ? '1 machine' : `${count} machines`),
   legendTitle: 'On the plates',
   legendJp: 'linked to the floor jackpot',
   legendNew: 'new on the floor',
-  legendReturn: 'Best return: the medals a machine brings back for every 100 played, at its best play, in the long run.',
+  legendReturn: 'Best return: the medals a machine brings back for every 100 played in the long run, at the best play a player can actually make.',
   rulesTitle: 'ABOUT YOUR MEDALS',
   rules: [
     'Every medal you drop at a machine comes out of your medals, and every medal you win is added to them as it lands. Nothing is left behind at the machine.',
@@ -185,11 +188,12 @@ const ja: CenterStrings = {
   jpBadge: 'JP対象',
   jpSay: 'フロアジャックポットの対象です。',
   bestReturn: (percent) => `最高還元率${percent}`,
+  returnRange: (least, most) => `還元率${least}〜${most}`,
   machineCount: (count) => `${count}台`,
   legendTitle: '台の見かた',
   legendJp: 'フロアジャックポットの対象',
   legendNew: '新しく入った台',
-  legendReturn: '最高還元率：いちばん良い遊び方で、遊んだメダル100枚につき長い目で見て戻ってくる枚数です。',
+  legendReturn: '最高還元率：実際にできるいちばん良い遊び方で、遊んだメダル100枚につき長い目で見て戻ってくる枚数です。',
   rulesTitle: 'メダルについて',
   rules: [
     'マシンに入れたメダルは持ちメダルから減り、勝ったメダルは落ちたそばから持ちメダルに加わります。マシンに残しておくメダルはありません。',

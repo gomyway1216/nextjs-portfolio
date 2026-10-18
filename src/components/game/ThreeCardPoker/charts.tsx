@@ -132,7 +132,7 @@ export const EvCurve = ({ values, threshold, thresholdLabel, foldLabel, xLabel, 
         {xLabel}
       </text>
       <line x1={pad.left} x2={width - pad.right} y1={y(-1)} y2={y(-1)} stroke="#ef4444" strokeWidth={1.4} strokeDasharray="6 4" />
-      <text x={width - pad.right - 4} y={y(-1) + 14} textAnchor="end" fill="#ef4444" fontSize={11} fontWeight={700}>
+      <text x={width - pad.right - 4} y={y(-1) + 14} textAnchor="end" fill="var(--tcp-lose-text, #b91c1c)" fontSize={11} fontWeight={700}>
         {foldLabel}
       </text>
       <line x1={cut} x2={cut} y1={pad.top} y2={pad.top + innerH} stroke="#e9c46a" strokeWidth={1.4} />

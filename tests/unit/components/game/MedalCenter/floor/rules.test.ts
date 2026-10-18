@@ -48,6 +48,8 @@ import { BET_OPTIONS as BINGO_BETS, FULL_CARD_LINES, MOST_WIN as BINGO_MOST, ana
 import { LAMPS as WHEEL_LAMPS, SPOTS as WHEEL_SPOTS, TOP_MULTIPLE as WHEEL_TOP, analyzeWheel, valueOf as wheelValue } from '@/components/game/BigWheel/engine';
 import { SPIN_STAKE_MOST as WHEEL_STAKE_MOST, SPOT_MAX as WHEEL_SPOT_MAX } from '@/components/game/BigWheel/medalTable';
 import { BETS as LADDER_BETS, BET_MOST as LADDER_BET_MOST, TOP as LADDER_TOP, analyzeLadder, payFor as ladderPays, valueOf as ladderValue } from '@/components/game/HighLow/engine';
+import { BET_IDS as SIC_BO_AREAS, MOST_BACK_PER_MEDAL as SIC_BO_MOST_BACK, PAYTABLE as SIC_BO_PAYS, analyze as sicBoOdds, resolveRoll as sicBoRoll, valueOf as sicBoValue, type Dice as SicBoDice } from '@/components/game/SicBo/engine';
+import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } from '@/components/game/SicBo/medalTable';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -144,6 +146,10 @@ describe('the most each machine can take from the player at once, for the medals
     // The High & Low Ladder: one game's bet at its biggest, out from START until the game ends.
     expect(FLOOR_RULES['high-low'].stakeMost).toBe(LADDER_BET_MOST);
     expect(LADDER_BET_MOST).toBe(Math.max(...LADDER_BETS));
+    // Sic Bo: every area of the layout at its most.
+    expect(FLOOR_RULES['sic-bo'].stakeMost).toBe(SIC_BO_STAKE_MOST);
+    expect(SIC_BO_STAKE_MOST).toBe(SIC_BO_AREAS.length * SIC_BO_SPOT_MAX);
+    expect(SIC_BO_STAKE_MOST).toBe(4_950);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -190,6 +196,8 @@ describe('which machines are linked to the floor jackpot', () => {
       // Best play (TAKE or go on, HIGH or LOW, per card and rung), worked out by dynamic programming: the same at every
       // bet, since every rung pays in proportion to the bet.
       'high-low': ladderValue(analyzeLadder().best),
+      // Small or Big, the best of the 50 areas, worked out over the 216 rolls (engine.test.ts adds them up again).
+      'sic-bo': sicBoValue(sicBoOdds().best),
     };
   };
 
@@ -205,7 +213,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -373,6 +381,22 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES['high-low'].bestReturn).toBe(0.8997);
   });
 
+  it('Moonlit Sic Bo: a triple 2 or 5 with 99 medals on every area it wins, and the named triples from their smallest win', () => {
+    // Every area at its most, every roll: the most any roll brings back.
+    const everything = Object.fromEntries(SIC_BO_AREAS.map((id) => [id, SIC_BO_SPOT_MAX]));
+    let most = 0;
+    for (let a = 1; a <= 6; a++)
+      for (let b = 1; b <= 6; b++)
+        for (let c = 1; c <= 6; c++) most = Math.max(most, sicBoRoll(everything, [a, b, c] as unknown as SicBoDice).returned);
+    expect(most).toBe(SIC_BO_MOST_BACK * SIC_BO_SPOT_MAX);
+    expect(FLOOR_RULES['sic-bo'].most).toBe(most);
+    expect(FLOOR_RULES['sic-bo'].most).toBe(24_255);
+    // A triple bet won brings back at least 181 on one medal; any triple at least 31.
+    expect(FLOOR_RULES['sic-bo'].labels['sicbo-triple']).toEqual({ min: SIC_BO_PAYS.triple + 1, max: most, feed: true });
+    expect(FLOOR_RULES['sic-bo'].labels['sicbo-any-triple']).toEqual({ min: SIC_BO_PAYS.anyTriple + 1, max: most, feed: false });
+    expect(FLOOR_RULES['sic-bo'].bestReturn).toBe(0.9723);
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -409,6 +433,10 @@ describe('named wins and the feed', () => {
     expect(labelPays('high-low', 'ladder-top', 2_000)).toBe(true);
     expect(labelPays('high-low', 'ladder-top', 200)).toBe(true);
     expect(labelPays('high-low', 'ladder-top', 120)).toBe(false);
+    expect(labelPays('sic-bo', 'sicbo-triple', 181)).toBe(true);
+    expect(labelPays('sic-bo', 'sicbo-triple', 180)).toBe(false);
+    expect(labelPays('sic-bo', 'sicbo-any-triple', 31)).toBe(true);
+    expect(labelPays('sic-bo', 'sicbo-any-triple', 24_256)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -431,5 +459,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('high-low', 200, 'ladder-top')).toBe(true);
     expect(feedWorthy('high-low', 240)).toBe(false);
     expect(feedWorthy('high-low', 400)).toBe(true);
+    expect(feedWorthy('sic-bo', 181, 'sicbo-triple')).toBe(true);
+    expect(feedWorthy('sic-bo', 62, 'sicbo-any-triple')).toBe(false);
+    expect(feedWorthy('sic-bo', 300)).toBe(true);
   });
 });

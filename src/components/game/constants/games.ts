@@ -479,4 +479,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'sic-bo',
+    title: 'Moonlit Sic Bo',
+    description: 'An electronic Sic Bo table at the Medal Center: put your medals on Small, Big, totals, doubles, triples and single numbers, watch three dice tumble under a glass dome, and see every winning area light up — on a real casino paytable, Small and Big bringing back 97.2%.',
+    thumbnail: '🎲',
+    path: '/games/sic-bo',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

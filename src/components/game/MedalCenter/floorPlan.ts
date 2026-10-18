@@ -66,13 +66,15 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   'big-wheel': 'big',
   // A card machine stands with the video machines: a screen of cards and a row of buttons, as a medal poker cabinet does.
   'high-low': 'video',
+  // An electronic Sic Bo table stands with the casino tables at the back, as on a casino's floor.
+  'sic-bo': 'table',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -90,6 +92,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'ball-bingo': { en: 'Drop balls through the pins; line up a 3×3 card.', ja: '釘を抜けるボールで3×3のビンゴをそろえよう。' },
   'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
   'high-low': { en: 'Higher or lower? Climb 12 rungs, or TAKE.', ja: '次はハイかローか。12段のラダーを上ろう' },
+  'sic-bo': { en: 'Three dice in a glass dome; a triple pays 180:1.', ja: 'ドームで振る3つのサイコロ。ゾロ目は180:1' },
 };
 
 /**
@@ -105,6 +108,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'horse-race': ['ミニターフ', '競馬'],
   'big-wheel': ['星まつり', 'ビッグホイール'],
   'high-low': ['ハイ＆ロー', 'ラダー'],
+  'sic-bo': ['月夜の', 'シックボー'],
 };
 
 /** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */

@@ -2772,7 +2772,9 @@
 }
 /* Every control is at least 44 px to hit. The switches and the tabs were 32 to 37 px tall: they look as they did,
    and what takes the touch is a strip 44 px tall through the middle of each. The rows of switches are far enough
-   apart that the strips of two rows do not meet, with a pixel to spare (see .feel). The refill is simply that tall. */
+   apart that the strips of two rows do not meet, with a pixel to spare (see .feel). The refill is simply that tall.
+   The strip is placed by its top, not moved there by a transform: Firefox hit-tests a moved one on the screen's
+   pixels, and it was a quarter of a pixel short of 44 there. */
 .toggle,
 .tab {
   position: relative;
@@ -2783,9 +2785,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: 50%;
+  top: calc(50% - 22px);
   height: 44px;
-  transform: translateY(-50%);
 }
 .refill {
   min-height: 44px;

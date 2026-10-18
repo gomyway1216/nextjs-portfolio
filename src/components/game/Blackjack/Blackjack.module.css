@@ -1616,3 +1616,11 @@
 .statsHead .linkButton {
   white-space: nowrap;
 }
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.soundToggle,
+.hintToggle {
+  min-height: 44px;
+}

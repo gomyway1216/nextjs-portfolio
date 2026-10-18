@@ -289,7 +289,8 @@ const EN: RouletteStrings = {
   red: 'RED',
   black: 'BLACK',
   columnLabel: (n) => `Col ${n} (2:1)`,
-  dozenLabel: (lo, hi) => `${lo}–${hi} (2:1)`,
+  // A word joiner each side of the dash: a narrow cell breaks the label before 「(2:1)」, never in 「25–｜36」.
+  dozenLabel: (lo, hi) => `${lo}\u2060–\u2060${hi} (2:1)`,
   howToPlay: 'How to play',
   infoBody: [
     'This is a European (single-zero) wheel: pockets 0–36, with 0 green. Because the odds are set for a 36-pocket wheel but the wheel has 37 pockets, every bet carries the same house edge of 1/37 ≈ 2.70%.',
@@ -352,8 +353,8 @@ const JA: RouletteStrings = {
   subtitle:
     'ヨーロピアンルーレット（0のみ・期待値 −2.70%）をメダルゲームセンターの持ちメダルで遊び、大数の法則のもとでマーチンゲール法が破綻することを確かめる。',
   tabPlay: '遊ぶ',
-  tabSim: 'マーチン法シミュレーション',
-  tabEdge: 'ハウスエッジ検証',
+  tabSim: 'マーチン法',
+  tabEdge: 'ハウスエッジ',
   centerLink: 'メダルゲームセンター',
   medals: '持ちメダル',
   bet: 'ベット',
@@ -422,14 +423,15 @@ const JA: RouletteStrings = {
   red: '赤',
   black: '黒',
   columnLabel: (n) => `コラム${n} (2:1)`,
-  dozenLabel: (lo, hi) => `${lo}–${hi} (2:1)`,
+  // A word joiner each side of the dash: a narrow cell breaks the label before 「(2:1)」, never in 「25–｜36」.
+  dozenLabel: (lo, hi) => `${lo}\u2060–\u2060${hi} (2:1)`,
   howToPlay: '遊び方',
   infoBody: [
     'ヨーロピアン（0のみ）ホイールです: ポケット 0–36、0 は緑。配当は 36 ポケット基準なのにホイールは 37 ポケットあるため、どのベットでもハウスエッジは同じ 1/37 ≈ 2.70% になります。',
     `メダルゲームセンターの持ちメダルでベットします。1回のベット枚数（${BET_STEPS.join('・')}枚）を選び、ベットエリアをタップしてメダルを重ね、SPIN を押します。テーブル上のメダルはホイールが回るときに使われ、当たった分はボールが止まったときに持ちメダルに加わります。ベットは1枚から、1か所${SPOT_MAX}枚までです。`,
     'インサイドは数字グリッド上、アウトサイド（赤黒・偶奇・ダズン・コラム等）はその周囲にあります。',
     'スピンの取り消しはできません。出目は SPIN を押したときに決まります。ボールが回っている間にページを隠したり、離れたり、読み込み直したりした場合は、その出目でスピンを精算し、当たった分を持ちメダルに加えます。',
-    'マーチン法タブとハウスエッジ検証タブは仮のメダルを使う統計デモで、持ちメダルは使いません。期待値がマイナスの勝負に長期的に勝てるベットシステムは存在しません。',
+    '「マーチン法」タブと「ハウスエッジ」タブは仮のメダルを使う統計デモで、持ちメダルは使いません。期待値がマイナスの勝負に長期的に勝てるベットシステムは存在しません。',
     NOT_MONEY.ja,
   ],
   payoutTableTitle: '配当（ベット1枚あたりの獲得枚数。ベットした分も戻ります）',

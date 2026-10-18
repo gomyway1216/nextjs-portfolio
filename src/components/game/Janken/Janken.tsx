@@ -10,6 +10,7 @@ import { CatFace } from './art';
 import { Cabinet } from './Cabinet';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
+import floorTabs from '../MedalCenter/tabs.module.css';
 import styles from './Janken.module.css';
 import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
@@ -86,7 +87,7 @@ export const Janken = ({ player, bankStore = null, legacyStores }: JankenProps =
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
         <FloorJackpotStrip game="janken" />
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb, index) => (
             <button
               key={tb.id}
@@ -99,7 +100,7 @@ export const Janken = ({ player, bankStore = null, legacyStores }: JankenProps =
               aria-selected={tab === tb.id}
               aria-controls={`janken-panel-${tb.id}`}
               tabIndex={tab === tb.id ? 0 : -1}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
               onKeyDown={(event) => onTabKeyDown(event, index)}
             >

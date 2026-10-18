@@ -1540,3 +1540,11 @@
 .calloutIdle {
   font-size: clamp(0.78rem, 3.7vw, 0.95rem);
 }
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.soundToggle,
+.modeBtn {
+  min-height: 44px;
+}

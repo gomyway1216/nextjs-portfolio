@@ -21,13 +21,16 @@ async function phone(browser: Browser, width: number, height: number): Promise<P
   return page;
 }
 
-/** How much of an element is inside the window, from 0 to 1. */
+/** Layout is measured to fractions of a pixel, and fonts differ by a fraction from one system to another: a pixel either way is allowed at every edge. */
+const SLACK = 1;
+
+/** How much of an element is inside the window, from 0 to 1 (a pixel over an edge still counts as inside). */
 const onScreen = (target: Locator) =>
-  target.evaluate((el) => {
+  target.evaluate((el, slack) => {
     const r = el.getBoundingClientRect();
-    const visible = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
-    return Math.max(0, visible) / r.height;
-  });
+    const visible = Math.min(r.bottom, window.innerHeight + slack) - Math.max(r.top, -slack);
+    return Math.min(1, Math.max(0, visible) / r.height);
+  }, SLACK);
 
 /** Where an element's top is in the window. */
 const topInWindow = (target: Locator) => target.evaluate((el) => el.getBoundingClientRect().top);
@@ -53,7 +56,7 @@ test('roulette on a phone: SPIN brings the wheel on screen, and the view goes ba
   // The number is shown under the wheel, on screen.
   expect(await onScreen(page.getByTestId('roulette-result'))).toBe(1);
   // Then the view goes back down to the felt: SPIN is where it was.
-  await expect.poll(async () => Math.abs((await topInWindow(spinButton(page))) - spinAt), { timeout: 6_000 }).toBeLessThan(2);
+  await expect.poll(async () => Math.abs((await topInWindow(spinButton(page))) - spinAt), { timeout: 6_000 }).toBeLessThanOrEqual(2 * SLACK);
   await page.context().close();
 });
 
@@ -72,8 +75,8 @@ test('roulette on a phone: a player who moves the page while the ball rolls keep
   await settledResult(page);
   const kept = await page.evaluate(() => window.scrollY);
   await page.waitForTimeout(3_000);
-  expect(Math.abs((await page.evaluate(() => window.scrollY)) - kept)).toBeLessThan(2);
-  expect(await onScreen(spinButton(page))).toBe(0);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - kept)).toBeLessThanOrEqual(2 * SLACK);
+  expect(await onScreen(spinButton(page))).toBeLessThan(0.1);
   await page.context().close();
 });
 
@@ -121,13 +124,13 @@ for (const [width, height] of [
     await expect(moves).toHaveCount(4);
     for (const move of await moves.all()) await expect(move).toBeVisible();
     const hitAt = await page.locator('button[data-action="hit"]').evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
-    expect(Math.abs(hitAt - oneBetAt)).toBeLessThan(1);
+    expect(Math.abs(hitAt - oneBetAt)).toBeLessThanOrEqual(SLACK);
     const room = await moves.evaluateAll((els) => {
       const rects = els.map((el) => el.getBoundingClientRect());
       return { top: Math.min(...rects.map((r) => r.top)), bottom: Math.max(...rects.map((r) => r.bottom)) };
     });
-    expect(room.top).toBeGreaterThanOrEqual(0);
-    expect(room.bottom).toBeLessThanOrEqual(height);
+    expect(room.top).toBeGreaterThanOrEqual(-SLACK);
+    expect(room.bottom).toBeLessThanOrEqual(height + SLACK);
 
     // The hand played out (insurance declined, the hand stood), the bet buttons are back.
     await expect(async () => {

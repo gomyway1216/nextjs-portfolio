@@ -46,9 +46,18 @@ export interface FeedListProps extends FloorWords {
 
 export function FeedList({ feed, now, loading, unavailable, onHide, t, gameName, fmt }: FeedListProps) {
   if (feed.length === 0) {
-    return (
+    // While the floor is being read, the quiet floor's line holds its place unseen under the dots: it is what comes in
+    // most often, and then nothing under it moves.
+    return loading ? (
+      <p className={`${styles.empty} ${styles.holder}`} data-testid="floor-feed-empty">
+        <span>…</span>
+        <span className={styles.unseen} aria-hidden="true">
+          {t.feedEmpty}
+        </span>
+      </p>
+    ) : (
       <p className={styles.empty} data-testid="floor-feed-empty">
-        {loading ? '…' : unavailable ? t.feedUnavailable : t.feedEmpty}
+        {unavailable ? t.feedUnavailable : t.feedEmpty}
       </p>
     );
   }
@@ -77,19 +86,23 @@ export interface BoardProps extends FloorWords {
   title: string;
   rows: FloorRow[];
   testId: string;
+  /** While the floor is being read: the board is drawn empty, its line held unseen, so it comes in where it was held. */
+  holding?: boolean;
   /** The board's heading level: an h4 under the hub's RANKINGS (an h3); on the rankings page, an h2 standing alone, or an h3 under a panel's h2. */
   level?: 2 | 3 | 4;
   /** The owner's controls on each line. */
   owner?: { hide: (row: FloorRow, hidden: boolean) => void; block: (row: FloorRow, blocked: boolean) => void };
 }
 
-export function Board({ title, rows, testId, owner, level = 4, t, fmt }: BoardProps) {
+export function Board({ title, rows, testId, holding = false, owner, level = 4, t, fmt }: BoardProps) {
   const Title = level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4';
   return (
     <div className={styles.board} data-testid={testId}>
       <Title className={styles.boardTitle}>{title}</Title>
       {rows.length === 0 ? (
-        <p className={styles.empty}>{t.boardEmpty}</p>
+        <p className={holding ? `${styles.empty} ${styles.unseen}` : styles.empty} aria-hidden={holding || undefined}>
+          {t.boardEmpty}
+        </p>
       ) : (
         <ol className={styles.rows}>
           {rows.map((row, index) => (
@@ -118,11 +131,13 @@ export function Board({ title, rows, testId, owner, level = 4, t, fmt }: BoardPr
 }
 
 export interface BestAtEachProps extends FloorWords {
-  boards: FloorBoards;
+  boards: Pick<FloorBoards, 'best'>;
+  /** While the floor is being read: the board is drawn empty, its line held unseen, so it comes in where it was held. */
+  holding?: boolean;
 }
 
 /** The hub's short board: the biggest win at each machine that has one, the machine's name with it. */
-export function BestAtEach({ boards, t, gameName, fmt }: BestAtEachProps) {
+export function BestAtEach({ boards, holding = false, t, gameName, fmt }: BestAtEachProps) {
   const lines = FLOOR_GAMES.flatMap((game) => {
     const top = boards.best[game]?.[0];
     return top ? [{ game, top }] : [];
@@ -131,7 +146,9 @@ export function BestAtEach({ boards, t, gameName, fmt }: BestAtEachProps) {
     <div className={styles.board} data-testid="floor-best">
       <h4 className={styles.boardTitle}>{t.bestBoard}</h4>
       {lines.length === 0 ? (
-        <p className={styles.empty}>{t.boardEmpty}</p>
+        <p className={holding ? `${styles.empty} ${styles.unseen}` : styles.empty} aria-hidden={holding || undefined}>
+          {t.boardEmpty}
+        </p>
       ) : (
         <ul className={styles.rows}>
           {lines.map(({ game, top }) => (
@@ -224,7 +241,15 @@ export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave
           )}
         </p>
       )}
-      {state.kind === 'checking' && <p className={styles.placeText}>{t.checking}</p>}
+      {/* While it is asked, a guest's line holds its place unseen under the question: most visitors are guests. */}
+      {state.kind === 'checking' && (
+        <p className={`${styles.placeText} ${styles.holder}`}>
+          <span>{t.checking}</span>
+          <span className={styles.unseen} aria-hidden="true">
+            {t.signInToJoin}
+          </span>
+        </p>
+      )}
       {state.kind === 'unavailable' && <p className={styles.placeText}>{t.feedUnavailable}</p>}
       {state.kind === 'blocked' && <p className={styles.placeText}>{t.blocked}</p>}
       {(state.kind === 'off' || state.kind === 'on') && (

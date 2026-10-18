@@ -514,8 +514,9 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
             ))}
           </div>
 
-          <p className={styles.message} role="status" data-testid="craps-message">
-            {message ?? (point === null ? t.comeOut : t.pointIs(point))}
+          <p className={styles.message} data-testid="craps-message">
+            <span role="status">{message ?? ''}</span>
+            {message === null && (point === null ? t.comeOut : t.pointIs(point))}
           </p>
 
           <div className={styles.actions}>

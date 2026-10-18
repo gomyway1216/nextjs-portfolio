@@ -1398,6 +1398,10 @@
     "sugoroku": {
       "title": "Whale Isle Sugoroku",
       "description": "The board-game machine of the Medal Center: roll the die in its dome, sail the boat round thirty squares of Whale Isle, and ride the whale to the blowhole for the jackpot — with every square’s next roll worked out exactly, so that no square is one to bet big on."
+    },
+    "coin-maze": {
+      "title": "Candy Shop Medal Maze",
+      "description": "The candy shop corner’s flick-a-medal maze: drop one medal into the glass case, flick it with the levers through four moving gates and down the pins into WIN — with perfect timing, an everyday hand and blind presses each worked out exactly, so that no timing beats the machine."
     }
   },
   "home": {

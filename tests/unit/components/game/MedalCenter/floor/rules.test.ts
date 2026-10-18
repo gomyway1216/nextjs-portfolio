@@ -51,6 +51,7 @@ import { BETS as LADDER_BETS, BET_MOST as LADDER_BET_MOST, TOP as LADDER_TOP, an
 import { BET_IDS as SIC_BO_AREAS, MOST_BACK_PER_MEDAL as SIC_BO_MOST_BACK, PAYTABLE as SIC_BO_PAYS, analyze as sicBoOdds, resolveRoll as sicBoRoll, valueOf as sicBoValue, type Dice as SicBoDice } from '@/components/game/SicBo/engine';
 import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } from '@/components/game/SicBo/medalTable';
 import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUGOROKU_SQUARES, analyzeBoard, labelOf as sugorokuLabel, medalsFor as sugorokuMedals, outcomesFrom as sugorokuOutcomes, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
+import { MOST_WIN as MAZE_MOST, PAYS as MAZE_PAYS, STAGES as MAZE_GATES, STAKE as MAZE_STAKE, analyze as mazeOdds, drawPlay as mazeDraw, labelOf as mazeLabel, playOf as mazePlay, seeded as mazeSeeded, valueOf as mazeValue } from '@/components/game/CoinMaze/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -154,6 +155,9 @@ describe('the most each machine can take from the player at once, for the medals
     // Whale Isle Sugoroku: one roll at its biggest bet (a ride and a chance are part of the roll, and take nothing more).
     expect(FLOOR_RULES.sugoroku.stakeMost).toBe(SUGOROKU_BET_MOST);
     expect(SUGOROKU_BET_MOST).toBe(Math.max(...SUGOROKU_BETS));
+    // Candy Shop Medal Maze: one medal a play, the one that rolls.
+    expect(FLOOR_RULES['coin-maze'].stakeMost).toBe(MAZE_STAKE);
+    expect(MAZE_STAKE).toBe(1);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -205,6 +209,9 @@ describe('which machines are linked to the floor jackpot', () => {
       // The best square's next roll (the board's Markov chain, exact): the player sees the square before choosing the
       // bet, so the floor is told the best of every square, not the long run of steady play.
       sugoroku: sugorokuValue(analyzeBoard().best),
+      // Perfect timing at every gate (dynamic programming down the four gates and the pins, exact): no way of playing
+      // brings back more.
+      'coin-maze': mazeValue(mazeOdds().perfect.back),
     };
   };
 
@@ -220,7 +227,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -433,6 +440,27 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(sugorokuValue(odds.betting.value)).toBeLessThan(FLOOR_RULES.sugoroku.bestReturn);
   });
 
+  it('Candy Shop Medal Maze: the BIG WIN at the end pockets, the WIN in the middle, and perfect timing as the best return', () => {
+    expect(FLOOR_RULES['coin-maze'].most).toBe(MAZE_MOST);
+    expect(FLOOR_RULES['coin-maze'].most).toBe(5);
+    expect(FLOOR_RULES['coin-maze'].labels['maze-big']).toEqual({ amounts: [MAZE_PAYS.big], feed: true });
+    expect(FLOOR_RULES['coin-maze'].labels['maze-win']).toEqual({ amounts: [MAZE_PAYS.win], feed: false });
+    // Every named win a play can make is one the floor believes.
+    const random = mazeSeeded(3);
+    for (let n = 0; n < 2_000; n++) {
+      const play = mazePlay(mazeDraw(random), [1, 1, 1, 1].slice(0, MAZE_GATES), true);
+      const label = mazeLabel(play);
+      if (label) expect(labelPays('coin-maze', label, play.won)).toBe(true);
+      expect(play.won).toBeLessThanOrEqual(FLOOR_RULES['coin-maze'].most);
+    }
+    // The rule is perfect timing, 121,275/131,072, rounded up; an everyday hand and blind presses bring back less.
+    const odds = mazeOdds();
+    expect(`${odds.perfect.back.num}/${odds.perfect.back.den}`).toBe('121275/131072');
+    expect(FLOOR_RULES['coin-maze'].bestReturn).toBe(0.9253);
+    expect(mazeValue(odds.typical.back)).toBeLessThan(FLOOR_RULES['coin-maze'].bestReturn);
+    expect(mazeValue(odds.blind.back)).toBeLessThan(mazeValue(odds.typical.back));
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -478,6 +506,10 @@ describe('named wins and the feed', () => {
     expect(labelPays('sugoroku', 'sugoroku-jp', 199)).toBe(false);
     expect(labelPays('sugoroku', 'whale-ride', 70)).toBe(true);
     expect(labelPays('sugoroku', 'whale-ride', 71)).toBe(false);
+    expect(labelPays('coin-maze', 'maze-big', 5)).toBe(true);
+    expect(labelPays('coin-maze', 'maze-big', 2)).toBe(false);
+    expect(labelPays('coin-maze', 'maze-win', 2)).toBe(true);
+    expect(labelPays('coin-maze', 'maze-win', 5)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -506,5 +538,7 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('sugoroku', 200, 'sugoroku-jp')).toBe(true);
     expect(feedWorthy('sugoroku', 70, 'whale-ride')).toBe(false);
     expect(feedWorthy('sugoroku', 300)).toBe(true);
+    expect(feedWorthy('coin-maze', 5, 'maze-big')).toBe(true);
+    expect(feedWorthy('coin-maze', 2, 'maze-win')).toBe(false);
   });
 });

@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -361,7 +361,61 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     note(t, 0.004, pitch('A5'), 0.025, 0.12);
     return t;
   },
+  // The candy-shop maze's lever let go: the spring's twang, and the striker's knock on the medal.
+  spring: (rate) => {
+    const t = take(0.36, rate);
+    knock(t, 0.002, 1500, 0.55, 0.006);
+    twang(t, 0.004, 310, 0.6, 0.09);
+    ping(t, 0.006, 2600, 0.2, 0.02);
+    return t;
+  },
+  // A medal rolling down a wooden shelf: a low rumble that swells and dies, and the faint tick of its rim.
+  roll: (rate) => {
+    const t = take(0.5, rate);
+    hiss(t, 0, 0.48, 0.9, 520, 241, true);
+    hiss(t, 0, 0.48, 0.35, 1900, 242, true);
+    for (let i = 0; i < 6; i++) knock(t, 0.05 + i * 0.07, 2100 + (i % 2) * 300, 0.06, 0.003);
+    return t;
+  },
+  // A medal against a gate: a hard little clack of steel on painted wood.
+  clack: (rate) => {
+    const t = take(0.18, rate);
+    knock(t, 0.001, 1700, 0.8, 0.006);
+    ping(t, 0.002, 3100, 0.35, 0.025);
+    hiss(t, 0.001, 0.02, 0.6, 4200, 251);
+    knock(t, 0.045, 1500, 0.25, 0.004);
+    return t;
+  },
+  // A medal on a brass pin: a bright tick.
+  pin: (rate) => {
+    const t = take(0.12, rate);
+    ping(t, 0.001, 3400, 0.5, 0.018);
+    hiss(t, 0.001, 0.012, 0.35, 5600, 261);
+    return t;
+  },
+  // A medal landing in a pocket: the clunk of the pocket's floor and the medal's ring settling.
+  pocket: (rate) => {
+    const t = take(0.42, rate);
+    knock(t, 0.002, 320, 0.9, 0.03);
+    clink(t, 0.004, 0.7, 271);
+    clink(t, 0.11, 0.35, 272);
+    clink(t, 0.19, 0.18, 273);
+    return t;
+  },
 };
+
+/** A spring let go: a tone bent down from a wobble, dying away. */
+function twang(t: Take, at: number, hz: number, level: number, life: number): void {
+  const start = Math.floor(at * t.rate);
+  const total = Math.min(t.out.length - start, Math.ceil(life * 6 * t.rate));
+  let phase = 0;
+  for (let i = 0; i < total; i++) {
+    const s = i / t.rate;
+    const f = hz * (1 + 0.35 * Math.exp(-s / 0.03)) * (1 + 0.04 * Math.sin(TAU * 18 * s));
+    phase += (TAU * f) / t.rate;
+    t.out[start + i] += level * (Math.sin(phase) + 0.3 * Math.sin(phase * 2.01)) * Math.exp(-s / life) * Math.min(1, s / 0.002);
+  }
+}
 
 /** A bubble rising through water: a sine that sweeps up in pitch, swelling and dying away. */
 function bubble(t: Take, at: number, from: number, to: number, length: number, level: number): void {
@@ -396,7 +450,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6 };
 
 export interface Speaker {
   on: () => boolean;

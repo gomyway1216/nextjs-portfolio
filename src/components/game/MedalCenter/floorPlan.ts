@@ -71,13 +71,15 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   // A board-game machine stands among the big machines, as the board-game medal machines of a real floor are big
   // cabinets in the middle of it.
   sugoroku: 'big',
+  // A flick-a-medal maze stands in the candy shop corner, as the 10-yen flick games stood outside a candy shop.
+  'coin-maze': 'kids',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -97,6 +99,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'high-low': { en: 'Higher or lower? Climb 12 rungs, or TAKE.', ja: '次はハイかローか。12段のラダーを上ろう' },
   'sic-bo': { en: 'Three dice in a glass dome; a triple pays 180:1.', ja: 'ドームで振る3つのサイコロ。ゾロ目は180:1' },
   sugoroku: { en: 'Roll the die, sail the isle, ride the whale.', ja: 'サイコロで島をめぐり、くじらに乗ろう' },
+  'coin-maze': { en: 'Flick one medal through four gates to WIN.', ja: 'レバーではじいて4つのゲートを抜けよう' },
 };
 
 /**
@@ -114,6 +117,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'high-low': ['ハイ＆ロー', 'ラダー'],
   'sic-bo': ['月夜の', 'シックボー'],
   sugoroku: ['くじら島', 'すごろく'],
+  'coin-maze': ['駄菓子屋', 'メダル', 'めいろ'],
 };
 
 /** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */

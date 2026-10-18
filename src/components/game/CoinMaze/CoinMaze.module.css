@@ -1,0 +1,950 @@
+/* Candy Shop Medal Maze. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette of
+   its own — a small upright case of varnished wood with a hand-painted sign, a glass front over a painted backboard,
+   and a chunky lever under it — that reads on both. Nothing here uses 3D transforms (WebKit flattens them): the case
+   is drawn flat, its depth in shadows. The medal, the gates and the strikers are moved by transform on their SVG
+   elements, a frame at a time (PlayTab.tsx); nothing else animates but the lever's spring and the sign's lamps. */
+
+.root {
+  --cm-wood: #8a5a2b;
+  --cm-wood-dark: #4f3014;
+  --cm-wood-light: #c08a4f;
+  --cm-paint-red: #d6352f;
+  --cm-cream: #fff6e3;
+  --cm-focus: #ffd34d;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --cm-accent-text: #a3321c;
+  --cm-ahead: #15803d;
+  --cm-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --cm-accent-text: #ffa98f;
+  --cm-ahead: #4ade80;
+  --cm-behind: #f87171;
+}
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The machine's name is never broken inside a word: its words are kept whole, and 遊び方 moves under it when they do
+     not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.32rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleMedal {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: #a3321c;
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 440px);
+}
+@media (min-width: 900px) {
+  .machine {
+    grid-template-columns: minmax(0, 440px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+
+/* The cabinet: a small upright case of varnished wood, its grain in stripes, its corners rounded by years of hands. */
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.8rem;
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 9px, rgba(255, 255, 255, 0.05) 9px 11px, transparent 11px 17px),
+    linear-gradient(180deg, var(--cm-wood-light) 0%, var(--cm-wood) 35%, var(--cm-wood-dark) 100%);
+  border: 3px solid #3a220d;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.12),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.25),
+    0 14px 28px rgba(0, 0, 0, 0.3);
+  color: #fff8ec;
+}
+@media (max-width: 400px) {
+  .cabinet {
+    padding: 0.4rem 0.35rem 0.7rem;
+    border-radius: 14px;
+  }
+}
+
+/* The hand-painted sign on top: cream boards, red brush letters, the shop's name under them. */
+.sign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 0.4rem 0.45rem;
+  padding: 0.3rem 0.5rem 0.25rem;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(90deg, rgba(120, 72, 20, 0.08) 0 1px, transparent 1px 22px),
+    linear-gradient(180deg, #fffaf0 0%, #f5e6c8 100%);
+  border: 2px solid #3a220d;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  line-height: 1.05;
+}
+.signMain {
+  font-size: clamp(1.15rem, 6vw, 1.55rem);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: var(--cm-paint-red);
+  text-shadow:
+    1px 1px 0 #ffd27a,
+    2px 2px 0 rgba(90, 30, 0, 0.35);
+  white-space: nowrap;
+}
+.signSub {
+  margin-top: 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #5a3a1a;
+  white-space: nowrap;
+}
+
+/* ---------- The case and what is under it: on a phone, all of it on screen at once ---------- */
+.playArea {
+  display: flex;
+  flex-direction: column;
+  /* Brought into view on DROP (MedalCenter/lookUp.ts) clear of the site's sticky toolbar. */
+  scroll-margin-top: 62px;
+}
+.caseBox {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  /* On a short screen the case is narrowed so that it, the counters and the lever are all on the screen at once, under
+     the site's toolbar: the rest of the play area takes about 250 px. */
+  max-width: min(400px, calc((100vh - 252px) * 0.688));
+  max-width: min(400px, calc((100svh - 252px) * 0.688));
+  border-radius: 10px;
+  padding: 5px;
+  background: linear-gradient(180deg, #2d1a08, #1a0f04);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.15);
+  box-sizing: border-box;
+}
+.mazeSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 300 / 436;
+  border-radius: 6px;
+  /* The medal is moved on a frame at a time: a press on the case never selects or drags its pictures. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.boardText {
+  font-size: 11px;
+  font-weight: 800;
+  fill: #3b4350;
+}
+.outText {
+  font-size: 11px;
+  font-weight: 900;
+  fill: #c62828;
+  letter-spacing: 0.02em;
+}
+.gateNumber {
+  font-size: 12px;
+  font-weight: 900;
+  fill: #8a5a2b;
+}
+.pocketText {
+  font-size: 11px;
+  font-weight: 900;
+}
+.pocket[data-hit='true'] .pocketBody {
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+.cupGlow {
+  fill: #ffe066;
+  opacity: 0;
+}
+.stage[data-active='true'] .cupGlow {
+  opacity: 0.55;
+}
+.stage[data-active='true'] .gateNumber {
+  fill: #d6352f;
+}
+.lamps circle {
+  fill: #5b4a36;
+  stroke: #2c2116;
+  stroke-width: 0.6;
+}
+.lamps[data-lit='1'] circle[data-lamp='0'],
+.lamps[data-lit='2'] circle[data-lamp='0'],
+.lamps[data-lit='2'] circle[data-lamp='1'],
+.lamps[data-lit='3'] circle {
+  fill: #ffcf33;
+}
+.lamps[data-lit='1'] circle[data-lamp='0'] {
+  fill: #ff5b4d;
+}
+.medal,
+.gate,
+.striker {
+  will-change: transform;
+}
+.resumedBadge {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #5a3a1a;
+  border: 1px solid #ffd27a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.perPlay {
+  position: absolute;
+  top: 9px;
+  left: 10px;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(214, 53, 47, 0.92);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.phrase {
+  white-space: nowrap;
+}
+.status {
+  margin: 0.4rem 0 0.35rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- The counters ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0.4rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem 0.35rem;
+  border-radius: 10px;
+  background: #140b03;
+  border: 2px solid #6b4520;
+  min-width: 0;
+}
+.meterWin {
+  border-color: #ffd27a;
+}
+.meterLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffe2b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(20px, 6vw, 26px);
+}
+
+/* ---------- DROP, the lever and Skip: always in the same place ---------- */
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(64px, auto);
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 0.5rem;
+  min-height: 64px;
+}
+.dropButton,
+.lever,
+.skipButton,
+.refill,
+.cardAwayButton {
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* The medal slot: a brass plate with its slot, and the word under it. */
+.dropButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 0.3rem 0.4rem;
+  border-radius: 14px;
+  border: 2px solid #ffe3a3;
+  background: linear-gradient(180deg, #f3c55a 0%, #c48a1c 100%);
+  color: #2a1600;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.22),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.dropSlot {
+  width: 30px;
+  height: 7px;
+  border-radius: 4px;
+  background: #2a1600;
+  box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.7);
+}
+.dropWords {
+  font-size: 0.86rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+/* The lever: a red ball on a chrome arm in its slot. Held, the arm is drawn down against its spring; let go, it
+   springs back up. Touch is the lever's alone: a finger held on it never scrolls the page. */
+.lever {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 0.3rem 0.5rem;
+  border-radius: 14px;
+  border: 2px solid #ffd0c8;
+  background: linear-gradient(180deg, #4a2c12 0%, #2d1a08 100%);
+  color: #fff;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.3),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.lever[data-ready='true'] {
+  border-color: #ffe066;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(255, 224, 102, 0.55),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.lever[aria-disabled='true'] {
+  cursor: default;
+}
+.leverSlot {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 46px;
+  border-radius: 7px;
+  background: #0c0702;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.8);
+}
+.leverArm {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 5px;
+  height: 30px;
+  margin-left: -2.5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #8d97a3, #f5f7fa 45%, #8d97a3);
+  transform-origin: 50% 100%;
+  transition: transform 0.09s cubic-bezier(0.2, 2.2, 0.4, 1);
+}
+.leverKnob {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff9a90, #d32f2f 55%, #7a1414);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
+}
+.lever[data-pulled='true'] .leverArm {
+  transform: translateY(12px) scaleY(0.62);
+  transition: transform 0.35s ease-out;
+}
+.leverWords {
+  font-size: 1.02rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.lever[aria-disabled='true'] .leverWords,
+.lever[aria-disabled='true'] .leverSlot {
+  opacity: 0.55;
+}
+.skipButton {
+  min-height: 64px;
+  padding: 0 0.7rem;
+  border-radius: 14px;
+  border: 2px solid #e8d2b4;
+  background: linear-gradient(180deg, #7a5230 0%, #4f3014 100%);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.dropButton:active:not(:disabled),
+.skipButton:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+}
+.dropButton:disabled,
+.skipButton:disabled {
+  filter: grayscale(0.65) brightness(0.75);
+  cursor: default;
+}
+.message {
+  margin: 0.4rem 0 0;
+  /* Two lines held, so that nothing under it moves when a message comes and goes. */
+  min-height: 2.8em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cabinet .btn {
+  background: #5a3a1a;
+  color: #fff;
+  border-color: #d9b38c;
+}
+.dropButton:focus-visible,
+.lever:focus-visible,
+.skipButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--cm-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .controls {
+    gap: 6px;
+  }
+  .dropWords {
+    font-size: 0.78rem;
+  }
+  .leverWords {
+    font-size: 0.92rem;
+    letter-spacing: 0.04em;
+  }
+  .skipButton {
+    padding: 0 0.5rem;
+    font-size: 0.84rem;
+  }
+}
+@media (max-width: 340px) {
+  .dropWords:lang(ja) {
+    font-size: 0.7rem;
+    letter-spacing: 0;
+  }
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #5a3a1a;
+  color: #fff;
+  font-weight: 800;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outNote a {
+  color: #ffe1a1;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #ffe9cc;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(255, 210, 122, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #fff3e0;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+
+/* The card in another tab's machine: this one waits. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 14px;
+  background: rgba(26, 15, 4, 0.94);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAwayButton {
+  min-height: 48px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #a3321c;
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ---------- Beside the cabinet ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.historyChip[data-won='true'] {
+  color: var(--games-route-fg);
+  border-color: #d9a43a;
+}
+.historyChip[data-pocket='big'] {
+  background: #f6c343;
+  color: #2a1600;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+  /* Free to be narrower than its longest word, so that a label with no room to break never pushes the page sideways
+     (Safari and Firefox keep Japanese words whole); its words carry their breaks (i18n.ts). */
+  min-width: 0;
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pos {
+  color: var(--cm-ahead);
+}
+.neg {
+  color: var(--cm-behind);
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.45rem;
+  font-weight: 850;
+  color: var(--cm-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.statFraction {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.ruleList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 0.4rem;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable tbody th {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+.turn {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+  .turn {
+    font-size: 0.7rem;
+    letter-spacing: -0.04em;
+  }
+}
+.percent {
+  font-size: 0.7rem;
+  color: var(--games-route-muted);
+}
+
+/* ---------- Less motion: the lever and the sign do not spring or blink ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .leverArm,
+  .lever[data-pulled='true'] .leverArm {
+    transition: none !important;
+  }
+}
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the figures and the Odds tab's tables (as the High & Low
+ * Ladder's and Sic Bo's do): where the browser can tell phrases apart, at them; elsewhere at the zero-width spaces,
+ * 、。： and spaces the words carry. A word longer than its line still breaks. The status line keeps its phrases whole
+ * itself (PlayTab.tsx).
+ */
+.statLabel,
+.statNote,
+.statList dt,
+.ruleList li,
+.note,
+.intro p,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .ruleList li,
+  .note,
+  .intro p,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

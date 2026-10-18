@@ -48,6 +48,7 @@ export const FLOOR_GAMES = [
   'high-low',
   'sic-bo',
   'sugoroku',
+  'coin-maze',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -214,6 +215,16 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   sugoroku: rule(1_020, 6_000, 300, 10, 0.9306, {
     'sugoroku-jp': { amounts: times([200, 201, 202, 203, 204], [1, 2, 3, 5]), feed: true },
     'whale-ride': { amounts: times(Array.from({ length: 14 }, (_, i) => i + 1), [1, 2, 3, 5]), feed: false },
+  }),
+  // Candy Shop Medal Maze: a play takes one medal, the one that rolls; through all four gates it drops through the pins
+  // into WIN (2 medals) or, at either end, BIG WIN (5). A play every half second or so at the very quickest (DROP, then
+  // skip): 120 a minute at 5 at most, 600. Taken: one medal a play.
+  // Best return: 121,275/131,072 (92.53%), perfect timing at every gate (dynamic programming down the four gates and
+  // the pins, exact); an everyday hand brings back 75.81%, blind presses 4.97%. Rounded up.
+  // Named: BIG WIN, shown to the floor; WIN.
+  'coin-maze': rule(5, 600, 5, 1, 0.9253, {
+    'maze-big': { amounts: [5], feed: true },
+    'maze-win': { amounts: [2], feed: false },
   }),
 };
 

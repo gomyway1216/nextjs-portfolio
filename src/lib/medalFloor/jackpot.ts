@@ -19,7 +19,7 @@
  *   the medals played (`linked`, from each machine's `bestReturn` in games.ts,
  *   pinned against the games' own exact odds). The pusher, the slot machine,
  *   Calico Janken, roulette, Three Card Poker, Big Catch Harbor, Mini Turf
- *   Racing, Ball Bingo, the Star Festival Big Wheel, the High & Low Ladder, Moonlit Sic Bo and Whale Isle Sugoroku are; blackjack, video poker, baccarat and craps, whose best play
+ *   Racing, Ball Bingo, the Star Festival Big Wheel, the High & Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku and the Candy Shop Medal Maze are; blackjack, video poker, baccarat and craps, whose best play
  *   already brings back 99% to 100%, are not. As on a real floor, not every cabinet is
  *   on the progressive: play at those tables neither feeds it nor draws for it.
  * - **Limits.** The medals played that take part are checked like the medals

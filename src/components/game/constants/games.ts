@@ -497,4 +497,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'coin-maze',
+    title: 'Candy Shop Medal Maze',
+    description: 'The candy shop corner’s flick-a-medal maze: drop one medal into the glass case, flick it with the levers through four moving gates and down the pins into WIN — with perfect timing, an everyday hand and blind presses each worked out exactly, so that no timing beats the machine.',
+    thumbnail: '🍬',
+    path: '/games/coin-maze',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
 ];

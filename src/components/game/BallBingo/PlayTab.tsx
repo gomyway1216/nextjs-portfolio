@@ -362,7 +362,11 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     if (!next.current || next.current.round !== round.id || next.current.ball !== ball) prepare(round, ball);
     later(PULL_MS, () => {
       setPulling(false);
-      if (gameRef.current !== on) return;
+      // The game was put away while the plunger was drawn (SKIP and a reset clear this timer; this is for anything else).
+      if (gameRef.current !== on) {
+        flyingRef.current = false;
+        return;
+      }
       if (live.current.calm) {
         // With less motion the ball is not seen to fly: it is in its pocket a moment later.
         setDropping(true);

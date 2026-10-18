@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { POCKETS, pocketOfNumber, randomsFor } from '../../src/components/game/BallBingo/engine';
 import { ROUND_KEY, parseRound } from '../../src/components/game/BallBingo/medals';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
@@ -181,6 +182,30 @@ test.describe('with less motion', () => {
         await context.close();
       }
     }
+  });
+
+  test('each game goes into My Page: what it took and what came back, and Ball Bingo’s own records', async ({ page }) => {
+    test.setTimeout(60_000);
+    await openBingo(page);
+    await start(page, ONE_LINE, 2);
+    await page.getByTestId('bingo-skip').click();
+    await expect(page.getByTestId('bingo-result')).toHaveText('BINGO! 1 line: 4 medals.');
+    await start(page, LOSS, 1);
+    await page.getByTestId('bingo-skip').click();
+    await expect(page.getByTestId('bingo-result')).toHaveText('No line this game.');
+    await expect.poll(() => bankBalance(page)).toBe(WELCOME - 2 + 4 - 1);
+    const response = await page.goto(MY_PAGE_PATH);
+    expect(response?.status()).toBe(200);
+    await arrived(page);
+    await expect(page.getByTestId('mypage-history')).toHaveAttribute('data-loaded', 'true');
+    const entries = page.getByTestId('mypage-entry');
+    await expect(entries).toHaveCount(2);
+    await expect(entries.nth(0)).toHaveAttribute('data-game', 'ball-bingo');
+    await expect(entries.nth(0)).toContainText('Bet 1 · won 0');
+    await expect(entries.nth(1)).toContainText('Bet 2 · won 4');
+    await expect(page.getByTestId('mypage-game-ball-bingo')).toHaveAttribute('data-played', 'true');
+    await expect(page.getByTestId('mypage-game-ball-bingo')).toContainText('Ball Bingo');
+    await expect(page.getByTestId('mypage-ball-bingo-top')).toHaveText('4');
   });
 
   test('the Odds tab shows the exact return and the chance of every count of lines', async ({ page }) => {

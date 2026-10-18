@@ -5,6 +5,7 @@ import { refillParts } from '../../src/components/game/MedalCenter/KeysHint';
 import { nameWords } from '../../src/components/game/MedalCenter/floorPlan';
 import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
+import { numberForFace, numberForLamp } from '../../src/components/game/Sugoroku/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -412,6 +413,44 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), SB_WORDS)));
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+// ── Whale Isle Sugoroku ─────────────────────────────────────────────────────
+
+const SG_WORDS = ['サイコロ', 'ふろう', 'ベット', 'ランプチャンス', 'チャンス', 'くじら', 'ライド', 'スタート', '還元率', '持ちメダル', '当たり', '戻り', '割合', '回数', '差し引き', 'いちばん', 'ジャックポット'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Whale Isle Sugoroku's status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/sugoroku');
+    await arrived(page);
+    const machine = page.getByTestId('sg-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    const status = page.getByTestId('sg-status');
+    const said = await brokenIn(status, SG_WORDS);
+    // A 6 from START, its LAMP CHANCE stopping on ×5: the line that says how the roll ended.
+    await rigPresses(page, [numberForFace(6), 0.1, 0.1, 0.1, numberForLamp(3), 0.1]);
+    await pressUntil(page.getByTestId('sg-roll'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    await page.getByTestId('sg-skip').click();
+    await expect(machine).toHaveAttribute('data-phase', 'idle');
+    await expect(status).toContainText('ランプチャンス');
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(status, SG_WORDS)));
+    said.push(...(await brokenIn(page.locator('#sg-session-title ~ dl dt'), SG_WORDS)));
+    // The legend that names the squares.
+    said.push(...(await brokenIn(page.getByTestId('sg-legend').locator('li'), [...SG_WORDS, '数字', 'ひとやすみ', 'ふりだし', 'ボーナス', 'ファイナル'])));
+    await page.locator('#sg-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('sg-squares-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), SG_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

@@ -69,6 +69,8 @@ describe('the floor’s moments', () => {
     expect(ja.moment('sicbo-triple', '181')).toBe('シックボーでゾロ目が的中！181枚');
     expect(ja.moment('sicbo-any-triple', '31')).toBe('シックボーの「ゾロ目どれでも」で31枚');
     expect(ja.moment('ladder-top', '2,000')).toBe('ハイ＆ローのラダーをトップまで上って2,000枚');
+    expect(ja.moment('sugoroku-jp', '1,020')).toBe('くじら島すごろくでジャックポット！1,020枚');
+    expect(ja.moment('whale-ride', '70')).toBe('くじら島すごろくのくじらライドで70枚');
     expect(html).toContain('プレイヤー1234');
     expect(html).toContain('7が3つそろって3,000枚');
     expect(html).toContain('ダブルアップで160枚');
@@ -239,7 +241,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -318,6 +320,7 @@ describe('the floor jackpot', () => {
       'big-wheel': ['BigWheel/BigWheel.tsx', 'OddsTab'],
       'high-low': ['HighLow/HighLow.tsx', 'OddsTab'],
       'sic-bo': ['SicBo/SicBo.tsx', 'OddsTab'],
+      sugoroku: ['Sugoroku/Sugoroku.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
     const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');
@@ -354,7 +357,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sicbo-triple', 'sicbo-any-triple', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sicbo-triple', 'sicbo-any-triple', 'sugoroku-jp', 'whale-ride', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

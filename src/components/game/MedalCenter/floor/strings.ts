@@ -141,6 +141,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `rolled a triple at Sic Bo: ${medals} medals`;
     case 'sicbo-any-triple':
       return `won Any Triple at Sic Bo: ${medals} medals`;
+    case 'sugoroku-jp':
+      return `hit the jackpot at the whale’s blowhole: ${medals} medals`;
+    case 'whale-ride':
+      return `rode the whale on Whale Isle: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -183,6 +187,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `シックボーでゾロ目が的中！${medals}枚`;
     case 'sicbo-any-triple':
       return `シックボーの「ゾロ目どれでも」で${medals}枚`;
+    case 'sugoroku-jp':
+      return `くじら島すごろくでジャックポット！${medals}枚`;
+    case 'whale-ride':
+      return `くじら島すごろくのくじらライドで${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

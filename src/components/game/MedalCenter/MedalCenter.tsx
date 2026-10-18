@@ -43,6 +43,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'big-wheel', path: '/games/big-wheel' },
   { id: 'high-low', path: '/games/high-low' },
   { id: 'sic-bo', path: '/games/sic-bo' },
+  { id: 'sugoroku', path: '/games/sugoroku' },
 ];
 
 /** A stack of medals, in the same silver as the medals on the machines. */

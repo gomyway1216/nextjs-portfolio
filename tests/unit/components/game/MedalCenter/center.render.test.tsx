@@ -8,6 +8,7 @@ import { MACHINE_PITCHES, MACHINE_ZONES, PLATE_RETURNS, ZONES, ZONE_SIGNS, corne
 import { ODDS_OPTIONS, allBetOdds, combinedDontPassEdge, combinedPassEdge, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
 import { RETURN_LEAST as HORSE_RETURN_LEAST, RETURN_MOST as HORSE_RETURN_MOST } from '@/components/game/HorseRace/card';
 import { toNumber as horseNumber } from '@/components/game/HorseRace/fraction';
+import { analyzeBoard, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
 import { MedalsOut } from '@/components/game/MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH, MEDAL_PUSHER_PATH } from '@/components/game/MedalCenter/paths';
 import { getCenterStrings } from '@/components/game/MedalCenter/strings';
@@ -58,7 +59,7 @@ describe('the medal center’s front, as the server sends it', () => {
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
     // The casino games on the medals, the janken, fishing, horse-racing, ball bingo, big wheel, high & low and Sic Bo machines: open, and each Play link goes to its own page in the catalog.
-    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo'];
+    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku'];
     for (const id of open) {
       expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
       const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
@@ -68,7 +69,7 @@ describe('the medal center’s front, as the server sends it', () => {
     for (const id of open) expect(soon).not.toContain(id);
     // With nothing still to come, the coming-soon shelf is not there at all.
     if (soon.length === 0) expect(html).not.toContain('data-testid="center-soon"');
-    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo']);
+    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
     // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
     for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
@@ -151,6 +152,7 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).toMatch(/data-machine="big-wheel" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="slot-machine" data-zone="video" data-wide="false"/);
     expect(html).toMatch(/data-machine="high-low" data-zone="video" data-wide="false"/);
+    expect(html).toMatch(/data-machine="sugoroku" data-zone="big" data-wide="true"/);
     // On the widest floor the three video machines stand beside the pusher, two columns of them, as a pair of corners
     // does, and the pusher's cabinet stands as tall as their two rows; the big machines, the candy shop and the tables
     // each start a row of their own.
@@ -254,6 +256,13 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(PLATE_RETURNS['horse-race']).toEqual({ least: horseNumber(HORSE_RETURN_LEAST), most: horseNumber(HORSE_RETURN_MOST) });
     expect(FLOOR_RULES['horse-race'].bestReturn).toBe(horseNumber(HORSE_RETURN_MOST));
     expect(plateReturn('horse-race')).toEqual({ least: 89.5, most: 90 });
+    // Whale Isle Sugoroku: the rule is the best square's next roll, which nobody can stay on; the best a player can do is
+    // to bet big on every square but the six before START, worked out exactly from the board's chain. A hair under it.
+    const betting = sugorokuValue(analyzeBoard().betting.value);
+    expect(PLATE_RETURNS.sugoroku!.most).toBeLessThanOrEqual(betting);
+    expect(betting - PLATE_RETURNS.sugoroku!.most).toBeLessThan(1e-5);
+    expect(FLOOR_RULES.sugoroku.bestReturn).toBeGreaterThan(betting);
+    expect(plateReturn('sugoroku')).toEqual({ least: null, most: 92.3 });
     // Every other machine's rule is a play a player can make, rounded up by at most a hair (rules.test.ts checks each
     // against its exact odds): its plate shows it.
     for (const game of FLOOR_GAMES) if (!(game in PLATE_RETURNS)) expect(plateReturn(game)?.least, game).toBeNull();

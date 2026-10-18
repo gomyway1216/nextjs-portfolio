@@ -50,6 +50,7 @@ import { SPIN_STAKE_MOST as WHEEL_STAKE_MOST, SPOT_MAX as WHEEL_SPOT_MAX } from 
 import { BETS as LADDER_BETS, BET_MOST as LADDER_BET_MOST, TOP as LADDER_TOP, analyzeLadder, payFor as ladderPays, valueOf as ladderValue } from '@/components/game/HighLow/engine';
 import { BET_IDS as SIC_BO_AREAS, MOST_BACK_PER_MEDAL as SIC_BO_MOST_BACK, PAYTABLE as SIC_BO_PAYS, analyze as sicBoOdds, resolveRoll as sicBoRoll, valueOf as sicBoValue, type Dice as SicBoDice } from '@/components/game/SicBo/engine';
 import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } from '@/components/game/SicBo/medalTable';
+import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUGOROKU_SQUARES, analyzeBoard, labelOf as sugorokuLabel, medalsFor as sugorokuMedals, outcomesFrom as sugorokuOutcomes, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -150,6 +151,9 @@ describe('the most each machine can take from the player at once, for the medals
     expect(FLOOR_RULES['sic-bo'].stakeMost).toBe(SIC_BO_STAKE_MOST);
     expect(SIC_BO_STAKE_MOST).toBe(SIC_BO_AREAS.length * SIC_BO_SPOT_MAX);
     expect(SIC_BO_STAKE_MOST).toBe(4_950);
+    // Whale Isle Sugoroku: one roll at its biggest bet (a ride and a chance are part of the roll, and take nothing more).
+    expect(FLOOR_RULES.sugoroku.stakeMost).toBe(SUGOROKU_BET_MOST);
+    expect(SUGOROKU_BET_MOST).toBe(Math.max(...SUGOROKU_BETS));
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -198,6 +202,9 @@ describe('which machines are linked to the floor jackpot', () => {
       'high-low': ladderValue(analyzeLadder().best),
       // Small or Big, the best of the 50 areas, worked out over the 216 rolls (engine.test.ts adds them up again).
       'sic-bo': sicBoValue(sicBoOdds().best),
+      // The best square's next roll (the board's Markov chain, exact): the player sees the square before choosing the
+      // bet, so the floor is told the best of every square, not the long run of steady play.
+      sugoroku: sugorokuValue(analyzeBoard().best),
     };
   };
 
@@ -213,7 +220,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -397,6 +404,35 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES['sic-bo'].bestReturn).toBe(0.9723);
   });
 
+  it('Whale Isle Sugoroku: the whale ride to the jackpot on the biggest bet, and every jackpot and ride there is', () => {
+    const jackpots = new Set<number>();
+    const rides = new Set<number>();
+    let most = 0;
+    for (let square = 0; square < SUGOROKU_SQUARES; square++) {
+      for (const { play } of sugorokuOutcomes(square)) {
+        for (const bet of SUGOROKU_BETS) {
+          const won = sugorokuMedals(bet, play.pays);
+          most = Math.max(most, won);
+          const label = sugorokuLabel(play);
+          if (label === 'sugoroku-jp') jackpots.add(won);
+          else if (label === 'whale-ride') rides.add(won);
+        }
+      }
+    }
+    expect(FLOOR_RULES.sugoroku.most).toBe(most);
+    expect(FLOOR_RULES.sugoroku.most).toBe(1_020);
+    expect(FLOOR_RULES.sugoroku.labels['sugoroku-jp'].amounts).toEqual(sorted(jackpots));
+    expect(FLOOR_RULES.sugoroku.labels['sugoroku-jp'].feed).toBe(true);
+    expect(FLOOR_RULES.sugoroku.labels['whale-ride'].amounts).toEqual(sorted(rides));
+    expect(FLOOR_RULES.sugoroku.labels['whale-ride'].feed).toBe(false);
+    // The rule is the best square's next roll, 67/72, rounded up; steady play and betting by the square bring back less.
+    const odds = analyzeBoard();
+    expect(`${odds.best.num}/${odds.best.den}`).toBe('67/72');
+    expect(FLOOR_RULES.sugoroku.bestReturn).toBe(0.9306);
+    expect(sugorokuValue(odds.longRun)).toBeLessThan(FLOOR_RULES.sugoroku.bestReturn);
+    expect(sugorokuValue(odds.betting.value)).toBeLessThan(FLOOR_RULES.sugoroku.bestReturn);
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -437,6 +473,11 @@ describe('named wins and the feed', () => {
     expect(labelPays('sic-bo', 'sicbo-triple', 180)).toBe(false);
     expect(labelPays('sic-bo', 'sicbo-any-triple', 31)).toBe(true);
     expect(labelPays('sic-bo', 'sicbo-any-triple', 24_256)).toBe(false);
+    expect(labelPays('sugoroku', 'sugoroku-jp', 1_020)).toBe(true);
+    expect(labelPays('sugoroku', 'sugoroku-jp', 200)).toBe(true);
+    expect(labelPays('sugoroku', 'sugoroku-jp', 199)).toBe(false);
+    expect(labelPays('sugoroku', 'whale-ride', 70)).toBe(true);
+    expect(labelPays('sugoroku', 'whale-ride', 71)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -462,5 +503,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('sic-bo', 181, 'sicbo-triple')).toBe(true);
     expect(feedWorthy('sic-bo', 62, 'sicbo-any-triple')).toBe(false);
     expect(feedWorthy('sic-bo', 300)).toBe(true);
+    expect(feedWorthy('sugoroku', 200, 'sugoroku-jp')).toBe(true);
+    expect(feedWorthy('sugoroku', 70, 'whale-ride')).toBe(false);
+    expect(feedWorthy('sugoroku', 300)).toBe(true);
   });
 });

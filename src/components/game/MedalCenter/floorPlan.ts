@@ -68,13 +68,16 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   'high-low': 'video',
   // An electronic Sic Bo table stands with the casino tables at the back, as on a casino's floor.
   'sic-bo': 'table',
+  // A board-game machine stands among the big machines, as the board-game medal machines of a real floor are big
+  // cabinets in the middle of it.
+  sugoroku: 'big',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -93,6 +96,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
   'high-low': { en: 'Higher or lower? Climb 12 rungs, or TAKE.', ja: '次はハイかローか。12段のラダーを上ろう' },
   'sic-bo': { en: 'Three dice in a glass dome; a triple pays 180:1.', ja: 'ドームで振る3つのサイコロ。ゾロ目は180:1' },
+  sugoroku: { en: 'Roll the die, sail the isle, ride the whale.', ja: 'サイコロで島をめぐり、くじらに乗ろう' },
 };
 
 /**
@@ -109,6 +113,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'big-wheel': ['星まつり', 'ビッグホイール'],
   'high-low': ['ハイ＆ロー', 'ラダー'],
   'sic-bo': ['月夜の', 'シックボー'],
+  sugoroku: ['くじら島', 'すごろく'],
 };
 
 /** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */
@@ -216,10 +221,15 @@ export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): Co
  *   Pass Line with 3-4-5× odds brings back 99.63%).
  * - **horse-race:** every ticket on a race brings back that race's return, which each race card sets between 89.5% and
  *   90%. No ticket is better than another, so the plate gives the range.
+ * - **sugoroku:** the rule is the best square's next roll (93.06%), but the boat cannot stay on it: every roll moves it
+ *   on. The best a player can do is bet 10 on every square but the six before START and 2 on those, which brings back
+ *   92.30% in the long run (the board's Markov chain, worked out exactly in Sugoroku/engine.ts), and the plate says so.
+ *   Written a hair under the exact figure, so the plate never says more.
  */
 export const PLATE_RETURNS: Readonly<Record<string, { least?: number; most: number }>> = {
   craps: { most: 1_097 / 1_100 },
   'horse-race': { least: 0.895, most: 0.9 },
+  sugoroku: { most: 0.923_014 },
 };
 
 /** A machine's return on its plate, in percent to one decimal: its best, or the range every play of it brings back. */

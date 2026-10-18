@@ -81,7 +81,7 @@ test('the medal center’s front shows the floor jackpot, its last win, and how 
   await expect(panel.getByTestId('jackpot-sign-in')).toHaveText(t.jackpotGuest);
   await expect(panel.getByTestId('jackpot-sign-in')).toHaveAttribute('href', /\/signin\?redirect=/);
   await expect(page.getByTestId('jackpot-honesty')).toHaveText(t.jackpotHonesty);
-  await expect(panel.getByTestId('jackpot-linked')).toHaveText('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette & Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High & Low Ladder, Moonlit Sic Bo.');
+  await expect(panel.getByTestId('jackpot-linked')).toHaveText('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette & Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High & Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku.');
   // Over the moments on show.
   const order = await page.evaluate(() => {
     const at = (id: string) => [...document.querySelectorAll('[data-testid]')].findIndex((el) => el.getAttribute('data-testid') === id);
@@ -143,6 +143,7 @@ test('every machine shows the floor jackpot over it; a linked one’s Odds tab s
     ['/games/big-wheel', true],
     ['/games/high-low', true],
     ['/games/sic-bo', true],
+    ['/games/sugoroku', true],
   ] as const) {
     expect((await page.goto(path))?.status()).toBe(200);
     await arrived(page);

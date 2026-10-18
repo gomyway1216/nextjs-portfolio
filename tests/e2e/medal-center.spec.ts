@@ -92,11 +92,12 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-big-wheel')).toHaveAttribute('href', '/games/big-wheel');
   await expect(page.getByTestId('center-play-high-low')).toHaveAttribute('href', '/games/high-low');
   await expect(page.getByTestId('center-play-sic-bo')).toHaveAttribute('href', '/games/sic-bo');
-  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo']) {
+  await expect(page.getByTestId('center-play-sugoroku')).toHaveAttribute('href', '/games/sugoroku');
+  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
-  // Fifteen machines on the floor: those open, and the rest shown as coming.
-  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(15);
+  // Sixteen machines on the floor: those open, and the rest shown as coming.
+  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(16);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('center-reset')).toBeEnabled();

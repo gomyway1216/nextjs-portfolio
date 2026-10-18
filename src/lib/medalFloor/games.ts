@@ -47,6 +47,7 @@ export const FLOOR_GAMES = [
   'big-wheel',
   'high-low',
   'sic-bo',
+  'sugoroku',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -202,6 +203,17 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   'sic-bo': rule(24_255, 6_000, 300, 4_950, 0.9723, {
     'sicbo-triple': { min: 181, max: 24_255, feed: true },
     'sicbo-any-triple': { min: 31, max: 24_255, feed: false },
+  }),
+  // Whale Isle Sugoroku: every figure is per 2 medals bet, on a bet of 2, 4, 6 or 10 (1, 2, 3 or 5 of those). The most
+  // a roll pays is the whale ride's: two squares of 2 up the whale's back and the jackpot of 200 at the blowhole, 204
+  // per 2 medals, 1,020 on a bet of 10. A roll every second or so at the quickest (ROLL, then skip): 6,000 a minute, as
+  // the other quick machines. Taken: one roll at its biggest, 10.
+  // Best return: 67/72 (93.06%), the next roll from the best square the boat can stand on, at every bet: the board's
+  // Markov chain worked out exactly (steady play brings back 89.74%; betting by the square at most 92.30%).
+  // Named: the jackpot, its roll's whole win (200 to 204 per 2 medals); any other whale ride's win (1 to 14 per 2).
+  sugoroku: rule(1_020, 6_000, 300, 10, 0.9306, {
+    'sugoroku-jp': { amounts: times([200, 201, 202, 203, 204], [1, 2, 3, 5]), feed: true },
+    'whale-ride': { amounts: times(Array.from({ length: 14 }, (_, i) => i + 1), [1, 2, 3, 5]), feed: false },
   }),
 };
 

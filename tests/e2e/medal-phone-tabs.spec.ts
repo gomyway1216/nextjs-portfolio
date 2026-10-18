@@ -17,6 +17,8 @@ const MACHINES = [
   { game: 'slot-machine', tabs: 3, buttons: { en: [], ja: [] } },
   { game: 'janken', tabs: 2, buttons: { en: [], ja: [] } },
   { game: 'roulette', tabs: 3, buttons: { en: [], ja: [] } },
+  // Its layout's parts are chosen with radio buttons, not tabs: only the table's two tabs are tabs.
+  { game: 'sic-bo', tabs: 2, buttons: { en: ['Same bets', 'Undo', 'Clear'], ja: ['同じベット', '戻す', 'クリア'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

@@ -149,7 +149,7 @@ const Glass = () => {
 const Die = ({ pose, dieRef, shadeRefs }: { pose: Pose; dieRef: (element: HTMLDivElement | null) => void; shadeRefs: (index: number, element: HTMLSpanElement | null) => void }) => {
   const shades = shadesOf(pose);
   return (
-    <div className={styles.die} ref={dieRef} style={{ transform: dieTransform(pose) }}>
+    <div className={styles.die} ref={dieRef} style={{ transform: dieTransform(pose) }} data-die="">
       <span className={`${styles.core} ${styles.coreX}`} />
       <span className={`${styles.core} ${styles.coreY}`} />
       <span className={`${styles.core} ${styles.coreZ}`} />

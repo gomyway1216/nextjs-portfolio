@@ -42,6 +42,7 @@ export const FLOOR_GAMES = [
   'craps',
   'three-card-poker',
   'fishing',
+  'horse-race',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -160,6 +161,11 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
     'harbor-lord': { amounts: [300, 900, 1_500], feed: true },
     treasure: { amounts: times([10, 20, 50, 200], [1, 3, 5]), feed: false },
   }),
+  // Mini Turf Racing: one win ticket and one quinella come in on a race, each at most 99 medals, a win at odds of up to
+  // 99 and a quinella up to 999: 99 × (99 + 999) = 108,702. Taken: every one of the 21 tickets at its most, 2,079. A
+  // race every twenty seconds or so at the quickest (tickets, START, skip).
+  // Best return: 90%, the most any ticket on any race brings back (odds first, every chance R ÷ the odds).
+  'horse-race': rule(108_702, 6_000, 300, 2_079, 0.9),
 };
 
 /** The most medals won the floor counts for one player in one day, across every machine. */

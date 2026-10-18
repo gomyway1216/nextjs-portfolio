@@ -1,20 +1,24 @@
 import { test, expect, type Page } from '@playwright/test';
 
-import { parseHistory, recordsOf, totalsOf, type History } from '../../src/components/game/MedalCenter/history';
-import { HISTORY_KEY } from '../../src/components/game/MedalCenter/historyStore';
-import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { createHistory, mergeHistories, parseHistory, record, recordsOf, serializeHistory, totalsOf, type History, type Observation } from '../../src/components/game/MedalCenter/history';
+import { HISTORY_KEY, partKey } from '../../src/components/game/MedalCenter/historyStore';
+import { WELCOME, createLedger, give, serializeLedger } from '../../src/components/game/MedalCenter/ledger';
 import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // The medal center's "my page" for a guest: the history of what happened to the medals after playing two machines,
 // which a reload keeps and the medal center's reset shows in, and the page at a phone's width in both languages.
 // Each machine is played the way its own spec plays it; the draws are set so that the medals come out as written.
 
-/** The medals' history this browser keeps for a guest, read the way the page reads it. */
+/** The medals' history this browser keeps for a guest, read the way the page reads it: the whole and the part changed since, joined. */
 async function storedHistory(page: Page): Promise<History | null> {
-  return parseHistory(await page.evaluate((key) => window.localStorage.getItem(key), HISTORY_KEY));
+  const [whole, part] = await page.evaluate((keys) => keys.map((key) => window.localStorage.getItem(key)), [HISTORY_KEY, partKey(HISTORY_KEY)]);
+  const [one, other] = [parseHistory(whole), parseHistory(part)];
+  return one && other ? mergeHistories(one, other) : (one ?? other);
 }
 
 /** The my page: opened, arrived, and the medals and their history read. */
@@ -174,4 +178,86 @@ test('fits a phone’s width in both languages, says the medals are not money, a
   await openCenter(page, 'ja');
   await expect(page.getByTestId('center-my-page')).toContainText('マイページ');
   expect(errors).toEqual([]);
+});
+
+/** A guest's history after a couple of months on this device and two others: 300 rounds of seven machines. */
+function twoMonths(): History {
+  const machines = ['slot-machine', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'three-card-poker', 'janken'];
+  const from = Date.UTC(2026, 7, 1);
+  const copies = ['k3j2h1g0f9', 'p9q8r7s6t5', 'a1b2c3d4e5'].map((device) => createHistory(device, from));
+  for (let i = 0; i < 300; i++) {
+    const game = machines[i % machines.length];
+    const round = `${(1_760_700_000_000 + i * 977).toString(36)}${(i * 7919).toString(36).padStart(4, '0')}`;
+    const moment = from + i * 4 * 3_600_000;
+    const day = new Date(moment).toISOString().slice(0, 10) as Observation['day'];
+    copies[i % 3] = record(copies[i % 3], { type: 'move', game, round, step: 'stake', medals: -(1 + (i % 9)), at: moment, day, left: 1000 });
+    copies[i % 3] = record(copies[i % 3], { type: 'move', game, round, step: 'pay', medals: (i * 37) % 23, at: moment + 1000, day, left: 1000 + ((i * 131) % 4000) });
+  }
+  return copies.reduce((joined, copy) => mergeHistories(joined, copy));
+}
+
+test('while a machine plays, writes only the part of the history its rounds changed, and the whole as the page is left', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  // A guest with two months of history, and medals enough to play on with.
+  const kept = serializeHistory(twoMonths());
+  const before = totalsOf(recordsOf(parseHistory(kept)!));
+  expect(before.rounds).toBe(300);
+  await page.addInitScript(
+    ([historyKey, history, bankKey, bank]) => {
+      if (window.localStorage.getItem(historyKey) === null) window.localStorage.setItem(historyKey, history);
+      if (window.localStorage.getItem(bankKey) === null) window.localStorage.setItem(bankKey, bank);
+      // Every write that changes what storage holds is noted: where, and how long.
+      const w = window as unknown as { __writes: { key: string; size: number }[] };
+      w.__writes = [];
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (this: Storage, key: string, value: string) {
+        if (this.getItem(key) !== value) w.__writes.push({ key, size: value.length });
+        return set.call(this, key, value);
+      };
+    },
+    [HISTORY_KEY, kept, BANK_KEY, serializeLedger(give(createLedger('testdevice01'), 10_000))],
+  );
+  await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);
+  expect((await page.goto('/games/video-poker'))?.status()).toBe(200);
+  await arrived(page);
+  await expect(page.getByTestId('vp-machine')).toHaveAttribute('data-playable', 'true', { timeout: 15_000 });
+  const deal = page.getByRole('button', { name: 'DEAL', exact: true });
+  const draw = page.getByRole('button', { name: 'DRAW', exact: true });
+  await pressUntil(deal, () => draw.isVisible());
+  await draw.click();
+  await page.evaluate(() => {
+    (window as unknown as { __writes: unknown[] }).__writes = [];
+  });
+  // Twenty seconds of steady play: a hand dealt and drawn every second or two.
+  let hands = 1;
+  const until = Date.now() + 20_000;
+  while (Date.now() < until) {
+    await expect(deal).toBeEnabled();
+    await deal.click();
+    await expect(draw).toBeVisible();
+    await draw.click();
+    hands += 1;
+    await page.waitForTimeout(600);
+  }
+  await page.waitForTimeout(2_500);
+  const writes = await page.evaluate(() => (window as unknown as { __writes: { key: string; size: number }[] }).__writes);
+  const whole = writes.filter((w) => w.key === HISTORY_KEY);
+  const part = writes.filter((w) => w.key === partKey(HISTORY_KEY));
+  // The whole, some 50,000 characters, is not written while the machine plays: before, it was every two seconds.
+  expect(whole).toEqual([]);
+  // The part every couple of seconds at the most, each a small fraction of the whole, and all of them together less than one whole.
+  expect(part.length).toBeGreaterThan(0);
+  expect(part.length).toBeLessThanOrEqual(12);
+  expect(Math.max(...part.map((w) => w.size)) * 5).toBeLessThan(kept.length);
+  expect(part.reduce((sum, w) => sum + w.size, 0)).toBeLessThan(kept.length);
+  // Every hand is in the history as it is kept, the whole and the part joined.
+  expect(totalsOf(recordsOf((await storedHistory(page))!)).rounds).toBe(before.rounds + hands);
+
+  // The page is left for the my page: the history is written whole as it goes, and the part let go of.
+  await openMyPage(page);
+  await expect(page.getByTestId('mypage-total-rounds')).toHaveText(String(before.rounds + hands));
+  const [wholeText, partText] = await page.evaluate((keys) => keys.map((key) => window.localStorage.getItem(key)), [HISTORY_KEY, partKey(HISTORY_KEY)]);
+  expect(partText).toBeNull();
+  expect(totalsOf(recordsOf(parseHistory(wholeText)!)).rounds).toBe(before.rounds + hands);
 });

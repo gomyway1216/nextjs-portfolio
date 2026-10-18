@@ -8,8 +8,10 @@ import {
   accountSizeOf,
   PUSHER_GAME,
   VISIT_GAP,
+  changedSince,
   createHistory,
   dayTotals,
+  isEmpty,
   medalsOverTime,
   mergeHistories,
   parseHistory,
@@ -231,6 +233,37 @@ describe('two copies of one history', () => {
     const left = mergeHistories(mergeHistories(a, b), c);
     const right = mergeHistories(a, mergeHistories(b, c));
     expect(printOf(serializeHistory(left))).toBe(printOf(serializeHistory(right)));
+  });
+});
+
+describe('the part of a history changed since an earlier one', () => {
+  it('holds only what is new or has changed since, and joined into the earlier one is the later again', () => {
+    // A history of many rounds, and the same a few rounds later: one round finished, one begun, a bonus taken.
+    let then = fresh();
+    for (let i = 0; i < 120; i++) then = play(then, [stake(`spin${i}`, 1 + (i % 5), i % 2 ? 'roulette' : 'blackjack'), pay(`spin${i}`, i % 7)], i * 2);
+    then = play(then, [stake('spin120', 3)], 300);
+    const now = play(then, [pay('spin120', 9), stake('spin121', 2), { type: 'bonus', medals: 30 }], 400);
+    const part = changedSince(now, then);
+    // The round paid, the round begun, the bonus; the roulette row; the day; the medals at its end.
+    expect(part.entries.map((one) => one.r).sort()).toEqual(['b' + (at(402) - 0).toString(36), 'spin120', 'spin121'].sort());
+    expect(part.games.map((one) => one.g)).toEqual(['roulette']);
+    expect(part.days).toHaveLength(1);
+    expect(part.close).toHaveLength(1);
+    expect(serializeHistory(mergeHistories(then, part))).toBe(serializeHistory(now));
+    // In any order, and however often: joining it again changes nothing.
+    expect(serializeHistory(mergeHistories(mergeHistories(then, part), part))).toBe(serializeHistory(now));
+    expect(serializeHistory(mergeHistories(part, then))).toBe(serializeHistory({ ...now }));
+    // A small fraction of the whole.
+    expect(serializeHistory(part).length * 10).toBeLessThan(serializeHistory(now).length);
+    expect(isEmpty(changedSince(now, now))).toBe(true);
+    expect(isEmpty(part)).toBe(false);
+  });
+
+  it('is the whole history when the earlier one is empty, and joined into it is the history again', () => {
+    const now = play(fresh(), [stake('spin1', 5), pay('spin1', 12), { type: 'refill', medals: 100 }]);
+    const part = changedSince(now, fresh());
+    expect(serializeHistory(part)).toBe(serializeHistory(now));
+    expect(serializeHistory(mergeHistories(fresh(), part))).toBe(serializeHistory(now));
   });
 });
 

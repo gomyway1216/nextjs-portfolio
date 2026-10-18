@@ -485,6 +485,43 @@ export function mergeHistories(a: History, b: History): History {
   });
 }
 
+/** Whether two items of a history hold the same: every field the same. */
+const same = (a: object, b: object): boolean => {
+  const fields = Object.keys(a);
+  return fields.length === Object.keys(b).length && fields.every((field) => (a as Record<string, unknown>)[field] === (b as Record<string, unknown>)[field]);
+};
+
+/** The items of `now` that `then` lacks, or holds otherwise. */
+function newer<T extends object>(now: readonly T[], then: readonly T[], key: (item: T) => string): T[] {
+  const had = new Map(then.map((item) => [key(item), item]));
+  return now.filter((item) => {
+    const was = had.get(key(item));
+    return was === undefined || !same(was, item);
+  });
+}
+
+/**
+ * The part of `now` that `then` does not hold as it is: every entry, row, day
+ * and close of `now` that `then` lacks or holds otherwise. It is a history of
+ * its own, the same device's from the same beginning, and since everything in
+ * a history only grows (see the top of the file), `then` and the part joined
+ * (`mergeHistories`) are `now` again. A device keeps its history as a whole
+ * and the part changed since the whole was written (historyStore.ts), so that
+ * a round played writes a few hundred characters, not the whole history.
+ */
+export function changedSince(now: History, then: History): History {
+  return {
+    ...now,
+    entries: newer(now.entries, then.entries, keyOf),
+    games: newer(now.games, then.games, (row) => `${row.g} ${row.d}`),
+    days: newer(now.days, then.days, (row) => `${row.day} ${row.d}`),
+    close: newer(now.close, then.close, (close) => close.day),
+  };
+}
+
+/** Whether a history holds nothing: no entry, row, day or close. */
+export const isEmpty = (history: History): boolean => history.entries.length + history.games.length + history.days.length + history.close.length === 0;
+
 // ── Text ────────────────────────────────────────────────────────────────────
 
 /**

@@ -4,6 +4,7 @@ import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // No free refill while medals are out on a round ("Medals out" in MedalCenter/ledger.ts): a player whose last medals
@@ -37,15 +38,8 @@ const firstNumbers = (dealer: string, card: string) => {
   return [(deck.indexOf(c(card)) + 0.5) / 51, 0.5, 0.5, 0.5];
 };
 
-/** Queues random numbers for the next presses; once they are used, Math.random is itself again. */
-async function rig(page: Page, numbers: number[]) {
-  await page.evaluate((queue) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const left = [...queue];
-    Math.random = () => (left.length > 0 ? left.shift()! : w.__random!());
-  }, numbers);
-}
+/** Queues random numbers for the next presses (and only for them: tests/e2e/rigPresses.ts); once used, Math.random is itself again. */
+const rig = (page: Page, numbers: number[]) => rigPresses(page, numbers);
 
 /** A guest with five medals left: one five-medal hand, and everything it wins on a double-up. */
 async function fiveMedalsLeft(page: Page) {

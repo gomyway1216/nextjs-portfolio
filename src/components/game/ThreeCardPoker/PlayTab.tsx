@@ -7,7 +7,7 @@ import { REFILL } from '../MedalCenter/ledger';
 import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { DottedParts, KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
@@ -776,7 +776,9 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
 
             <div className={styles.feltPrint} aria-hidden="true">
               <span className={styles.feltQualify}>{t.feltQualify}</span>
-              <span className={styles.feltBonus}>{t.feltBonus}</span>
+              <span className={styles.feltBonus}>
+                <DottedParts text={t.feltBonus} />
+              </span>
             </div>
 
             <div
@@ -903,7 +905,7 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
           {/* Out of medals: the medal center's free refill, right by the felt it lets the player bet on again. */}
           {refillDue && (
             <button type="button" className={styles.refill} data-testid="tcp-refill" onClick={() => medalBank().refill()}>
-              {t.refill(REFILL)}
+              <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
           <div className={styles.chipRow} role="radiogroup" aria-label={t.step}>

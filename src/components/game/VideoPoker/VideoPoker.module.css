@@ -61,6 +61,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 /* The way back to the medal center's front, over the machine's name. The arrow and the words are flex items, so the
    space between them is a gap: a space at the end of the arrow would be dropped. */
@@ -620,6 +630,9 @@
   letter-spacing: 0.04em;
   font-size: clamp(0.9rem, 2.6vw, 1.15rem);
   color: #fff;
+  /* Broken between phrases, never inside a word (「ドロ｜ー」。」). */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 /* On a phone a message can take two lines: the line keeps room for two, so that nothing under it jumps as it changes. */
 @media (max-width: 520px) {

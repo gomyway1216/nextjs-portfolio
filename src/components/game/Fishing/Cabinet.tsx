@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CS
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useMachineSound } from '../MedalCenter/machineSounds';
@@ -659,7 +659,7 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
           <div className={styles.outRow}>
             {refillDue && (
               <button type="button" className={styles.refill} data-testid="fishing-refill" onClick={() => medalBank().refill()}>
-                {t.refill(REFILL)}
+                <RefillWords text={t.refill(REFILL)} />
               </button>
             )}
             {outOfMedals && !refillDue && <MedalsOut games={medals.out} language={language} className={styles.outNote} testId="fishing-out" />}

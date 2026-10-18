@@ -9,6 +9,7 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { RefillWords } from '../MedalCenter/KeysHint';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { PAY_RULES, analyzeMachine, isJackpotNearMiss, resolveSpin, spinReels, winningReels, type SpinResult, type Stops } from './engine';
 import { getStrings } from './i18n';
@@ -434,7 +435,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         {/* The attendant's free cupful, the medal center's own, for a player with no medals left. */}
         {outOfMedals && (
           <button type="button" className={styles.refill} data-testid="slot-refill" onClick={() => medalBank().refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
 

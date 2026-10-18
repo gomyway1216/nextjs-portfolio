@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, 
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
-import { KeysHint } from '../MedalCenter/KeysHint';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -600,7 +600,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
         </button>
         {medals.loaded && medals.balance === 0 && round === null && (
           <button type="button" className={styles.refill} data-testid="janken-refill" onClick={() => machine?.refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
         <KeysHint text={t.keysHint} className={styles.keysHint} testId="janken-keys" />

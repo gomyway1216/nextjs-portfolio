@@ -39,6 +39,7 @@ import { PUSHER, bank as medalBank, useBank, type Seat } from '../MedalCenter/ba
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { floorReport } from '../MedalCenter/floor/reporter';
+import { RefillWords } from '../MedalCenter/KeysHint';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { GUEST, slotFor, type AccountStore, type Player, type Status, type Sync, type Why } from './account';
@@ -1508,7 +1509,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
         {hud.credits === 0 && bankState.out.length === 0 && (
           <button type="button" className={`${styles.refill} ${look.attendant}`} data-testid="pusher-refill" onClick={onRefill}>
-            {t.refill(START_CREDITS)}
+            <RefillWords text={t.refill(START_CREDITS)} />
           </button>
         )}
         {/* None left here, and some still out on a round at another machine: no cupful until they are back. */}

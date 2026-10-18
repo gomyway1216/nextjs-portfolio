@@ -7,6 +7,7 @@ import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
+import { RefillWords } from '../MedalCenter/KeysHint';
 import { lookUp, type Glance } from '../MedalCenter/lookUp';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
@@ -539,7 +540,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <MedalMeter medals={medalsShown} medalsShown={medalMeter.shown} bet={totalWagered} win={outcome && !spinning ? outcome.won : 0} t={t}>
           {outOfMedals && (
             <button type="button" className={styles.refill} data-testid="roulette-refill" onClick={() => medalBank().refill()}>
-              {t.refill(REFILL)}
+              <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
         </MedalMeter>

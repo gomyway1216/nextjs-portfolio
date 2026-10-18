@@ -95,9 +95,9 @@ export const SimTab = () => {
   return (
     <div className={styles.simLayout}>
       <section className={styles.panel} aria-labelledby="slot-convergence-title">
-        <h3 id="slot-convergence-title" className={styles.blockTitle}>
+        <h2 id="slot-convergence-title" className={styles.blockTitle}>
           {t.convergenceTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.convergenceIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
@@ -143,9 +143,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="slot-sessions-title">
-        <h3 id="slot-sessions-title" className={styles.blockTitle}>
+        <h2 id="slot-sessions-title" className={styles.blockTitle}>
           {t.sessionsTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.sessionsIntro}</p>
         <div className={styles.formGrid}>
           <label className={styles.field}>
@@ -229,9 +229,9 @@ export const SimTab = () => {
                 <span className={styles.statNote}>{t.expectedFinalNote(pct(ODDS.houseEdge, 2))}</span>
               </div>
             </div>
-            <h4 className={styles.subTitle}>{t.finalDist}</h4>
+            <h3 className={styles.subTitle}>{t.finalDist}</h3>
             <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.medals} />
-            <h4 className={styles.subTitle}>{t.sampleSession}</h4>
+            <h3 className={styles.subTitle}>{t.sampleSession}</h3>
             <TrajectoryChart trajectory={summary.sampleTrajectory} start={summaryConfig.bankroll} xLabel={t.spinsAxis} />
           </div>
         )}

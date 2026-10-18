@@ -89,15 +89,15 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
         {boards && (
           <div className={styles.fullBoards} data-period={period} data-testid="rankings-boards">
             <section className={styles.panel} aria-label={t.wonBoard}>
-              <Board {...words} title={t.wonBoard} rows={boards.won} testId="rankings-won" owner={ownerControls?.('won')} />
+              <Board {...words} title={t.wonBoard} rows={boards.won} testId="rankings-won" level={2} owner={ownerControls?.('won')} />
               <p className={styles.note}>{t.wonNote}</p>
             </section>
             <section className={styles.panel} aria-label={t.bestBoard}>
-              <h3 className={styles.panelTitle}>{t.bestBoard}</h3>
+              <h2 className={styles.panelTitle}>{t.bestBoard}</h2>
               <p className={styles.note}>{t.bestNote}</p>
               <div className={styles.gameBoards}>
                 {FLOOR_GAMES.map((game) => (
-                  <Board key={game} {...words} title={words.gameName(game)} rows={boards.best[game] ?? []} testId={`rankings-best-${game}`} owner={ownerControls?.(`best:${game}`)} />
+                  <Board key={game} {...words} title={words.gameName(game)} rows={boards.best[game] ?? []} testId={`rankings-best-${game}`} level={3} owner={ownerControls?.(`best:${game}`)} />
                 ))}
               </div>
             </section>

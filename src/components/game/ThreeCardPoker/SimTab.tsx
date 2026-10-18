@@ -8,6 +8,7 @@ import type { StrategyId } from './engine';
 import { getStrings } from './i18n';
 import { STRATEGY_COLORS, exactEdge, simulateStrategies, type SimResult } from './sim';
 import styles from './ThreeCardPoker.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 /** Cheapest strategy first, as on the Odds tab. */
@@ -51,9 +52,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="tcp-sim-title">
-        <h3 id="tcp-sim-title" className={styles.blockTitle}>
+        <h2 id="tcp-sim-title" className={styles.blockTitle}>
           {t.simTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
@@ -82,7 +83,7 @@ export const SimTab = () => {
                 points: result.strategies[id].points,
               }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="tcp-sim-table">
                 <thead>
                   <tr>
@@ -110,7 +111,7 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note} data-testid="tcp-sim-note">
               {t.simNote(pct(result.dealerQualified / result.hands), pct(qualifyingHands() / HAND_COUNT), gap)}
             </p>

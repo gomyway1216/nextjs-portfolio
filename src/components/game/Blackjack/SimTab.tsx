@@ -14,6 +14,7 @@ import {
   type StrategiesResult,
 } from './sim';
 import styles from './Blackjack.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const ROUND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const COUNT_ROUND_OPTIONS = [100_000, 1_000_000] as const;
@@ -82,9 +83,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="bj-sim-title">
-        <h3 id="bj-sim-title" className={styles.blockTitle}>
+        <h2 id="bj-sim-title" className={styles.blockTitle}>
           {t.simTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
@@ -113,7 +114,7 @@ export const SimTab = () => {
                 points: result[id].points,
               }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="bj-sim-table">
                 <thead>
                   <tr>
@@ -146,16 +147,16 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.simNote}</p>
           </>
         )}
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-count-title">
-        <h3 id="bj-count-title" className={styles.blockTitle}>
+        <h2 id="bj-count-title" className={styles.blockTitle}>
           {t.countingTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.countingIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
@@ -178,7 +179,7 @@ export const SimTab = () => {
               xLabel={t.countChartAxis}
               bars={counting.buckets.map((b) => ({ tc: b.tc, edge: -b.edge, range: 1.96 * b.se, share: b.rounds / counting.rounds }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="bj-count-table">
                 <thead>
                   <tr>
@@ -207,7 +208,7 @@ export const SimTab = () => {
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.countingNote}</p>
           </>
         )}

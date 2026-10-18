@@ -1249,7 +1249,8 @@
   .leverKnob,
   .btn,
   .spinButton,
-  .betMedal {
+  .betMedal,
+  .rtpBarObserved {
     transition: none;
   }
 }

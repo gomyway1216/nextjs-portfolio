@@ -13,5 +13,10 @@ export const metadata: Metadata = {
 };
 
 export default function MedalCenterRankingsPage() {
-  return <FloorRankingsForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <FloorRankingsForPlayer />
+    </main>
+  );
 }

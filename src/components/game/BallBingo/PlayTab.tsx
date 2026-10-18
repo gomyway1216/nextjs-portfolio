@@ -733,7 +733,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           </div>
         </div>
 
-        <p className={styles.resultLine} aria-live="polite" data-testid="bingo-result" data-lines={result?.lines ?? ''}>
+        {/* Shown, not said: the announcement below says each ball and how the game ended, once. */}
+        <p className={styles.resultLine} data-testid="bingo-result" data-lines={result?.lines ?? ''}>
           {resultText}
         </p>
         <p className={styles.noteLine} data-testid="bingo-resumed" hidden={!game?.resumed}>

@@ -15,6 +15,7 @@ import {
   type StrategiesResult,
 } from './sim';
 import styles from './VideoPoker.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const SESSION_OPTIONS = [500, 1_000, 2_000] as const;
@@ -107,9 +108,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="vp-sim-strategies-title">
-        <h3 id="vp-sim-strategies-title" className={styles.blockTitle}>
+        <h2 id="vp-sim-strategies-title" className={styles.blockTitle}>
           {t.stratTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.stratIntro}</p>
         <ul className={styles.ruleList}>
           {STRATEGY_IDS.map((id) => (
@@ -136,7 +137,7 @@ export const SimTab = () => {
                 points: strategies[id].points,
               }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="vp-sim-strategies">
                 <thead>
                   <tr>
@@ -166,16 +167,16 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.stratNote}</p>
           </>
         )}
       </section>
 
       <section className={styles.panel} aria-labelledby="vp-sim-sessions-title">
-        <h3 id="vp-sim-sessions-title" className={styles.blockTitle}>
+        <h2 id="vp-sim-sessions-title" className={styles.blockTitle}>
           {t.sessionTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.sessionIntro}</p>
         <div className={styles.formRow}>
           {select(sessionCount, SESSION_OPTIONS, setSessionCount, sessionProgress !== null, t.sessionsLabel)}

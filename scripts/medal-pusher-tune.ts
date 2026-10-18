@@ -51,7 +51,9 @@
  *                                   what fast feeding loses to a full hold
  *
  * `CHECKERS.halfWidth`, how wide a pocket is with its wings shut, is how
- * often a medal starts a spin. It is left where it is.
+ * often a medal starts a spin. It is left where it is. So is the medals'
+ * friction (`FRICTION` in engine.ts), which is a real medal's and not a
+ * knob: it is what keeps the field's share the same at any pace.
  *
  * The return is `front × (1 + spins × spinValue + gold × CHANCE_BONUS +
  * JACKPOT_GROWTH)` per medal played, as the Simulation tab has it
@@ -118,8 +120,8 @@ export interface Play {
   rush?: boolean;
 }
 
-/** About how many seconds the middle one of the medals fed down the middle, two a second, takes to reach the lip. Half of them take between 31 and 60, and one in ten more than a minute and a half. */
-const TRANSIT = 45;
+/** About how many seconds the middle one of the medals fed down the middle, two a second, takes to reach the lip. Half of them take between 25 and 47, and one in ten more than a minute and a quarter. */
+const TRANSIT = 34;
 
 /** What each way of aiming is called in the table. */
 const AIM_NAMES: Record<AimId, string> = { centre: 'middle', anywhere: 'anywhere', beside: 'beside', edges: 'edges' };

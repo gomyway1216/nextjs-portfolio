@@ -192,10 +192,23 @@ export const FEED = { slot: 0.1, arm: 0.8 } as const;
  * can do, feeding the middle a medal every two seconds, is about 90% with
  * average luck on the screen, which is what a real machine is run at.
  * `wingWidth` is how wide a hole takes medals while its flaps are open,
- * which is during chance time. scripts/medal-pusher-tune.ts measures all of
+ * which is during chance time, as a pachinko machine's electric tulip opens
+ * wide while it is in its time-saving mode (時短): the machine is short of
+ * spins then, and lets more in. Only a player who keeps feeding while chance
+ * time lasts gets anything from it. A medal fed every two seconds seldom
+ * comes over the lip in it, and one fed five a second often does, so it is
+ * what gives back to steady fast play some of what the pile takes from it:
+ * the pile on the pusher spreads medals wider at speed, and fewer reach a
+ * hole. It is 1.7, as it was before it was narrowed to 1.42 while fast play
+ * was paid too well, which it no longer is now that the medals have
+ * friction. A hold of twelve, and a ball's roulette that hurries through a
+ * deep hold as the slot does, were tried first and gave fast play next to
+ * nothing back: most medals that find the hold full come all at once, off a
+ * tower that goes over at a hole, at any pace, and a fuller hold or a quicker
+ * screen takes few more of them. scripts/medal-pusher-tune.ts measures all of
  * it, and its table is the one to read before any of these numbers is moved.
  */
-export const CHECKERS = { positions: [MIDDLE - 11, MIDDLE, MIDDLE + 11], halfWidth: 1.27, wingWidth: 1.42 } as const;
+export const CHECKERS = { positions: [MIDDLE - 11, MIDDLE, MIDDLE + 11], halfWidth: 1.27, wingWidth: 1.7 } as const;
 
 /**
  * The START plate (catcher.ts draws it): a board the whole width of the

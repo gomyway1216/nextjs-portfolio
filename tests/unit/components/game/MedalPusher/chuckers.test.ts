@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { CATCHER } from '@/components/game/MedalPusher/catcher';
 import { CHUCKERS, chuckerSpot, chuckerSpots } from '@/components/game/MedalPusher/chuckers';
 import { CHECKERS, FIELD, MEDAL_RADIUS, PUSHER, checkerAt, pusherFront } from '@/components/game/MedalPusher/engine';
 import { TUBE } from '@/components/game/MedalPusher/stacker';
@@ -70,8 +71,8 @@ describe('where the chuckers are', () => {
         expect(checkerAt(x + side * (CHECKERS.wingWidth - 0.001))).toBe(-1);
       }
     });
-    // Two wide mouths do not run into one another either, and the towers still go over between them.
-    expect(CHECKERS.positions[1] - CHECKERS.positions[0] - (MEDAL_RADIUS + CHECKERS.wingWidth) * 2).toBeGreaterThan(MEDAL_RADIUS);
+    // Two wide mouths do not run into one another either, frames and all, and the towers still go over between them.
+    expect(CHECKERS.positions[1] - CHECKERS.positions[0] - (MEDAL_RADIUS + CHECKERS.wingWidth) * 2).toBeGreaterThan(2 * CATCHER.rim.wide + 1);
     expect(checkerAt((CHECKERS.positions[0] + CHECKERS.positions[1]) / 2, CHECKERS.wingWidth)).toBe(-1);
     expect(checkerAt((CHECKERS.positions[1] + CHECKERS.positions[2]) / 2, CHECKERS.wingWidth)).toBe(-1);
   });

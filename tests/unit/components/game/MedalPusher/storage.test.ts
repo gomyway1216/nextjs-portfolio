@@ -4136,7 +4136,7 @@ describe('chance time and the lucky lamp in a save', () => {
   const caught = (when: (session: Session) => boolean, enough: (session: Session) => boolean = () => false): Session => {
     // A seed at which each moment below is the one its tests take it for: chance time begins between two spins, with
     // no gold spin on the screen, and medals are held through open wings before the first gold roll on the board is paid.
-    const session = createSession(20261020, { balls: 0 });
+    const session = createSession(20261023, { balls: 0 });
     let feeding = true;
     for (let i = 0; i < 150 * 60 && !when(session); i++) {
       if (feeding && enough(session)) feeding = false;

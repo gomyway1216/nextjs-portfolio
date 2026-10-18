@@ -104,6 +104,10 @@ export class FakePage {
    * handles a request in parallel, so it can arrive after a message the page posted after making it.
    */
   lockLag = 0;
+  /** Whether this page can ask the lock manager when its requests are in (`card.queued`), as a browser with Web Locks can. */
+  answersQueued = true;
+  /** The page's last request to the lock manager, in once it has arrived. */
+  lastRequest: Promise<void> = Promise.resolve();
   watchers: Watchers | null = null;
   readonly name: string;
   readonly bank: Bank;
@@ -164,9 +168,13 @@ export class FakePage {
               browser.queue.push(request);
             }
           };
+          let arrived = (): void => undefined;
+          this.lastRequest = new Promise<void>((resolve) => (arrived = resolve));
           const after = (lag: number): void => {
-            if (lag <= 0) arrive();
-            else browser.tasks.push(() => after(lag - 1));
+            if (lag <= 0) {
+              arrive();
+              arrived();
+            } else browser.tasks.push(() => after(lag - 1));
           };
           after(this.lockLag);
           return () => {
@@ -175,6 +183,8 @@ export class FakePage {
             if (at >= 0) browser.queue.splice(at, 1);
           };
         },
+        // A question to the lock manager is answered after every request the page made before it.
+        queued: () => (this.answersQueued ? this.lastRequest : Promise.resolve()),
       },
       page: this.name,
       historyStore: () => browser.historyAccounts,

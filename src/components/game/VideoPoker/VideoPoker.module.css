@@ -634,6 +634,10 @@
   word-break: keep-all;
   overflow-wrap: break-word;
 }
+/* A quoted word and the stop after it, on one line (PlayTab's Unbroken). */
+.unbroken {
+  white-space: nowrap;
+}
 /* On a phone a message can take two lines: the line keeps room for two, so that nothing under it jumps as it changes. */
 @media (max-width: 520px) {
   .message {

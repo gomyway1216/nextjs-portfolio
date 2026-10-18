@@ -102,6 +102,30 @@ async function runSimulations(page: Page): Promise<void> {
   while (Date.now() < until && RUNNING.test(await page.locator('body').innerText())) await page.waitForTimeout(250);
 }
 
+/**
+ * Waits until every box that scrolls, and holds nothing Tab reaches, can be reached by Tab itself, as ScrollArea makes
+ * it. A tab's panel is hidden until its tab is chosen, so a ScrollArea in it first measures nothing; it learns that it
+ * scrolls from its next resize, a frame or two after the panel shows, and Firefox's axe could look in between. If a
+ * box never becomes reachable, the wait ends and axe reports it as before.
+ */
+async function scrollAreasSettled(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      (focusable) =>
+        [...document.querySelectorAll<HTMLElement>('body *')].every((element) => {
+          const style = getComputedStyle(element);
+          const scrolls =
+            (/(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth + 1) ||
+            (/(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1);
+          if (!scrolls || element.getClientRects().length === 0) return true;
+          return element.tabIndex >= 0 || element.querySelector(focusable) !== null;
+        }),
+      'a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])',
+      { timeout: 3_000 },
+    )
+    .catch(() => undefined);
+}
+
 const PAGES = [MEDAL_CENTER_PATH, MY_PAGE_PATH, MEDAL_RANKINGS_PATH, ...FLOOR_GAMES.map(machinePath)];
 
 /** Each width, theme and language once. */
@@ -128,6 +152,7 @@ for (const look of LOOKS) {
 
         const problems: string[] = [];
         const check = async (view: string) => {
+          await scrollAreasSettled(page);
           for (const v of await violations(page)) problems.push(`[${view}] ${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.join('\n    ')}`);
         };
         await check('first view');

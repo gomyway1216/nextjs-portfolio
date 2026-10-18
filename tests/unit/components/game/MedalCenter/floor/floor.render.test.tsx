@@ -33,6 +33,8 @@ const front = (lang: 'en' | 'ja' = 'en') =>
   );
 
 const NOW = Date.UTC(2026, 9, 17, 6, 0, 0);
+/** The markup with each count's nowrap wrapper taken off: the words as they read. */
+const plain = (html: string) => html.replace(/<span style="white-space:nowrap">([^<]*)<\/span>/g, '$1');
 const FEED: FloorFeedEntry[] = [
   { id: 3, name: 'Lucky Cat', tag: '0001', game: 'medal-pusher', label: 'jackpot', medals: 523, at: NOW - 120_000 },
   { id: 2, name: null, tag: '1234', game: 'slot-machine', label: 'seven3', medals: 3_000, at: NOW - 10_000 },
@@ -41,7 +43,11 @@ const FEED: FloorFeedEntry[] = [
 
 describe('the floor’s moments', () => {
   it('say who won what at which machine, and when, in English', () => {
-    const html = renderToStaticMarkup(<FeedList {...words()} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    const marked = renderToStaticMarkup(<FeedList {...words()} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    // Each count is kept on one line with what it counts.
+    expect(marked).toContain('<span style="white-space:nowrap">523 medals</span>');
+    expect(marked).toContain('<span style="white-space:nowrap">160-medal</span>');
+    const html = plain(marked);
     expect(html).toContain('Lucky Cat</bdi> <span>hit the JACKPOT: 523 medals</span>');
     expect(html).toContain('Player 1234</bdi> <span>lined up three sevens: 3,000 medals</span>');
     expect(html).toContain('won a 160-medal double-up');
@@ -54,7 +60,9 @@ describe('the floor’s moments', () => {
   });
 
   it('and in Japanese', () => {
-    const html = renderToStaticMarkup(<FeedList {...words('ja')} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    const marked = renderToStaticMarkup(<FeedList {...words('ja')} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    expect(marked).toContain('<span style="white-space:nowrap">3,000枚</span>');
+    const html = plain(marked);
     expect(html).toContain('ジャックポット！523枚');
     expect(html).toContain('プレイヤー1234');
     expect(html).toContain('7が3つそろって3,000枚');
@@ -322,7 +330,7 @@ describe('the floor jackpot', () => {
       { id: '20261017-a1b2c3d4', state: 'pending' as const, name: 'Lucky Cat', tag: '0001', game: 'slot-machine' as const, medals: 3_210, at: NOW - 60_000 },
       { id: '20261016-a1b2c3d4', state: 'void' as const, name: null, tag: '0042', game: 'roulette' as const, medals: 9_999, at: NOW - 86_400_000 },
     ];
-    const shown = renderToStaticMarkup(<JackpotWins {...w} wins={wins.map(({ id: _id, state: _state, ...win }) => win)} now={NOW} />);
+    const shown = plain(renderToStaticMarkup(<JackpotWins {...w} wins={wins.map(({ id: _id, state: _state, ...win }) => win)} now={NOW} />));
     expect(shown).toContain('Lucky Cat</bdi> hit the FLOOR JACKPOT: 3,210 medals');
     expect(shown).toContain('Player 0042');
     expect(shown).not.toContain('jackpot-void');

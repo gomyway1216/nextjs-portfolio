@@ -45,6 +45,8 @@ export interface RecordStrings {
   /** While the account is asked whether another device has taken today's bonus. */
   bonusAsking: string;
   pipsAria: (stamped: number, squares: number) => string;
+  /** Two of the sentences above, one after the other: with a space between them in English, and none in Japanese. */
+  then: (first: string, second: string) => string;
 
   // The stamp card
   cardTitle: string;
@@ -127,6 +129,7 @@ const en: RecordStrings = {
   bonusNotApart: 'No daily bonus in this browser: it has no way to keep two tabs of the game from each being paid for the same day.',
   bonusAsking: 'Asking your account whether today’s bonus has been taken on another device…',
   pipsAria: (stamped, squares) => `${stamped} of ${squares} stamped`,
+  then: (first, second) => `${first} ${second}`,
 
   cardTitle: 'Daily stamp card',
   cardLead: (week) =>
@@ -246,19 +249,20 @@ const en: RecordStrings = {
 const ja: RecordStrings = {
   bonusTitle: 'デイリーボーナス',
   bonusWaiting: 'スタンプカードを確認しています…',
-  bonusReady: (square, medals) => `${square}日目のボーナスを受け取れます: ${medals}枚`,
-  bonusRestarted: '1日あいたので、新しいカードになりました。',
+  bonusReady: (square, medals) => `${square}日目のボーナス、${medals}枚を受け取れます。`,
+  bonusRestarted: '前回から日があいたので、新しいカードになりました。',
   bonusTake: (medals) => `受け取る +${medals}`,
-  bonusTakeMore: '枚: 今日のデイリーボーナス',
-  bonusTaken: (medals) => `今日のスタンプ済み: +${medals}枚`,
-  bonusTomorrow: (medals) => `明日は +${medals}枚`,
-  bonusNewCard: (medals) => `カードがいっぱいになりました！ 明日から新しいカード: +${medals}枚`,
-  bonusLater: (date, medals) => `カードには今日より先の日付のスタンプがあります。次のボーナスは${date}: +${medals}枚`,
+  bonusTakeMore: '枚：今日のデイリーボーナス',
+  bonusTaken: (medals) => `今日のスタンプを押しました（+${medals}枚）。`,
+  bonusTomorrow: (medals) => `明日は+${medals}枚。`,
+  bonusNewCard: (medals) => `カードがいっぱいになりました！明日から新しいカード（+${medals}枚）。`,
+  bonusLater: (date, medals) => `カードには、今日より先の日付のスタンプがあります。次のボーナスは${date}（+${medals}枚）。`,
   bonusNoDay: 'この端末の日付がカレンダーの範囲外のため、今日のボーナスはありません。',
   bonusNotKept: 'このブラウザではメダルを保存できないため、デイリーボーナスはありません。',
   bonusNotApart: 'このブラウザでは、2つのタブが同じ日のボーナスを重ねて受け取るのを防げないため、デイリーボーナスはありません。',
   bonusAsking: 'ほかの端末で今日のボーナスを受け取っていないか、アカウントに確認しています…',
   pipsAria: (stamped, squares) => `${squares}個中${stamped}個スタンプ済み`,
+  then: (first, second) => `${first}${second}`,
 
   cardTitle: 'デイリースタンプカード',
   cardLead: (week) =>
@@ -266,9 +270,9 @@ const ja: RecordStrings = {
   dayN: (square) => `${square}日目`,
   today: '今日',
   medals: (medals) => `+${medals}`,
-  squareBlank: (square, medals) => `${square}日目: ${medals}枚`,
-  squareToday: (square, medals) => `${square}日目: ${medals}枚。今日受け取れます。`,
-  squareStamped: (square, medals, date) => `${square}日目: ${medals}枚。${date}にスタンプ済み。`,
+  squareBlank: (square, medals) => `${square}日目：${medals}枚`,
+  squareToday: (square, medals) => `${square}日目：${medals}枚。今日受け取れます。`,
+  squareStamped: (square, medals, date) => `${square}日目：${medals}枚。${date}にスタンプ済み。`,
   cardNote:
     'ボーナスのメダルは無料です。そのまま持ちメダルに加わり（メダルゲームセンターのどのゲームでも使えます）、投入・獲得・払い出しのどれにも数えません。このページの還元率（マシンの還元率、下の通算の還元率、確率の表）は変わりません。',
   clockNote:

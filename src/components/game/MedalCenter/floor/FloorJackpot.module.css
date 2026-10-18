@@ -247,6 +247,8 @@
   font-weight: 800;
   min-width: 0;
   overflow-wrap: anywhere;
+  /* As the floor's moments: never 「1,900｜枚」. */
+  word-break: keep-all;
 }
 .winWhere {
   font-size: 0.82rem;

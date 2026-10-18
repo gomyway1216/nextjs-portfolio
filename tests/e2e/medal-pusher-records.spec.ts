@@ -178,7 +178,7 @@ test('the bonus plate and the Records tab fit a phone, cover nothing, and read i
   await openGame(page, 'ja');
   await expect(bonus(page)).toHaveAttribute('data-state', 'ready');
   await expect(bonus(page)).toContainText('デイリーボーナス');
-  await expect(machine(page).getByTestId('pusher-bonus-status')).toHaveText(`1日目のボーナスを受け取れます: ${BONUS_CARD[0]}枚`);
+  await expect(machine(page).getByTestId('pusher-bonus-status')).toHaveText(`1日目のボーナス、${BONUS_CARD[0]}枚を受け取れます。`);
   await expect(page.getByRole('tab', { name: '記録' })).toBeVisible();
   await page.getByRole('tab', { name: '記録' }).click();
   await expect(records(page)).toContainText('デイリースタンプカード');

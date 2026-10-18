@@ -175,7 +175,7 @@ const ja: CenterStrings = {
   outAt: '{games}で、まだメダルが勝負に出ています。そこで勝負を終えるとメダルが戻ります。無料のメダルは、どこにもメダルが残っていないときにもらえます。',
   outJoin: '、',
   sayRefill: (medals) => `メダルが${medals}枚増えました。`,
-  sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
+  sayBonus: (medals) => `デイリーボーナス：メダルが${medals}枚増えました。`,
   myPage: 'マイページ',
   myPageNote: '持ちメダルの履歴と、各マシンの記録',
   floorTitle: 'フロア',

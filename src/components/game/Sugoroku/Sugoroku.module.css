@@ -1162,6 +1162,9 @@
 }
 .statList dt {
   color: var(--games-route-muted);
+  /* Free to be narrower than its longest word, so that a label with no room to break never pushes the page sideways
+     (Safari and Firefox keep Japanese words whole); its words carry their breaks (i18n.ts). */
+  min-width: 0;
 }
 .statList dd {
   margin: 0;

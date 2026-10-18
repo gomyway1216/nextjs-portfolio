@@ -345,8 +345,9 @@ test('two machines in two tabs: the one played last has the medals, the other wa
   await expect(machine(page).getByTestId('pusher-play-here')).toHaveText('Play here');
   // The second plays from the same bank: it shows what the first left in it. And it plays the machine the first left:
   // it draws the one it found as it opened, and opens the first's once it has the card, which can be a moment later
-  // (WebKit). A medal fed is counted on that machine only after that.
-  await expect.poll(() => counter(other, 'credits')).toBe(await bankBalance(other));
+  // (WebKit). A medal fed is counted on that machine only after that. A medal the first left on the field can still pay
+  // on the second as it plays on, so the two are read together each time, never the bank once before the wait.
+  await expect.poll(async () => (await counter(other, 'credits')) - (await bankBalance(other)), { timeout: 15_000 }).toBe(0);
   await expect.poll(() => counter(other, 'played'), { timeout: 15_000 }).toBe(await counter(page, 'played'));
   await feedOne(other);
   // Back to the first: it has the card again, and the machine the second saved, and the second waits.

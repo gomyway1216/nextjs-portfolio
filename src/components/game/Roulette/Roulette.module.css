@@ -1114,7 +1114,8 @@
 }
 .dozens {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Three equal dozens, however wide their words are in the font a phone has. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.25rem;
   flex: 1;
 }

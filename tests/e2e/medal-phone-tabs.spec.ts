@@ -13,7 +13,7 @@ const MACHINES = [
   { game: 'craps', tabs: 3, buttons: { en: [], ja: [] } },
   { game: 'video-poker', tabs: 3, buttons: { en: [], ja: [] } },
   // These three took the floor's tabs later; roulette's were two rows on a phone in Japanese until its tabs were named
-  // 「マーチン法」 and 「ハウスエッジ」, as the English names them ("Martingale sim", "House edge").
+  // 「マーチン法」 and 「ハウスエッジ」, as the English names them ("Martingale", "House edge").
   { game: 'slot-machine', tabs: 3, buttons: { en: [], ja: [] } },
   { game: 'janken', tabs: 2, buttons: { en: [], ja: [] } },
   { game: 'roulette', tabs: 3, buttons: { en: [], ja: [] } },

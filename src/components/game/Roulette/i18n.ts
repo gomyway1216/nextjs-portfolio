@@ -217,7 +217,7 @@ const EN: RouletteStrings = {
   subtitle:
     'European single-zero roulette (house edge −2.70%), played with your medals from the Medal Game Center. Bet, spin, and see the Martingale system fail under the law of large numbers.',
   tabPlay: 'Play',
-  tabSim: 'Martingale sim',
+  tabSim: 'Martingale',
   tabEdge: 'House edge',
   centerLink: 'Medal Game Center',
   medals: 'MEDALS',

@@ -121,6 +121,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `drew four of a kind: ${medals} medals`;
     case 'floor-jackpot':
       return `hit the FLOOR JACKPOT: ${medals} medals`;
+    case 'harbor-lord':
+      return `landed the Harbor Lord: ${medals} medals`;
+    case 'treasure':
+      return `fished up a treasure chest: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -146,6 +150,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `フォーカードで${medals}枚`;
     case 'floor-jackpot':
       return `フロアジャックポット！${medals}枚`;
+    case 'harbor-lord':
+      return `港のヌシを釣り上げて${medals}枚`;
+    case 'treasure':
+      return `宝箱を釣り上げて${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

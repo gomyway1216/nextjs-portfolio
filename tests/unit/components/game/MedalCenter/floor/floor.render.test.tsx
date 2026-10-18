@@ -180,12 +180,12 @@ describe('the floor jackpot', () => {
     expect(html.indexOf('floor-jackpot-amount')).toBeLessThan(html.indexOf('floor-feed-empty'));
     expect(html).toContain('>FLOOR JACKPOT<');
     // Nothing is known on the server: dashes, not a number.
-    expect(html).toContain('– – – –');
+    expect(html).toContain('–,–––');
     expect(html).toContain('data-standing="guest"');
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -256,6 +256,7 @@ describe('the floor jackpot', () => {
       baccarat: ['Baccarat/Baccarat.tsx', 'OddsTab'],
       craps: ['Craps/Craps.tsx', 'OddsTab'],
       'three-card-poker': ['ThreeCardPoker/ThreeCardPoker.tsx', 'OddsTab'],
+      fishing: ['Fishing/Fishing.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
     const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');
@@ -292,7 +293,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

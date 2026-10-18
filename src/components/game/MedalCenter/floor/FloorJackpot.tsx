@@ -42,9 +42,16 @@ export function LinkedMachines({ t, testId }: { t: FloorStrings; testId: string 
   );
 }
 
+/**
+ * What the counter shows until the pool is known: dashes in the shape of the seed's digits ("1,000"), so that the
+ * counter is as wide before the amount comes in as after it, and nothing under it moves when it does. Wider dashes
+ * wrapped on a phone and made a machine's strip 19 px taller until the amount came in.
+ */
+const UNKNOWN = '–,–––';
+
 /** The counter: the medals in the pool in lit digits, or dashes until they are known. */
 export function JackpotCounter({ amount, t, locale, size, testId }: { amount: number | null; t: FloorStrings; locale: string; size: 'big' | 'small'; testId: string }) {
-  const digits = amount === null ? '– – – –' : amount.toLocaleString(locale);
+  const digits = amount === null ? UNKNOWN : amount.toLocaleString(locale);
   return (
     <div className={styles.led} data-size={size} data-testid={testId} data-amount={amount ?? ''}>
       <span className={styles.ledLabel}>{t.jackpotTitle}</span>

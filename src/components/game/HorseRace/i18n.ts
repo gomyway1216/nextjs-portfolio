@@ -287,9 +287,9 @@ const ja: HorseStrings = {
   photoFinish: '写真判定',
   confirmed: '確定',
   paid: (won, net) => `戻り ${won.toLocaleString('ja-JP')}枚（${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ja-JP')}）`,
-  lost: (wagered) => `当たりなし（${wagered.toLocaleString('ja-JP')}枚）`,
+  lost: (wagered) => `的中なし（${wagered.toLocaleString('ja-JP')}枚）`,
   resultIdle: 'レースが終わると、ここに1着・2着と着差、馬券で戻ったメダルが出ます。',
-  sayResult: (first, second, won, wagered) => `1着 ${first}、2着 ${second}。${won > 0 ? `馬券で${won}枚が戻りました。` : `当たり馬券はありません（${wagered}枚）。`}`,
+  sayResult: (first, second, won, wagered) => `1着 ${first}、2着 ${second}。${won > 0 ? `馬券で${won}枚が戻りました。` : `的中した馬券はありません（${wagered}枚）。`}`,
   call: (call, horse) => {
     switch (call.kind) {
       case 'off':

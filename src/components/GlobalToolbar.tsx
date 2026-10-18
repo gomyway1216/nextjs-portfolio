@@ -27,7 +27,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   DropdownMenu,
@@ -468,18 +468,24 @@ export function GlobalToolbar() {
           </button>
 
           {!presumedSignedIn ? (
+            // One control, the link, named even where its word is hidden (a phone shows only the icon). It used to
+            // hold a <button>, which made two stops for one control and left both unnamed on a phone.
             <Link
               href={`/signin?redirect=${encodeURIComponent(pathname)}`}
+              aria-label={t('auth.login')}
+              className="rounded-md"
               style={{ color: 'var(--muted-foreground)' }}
             >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 rounded-md px-2.5 text-sm font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              <span
+                className={buttonVariants({
+                  variant: 'ghost',
+                  size: 'sm',
+                  className: 'h-8 gap-1.5 rounded-md px-2.5 text-sm font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                })}
               >
-                <LogIn className="h-3.5 w-3.5" />
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">{t('auth.login')}</span>
-              </Button>
+              </span>
             </Link>
           ) : !currentUser ? (
             // Session still restoring. Same box as the resolved avatar so the

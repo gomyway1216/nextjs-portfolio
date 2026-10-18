@@ -117,6 +117,8 @@ export interface CrapsStrings {
   passPoint: (p: number) => string;
   passTotal: string;
   colChance: string;
+  /** The first column of the table of how Pass wins, said to a screen reader. */
+  colPassWay: string;
   colMake: string;
   colContribution: string;
   oddsEffectTitle: string;
@@ -387,6 +389,7 @@ const EN: CrapsStrings = {
   passPoint: (p) => `Point ${p}, then made`,
   passTotal: 'Pass wins',
   colChance: 'Chance',
+  colPassWay: 'How it is decided',
   colMake: 'Makes it',
   colContribution: 'Contributes',
   oddsEffectTitle: 'Taking odds shrinks the edge',
@@ -593,6 +596,7 @@ const JA: CrapsStrings = {
   passPoint: (p) => `ポイント ${p} → 成立`,
   passTotal: 'パスの勝ち',
   colChance: '確率',
+  colPassWay: '決まり方',
   colMake: '成立する確率',
   colContribution: '寄与',
   oddsEffectTitle: 'オッズを付けるほどエッジは小さくなる',

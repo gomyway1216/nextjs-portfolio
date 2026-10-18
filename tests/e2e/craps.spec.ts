@@ -6,6 +6,7 @@ import { TABLE_KEY, parseTable, unreadKey } from '../../src/components/game/Crap
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Random rolls are read back from the table and checked against the engine;
@@ -51,14 +52,16 @@ async function rollAndSettle(page: Page): Promise<Dice> {
   return [Number(m![1]), Number(m![2])];
 }
 
+/**
+ * The next roll comes up `dice`: the two numbers ROLL draws (1 + floor(r × 6) = face, so r = (face − 0.5) / 6), served
+ * only to the press that rolls (rigPresses). The page's other callers of Math.random get real ones: on the live site the
+ * floor's live strip draws one of its own a moment after the table is playable, and a plain queue gave it the first die.
+ */
 async function forceNextRoll(page: Page, dice: Dice) {
-  // 1 + floor(r × 6) = face  →  r = (face − 0.5) / 6
-  await page.evaluate(([a, b]) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const queue = [(a - 0.5) / 6, (b - 0.5) / 6];
-    Math.random = () => (queue.length ? queue.shift()! : w.__random!());
-  }, dice);
+  await rigPresses(
+    page,
+    dice.map((face) => (face - 0.5) / 6),
+  );
 }
 
 /** The table this browser keeps for a guest. */

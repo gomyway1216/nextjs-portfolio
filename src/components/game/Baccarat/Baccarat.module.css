@@ -912,6 +912,13 @@
   /* Clear of the chosen medal's ring, which is drawn outside the medal. */
   margin-right: 0.3rem;
 }
+/* On the narrowest phones the five medals do not fit beside 「ベット」: the word has a line of its own over them, rather
+   than the 100 dropping alone to a second row. */
+@media (max-width: 360px) {
+  .chipRowLabel {
+    flex-basis: 100%;
+  }
+}
 .chip {
   /* A medal of the floor's silver (medalLook.ts MEDAL_PAINT): a raised rim, the face, and the number struck on it. */
   appearance: none;

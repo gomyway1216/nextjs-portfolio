@@ -120,6 +120,23 @@ for (const width of WIDTHS) {
     await context.close();
   });
 
+  test(`three card poker's spots keep their names whole, and baccarat's bet medals are one row, in Japanese at ${width} px`, async ({ browser }) => {
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/three-card-poker');
+    await arrived(page);
+    const labels = page.locator('[data-bet] > span:first-child');
+    await expect(labels).toHaveCount(3);
+    for (const label of await labels.all()) expect(await linesOf(label), `a spot at ${width} px`).toHaveLength(1);
+    await page.goto('/games/baccarat');
+    await arrived(page);
+    const medals = page.getByRole('radiogroup', { name: 'ベット', exact: true }).getByRole('radio');
+    await expect(medals).toHaveCount(5);
+    // One row: their middles at one height (the chosen medal is drawn a little larger).
+    const middles = await medals.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; }));
+    expect(Math.max(...middles) - Math.min(...middles), `the bet medals at ${width} px: ${middles.join(', ')}`).toBeLessThan(4);
+    await context.close();
+  });
+
   test(`the three card poker felt's rules break only between them in Japanese at ${width} px`, async ({ browser }) => {
     const { context, page } = await phone(browser, width);
     await page.goto('/games/three-card-poker');

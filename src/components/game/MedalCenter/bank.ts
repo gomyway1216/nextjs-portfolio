@@ -1580,10 +1580,121 @@ const randomFrom = (): (() => number) => {
   }
 };
 
-/** The card in a browser: a Web Lock held for as long as the page keeps the card. */
-const browserCard = (): CardLock => {
-  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+/**
+ * Runs `then` in a task of its own, after this one: a message to itself, which the browser does not hold back in a
+ * hidden page as it does a timer.
+ */
+const nextTask = (then: () => void): void => {
+  if (typeof MessageChannel === 'undefined') {
+    setTimeout(then, 0);
+    return;
+  }
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => {
+    channel.port1.close();
+    then();
+  };
+  channel.port2.postMessage(null);
+};
+
+/** Where a page that lets the card go writes, last of all, a mark of its own: the next page to hold it reads it first. */
+export const CARD_HANDED_KEY = 'medal-center-card-handed';
+/** How long a page given the card waits at most for the mark of the page that let it go. A page that died left none. */
+export const CARD_HANDED_WAIT_MS = 2_000;
+
+/** The parts of a browser the card is made of. */
+export interface BrowserCardDeps {
+  /** The browser's lock manager, where it has one. */
+  locks: Pick<LockManager, 'request' | 'query'> | undefined;
+  /** This page's storage. Either may throw, when storage is blocked. */
+  read: (key: string) => string | null;
+  write: (key: string, text: string) => void;
+  /** Hears another page's writes to storage, by key (null for a clear). Returns what stops it. */
+  onStorage: (listener: (key: string | null) => void) => () => void;
+  /** Runs something in a task after this one. */
+  nextTask: (run: () => void) => void;
+  /** Runs something after `ms`. Returns what cancels it. */
+  later: (run: () => void, ms: number) => () => void;
+  /** A mark no other page will write. */
+  mark: () => string;
+  /** Whether the page is being left (from pagehide until it is shown again). */
+  leaving: () => boolean;
+}
+
+/**
+ * The card in a browser: a Web Lock held for as long as the page keeps the card.
+ *
+ * What a page writes down as it lets the card go (the bank, its machine) is in its own storage at once, but it reaches
+ * the other tabs later, and the lock can reach the next tab first: Firefox hands a tab what another wrote once the
+ * task that wrote it is over, and WebKit sends storage and locks to a tab by different ways, so either can come first.
+ * A tab that read the bank and the machine then would find them as they were before, and write them back so. So the
+ * card is handed over:
+ *
+ * - The page that lets it go writes a mark of its own (`CARD_HANDED_KEY`) after everything else, and lets go a task
+ *   later, when the task that wrote is over. A page that is being left lets go at once: it may not run another task,
+ *   and the browser takes the card back as it goes.
+ * - A page asks first for the card only if nobody holds it (`ifAvailable`), and then takes it at once, with nothing to
+ *   wait for. If another page holds it, it gets in line for it, and is given it only once its storage has that page's
+ *   mark, and so everything written before it. A page that died wrote no mark: after `CARD_HANDED_WAIT_MS` the card
+ *   is given all the same. A page whose own card is still on its way out waits for no mark either.
+ */
+export function createBrowserCard({ locks, read, write, onStorage, nextTask: afterThis, later, mark, leaving }: BrowserCardDeps): CardLock {
   const apart = !!locks && typeof locks.request === 'function';
+  /** This page's own cards that have been let go and not yet given back to the lock manager. */
+  let going = 0;
+  const readMark = (): string | null | undefined => {
+    try {
+      return read(CARD_HANDED_KEY);
+    } catch {
+      return undefined;
+    }
+  };
+  /** Resolves once storage has a mark other than `before`, or after the longest wait. */
+  const markAfter = (before: string | null): Promise<void> =>
+    new Promise<void>((done) => {
+      let over = false;
+      const stops: (() => void)[] = [];
+      const finish = () => {
+        if (over) return;
+        over = true;
+        for (const stop of stops) stop();
+        done();
+      };
+      const look = () => {
+        if (readMark() !== before) finish();
+      };
+      stops.push(onStorage((key) => (key === CARD_HANDED_KEY || key === null) && look()));
+      stops.push(later(finish, CARD_HANDED_WAIT_MS));
+      // Storage tells a page of another's writes; a look now and then makes sure of it.
+      const poll = () => {
+        if (over) return;
+        look();
+        if (!over) stops.push(later(poll, 50));
+      };
+      poll();
+    });
+  /** Gives the card to the page, with what lets it go: its mark written last, and the lock let go a task later. */
+  const hold = (granted: (release: () => void) => void) =>
+    new Promise<void>((release) =>
+      granted(() => {
+        try {
+          write(CARD_HANDED_KEY, mark());
+        } catch {
+          // Storage is blocked: there is nothing the next page could read anyway.
+        }
+        if (leaving()) {
+          release();
+          return;
+        }
+        going += 1;
+        afterThis(() => {
+          going -= 1;
+          release();
+        });
+      }),
+    );
+  /** Resolves once this page's latest request for the card is in the lock manager's line, or has been given. */
+  let inLine: Promise<void> = Promise.resolve();
   return {
     apart,
     ask: (granted) => {
@@ -1593,28 +1704,84 @@ const browserCard = (): CardLock => {
       }
       const stop = new AbortController();
       let given = false;
+      let lineUp: () => void = () => undefined;
+      inLine = new Promise<void>((resolve) => (lineUp = resolve));
+      // The mark the last page to let the card go left, as this page's storage has it now; and whether the card on its
+      // way back to the lock manager is this page's own.
+      const before = readMark();
+      const ours = going > 0;
       locks
-        .request(CARD_LOCK, { signal: stop.signal }, () => {
-          given = true;
-          return new Promise<void>((release) => granted(release));
+        .request(CARD_LOCK, { ifAvailable: true }, (free) => {
+          if (free && stop.signal.aborted) {
+            // Withdrawn before it was answered: the card is let go again untouched.
+            lineUp();
+            return undefined;
+          }
+          if (free) {
+            given = true;
+            lineUp();
+            return hold(granted);
+          }
+          if (stop.signal.aborted) {
+            lineUp();
+            return undefined;
+          }
+          locks
+            .request(CARD_LOCK, { signal: stop.signal }, async () => {
+              given = true;
+              if (before !== undefined && !ours) await markAfter(before);
+              return hold(granted);
+            })
+            .catch(() => {
+              // Withdrawn while it waited, or refused: nothing was given.
+            });
+          lineUp();
+          return undefined;
         })
         .catch(() => {
-          // Withdrawn while it waited, or refused: nothing was given.
+          // Refused: nothing was given, and nothing is waited for.
+          lineUp();
         });
       return () => {
         if (!given) stop.abort();
       };
     },
     // The lock manager answers a page's calls in the order they were made: a question asked after a request is
-    // answered once the request is in.
+    // answered once the request is in. The request that waits is made once the card is found taken, so the question
+    // is asked once that request has been made.
     queued: () =>
       apart && locks && typeof locks.query === 'function'
-        ? locks.query().then(
+        ? inLine.then(() => locks.query()).then(
             () => undefined,
             () => undefined,
           )
         : Promise.resolve(),
   };
+}
+
+const browserCard = (): CardLock => {
+  let leaving = false;
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => (leaving = true), true);
+    window.addEventListener('pageshow', () => (leaving = false), true);
+  }
+  return createBrowserCard({
+    locks: typeof navigator === 'undefined' ? undefined : navigator.locks,
+    read: (key) => window.localStorage.getItem(key),
+    write: (key, text) => window.localStorage.setItem(key, text),
+    onStorage: (listener) => {
+      const onEvent = (event: StorageEvent) => listener(event.key);
+      window.addEventListener('storage', onEvent);
+      return () => window.removeEventListener('storage', onEvent);
+    },
+    nextTask,
+    later: (run, ms) => {
+      const id = window.setTimeout(run, ms);
+      return () => window.clearTimeout(id);
+    },
+    mark: () => randomName(randomFrom()) + randomName(randomFrom()),
+    leaving: () => leaving,
+  });
 };
 
 /**

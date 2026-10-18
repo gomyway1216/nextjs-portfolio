@@ -40,10 +40,21 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   useEffect(() => {
     close.current = onClose;
   });
+  // The control a press last went down on. Safari does not give a button the focus when it is clicked or tapped, so
+  // there the focus is still on the page when the dialog opens, and this is what opened it.
+  const pressed = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const note = (event: PointerEvent) => {
+      pressed.current = event.target instanceof Element ? event.target.closest<HTMLElement>(FOCUSABLE) : null;
+    };
+    document.addEventListener('pointerdown', note, true);
+    return () => document.removeEventListener('pointerdown', note, true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement && active !== document.body ? active : pressed.current;
     closeRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {

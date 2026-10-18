@@ -440,6 +440,9 @@ test('leaving for another page while the dealer turns over pays the hand as the 
   const leftAt = Date.now();
   await page.locator('a[href="/games"]').first().click();
   await page.waitForURL(/\/games$/);
+  // The address can change a moment before the table is taken down (WebKit shows the new one first): the hand is read
+  // once the table is gone.
+  await expect(page.getByTestId('tcp-counter')).toHaveCount(0);
   const tookMs = Date.now() - leftAt;
   const dealer = await (async () => {
     const hand = parseHand(await storedHand(page));

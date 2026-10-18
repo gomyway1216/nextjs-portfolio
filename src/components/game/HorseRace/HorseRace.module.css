@@ -842,7 +842,10 @@
   .photo,
   .gate,
   .marquee::before,
-  .marquee::after {
+  .marquee::after,
+  /* The chase is set on the lit marquee, a selector stronger than .marquee's: it is stopped by one as strong. */
+  .marquee[data-chase='true']::before,
+  .marquee[data-chase='true']::after {
     animation: none;
     transition: none;
   }

@@ -7,6 +7,7 @@ import { CatFace } from './art';
 import { lampAt } from './Cabinet';
 import { getStrings } from './i18n';
 import styles from './Janken.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeMachine();
 const LAMP_TONE: Readonly<Record<number, string>> = { 1: 'one', 2: 'two', 3: 'three', 5: 'five', 10: 'ten' };
@@ -95,10 +96,10 @@ export const OddsTab = () => {
       </div>
 
       <section aria-labelledby="janken-throw-title">
-        <h3 id="janken-throw-title" className={styles.blockTitle}>
+        <h2 id="janken-throw-title" className={styles.blockTitle}>
           {t.throwTitle}
-        </h3>
-        <div className={styles.tableWrap}>
+        </h2>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="janken-throw-table">
             <thead>
               <tr>
@@ -117,14 +118,14 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.throwNote}</p>
       </section>
 
       <section aria-labelledby="janken-ring-title">
-        <h3 id="janken-ring-title" className={styles.blockTitle}>
+        <h2 id="janken-ring-title" className={styles.blockTitle}>
           {t.ringTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.ringIntro}</p>
         <div className={styles.ringFigure}>
           <svg viewBox="0 0 220 220" className={styles.ringMini} aria-hidden focusable="false">
@@ -145,7 +146,7 @@ export const OddsTab = () => {
               );
             })}
           </svg>
-          <div className={styles.tableWrap}>
+          <ScrollArea className={styles.tableWrap}>
             <table className={styles.oddsTable} data-testid="janken-ring-table">
               <thead>
                 <tr>
@@ -183,16 +184,16 @@ export const OddsTab = () => {
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollArea>
         </div>
       </section>
 
       <section aria-labelledby="janken-double-title">
-        <h3 id="janken-double-title" className={styles.blockTitle}>
+        <h2 id="janken-double-title" className={styles.blockTitle}>
           {t.doubleTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.doubleIntro(MAX_DOUBLES)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="janken-double-table">
             <thead>
               <tr>
@@ -216,13 +217,13 @@ export const OddsTab = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section aria-labelledby="janken-compare-title">
-        <h3 id="janken-compare-title" className={styles.blockTitle}>
+        <h2 id="janken-compare-title" className={styles.blockTitle}>
           {t.compareTitle}
-        </h3>
+        </h2>
         {t.compare.map((p, i) => (
           <p key={i} className={styles.note}>
             {p}
@@ -231,9 +232,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="janken-sim-title" className={styles.sim}>
-        <h3 id="janken-sim-title" className={styles.blockTitle}>
+        <h2 id="janken-sim-title" className={styles.blockTitle}>
           {t.simTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simIntro}</p>
         <div className={styles.simControls}>
           <label htmlFor={ids.medals}>

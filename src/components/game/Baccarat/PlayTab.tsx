@@ -710,9 +710,9 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           <aside className={styles.notice} aria-labelledby="baccarat-notice-title" data-testid="baccarat-notice" {...noteAttributes('baccarat')}>
             <MedalIcon className={styles.noticeMedal} />
             <div className={styles.noticeText}>
-              <h3 id="baccarat-notice-title" className={styles.noticeTitle}>
+              <h2 id="baccarat-notice-title" className={styles.noticeTitle}>
                 {t.noticeTitle}
-              </h3>
+              </h2>
               <p>
                 {t.noticeBody}{' '}
                 <a className={styles.link} href={MEDAL_CENTER_PATH}>
@@ -997,9 +997,9 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           <div className={`${styles.part} ${styles.morePart}`}>
             <section className={styles.live} aria-labelledby="baccarat-live-title">
               <div className={styles.liveHead}>
-                <h3 id="baccarat-live-title" className={styles.liveTitle}>
+                <h2 id="baccarat-live-title" className={styles.liveTitle}>
                   {t.liveTitle}
-                </h3>
+                </h2>
                 {freshShoe && <span className={styles.liveBadge}>{t.liveFresh}</span>}
               </div>
               <table className={styles.liveTable} data-testid="live-odds">

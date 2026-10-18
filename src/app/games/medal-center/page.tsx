@@ -4,5 +4,10 @@ import { buildGameMetadata } from '@/lib/games/gameMetadata';
 export const metadata = buildGameMetadata('medal-center');
 
 export default function MedalCenterPage() {
-  return <MedalCenterForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <MedalCenterForPlayer />
+    </main>
+  );
 }

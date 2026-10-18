@@ -57,6 +57,7 @@ import { LUCKY, towerSizes } from './engine';
 import { ReelSymbol } from './ReelSymbols';
 import { HURRY, MAX_STOCK, START_JEWELS, TIMING } from './session';
 import styles from './MedalPusher.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 /** The slot's lines, best first. */
 const LINES: Tier[] = ['seven', 'big', 'small', 'miss'];
@@ -179,7 +180,7 @@ export const OddsTab = () => {
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.slotTitle}</h2>
         <p className={styles.body}>{t.slotIntro(MAX_STOCK)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-slot-table">
             <caption className={styles.srOnly}>{t.slotCaption}</caption>
             <thead>
@@ -220,9 +221,9 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.reachNote(tidyPercent(REACH_RATE))}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-reach-table">
             <caption className={styles.srOnly}>{t.reachCaption}</caption>
             <thead>
@@ -246,7 +247,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>
           {t.reachTrustNote(
             percent(reachHitChance('long')),
@@ -257,7 +258,7 @@ export const OddsTab = () => {
           )}
         </p>
         <p className={styles.note}>{t.hurryIntro(MAX_STOCK)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-hurry-table">
             <caption className={styles.srOnly}>{t.hurryCaption}</caption>
             <thead>
@@ -285,13 +286,13 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.boardTitle}</h2>
         <p className={styles.body}>{t.boardIntro(BOARD.length)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={`${styles.oddsTable} ${styles.boardTable}`} data-testid="pusher-board-table">
             <caption className={styles.srOnly}>{t.boardCaption}</caption>
             <thead>
@@ -317,14 +318,14 @@ export const OddsTab = () => {
               </tr>
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.boardNote(trim(BOARD_VALUE), BOARD_ROLLS, percent(boardSpread(BOARD_ROLLS)))}</p>
       </section>
 
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.chestOddsTitle}</h2>
         <p className={styles.body}>{t.chestOddsIntro(TIMING.choose)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-chest-table">
             <caption className={styles.srOnly}>{t.chestOddsCaption}</caption>
             <thead>
@@ -346,7 +347,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.chestOddsNote(trim(CHEST_VALUE))}</p>
         <p className={styles.note}>{t.towerNote}</p>
       </section>
@@ -354,7 +355,7 @@ export const OddsTab = () => {
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.rouletteTitle}</h2>
         <p className={styles.body}>{t.rouletteIntro(ROULETTE.length, CHAIN_GOAL)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-roulette-table">
             <caption className={styles.srOnly}>{t.rouletteCaption}</caption>
             <thead>
@@ -378,8 +379,8 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
-        <div className={styles.tableWrap}>
+        </ScrollArea>
+        <ScrollArea className={styles.tableWrap}>
           <table className={`${styles.oddsTable} ${styles.boardTable}`} data-testid="pusher-chain-table">
             <caption className={styles.srOnly}>{t.chainCaption}</caption>
             <thead>
@@ -403,9 +404,9 @@ export const OddsTab = () => {
               </tr>
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.body}>{t.bowlIntro(BOWLS.length)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-bowl-table">
             <caption className={styles.srOnly}>{t.bowlCaption}</caption>
             <thead>
@@ -446,7 +447,7 @@ export const OddsTab = () => {
               </tbody>
             ))}
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.bowlNote(JACKPOT_START, trim(bowlValue(JACKPOT_START)), percent(CHALLENGE_CHANCE), tidyPercent(BOWL_POURED))}</p>
         <p className={styles.note}>
           {t.jackpotNote(JACKPOT_START, JACKPOT_STEP, trim(1 / BALL_JACKPOT_CHANCE, 1), fmt(Math.round(1 / JACKPOT_CHANCE)), trim(POCKET_VALUE))}
@@ -456,7 +457,7 @@ export const OddsTab = () => {
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.jewelTitle}</h2>
         <p className={styles.body}>{t.jewelIntro(JEWEL.lamps)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-jewel-table">
             <caption className={styles.srOnly}>{t.jewelCaption}</caption>
             <thead>
@@ -481,7 +482,7 @@ export const OddsTab = () => {
               </tr>
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note} data-testid="pusher-jewel-note">
           {t.jewelNote(
             (SPIN_TABLE[JEWEL_TIER] * 1000) / SPIN_TOTAL,
@@ -497,7 +498,7 @@ export const OddsTab = () => {
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.valueTitle}</h2>
         <p className={styles.body}>{t.valueIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-value-table">
             <caption className={styles.srOnly}>{t.valueCaption}</caption>
             <thead>
@@ -521,7 +522,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.valueNote(spinValue(JACKPOT_START).toFixed(2))}</p>
       </section>
 
@@ -529,7 +530,7 @@ export const OddsTab = () => {
       <section className={styles.panelBox}>
         <h2 className={styles.blockTitle}>{t.chanceOddsTitle}</h2>
         <p className={styles.body}>{t.chanceOddsBody(MAX_STOCK, CHANCE.multiplier)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="pusher-chance-table">
             <caption className={styles.srOnly}>{t.chanceCaption}</caption>
             <thead>
@@ -557,7 +558,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.chanceOddsNote(CHANCE_BONUS.toFixed(2))}</p>
         {/* The lucky lamp makes a spin gold with no full hold: its rule, the two spins' worth again with the jackpot where it starts, that it cannot be aimed at, and how many spins it makes gold. */}
         <p className={styles.note} data-testid="pusher-lucky-note">

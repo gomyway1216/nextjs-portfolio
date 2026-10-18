@@ -570,10 +570,10 @@
   font-weight: 900;
   letter-spacing: -0.02em;
 }
+/* In full white: at 90% opacity the line was 4.3:1 on the orange and the green numbers. */
 .spotSegments {
   font-size: 0.66rem;
   font-weight: 700;
-  opacity: 0.9;
 }
 /* The medals on a number: a stack-coloured chip at its corner, the same size whether or not there are any. */
 .spotMedals {

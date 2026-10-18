@@ -4,6 +4,7 @@ import { DECK, TOP, payFor, type Card } from '../../src/components/game/HighLow/
 import { ROUND_KEY, parseRound } from '../../src/components/game/HighLow/medalTable';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
+import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
 import { quietFloor } from './quietFloor';
@@ -15,7 +16,11 @@ import { arrived } from './streamedPage';
 // test that needs a card queues its number for that press (rigPresses.ts). The floor's API answers at once
 // (quietFloor.ts); nothing reaches a real server.
 
-test.beforeEach(async ({ context }) => quietFloor(context));
+test.beforeEach(async ({ context }) => {
+  await quietFloor(context);
+  // One button after another on a page taller than the window: the page scrolls at once, so no press lands elsewhere.
+  await instantScroll(context);
+});
 
 /** A card of a rank (0 for a 2 up to 12 for an ace), in a suit, and the number that draws it. */
 const card = (rank: number, suit = 0): Card => rank * 4 + suit;
@@ -212,6 +217,7 @@ test('the keys play it, S skips a card turning, and twelve right guesses reach t
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });
   await quietFloor(context);
+  await instantScroll(context);
   const page = await context.newPage();
   await openLadder(page, language);
   return { context, page };

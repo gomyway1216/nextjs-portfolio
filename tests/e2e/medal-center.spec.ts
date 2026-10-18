@@ -110,7 +110,7 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCenter(page);
   // Each corner's sign is a heading, in the page's language (its Japanese is there for the look, not read twice).
   for (const sign of ['PUSHER CORNER', 'VIDEO & SLOTS', 'TABLE GAMES', 'KIDS & CANDY SHOP']) {

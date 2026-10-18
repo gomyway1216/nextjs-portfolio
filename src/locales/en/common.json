@@ -1382,6 +1382,10 @@
     "ball-bingo": {
       "title": "Ball Bingo",
       "description": "A ball-drop bingo of the Medal Center: shoot balls through the pins into numbered pockets, line up a 3×3 card, catch FREE and CHANCE for more balls — and see the exact odds of every line, and why about 90 of every 100 medals come back."
+    },
+    "big-wheel": {
+      "title": "Star Festival Big Wheel",
+      "description": "A big upright prize wheel at the Medal Center: put your medals on its numbers, watch the 54-segment wheel clack to a stop under the flapper, and chase the Milky Way Chance’s second spin up to ×400 — every number bringing back exactly 90%."
     }
   },
   "home": {

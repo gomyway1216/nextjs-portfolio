@@ -8,12 +8,9 @@ import { PAY_TABLES, payout, rankCards } from '@/components/game/VideoPoker/engi
 import {
   GAME,
   HAND_KEY,
-  NOTICE_KEY,
   cardsOf,
   createMedalPlay,
   handKey,
-  markNoticeSeen,
-  noticeSeen,
   parseHand,
   serializeHand,
   wonBy,
@@ -488,28 +485,6 @@ describe('what is kept', () => {
     const again = createMedalPlay({ bank: page.bank, holding: () => true, store: full });
     expect(again.read()).toEqual({ ok: true, hand: null });
     expect(storedBalance(browser)).toBe(WELCOME - 5 + 45);
-  });
-
-  it('tells the player once that the machine plays with their medals now', () => {
-    const storage = new Map<string, string>();
-    const store: HandStore = { read: (key) => storage.get(key) ?? null, write: (key, text) => void storage.set(key, text), remove: (key) => void storage.delete(key) };
-    expect(noticeSeen(store)).toBe(false);
-    markNoticeSeen(store);
-    expect(noticeSeen(store)).toBe(true);
-    // Whatever was there before counts as told; storage that cannot be read tells them again, and nothing throws.
-    storage.set(NOTICE_KEY, 'anything');
-    expect(noticeSeen(store)).toBe(true);
-    const blocked: HandStore = {
-      read: () => {
-        throw new Error('blocked');
-      },
-      write: () => {
-        throw new Error('blocked');
-      },
-      remove: () => undefined,
-    };
-    expect(noticeSeen(blocked)).toBe(false);
-    expect(() => markNoticeSeen(blocked)).not.toThrow();
   });
 });
 

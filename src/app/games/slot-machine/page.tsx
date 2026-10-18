@@ -4,5 +4,10 @@ import { buildGameMetadata } from '@/lib/games/gameMetadata';
 export const metadata = buildGameMetadata('slot-machine');
 
 export default function SlotMachinePage() {
-  return <SlotMachineForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <SlotMachineForPlayer />
+    </main>
+  );
 }

@@ -59,6 +59,7 @@ import {
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { useCountUp } from '../MedalCenter/countUp';
+import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { MedalCounter, MedalIcon, MedalStack } from './MedalCounter';
 import { PlayingCard, cardLabel } from './Cards';
 import { BeadPlate, BigRoad } from './Roads';
@@ -70,6 +71,13 @@ import styles from './Baccarat.module.css';
  * last card has turned face up and its total is showing (0.46 s into its slide, then 0.18 s to appear: `totalLate`).
  */
 const CARD_MS = 340;
+
+/**
+ * The note that the table plays with the player's medals now: told once, kept on the page until it is put away. The
+ * server draws it, and its gate hides it before the page is painted where it has been told (MedalCenter/onceNote.tsx),
+ * so the table never moves for it.
+ */
+const NOTE = createOnceNote({ name: 'baccarat', storageKey: NOTICE_KEY, readWhenShown: true });
 const THIRD_CARD_PAUSE_MS = 360;
 const SETTLE_MS = 680;
 
@@ -195,7 +203,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const [stats, setStats] = useState<Stats>(NEW_TABLE.stats);
   const [shoeView, setShoeView] = useState<ShoeView>(NO_SHOE);
   const [unseen, setUnseen] = useState<number[]>(() => fullShoeCounts(DEFAULT_DECKS));
-  const [notice, setNotice] = useState(false);
+  const notice = NOTE.useShown();
   /** Says that the medals about to come back are a win, to be counted up on the counter (`medalMeter.pay`). */
   const payMedals = useRef<() => void>(() => undefined);
   // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch beside the shoe.
@@ -295,11 +303,6 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     // Storage is read only in the browser, after the first drawing matches the server's.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (table) showTable(table);
-    // Told once that the table plays with the player's medals now.
-    if (store.read(NOTICE_KEY) === null) {
-      setNotice(true);
-      store.write(NOTICE_KEY, '1');
-    }
     // Once, on opening: the functions it calls only set state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
@@ -700,23 +703,26 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   return (
     <div>
       {notice && (
-        <aside className={styles.notice} aria-labelledby="baccarat-notice-title" data-testid="baccarat-notice">
-          <MedalIcon className={styles.noticeMedal} />
-          <div className={styles.noticeText}>
-            <h3 id="baccarat-notice-title" className={styles.noticeTitle}>
-              {t.noticeTitle}
-            </h3>
-            <p>
-              {t.noticeBody}{' '}
-              <a className={styles.link} href={MEDAL_CENTER_PATH}>
-                {t.centerLink}
-              </a>
-            </p>
-          </div>
-          <button type="button" className={styles.btn} onClick={() => setNotice(false)} data-testid="baccarat-notice-ok">
-            {t.noticeOk}
-          </button>
-        </aside>
+        <>
+          <NoteGate name="baccarat" storageKey={NOTICE_KEY} />
+          <aside className={styles.notice} aria-labelledby="baccarat-notice-title" data-testid="baccarat-notice" {...noteAttributes('baccarat')}>
+            <MedalIcon className={styles.noticeMedal} />
+            <div className={styles.noticeText}>
+              <h2 id="baccarat-notice-title" className={styles.noticeTitle}>
+                {t.noticeTitle}
+              </h2>
+              <p>
+                {t.noticeBody}{' '}
+                <a className={styles.link} href={MEDAL_CENTER_PATH}>
+                  {t.centerLink}
+                </a>
+              </p>
+            </div>
+            <button type="button" className={styles.btn} onClick={NOTE.putAway} data-testid="baccarat-notice-ok">
+              {t.noticeOk}
+            </button>
+          </aside>
+        </>
       )}
       <div className={styles.playGrid}>
         {/*
@@ -989,9 +995,9 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           <div className={`${styles.part} ${styles.morePart}`}>
             <section className={styles.live} aria-labelledby="baccarat-live-title">
               <div className={styles.liveHead}>
-                <h3 id="baccarat-live-title" className={styles.liveTitle}>
+                <h2 id="baccarat-live-title" className={styles.liveTitle}>
                   {t.liveTitle}
-                </h3>
+                </h2>
                 {freshShoe && <span className={styles.liveBadge}>{t.liveFresh}</span>}
               </div>
               <table className={styles.liveTable} data-testid="live-odds">

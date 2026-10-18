@@ -7,11 +7,16 @@ import { arrived } from './streamedPage';
 // lines. The tabs still fit the screen, with nothing to scroll sideways.
 
 const MACHINES = [
-  { game: 'blackjack', buttons: { en: ['Clear record'], ja: ['記録を消す'] } },
-  { game: 'baccarat', buttons: { en: ['Rebet'], ja: ['同じベット'] } },
-  { game: 'three-card-poker', buttons: { en: ['Rebet'], ja: ['同じベット'] } },
-  { game: 'craps', buttons: { en: [], ja: [] } },
-  { game: 'video-poker', buttons: { en: [], ja: [] } },
+  { game: 'blackjack', tabs: 3, buttons: { en: ['Clear record'], ja: ['記録を消す'] } },
+  { game: 'baccarat', tabs: 3, buttons: { en: ['Rebet'], ja: ['同じベット'] } },
+  { game: 'three-card-poker', tabs: 3, buttons: { en: ['Rebet'], ja: ['同じベット'] } },
+  { game: 'craps', tabs: 3, buttons: { en: [], ja: [] } },
+  { game: 'video-poker', tabs: 3, buttons: { en: [], ja: [] } },
+  // These three took the floor's tabs later; roulette's were two rows on a phone in Japanese until its tabs were named
+  // 「マーチン法」 and 「ハウスエッジ」, as the English names them ("Martingale", "House edge").
+  { game: 'slot-machine', tabs: 3, buttons: { en: [], ja: [] } },
+  { game: 'janken', tabs: 2, buttons: { en: [], ja: [] } },
+  { game: 'roulette', tabs: 3, buttons: { en: [], ja: [] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */
@@ -23,7 +28,7 @@ const lines = (target: Locator) =>
     return tops.filter((top, i) => i === 0 || top - tops[i - 1] > 6).length;
   });
 
-for (const { game, buttons } of MACHINES) {
+for (const { game, tabs: tabCount, buttons } of MACHINES) {
   test(`${game}: on the narrowest phones each tab and short button says its name on one line, in either language`, async ({ browser }) => {
     test.setTimeout(90_000);
     for (const language of ['en', 'ja'] as const) {
@@ -36,8 +41,11 @@ for (const { game, buttons } of MACHINES) {
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         const where = `${game} ${language} ${width}`;
         const tabs = page.getByRole('tab');
-        await expect(tabs).toHaveCount(3);
+        await expect(tabs).toHaveCount(tabCount);
         for (const tab of await tabs.all()) expect(await lines(tab), `${where} ${await tab.textContent()}`).toBe(1);
+        // The tabs are one row.
+        const tops = await tabs.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+        expect(Math.max(...tops) - Math.min(...tops), `${where}: the tabs are one row`).toBeLessThanOrEqual(1);
         // The tabs fit the screen, and nothing on the page scrolls sideways.
         const right = await page.getByRole('tablist').evaluate((el) => el.getBoundingClientRect().right);
         expect(right, where).toBeLessThanOrEqual(width);

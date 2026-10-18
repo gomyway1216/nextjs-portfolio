@@ -1124,7 +1124,8 @@
 }
 .dozens {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Three equal dozens, however wide their words are in the font a phone has. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.25rem;
   flex: 1;
 }
@@ -1411,4 +1412,17 @@ select.input {
   .cellWinning {
     animation: none;
   }
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.dozenColRow .betCell,
+.outsideSix .betCell {
+  min-height: 44px;
+}
+.boardClear {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.6rem;
 }

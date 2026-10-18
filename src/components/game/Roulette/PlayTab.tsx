@@ -571,7 +571,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
                 grid, laid out as a casino table (numbers running across) where the felt is wide, and turned upright (0 on
                 top, three columns running down) where it is a phone's width. Every piece carries its place in both, so
                 the hit zones sit on the borders of the numbers they name either way (feltLayout.ts). */}
-            <div className={styles.feltBoard}>
+            <div className={styles.feltBoard} data-testid="roulette-felt">
               <BetCell
                 label="0"
                 variant="green"

@@ -1033,3 +1033,12 @@
     animation: none;
   }
 }
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+@media (max-width: 360px) {
+  .secondaryRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(44px, 0.6fr) minmax(0, 1.6fr);
+  }
+}

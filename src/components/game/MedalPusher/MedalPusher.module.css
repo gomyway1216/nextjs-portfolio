@@ -3587,3 +3587,10 @@
   line-height: 1.6;
   margin: 0 0 0.85rem;
 }
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.tab {
+  min-width: 44px;
+}

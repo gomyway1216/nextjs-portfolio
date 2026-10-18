@@ -66,6 +66,8 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   'big-wheel': 'big',
   // A card machine stands with the video machines: a screen of cards and a row of buttons, as a medal poker cabinet does.
   'high-low': 'video',
+  // An electronic Sic Bo table stands with the casino tables at the back, as on a casino's floor.
+  'sic-bo': 'table',
   // A board-game machine stands among the big machines, as the board-game medal machines of a real floor are big
   // cabinets in the middle of it.
   sugoroku: 'big',
@@ -75,7 +77,7 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sugoroku']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -93,6 +95,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'ball-bingo': { en: 'Drop balls through the pins; line up a 3×3 card.', ja: '釘を抜けるボールで3×3のビンゴをそろえよう。' },
   'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
   'high-low': { en: 'Higher or lower? Climb 12 rungs, or TAKE.', ja: '次はハイかローか。12段のラダーを上ろう' },
+  'sic-bo': { en: 'Three dice in a glass dome; a triple pays 180:1.', ja: 'ドームで振る3つのサイコロ。ゾロ目は180:1' },
   sugoroku: { en: 'Roll the die, sail the isle, ride the whale.', ja: 'サイコロで島をめぐり、くじらに乗ろう' },
 };
 
@@ -109,6 +112,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'horse-race': ['ミニターフ', '競馬'],
   'big-wheel': ['星まつり', 'ビッグホイール'],
   'high-low': ['ハイ＆ロー', 'ラダー'],
+  'sic-bo': ['月夜の', 'シックボー'],
   sugoroku: ['くじら島', 'すごろく'],
 };
 
@@ -146,16 +150,37 @@ export function cornersOf<T extends { id: string }>(machines: readonly T[]): Flo
 /** The most columns the floor has side by side, on its widest layout. */
 export const PLAN_COLUMNS = 4;
 
+/** How a corner stands on the floor's widest layout (`spansOf`). */
+export interface CornerSpan {
+  /** How many of the floor's columns it takes. */
+  span: number;
+  /** Whether it was squeezed into the columns left beside the corner before it, its cabinets on more rows. */
+  squeezed: boolean;
+  /**
+   * Whether it shares its row with a squeezed corner on more rows than its own: its cabinets stand as tall as that
+   * corner, so the two end level (a medal pusher beside the video machines, as tall as a real one is beside them).
+   */
+  tall: boolean;
+}
+
+/** How many rows of cabinets a corner fills in `span` columns: a big cabinet takes two of them. */
+const rowsOf = (zone: ZoneId, width: number, span: number): number => {
+  const perRow = WIDE_ZONES.has(zone) ? Math.max(1, Math.floor(span / 2)) * 2 : span;
+  return Math.ceil(width / perRow);
+};
+
 /**
  * How many of the floor's columns each corner takes on its widest layout, the corners laid in order as a row fills:
  * as many as its machines need, up to a whole row. A corner of small cabinets too wide for the columns left beside the
  * corner before it, but that fits in two rows of them, takes those columns (`squeezed`), its cabinets on two rows, so
  * that the pair still stands side by side (the third video machine beside the pusher) rather than half a row being
- * left empty.
+ * left empty. The corner beside it, on fewer rows, stands as tall (`tall`).
  */
-export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): { span: number; squeezed: boolean }[] {
+export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): CornerSpan[] {
   let used = 0;
-  return corners.map(({ zone, width }) => {
+  let rowStart = 0;
+  const laid: CornerSpan[] = [];
+  corners.forEach(({ zone, width }, index) => {
     let span = Math.min(width, PLAN_COLUMNS);
     let squeezed = false;
     const rest = PLAN_COLUMNS - used;
@@ -163,12 +188,25 @@ export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): { 
       if (!WIDE_ZONES.has(zone) && width <= 2 * rest) {
         span = rest;
         squeezed = true;
-      } else used = 0;
+      } else {
+        used = 0;
+        rowStart = index;
+      }
+    }
+    laid.push({ span, squeezed, tall: false });
+    if (squeezed) {
+      const rows = rowsOf(zone, width, span);
+      for (let before = rowStart; before < index; before++) {
+        if (rowsOf(corners[before].zone, corners[before].width, laid[before].span) < rows) laid[before].tall = true;
+      }
     }
     used += span;
-    if (used >= PLAN_COLUMNS) used = 0;
-    return { span, squeezed };
+    if (used >= PLAN_COLUMNS) {
+      used = 0;
+      rowStart = index + 1;
+    }
   });
+  return laid;
 }
 
 /**

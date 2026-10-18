@@ -58,8 +58,8 @@ describe('the medal center’s front, as the server sends it', () => {
     const html = render();
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
-    // The casino games on the medals, the janken, fishing, horse-racing, ball bingo, big wheel and high & low machines: open, and each Play link goes to its own page in the catalog.
-    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sugoroku'];
+    // The casino games on the medals, the janken, fishing, horse-racing, ball bingo, big wheel, high & low and Sic Bo machines: open, and each Play link goes to its own page in the catalog.
+    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku'];
     for (const id of open) {
       expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
       const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
@@ -69,7 +69,7 @@ describe('the medal center’s front, as the server sends it', () => {
     for (const id of open) expect(soon).not.toContain(id);
     // With nothing still to come, the coming-soon shelf is not there at all.
     if (soon.length === 0) expect(html).not.toContain('data-testid="center-soon"');
-    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sugoroku']);
+    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']);
     // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
     for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
@@ -134,7 +134,8 @@ describe('the medal center’s front, as the server sends it', () => {
       // The sign's other language is there for the look, not read twice.
       expect(html).toContain(`lang="ja" aria-hidden="true">${ZONE_SIGNS[zone].ja}</span>`);
     }
-    expect(html).toContain(`>${t.machineCount(5)}</span>`);
+    // The tables at the back: roulette, blackjack, baccarat, craps, Three Card Poker and Sic Bo.
+    expect(html).toContain(`>${t.machineCount(6)}</span>`);
     for (const { id, path } of FLOOR) {
       const name = games.find((game) => game.id === id)!.title.replace(/&/g, '&amp;');
       // Each machine stands in its corner; one the floor plan has no corner for yet stands with the new ones, marked NEW.
@@ -153,14 +154,33 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).toMatch(/data-machine="high-low" data-zone="video" data-wide="false"/);
     expect(html).toMatch(/data-machine="sugoroku" data-zone="big" data-wide="true"/);
     // On the widest floor the three video machines stand beside the pusher, two columns of them, as a pair of corners
-    // does; the big machines, the candy shop and the tables each start a row of their own.
+    // does, and the pusher's cabinet stands as tall as their two rows; the big machines, the candy shop and the tables
+    // each start a row of their own.
     const spans = spansOf(cornersOf(FLOOR));
-    expect(cornersOf(FLOOR).map(({ zone }, i) => `${zone} ${spans[i].span}${spans[i].squeezed ? ' squeezed' : ''}`)).toEqual(['pusher 2', 'video 2 squeezed', 'big 4', 'kids 2', 'table 4']);
-    expect(html).toContain('data-zone="video" data-width="2" data-squeezed="true"');
+    expect(cornersOf(FLOOR).map(({ zone }, i) => `${zone} ${spans[i].span}${spans[i].squeezed ? ' squeezed' : ''}${spans[i].tall ? ' tall' : ''}`)).toEqual(['pusher 2 tall', 'video 2 squeezed', 'big 4', 'kids 2', 'table 4']);
+    expect(html).toContain('data-zone="video" data-width="2" data-squeezed="true" data-tall="false"');
+    expect(html).toContain('data-zone="pusher" data-width="2" data-squeezed="false" data-tall="true"');
+    // The tall cabinet's lower body, its tray of medals: on the pusher, and nowhere else.
+    expect(html.match(/data-testid="center-tray"/g)).toHaveLength(1);
+    const pusherTile = html.slice(html.indexOf('data-machine="medal-pusher"'), html.indexOf('data-machine="slot-machine"'));
+    expect(pusherTile).toContain('data-testid="center-tray"');
     // A corner too wide for two rows beside the one before it starts a row of its own; a big cabinet is never squeezed.
-    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 5 }])).toEqual([{ span: 2, squeezed: false }, { span: 4, squeezed: false }]);
-    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'big', width: 4 }])).toEqual([{ span: 2, squeezed: false }, { span: 4, squeezed: false }]);
-    expect(spansOf([{ zone: 'pusher', width: 2 }, { zone: 'video', width: 2 }])).toEqual([{ span: 2, squeezed: false }, { span: 2, squeezed: false }]);
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 5 }])).toEqual([
+      { span: 2, squeezed: false, tall: false },
+      { span: 4, squeezed: false, tall: false },
+    ]);
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'big', width: 4 }])).toEqual([
+      { span: 2, squeezed: false, tall: false },
+      { span: 4, squeezed: false, tall: false },
+    ]);
+    // Two corners that fit side by side on one row each: neither squeezed, neither stands taller.
+    expect(spansOf([{ zone: 'pusher', width: 2 }, { zone: 'video', width: 2 }])).toEqual([
+      { span: 2, squeezed: false, tall: false },
+      { span: 2, squeezed: false, tall: false },
+    ]);
+    // Any corner beside one squeezed onto more rows than its own stands as tall, a corner of small cabinets too.
+    expect(spansOf([{ zone: 'kids', width: 2 }, { zone: 'table', width: 3 }]).map(({ tall }) => tall)).toEqual([true, false]);
+    expect(html).toMatch(/data-machine="sic-bo" data-zone="table" data-wide="false" data-new="true"/);
     // No plate says the same as every other one.
     expect(html).not.toContain('Plays with your medals.');
   });

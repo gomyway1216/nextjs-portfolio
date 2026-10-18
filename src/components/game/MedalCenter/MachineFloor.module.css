@@ -121,6 +121,50 @@
   }
 }
 
+/* A corner beside a taller one on the same row (floorPlan.ts, `spansOf`'s `tall`: the pusher beside the video
+   machines' two rows) stands as tall as it, so the two end level: its cabinet grows, the whole cover in its window and
+   the tray of medals under it filling the rest, as a real pusher stands taller than the video machines beside it. Only
+   where the two share a row; on a narrower floor each corner has its own. */
+.tray {
+  display: none;
+}
+@media (min-width: 680px) {
+  .zone[data-tall='true'] {
+    align-self: stretch;
+    grid-template-rows: auto 1fr;
+  }
+  .zone[data-tall='true'] .tiles {
+    grid-auto-rows: 1fr;
+  }
+  .zone[data-tall='true'] .screen {
+    flex: none;
+  }
+  .zone[data-tall='true'] .tile[data-wide='true'] .screen {
+    aspect-ratio: 16 / 9;
+  }
+  .zone[data-tall='true'] .tray {
+    display: block;
+    flex: 1 1 0;
+    min-height: 0;
+    margin: 0.4rem 0.4rem 0;
+    border-radius: 6px;
+    overflow: hidden;
+    /* The cabinet's neon edges either side of the tray. */
+    border-left: 3px solid #ff8796;
+    border-right: 3px solid #7df0ff;
+    background: var(--mf-night);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55);
+  }
+  .zone[data-tall='true'] .tray svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .zone[data-tall='true'] .plate {
+    flex: none;
+  }
+}
+
 /* The sign, hung from the ceiling on two wires. */
 .sign {
   grid-column: 1 / -1;
@@ -269,7 +313,11 @@
   line-height: 1.2;
   letter-spacing: 0.02em;
   overflow-wrap: anywhere;
-  /* Japanese breaks between phrases, not inside a word, where the browser can tell them apart. */
+  /* Japanese breaks between phrases, not inside a word, where the browser can tell them apart (Chromium's
+     auto-phrase). Safari and Firefox have no auto-phrase and would break a name anywhere in its kana
+     (「ルーレット & マーチ｜ンゲール」): keep-all keeps its words whole there, breaking it only at a space or
+     between the words the floor marks (<wbr>). */
+  word-break: keep-all;
   word-break: auto-phrase;
 }
 /* Static, against the site's global `a { position: relative }`, so that the cover below can stretch over the cabinet. */

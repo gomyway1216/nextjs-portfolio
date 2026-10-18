@@ -480,6 +480,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'sic-bo',
+    title: 'Moonlit Sic Bo',
+    description: 'An electronic Sic Bo table at the Medal Center: put your medals on Small, Big, totals, doubles, triples and single numbers, watch three dice tumble under a glass dome, and see every winning area light up — on a real casino paytable, Small and Big bringing back 97.2%.',
+    thumbnail: '🎲',
+    path: '/games/sic-bo',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'sugoroku',
     title: 'Whale Isle Sugoroku',
     description: 'The board-game machine of the Medal Center: roll the die in its dome, sail the boat round thirty squares of Whale Isle, and ride the whale to the blowhole for the jackpot — with every square’s next roll worked out exactly, so that no square is one to bet big on.',

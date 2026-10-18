@@ -1,0 +1,1492 @@
+/* Moonlit Sic Bo. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette of its
+   own — a midnight-blue body with brass trim, a moon-white marquee, a felt platter under a glass dome, and a layout
+   printed on night-blue cloth — that reads on both. The dice move by transform only (CSS 3D, each on a layer of its
+   own), so a phone draws them on its compositor; with less motion asked for, nothing chases, blinks or shakes. */
+
+.root {
+  --sb-night: #101b3d;
+  --sb-night-deep: #070d22;
+  --sb-brass: #d6b25e;
+  --sb-brass-light: #f3dc9a;
+  --sb-moon: #f6f1dc;
+  --sb-focus: #ffd34d;
+  --sb-cloth: #0f2550;
+  --sb-line: rgba(214, 178, 94, 0.62);
+  --sb-small: #1a4c97;
+  --sb-big: #8f1d32;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --sb-accent-text: #1f4ea3;
+  --sb-ahead: #15803d;
+  --sb-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --sb-accent-text: #9cc0ff;
+  --sb-ahead: #4ade80;
+  --sb-behind: #f87171;
+}
+
+.shell {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The name is never broken inside a word: its words are kept whole, and 遊び方 moves under it when they do not fit. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleDice {
+  display: inline-flex;
+  gap: 0.08em;
+  flex: none;
+}
+.titleDie {
+  width: 0.78em;
+  height: 0.78em;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: #1f4ea3;
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible,
+.sourceLink:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The table, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1080px) {
+  .machine {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+  }
+}
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.7rem 0.7rem 1rem;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.07) 0 1px, transparent 2px) 0 0 / 27px 31px,
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.06) 0 1px, transparent 2px) 0 0 / 37px 41px,
+    linear-gradient(180deg, #1b2a5e 0%, var(--sb-night) 45%, var(--sb-night-deep) 100%);
+  border: 3px solid var(--sb-brass);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.07),
+    0 14px 30px rgba(0, 0, 0, 0.3);
+  color: #eef1fb;
+}
+@media (max-width: 400px) {
+  .cabinet {
+    padding: 0.55rem 0.5rem 0.9rem;
+  }
+}
+
+/* The marquee: the sign between two moons. */
+.marquee {
+  display: grid;
+  grid-template-columns: 2rem 1fr 2rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 auto 0.5rem;
+  max-width: 560px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2b3f86 0%, #1a2a63 60%, #0d1740 100%);
+  border: 2px solid var(--sb-brass-light);
+}
+.marqueeMoon {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%, #fffdf2 0 30%, #f1e6bd 60%, #c9b77d 100%);
+  box-shadow: 0 0 10px 2px rgba(255, 244, 200, 0.45);
+  justify-self: center;
+}
+.marquee[data-chase='true'] .marqueeMoon {
+  animation: moon 0.8s ease-in-out infinite alternate;
+}
+@keyframes moon {
+  to {
+    box-shadow: 0 0 18px 6px rgba(255, 244, 200, 0.8);
+  }
+}
+.marqueeText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.marqueeSub {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--sb-brass-light);
+}
+.marqueeMain {
+  font-size: clamp(1.35rem, 6.5vw, 1.9rem);
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: var(--sb-moon);
+}
+
+/* ---------- The shaker: base, platter, dice and glass ---------- */
+.shaker {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  /* The scene is measured in hundredths of this width. */
+  container-type: inline-size;
+}
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 100 / 70;
+  --s: 11cqw;
+  /* Nothing of the scene reaches past the stage, however the dice fly: the page never grows sideways. */
+  overflow: hidden;
+}
+.base,
+.glass {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.glass {
+  pointer-events: none;
+}
+.rig {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.scene {
+  position: absolute;
+  inset: 0;
+  perspective: 660cqw;
+  /* The platter's middle: 36.5 of the stage's 70. */
+  perspective-origin: 50% 52.14%;
+}
+.platter {
+  position: absolute;
+  left: calc(50cqw - 34.5cqw);
+  top: calc(36.5cqw - 34.5cqw);
+  width: 69cqw;
+  height: 69cqw;
+  transform: rotateX(42deg);
+  transform-style: preserve-3d;
+}
+.felt {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.06) 0 40%, transparent 41%),
+    radial-gradient(circle at 46% 40%, #1d5a52 0%, #0f3b37 62%, #08221f 100%);
+  box-shadow: inset 0 0 0 0.6cqw rgba(214, 178, 94, 0.55);
+}
+.shadow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--s);
+  height: var(--s);
+  margin: calc(var(--s) / -2);
+  border-radius: 28%;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.75) 0 45%, rgba(0, 0, 0, 0) 72%);
+  will-change: transform, opacity;
+}
+.die {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--s);
+  height: var(--s);
+  margin: calc(var(--s) / -2);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.dieFace,
+.core {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.dieFace {
+  border-radius: 16%;
+  background: radial-gradient(circle at 50% 45%, #fffdf5 0 58%, #efe6cd 100%);
+  backface-visibility: hidden;
+  box-shadow: inset 0 0 0 1px rgba(150, 132, 92, 0.35);
+}
+.dieFace svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.shade {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #1a1630;
+  pointer-events: none;
+}
+/* The die's inside, seen through its rounded edges: three planes across its middle, in the ivory of its faces. */
+.core {
+  background: #e4d9bb;
+  transform: scale(0.94);
+}
+.coreX {
+  transform: rotateY(90deg) scale(0.94);
+}
+.coreY {
+  transform: rotateX(90deg) scale(0.94);
+}
+.coreZ {
+  transform: scale(0.94);
+}
+/* The ring of lamps round the base: what the table is doing, in light. */
+.ledRing {
+  fill: none;
+  stroke: #8fa6ff;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1.6 2.4;
+  opacity: 0.75;
+}
+.shaker[data-lights='shake'] .ledRing,
+.shaker[data-lights='settle'] .ledRing {
+  stroke: #ffd56b;
+  opacity: 1;
+  animation: chase 0.5s linear infinite;
+}
+.shaker[data-lights='attract'] .ledRing {
+  stroke: #c8d4ff;
+  animation: chase 2.4s linear infinite;
+}
+.shaker[data-lights='big'] .ledRing {
+  stroke: #ff6b7d;
+  opacity: 1;
+}
+.shaker[data-lights='small'] .ledRing {
+  stroke: #6fb1ff;
+  opacity: 1;
+}
+.shaker[data-lights='triple'] .ledRing {
+  stroke: #ffe066;
+  opacity: 1;
+  animation: blink 0.5s steps(1) 8;
+}
+@keyframes chase {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+/* Words over the dome: always there, only shown when they have something to say. */
+.domeBanner {
+  position: absolute;
+  left: 50%;
+  bottom: 1.5%;
+  transform: translateX(-50%);
+  max-width: 92%;
+  padding: 0.18rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(7, 13, 34, 0.88);
+  border: 2px solid var(--sb-brass-light);
+  color: #fff3c4;
+  font-weight: 900;
+  font-size: clamp(0.9rem, 4.2vw, 1.15rem);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.domeBanner[data-show='true'] {
+  opacity: 1;
+}
+.shaker[data-lights='big'] .domeBanner {
+  background: #7d1426;
+}
+.shaker[data-lights='small'] .domeBanner {
+  background: #173f80;
+}
+.shaker[data-lights='triple'] .domeBanner {
+  background: linear-gradient(90deg, #6d4a00, #8a5d00);
+}
+
+.status {
+  margin: 0.5rem 0 0.45rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Japanese breaks between its phrases, never inside a word, where the browser can tell them apart. */
+  word-break: auto-phrase;
+}
+
+/* ---------- The counters ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 0.4rem;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+  padding: 0.35rem 0.4rem 0.4rem;
+  border-radius: 10px;
+  background: #050b16;
+  border: 2px solid #31407a;
+  min-width: 0;
+}
+.meterWin {
+  border-color: var(--sb-brass-light);
+}
+.meterLabel {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c3cbef;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(20px, 6vw, 28px);
+}
+
+/* ---------- The layout ---------- */
+.layoutBox {
+  margin-top: 0.75rem;
+}
+.layoutTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #c3cbef;
+  text-align: center;
+}
+/* The picker: on a phone, which part of the cloth is shown. */
+.picker {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin-bottom: 0.3rem;
+}
+.pick {
+  appearance: none;
+  position: relative;
+  min-height: 48px;
+  min-width: 0;
+  padding: 0.2rem 0.1rem 0.75rem;
+  border-radius: 10px;
+  border: 2px solid #3a4a8a;
+  background: #172452;
+  color: #eef1fb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pick[aria-checked='true'] {
+  border-color: var(--sb-brass-light);
+  background: #26397a;
+  box-shadow: 0 0 0 2px rgba(243, 220, 154, 0.35);
+}
+.pick[data-won='true'] {
+  box-shadow:
+    0 0 0 2px #fff3b0,
+    0 0 10px 2px rgba(255, 220, 120, 0.7);
+}
+.pickGlyph {
+  font-weight: 900;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.pickDice {
+  display: inline-flex;
+  gap: 1px;
+}
+.pickDie {
+  width: 13px;
+  height: 13px;
+}
+/* The medals on that part of the cloth, under its sign: the same room whether or not there are any. */
+.pickMedals {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  color: var(--sb-brass-light);
+  font-variant-numeric: tabular-nums;
+}
+.sectionNote {
+  margin: 0 0 0.35rem;
+  min-height: 1.35em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  color: #dfe4fa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layout {
+  padding: 0.35rem;
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(120, 150, 255, 0.12), transparent 70%),
+    var(--sb-cloth);
+  border: 2px solid var(--sb-brass);
+}
+/* A phone: one part of the cloth at a time, every part the same height. */
+.layoutPart {
+  display: none;
+  gap: 4px;
+  height: 196px;
+}
+.layoutPart[data-shown='true'] {
+  display: grid;
+}
+.layoutPart[data-part='bigSmall'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) 52px;
+}
+.layoutPart[data-part='bigSmall'] .area[data-kind='any-triple'] {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 0.6rem;
+}
+.layoutPart[data-part='triples'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+.layoutPart[data-part='triples'] .area[data-kind='triple'] {
+  order: 1;
+}
+.layoutPart[data-part='totals'],
+.layoutPart[data-part='pairs'] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+.layoutPart[data-part='singles'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.area {
+  appearance: none;
+  position: relative;
+  min-width: 0;
+  min-height: 44px;
+  padding: 2px;
+  border-radius: 7px;
+  border: 1.5px solid var(--sb-line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.12)), #13306a;
+  color: #f4efe0;
+  font: inherit;
+  line-height: 1.1;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+}
+.area:disabled {
+  cursor: default;
+}
+.area:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.area[data-kind='small'] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.18)), var(--sb-small);
+}
+.area[data-kind='big'] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.18)), var(--sb-big);
+}
+.area[data-kind='any-triple'] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.15)), #4a3a12;
+}
+.area[data-kind='triple'] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.15)), #3d3311;
+}
+/* Every area the dice won is lit, as the electronic tables light their cloth. */
+.area[data-win='true'] {
+  border-color: #fff3b0;
+  box-shadow:
+    inset 0 0 0 1px #fff3b0,
+    0 0 12px 3px rgba(255, 220, 120, 0.75);
+  background: linear-gradient(180deg, rgba(255, 246, 200, 0.42), rgba(255, 210, 90, 0.18)), #2a4a8f;
+  animation: lit 0.6s ease-in-out 4 alternate;
+}
+.area[data-kind='small'][data-win='true'] {
+  background: linear-gradient(180deg, rgba(255, 246, 200, 0.42), rgba(255, 210, 90, 0.18)), var(--sb-small);
+}
+.area[data-kind='big'][data-win='true'] {
+  background: linear-gradient(180deg, rgba(255, 246, 200, 0.42), rgba(255, 210, 90, 0.18)), var(--sb-big);
+}
+@keyframes lit {
+  to {
+    box-shadow:
+      inset 0 0 0 1px #fff3b0,
+      0 0 4px 1px rgba(255, 220, 120, 0.4);
+  }
+}
+.areaFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.areaGlyph {
+  font-size: 2.3rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.areaRange {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.areaRule {
+  font-size: 0.62rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+.areaWords {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.areaTotal {
+  font-size: 1.35rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.areaDice {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+/* A double's two dice side by side on a phone, one over the other in its tall box on a desk. */
+.areaDiceStack {
+  flex-direction: row;
+}
+.areaDiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 2px;
+}
+.areaDie {
+  width: 17px;
+  height: 17px;
+}
+.areaDieSmall {
+  width: 12px;
+  height: 12px;
+}
+.areaDieTiny {
+  width: 11px;
+  height: 11px;
+}
+.areaDieBig {
+  width: 28px;
+  height: 28px;
+}
+.areaPays {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--sb-brass-light);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The medals on an area: a medal-coloured chip at its corner, the same size whether or not there are any. */
+.areaChip {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #1d1708;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #d7dce3 55%, #9aa2ac);
+  border: 2px solid #f5f6f8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  visibility: hidden;
+}
+.areaChip[data-on='true'] {
+  visibility: visible;
+}
+/* The bets of the roll just settled, faint, until the next medal goes down. */
+.areaChip[data-on='faint'] {
+  visibility: visible;
+  opacity: 0.5;
+}
+
+/* A desk: the whole cloth at once, laid out as a table's, on a grid of 210 columns (Layout.tsx `placeOf`). */
+@media (min-width: 760px) {
+  .picker,
+  .sectionNote {
+    display: none;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: repeat(210, minmax(0, 1fr));
+    grid-template-rows: repeat(3, 40px) 62px 66px 66px;
+    padding: 0.45rem;
+  }
+  .layoutPart,
+  .layoutPart[data-shown='true'] {
+    display: contents;
+  }
+  .area,
+  .layoutPart[data-part='bigSmall'] .area[data-kind='any-triple'] {
+    grid-column: var(--col) / span var(--span);
+    grid-row: var(--row) / span var(--rows);
+    margin: 2px;
+    min-height: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .areaDiceStack {
+    flex-direction: column;
+  }
+  /* A smaller chip on the desk's smaller areas, clear of a total's number. */
+  .areaChip {
+    top: 1px;
+    right: 1px;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    font-size: 0.6rem;
+    border-width: 1.5px;
+  }
+  .areaGlyph {
+    font-size: 2.6rem;
+  }
+}
+
+/* ---------- The buttons ---------- */
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'steps'
+    'board'
+    'main';
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+@media (min-width: 760px) {
+  .controls {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: 'steps board main';
+  }
+  .boardButtons {
+    grid-template-columns: repeat(3, max-content);
+  }
+}
+.steps {
+  grid-area: steps;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.stepsLabel {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #c3cbef;
+  margin-right: 0.2rem;
+  white-space: nowrap;
+}
+@media (max-width: 380px) {
+  .stepsLabel {
+    display: none;
+  }
+}
+.stepButton {
+  appearance: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: 3px solid #8f969f;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #cfd5dc 55%, #9aa2ac);
+  color: #1c2633;
+  font-weight: 900;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0;
+}
+.stepButton[aria-checked='true'] {
+  border-color: var(--sb-brass-light);
+  background: radial-gradient(circle at 35% 30%, #fff8d8, #f1d48a 55%, #c99a3b);
+  box-shadow: 0 0 0 3px rgba(255, 211, 77, 0.45);
+}
+.stepButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.boardButtons {
+  grid-area: board;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  min-width: 0;
+}
+.boardButtons .btn {
+  min-width: 0;
+  padding: 0.4rem 0.3rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mainButtons {
+  grid-area: main;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+.shakeButton {
+  appearance: none;
+  min-height: 60px;
+  border-radius: 16px;
+  border: 3px solid #fff1b8;
+  /* The white SHAKE is large type: at least 3:1 over the whole button, its lightest top included. */
+  background: linear-gradient(180deg, #2f62c4 0%, #1f4ea3 55%, #143374 100%);
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 5px 0 #0b2152;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0 0.6rem;
+  min-width: 0;
+}
+.shakeButton:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #0b2152;
+}
+.shakeButton:disabled {
+  filter: grayscale(0.7) brightness(0.75);
+  cursor: default;
+}
+.skipButton {
+  appearance: none;
+  min-height: 60px;
+  min-width: 5rem;
+  padding: 0 0.6rem;
+  border-radius: 14px;
+  border: 2px solid #5a6bb8;
+  background: #1c2a66;
+  color: #eef1fb;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.skipButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cabinet .btn {
+  background: #1c2a66;
+  color: #fff;
+  border-color: #5a6bb8;
+}
+.area:focus-visible,
+.pick:focus-visible,
+.stepButton:focus-visible,
+.shakeButton:focus-visible,
+.skipButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--sb-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .boardButtons .btn {
+    padding: 0.4rem 0.2rem;
+    font-size: 0.76rem;
+  }
+  .areaGlyph {
+    font-size: 2rem;
+  }
+}
+.message {
+  margin: 0.45rem 0 0;
+  /* One line held, so that nothing under it moves when a message comes and goes. */
+  min-height: 1.4em;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+  word-break: auto-phrase;
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid var(--sb-brass-light);
+  background: #2c4470;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outNote a {
+  color: #ffe1a1;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #c3cbef;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(214, 178, 94, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #dcdff2;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+
+/* The card in another tab's machine: this one waits. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(6, 10, 30, 0.9);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 48px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--sb-brass-light);
+  background: #1f4ea3;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ---------- Beside the cabinet ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+@media (min-width: 760px) and (max-width: 1079px) {
+  .side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.panelSub {
+  margin: 0.8rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+/* The board of results: twenty columns in two rows of ten, on the dark glass of a results display. */
+.boardFrame {
+  position: relative;
+  padding: 0.35rem;
+  border-radius: 10px;
+  background: #070d22;
+  border: 2px solid #31407a;
+}
+.board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+}
+.boardCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  height: 92px;
+  padding: 2px 0;
+  border-radius: 5px;
+  background: #0f1838;
+  color: #eef1fb;
+  min-width: 0;
+}
+.boardCell[data-kind='none'] {
+  background: rgba(15, 24, 56, 0.55);
+}
+.boardDice {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.boardDie {
+  width: 16px;
+  height: 16px;
+}
+.boardTotal {
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.boardLamp {
+  min-width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #fff;
+}
+.boardCell[data-kind='big'] .boardLamp {
+  background: #b0223b;
+}
+.boardCell[data-kind='small'] .boardLamp {
+  background: #1f5bc0;
+}
+.boardCell[data-kind='triple'] .boardLamp {
+  background: #8a6400;
+  color: #fff3c4;
+}
+.boardEmpty {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #c3cbef;
+}
+.boardCounts {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.faceBars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.faceBars li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 2.2rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+.faceBarDie {
+  width: 18px;
+  height: 18px;
+}
+.faceBarTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--games-route-border);
+  overflow: hidden;
+}
+.faceBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--sb-accent-text);
+}
+.faceBarCount {
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pos {
+  color: var(--sb-ahead);
+}
+.neg {
+  color: var(--sb-behind);
+}
+.resultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.resultList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+}
+.resultList li[data-won='true'] {
+  font-weight: 800;
+  color: var(--sb-ahead);
+}
+.resultAmount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 850;
+  color: var(--sb-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.sourceLink {
+  color: var(--sb-accent-text);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.drawList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+}
+.fraction {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.percent {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--games-route-muted);
+}
+.check {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.checkButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 11px;
+  border: none;
+  background: #1f4ea3;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.checkButton:disabled {
+  opacity: 0.6;
+}
+.checkButton:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.checkResult {
+  margin: 0.6rem 0 0.3rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.checkList {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Less motion: nothing chases, blinks, glows in time or shakes ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .marquee[data-chase='true'] .marqueeMoon,
+  .shaker[data-lights] .ledRing,
+  .area[data-win='true'],
+  .domeBanner {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.stepButton {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the lines a player reads most and the Odds tab's tables
+ * (「いちばん戻るエ｜リア」, 「合計9｜か12」, 「数を選｜ぶ）」, 「216通り｜中」 on a phone): where the browser can tell phrases
+ * apart, at them; elsewhere at the 、。： and spaces the words carry. A word longer than its line still breaks.
+ */
+.status,
+.statLabel,
+.statNote,
+.statList dt,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .status,
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

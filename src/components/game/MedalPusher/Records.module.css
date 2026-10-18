@@ -134,6 +134,22 @@
   line-height: 1.35;
   color: #ece8ff;
 }
+/*
+ * Japanese on the plate and the card breaks between phrases, never inside a word (「受け取れま｜す」, 「いっ｜ぱい」 on a
+ * phone): where the browser can tell phrases apart, at them; elsewhere at the 、。！ and spaces the lines are written
+ * with. A word longer than the line still breaks rather than spill out.
+ */
+.stripStatus,
+.cardStatus {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+@supports (word-break: auto-phrase) {
+  .stripStatus,
+  .cardStatus {
+    word-break: auto-phrase;
+  }
+}
 /* Today's stamp, once it is taken, on a tag of the card's paper. */
 .stripStamp {
   position: relative;

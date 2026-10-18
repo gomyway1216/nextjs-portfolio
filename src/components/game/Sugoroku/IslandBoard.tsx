@@ -132,8 +132,14 @@ const Whale = ({ spout }: { spout: boolean }) => (
         <stop offset="1" stopColor="#1d5a9a" />
       </radialGradient>
     </defs>
-    {/* The tail, its flukes out of the water at the bottom left. */}
-    <path d="M2.2 6.6 1.35 7.75c.4.05.85-.05 1.15-.35.05.4.35.6.75.6-.25-.4-.3-.85-.15-1.3Z" fill="#2d78c4" stroke="#123a66" strokeWidth="0.05" />
+    {/* The tail, its two flukes out of the water at the bottom left. */}
+    <path
+      d="M2.45 6.35C2.1 6.8 1.85 7.05 1.62 7.2 1.4 6.95 1.12 6.9 1.05 7.05c.12.3.32.48.55.55-.05.25.05.5.3.7.12-.22.12-.5.05-.72.3-.1.75-.45 1.2-1.05Z"
+      fill="#2d78c4"
+      stroke="#123a66"
+      strokeWidth="0.05"
+      strokeLinejoin="round"
+    />
     {/* The flippers. */}
     <path d="M1.75 4.9c-.45.2-.6.6-.5 1 .35-.1.65-.35.85-.7Z" fill="#2d78c4" stroke="#123a66" strokeWidth="0.05" />
     <path d="M6.25 4.9c.45.2.6.6.5 1-.35-.1-.65-.35-.85-.7Z" fill="#2d78c4" stroke="#123a66" strokeWidth="0.05" />
@@ -267,7 +273,7 @@ export function IslandBoard({ scene, bet, t, attract, calm, hop, warp, label, on
               style={{ ...placed(x, y, 0.66), '--i': i } as CSSProperties}
               aria-hidden="true"
             >
-              {value === null ? '' : value === STAR ? 'JP' : value === 0 ? '–' : timesOf(value)}
+              <span className={styles.lampText}>{value === null ? '' : value === STAR ? 'JP' : value === 0 ? '–' : timesOf(value)}</span>
             </span>
           );
         })}

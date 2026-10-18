@@ -221,6 +221,8 @@
   min-width: 0;
   overflow-wrap: anywhere;
   line-height: 1.45;
+  /* Never 「1,500｜枚」: a moment breaks at its spaces and its 「！」, and a name too long for the line anywhere. */
+  word-break: keep-all;
 }
 .who {
   font-weight: 900;

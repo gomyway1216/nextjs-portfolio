@@ -43,7 +43,11 @@ const NOWHERE: Glance = { back: () => undefined, drop: () => undefined };
 export function lookUp(show: HTMLElement | null, from: HTMLElement | null = null): Glance {
   if (!show || typeof window === 'undefined') return NOWHERE;
   let state: 'waiting' | 'up' | 'stay' | 'done' = 'waiting';
-  let fromTop = 0;
+  // Where the pressed button is on the screen as it is pressed, which is where the player saw it. Read now, not in the
+  // next frame: the press can take something away above it (roulette's first SPIN puts its note away, 208 px on a
+  // phone). Chromium and Firefox scroll the page to keep the button where it was; WebKit did not always, and by the
+  // next frame the button had gone 208 px up the screen, so the view came back to there instead of to where it was.
+  const fromTop = from?.isConnected ? from.getBoundingClientRect().top : 0;
   const stay = () => {
     if (state === 'up') state = 'stay';
   };
@@ -56,7 +60,6 @@ export function lookUp(show: HTMLElement | null, from: HTMLElement | null = null
       state = 'done';
       return;
     }
-    if (from?.isConnected) fromTop = from.getBoundingClientRect().top;
     show.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
     state = 'up';
     for (const type of PLAYER_MOVES) window.addEventListener(type, stay, { capture: true, passive: true });

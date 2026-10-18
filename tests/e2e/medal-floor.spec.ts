@@ -150,7 +150,8 @@ test('a new big win comes onto the board by the door without reloading the page,
 
 test('reads in Japanese', async ({ page }) => {
   const ja = getFloorStrings('ja');
-  await fakeFloor(page, () => floor(FEED));
+  let feed = FEED;
+  await fakeFloor(page, () => floor(feed));
   await openCenter(page, 'ja');
   await expect(together(page).getByRole('heading', { level: 2 })).toHaveText(ja.title);
   await expect(board(page).getByRole('heading', { level: 2 })).toHaveText(ja.nowTitle);
@@ -158,6 +159,13 @@ test('reads in Japanese', async ({ page }) => {
   await expect(board(page).getByTestId('floor-moment').nth(1)).toContainText('プレイヤー1002');
   await expect(together(page).getByTestId('floor-won').getByTestId('floor-row').first()).toContainText('1位');
   await expect(together(page).getByTestId('floor-honesty')).toHaveText(ja.honesty);
+  // The newest machines' named wins, on the rankings' feed: 「ゾロ目が的中」, never 「ゾロ目的中」 (「ゾロ・目的・中」).
+  feed = [moment(9, 'sic-bo', 4_525, 'sicbo-triple', 'みけ', 30), moment(8, 'high-low', 2_000, 'ladder-top', null, 90)];
+  await page.goto('/games/medal-center/rankings');
+  await arrived(page);
+  const moments = page.getByTestId('floor-moment');
+  await expect(moments.first()).toContainText('みけ シックボーでゾロ目が的中！4,525枚');
+  await expect(moments.nth(1)).toContainText('プレイヤー1008 ハイ＆ローのラダーをトップまで上って2,000枚');
 });
 
 test('the board by the door keeps its size while the floor is read: the machines under it do not move when the wins and the floor jackpot come in', async ({ page }) => {
@@ -212,7 +220,7 @@ test('the rankings page has every machine’s board, today and this week, and th
   await arrived(page);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('RANKINGS');
   await expect(page.getByTestId('rankings-won').getByTestId('floor-row')).toHaveCount(3);
-  for (const game of ['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sugoroku']) {
+  for (const game of ['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']) {
     await expect(page.getByTestId(`rankings-best-${game}`)).toBeVisible();
   }
   await expect(page.getByTestId('rankings-best-slot-machine').getByTestId('floor-row')).toContainText('Player 1234');

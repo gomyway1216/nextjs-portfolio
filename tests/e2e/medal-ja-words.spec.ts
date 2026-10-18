@@ -30,6 +30,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'BALL BINGO': 'Ball Bingo’s marquee, over 「ボールビンゴ」',
   'BIG WHEEL': 'the Big Wheel’s marquee, under 「星まつり」',
   'HIGH & LOW': 'the High & Low Ladder’s marquee, over 「ラダー」',
+  'SIC BO': 'the Sic Bo table’s marquee, under 「月夜の大小」',
   'WHALE ISLE': 'Whale Isle Sugoroku’s marquee, over 「すごろく」',
   // Lamps, pockets and reel symbols on a playfield, as real medal machines print them.
   JACKPOT: 'the pusher’s jackpot lamp',

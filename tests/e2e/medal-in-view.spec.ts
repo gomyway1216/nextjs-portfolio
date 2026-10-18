@@ -60,7 +60,8 @@ test('roulette on a phone: SPIN brings the wheel on screen, and the view goes ba
   await page.context().close();
 });
 
-test('roulette on a phone: a player who moves the page while the ball rolls keeps the view', async ({ browser }) => {
+test('roulette on a phone: a player who moves the page while the ball rolls keeps the view', async ({ browser, browserName }) => {
+  test.skip(browserName === 'webkit', 'Playwright cannot move a phone’s page in WebKit as a player does: mobile WebKit has no mouse wheel there, and no finger that drags');
   test.setTimeout(60_000);
   const page = await phone(browser, 320, 640);
   await openRoulette(page);

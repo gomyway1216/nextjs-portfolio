@@ -3,10 +3,15 @@ import { test, expect, type Browser, type Locator } from '@playwright/test';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { refillParts } from '../../src/components/game/MedalCenter/KeysHint';
 import { nameWords } from '../../src/components/game/MedalCenter/floorPlan';
-import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
-import { holdFloor } from './layoutShift';
+import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
+import { NAME_MAX } from '../../src/lib/medalFloor/names';
+import type { FloorFeedEntry } from '../../src/lib/medalFloor/types';
+import { emptyFloor, holdFloor } from './layoutShift';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Japanese on a phone is never broken inside a word: a machine's name (「スロットマシ｜ン」, 「スリーカードポー｜カー」),
@@ -175,6 +180,211 @@ for (const width of WIDTHS) {
       const lines = await linesOf(refill);
       expect([[text], refillParts(text)], `${path} at ${width} px: 「${lines.join('｜')}」`).toContainEqual(lines);
     }
+    await context.close();
+  });
+}
+
+// ── The daily bonus, and the floor's moments, over days ─────────────────────
+
+/** The words the daily bonus's lines are made of, none of which a line may be broken inside. */
+const BONUS_WORDS = ['前回', 'あいた', '新しい', 'カード', 'なりました', 'ボーナス', '受け取れます', 'スタンプ', '押しました', 'いっぱい', '明日'];
+
+/** The places in `lines` a word of `words` is broken, or a count from its 「枚」 or a digit from the next: none, as a list. */
+function brokenInside(lines: readonly string[], words: readonly string[]): string[] {
+  const joined = lines.join('｜');
+  const broken = words.filter((word) => Array.from({ length: word.length - 1 }, (_, i) => `${word.slice(0, i + 1)}｜${word.slice(i + 1)}`).some((cut) => joined.includes(cut)));
+  return [...broken, ...(joined.match(/[+\d,]｜[\d,枚]/g) ?? [])];
+}
+
+/** A day in Japan, `back` days before today, as the bank keeps it. */
+const daysAgo = (back: number) => {
+  const japan = new Date(Date.now() + 9 * 3_600_000 - back * 86_400_000);
+  return dayFrom(japan.getUTCFullYear(), japan.getUTCMonth() + 1, japan.getUTCDate());
+};
+
+/** A guest's medals whose bonus was last taken on the days given, in Japan. */
+const claimedOn = (days: readonly Day[]) => days.reduce((ledger, day) => claimBonus(ledger, day).ledger, createLedger('testdevice01'));
+
+for (const width of WIDTHS) {
+  test(`the daily bonus says what it says between phrases, never inside a word, in Japanese at ${width} px`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    for (const [path, plate] of [
+      ['/games/medal-center', 'center-bonus'],
+      ['/games/medal-pusher', 'pusher-panel-machine'],
+    ] as const) {
+      // A player back after a few days away: a new card. Then one on the seventh day in a row, who fills it.
+      for (const days of [[daysAgo(3)], [6, 5, 4, 3, 2, 1].map(daysAgo)]) {
+        const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true, timezoneId: 'Asia/Tokyo' });
+        await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+        const page = await context.newPage();
+        (await holdFloor(page)).release();
+        await page.addInitScript(([key, text]) => window.localStorage.setItem(key, text), [BANK_KEY, serializeLedger(claimedOn(days))] as const);
+        await page.goto(path);
+        await arrived(page);
+        const status = page.locator(path.endsWith('center') ? `[data-testid="${plate}"]` : `#${plate}`).getByTestId('pusher-bonus-status');
+        await expect(status).toContainText(days.length === 1 ? '新しいカードになりました' : '7日目のボーナス');
+        const said = [await linesOf(status)];
+        if (days.length > 1) {
+          await pressUntil(page.getByTestId('pusher-bonus-take').first(), async () => (await status.textContent())?.includes('いっぱい') ?? false);
+          said.push(await linesOf(status));
+        }
+        for (const lines of said) expect(brokenInside(lines, BONUS_WORDS), `${path} at ${width} px: 「${lines.join('｜')}」`).toEqual([]);
+        await context.close();
+      }
+    }
+  });
+
+  test(`the floor's moments keep a count with its 「枚」 in Japanese at ${width} px`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
+    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    const page = await context.newPage();
+    const now = Date.now();
+    const moment = (id: number, game: FloorFeedEntry['game'], label: string | null, medals: number, name: string | null, tag: string): FloorFeedEntry => ({ id, name, tag, game, label, medals, at: now - id * 60_000 });
+    const feed = [moment(1, 'medal-pusher', 'jackpot', 1_500, null, '0042'), moment(2, 'slot-machine', 'seven3', 12_000, 'タマ', '1234'), moment(3, 'roulette', null, 3_564, 'ミケ', '0007')];
+    (await holdFloor(page, () => ({ ...emptyFloor(), feed }))).release();
+    await page.goto('/games/medal-center/rankings');
+    await arrived(page);
+    const moments = page.getByTestId('floor-moment');
+    await expect(moments).toHaveCount(3);
+    for (const text of await moments.locator('[class*="momentText"]').all()) {
+      const lines = await linesOf(text);
+      expect(brokenInside(lines, ['ジャックポット', 'そろって', '当たり']), `「${lines.join('｜')}」 at ${width} px`).toEqual([]);
+    }
+    await context.close();
+  });
+}
+
+/** The longest name a player can choose, in Japanese with no space to break at. */
+const LONGEST_NAME = Array.from('ながれぼしのおおあたりやさんです').slice(0, NAME_MAX).join('');
+
+/** Every moment the floor can show, each won by the longest name, for a six-figure count. */
+const LONGEST_MOMENTS: [FloorFeedEntry['game'], string | null][] = [
+  ['big-wheel', 'wheel-bonus'],
+  ['ball-bingo', 'full-card'],
+  ['video-poker', 'straight-flush'],
+  ['video-poker', 'royal'],
+  ['fishing', 'harbor-lord'],
+  ['fishing', 'treasure'],
+  ['big-wheel', 'wheel-400'],
+  ['slot-machine', 'bar3'],
+  ['medal-pusher', 'floor-jackpot'],
+  ['roulette', null],
+];
+
+for (const width of WIDTHS) {
+  test(`the floor's longest moments and jackpot wins, by the longest name, stay inside their boxes in Japanese at ${width} px`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
+    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    const page = await context.newPage();
+    const now = Date.now();
+    const feed: FloorFeedEntry[] = LONGEST_MOMENTS.map(([game, label], i) => ({ id: 100 - i, name: LONGEST_NAME, tag: '0001', game, label, medals: 123_456, at: now - (i + 1) * 60_000 }));
+    (await holdFloor(page, () => ({ ...emptyFloor(), feed }))).release();
+    // Registered last, so it answers before holdFloor's: the pool's last wins, all by the longest name.
+    await page.route(/\/api\/game\/medal-floor\/jackpot(\?|$)/, (route) => {
+      const wins = Array.from({ length: JACKPOT_WINS_SHOWN }, (_, i) => ({ name: LONGEST_NAME, tag: '0001', game: 'medal-pusher' as const, medals: 123_456, at: now - (i + 1) * 86_400_000 }));
+      const view: FloorJackpotView = { now, available: true, amount: 1_234_567, seq: 9, v: 9, wins };
+      return route.fulfill({ json: view });
+    });
+    for (const path of ['/games/medal-center/rankings', '/games/medal-center']) {
+      await page.goto(path);
+      await arrived(page);
+      await expect(page.getByTestId('floor-moment').first()).toContainText(LONGEST_NAME);
+      if (path.endsWith('rankings')) await expect(page.getByTestId('jackpot-win')).toHaveCount(JACKPOT_WINS_SHOWN);
+      else await expect(page.getByTestId('jackpot-last').first()).toContainText(LONGEST_NAME);
+      // Nothing scrolls sideways, and no line of a moment or a win runs out of its box, or its box out of the page.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${path} at ${width} px`).toBe(0);
+      const spills = await page.locator('[data-testid="floor-moment"], [data-testid="jackpot-win"], [data-testid="jackpot-last"]').evaluateAll((boxes, viewport) =>
+        boxes.flatMap((box) => {
+          const outer = box.getBoundingClientRect();
+          const parts = [box, ...box.querySelectorAll<HTMLElement>('span, bdi, time')];
+          return parts
+            .filter((part) => {
+              // An inline box has no width of its own to scroll (Firefox gives it a scrollWidth all the same): only its edges count.
+              const scrolls = getComputedStyle(part).display !== 'inline' && part.scrollWidth > part.clientWidth + 1;
+              const r = part.getBoundingClientRect();
+              return scrolls || r.right > outer.right + 0.5 || r.left < outer.left - 0.5 || outer.right > viewport + 0.5;
+            })
+            .map((part) => `${part.className || part.tagName}: 「${part.textContent}」`);
+        }),
+      width);
+      expect(spills, `${path} at ${width} px`).toEqual([]);
+    }
+    await context.close();
+  });
+}
+
+// ── The High & Low Ladder and Moonlit Sic Bo ────────────────────────────────
+
+/** The words of `words` that `lines` break inside, as 「…｜…」. */
+const wordsBroken = (lines: readonly string[], words: readonly string[]): string[] => {
+  const joined = lines.join('｜');
+  return words.filter((word) => Array.from({ length: word.length - 1 }, (_, i) => `${word.slice(0, i + 1)}｜${word.slice(i + 1)}`).some((cut) => joined.includes(cut)));
+};
+
+/** Each of `target`'s elements read line by line, with the words of `words` any of them breaks inside. */
+async function brokenIn(target: Locator, words: readonly string[]): Promise<string[]> {
+  const found: string[] = [];
+  for (const element of await target.all()) {
+    const lines = await linesOf(element);
+    if (wordsBroken(lines, words).length > 0) found.push(`「${lines.join('｜')}」`);
+  }
+  return found;
+}
+
+const HL_WORDS = ['段目', 'テイク', '予想', '引き分け', 'ハズレ', 'ラダー', 'ここまで', '最善手', '戻り', '当たり', 'カード', '有利'];
+const SB_WORDS = ['いちばん', '戻る', 'エリア', '少ない', '合計', 'ゾロ目', '選ぶ', '通り', '倍率', '取り分'];
+const hlCard = (rank: number, suit = 1) => (rank * 4 + suit + 0.5) / 52;
+
+for (const width of WIDTHS) {
+  test(`the High & Low Ladder's lines and its Odds tab's tables break between phrases in Japanese at ${width} px`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/high-low');
+    await arrived(page);
+    await expect(page.getByTestId('hl-machine')).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    const status = page.getByTestId('hl-status');
+    const said: string[] = [];
+    // A 7, then a King (HIGH), then a 3 (LOW): the rungs' offers; then TAKE, and an 8 tied.
+    await rigPresses(page, [hlCard(5)]);
+    await pressUntil(page.getByTestId('hl-start'), async () => (await page.getByTestId('hl-machine').getAttribute('data-state')) === 'play');
+    for (const [side, next, rung] of [
+      ['high', hlCard(11), '1'],
+      ['low', hlCard(1, 2), '2'],
+    ] as const) {
+      await rigPresses(page, [next]);
+      await page.getByTestId(`hl-${side}`).click();
+      await expect(page.getByTestId('hl-ladder')).toHaveAttribute('data-lit', rung);
+      await expect(status).toContainText('予想');
+      said.push(...(await brokenIn(status, HL_WORDS)));
+    }
+    await page.getByTestId('hl-take').click();
+    await expect(page.getByTestId('hl-start')).toBeEnabled();
+    await rigPresses(page, [hlCard(6, 0)]);
+    await page.getByTestId('hl-start').click();
+    await expect(page.getByTestId('hl-high')).toBeEnabled();
+    await rigPresses(page, [hlCard(6, 3)]);
+    await page.getByTestId('hl-high').click();
+    await expect(status).toContainText('ここまで');
+    said.push(...(await brokenIn(status, HL_WORDS)));
+    said.push(...(await brokenIn(page.locator('#hl-session-title ~ dl dt'), HL_WORDS)));
+    await page.getByRole('tab', { name: '確率' }).click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.locator('table').first()).toBeVisible();
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), HL_WORDS)));
+    expect(said, `at ${width} px`).toEqual([]);
+    await context.close();
+  });
+
+  test(`Moonlit Sic Bo's figures and its Odds tab's tables break between phrases in Japanese at ${width} px`, async ({ browser }) => {
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/sic-bo');
+    await arrived(page);
+    const said = await brokenIn(page.locator('#sb-stats-title ~ dl dt'), SB_WORDS);
+    await page.locator('#sb-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('sb-odds-table')).toBeVisible();
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), SB_WORDS)));
+    expect(said, `at ${width} px`).toEqual([]);
     await context.close();
   });
 }

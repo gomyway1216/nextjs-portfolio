@@ -24,6 +24,29 @@ export interface FloorWords {
 /** The name a player goes by: the one they chose, or "Player" and their four digits. */
 export const shownName = (t: FloorStrings, entry: { name: string | null; tag: string }): string => entry.name ?? t.defaultName(entry.tag);
 
+/** Where the count goes in what `say` says, while the words are put together around it. */
+const COUNT_MARK = '\u0000';
+
+/**
+ * What `say` says of a count of medals, with the count kept on one line with the word it counts and what is joined to
+ * it (「1,500枚」, 「123,456枚（1日前）」, "523 medals,"): never 「1,｜500枚」 or 「1,500｜枚」, which WebKit and Firefox broke
+ * even where the rest of the line keeps its words whole. Read as text, it is what `say` says.
+ */
+export function Counted({ say, count }: { say: (count: string) => string; count: string }) {
+  const [before, after = ''] = say(COUNT_MARK).split(COUNT_MARK);
+  const unit = /^ ?[^\s]*/.exec(after)?.[0] ?? '';
+  return (
+    <>
+      {before}
+      <span style={{ whiteSpace: 'nowrap' }}>
+        {count}
+        {unit}
+      </span>
+      {after.slice(unit.length)}
+    </>
+  );
+}
+
 /** The time now, by the server's clock (`skew` is the server's less this device's), ticking every half minute so that "2 min ago" stays true. */
 export function useServerNow(skew: number): number {
   const [now, setNow] = useState(() => Date.now());
@@ -66,7 +89,10 @@ export function FeedList({ feed, now, loading, unavailable, onHide, t, gameName,
       {feed.map((entry) => (
         <li key={entry.id} className={styles.moment} data-testid="floor-moment" data-game={entry.game} data-label={entry.label ?? ''} data-big={entry.label === 'jackpot' || entry.label === 'seven3' || entry.label === 'royal' || entry.label === 'floor-jackpot'}>
           <span className={styles.momentText}>
-            <bdi className={styles.who}>{shownName(t, entry)}</bdi> <span>{t.moment(entry.label, fmt(entry.medals))}</span>
+            <bdi className={styles.who}>{shownName(t, entry)}</bdi>{' '}
+            <span>
+              <Counted say={(count) => t.moment(entry.label, count)} count={fmt(entry.medals)} />
+            </span>
           </span>
           <span className={styles.momentWhere}>
             {gameName(entry.game)} · <time dateTime={new Date(entry.at).toISOString()}>{t.ago(Math.max(0, Math.round((now - entry.at) / 1000)))}</time>

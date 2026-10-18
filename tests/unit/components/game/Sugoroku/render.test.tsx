@@ -69,7 +69,7 @@ describe('the show', () => {
     const boats = beats.map((beat) => beat.scene.boat).filter((boat, i, all) => i === 0 || JSON.stringify(boat) !== JSON.stringify(all[i - 1]));
     expect(boats.map((boat) => (boat.on === 'board' ? boat.square : -1))).toEqual([27, 28, 29, 0, 1, 2]);
     expect(beats.some((beat) => beat.scene.banner.kind === 'lap')).toBe(true);
-    expect(beats[0].sound).toBe('dice');
+    expect(beats[0].sound).toBe('tumble');
     expect(beats.filter((beat) => beat.sound === 'hop')).toHaveLength(4);
     expect(beats.at(-1)!.scene).toMatchObject({ phase: 'done', boat: { on: 'board', square: 2 }, paid: 3 });
     // Never back in time, and the WIN counter only ever climbs.

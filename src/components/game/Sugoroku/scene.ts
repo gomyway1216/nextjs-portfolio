@@ -152,7 +152,7 @@ export function beatsOf(play: Play, calm: boolean): Beat[] {
   /** The die tumbling in the dome and landing on `face`. */
   const tumble = (face: number, length: number) => {
     const faces = tumbleFaces(face, Math.max(3, Math.round(length / TIMING.tumbleFace)));
-    faces.forEach((shown, i) => push({ face: shown, rolling: true }, length / faces.length, i === 0 ? 'dice' : undefined));
+    faces.forEach((shown, i) => push({ face: shown, rolling: true }, length / faces.length, i === 0 ? 'tumble' : undefined));
     push({ face, rolling: false }, TIMING.pause / 2);
   };
 

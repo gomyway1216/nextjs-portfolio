@@ -33,6 +33,8 @@ const front = (lang: 'en' | 'ja' = 'en') =>
   );
 
 const NOW = Date.UTC(2026, 9, 17, 6, 0, 0);
+/** The markup with each count's nowrap wrapper taken off: the words as they read. */
+const plain = (html: string) => html.replace(/<span style="white-space:nowrap">([^<]*)<\/span>/g, '$1');
 const FEED: FloorFeedEntry[] = [
   { id: 3, name: 'Lucky Cat', tag: '0001', game: 'medal-pusher', label: 'jackpot', medals: 523, at: NOW - 120_000 },
   { id: 2, name: null, tag: '1234', game: 'slot-machine', label: 'seven3', medals: 3_000, at: NOW - 10_000 },
@@ -41,7 +43,11 @@ const FEED: FloorFeedEntry[] = [
 
 describe('the floor’s moments', () => {
   it('say who won what at which machine, and when, in English', () => {
-    const html = renderToStaticMarkup(<FeedList {...words()} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    const marked = renderToStaticMarkup(<FeedList {...words()} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    // Each count is kept on one line with what it counts.
+    expect(marked).toContain('<span style="white-space:nowrap">523 medals</span>');
+    expect(marked).toContain('<span style="white-space:nowrap">160-medal</span>');
+    const html = plain(marked);
     expect(html).toContain('Lucky Cat</bdi> <span>hit the JACKPOT: 523 medals</span>');
     expect(html).toContain('Player 1234</bdi> <span>lined up three sevens: 3,000 medals</span>');
     expect(html).toContain('won a 160-medal double-up');
@@ -54,8 +60,17 @@ describe('the floor’s moments', () => {
   });
 
   it('and in Japanese', () => {
-    const html = renderToStaticMarkup(<FeedList {...words('ja')} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    const marked = renderToStaticMarkup(<FeedList {...words('ja')} feed={FEED} now={NOW} loading={false} unavailable={false} />);
+    expect(marked).toContain('<span style="white-space:nowrap">3,000枚</span>');
+    const html = plain(marked);
     expect(html).toContain('ジャックポット！523枚');
+    // The newest machines' named wins read as Japanese: never 「ゾロ目的中」 (「ゾロ・目的・中」).
+    const ja = getFloorStrings('ja');
+    expect(ja.moment('sicbo-triple', '181')).toBe('シックボーでゾロ目が的中！181枚');
+    expect(ja.moment('sicbo-any-triple', '31')).toBe('シックボーの「ゾロ目どれでも」で31枚');
+    expect(ja.moment('ladder-top', '2,000')).toBe('ハイ＆ローのラダーをトップまで上って2,000枚');
+    expect(ja.moment('sugoroku-jp', '1,020')).toBe('くじら島すごろくでジャックポット！1,020枚');
+    expect(ja.moment('whale-ride', '70')).toBe('くじら島すごろくのくじらライドで70枚');
     expect(html).toContain('プレイヤー1234');
     expect(html).toContain('7が3つそろって3,000枚');
     expect(html).toContain('ダブルアップで160枚');
@@ -226,7 +241,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Whale Isle Sugoroku.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -304,6 +319,7 @@ describe('the floor jackpot', () => {
       'ball-bingo': ['BallBingo/BallBingo.tsx', 'OddsTab'],
       'big-wheel': ['BigWheel/BigWheel.tsx', 'OddsTab'],
       'high-low': ['HighLow/HighLow.tsx', 'OddsTab'],
+      'sic-bo': ['SicBo/SicBo.tsx', 'OddsTab'],
       sugoroku: ['Sugoroku/Sugoroku.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
@@ -323,7 +339,7 @@ describe('the floor jackpot', () => {
       { id: '20261017-a1b2c3d4', state: 'pending' as const, name: 'Lucky Cat', tag: '0001', game: 'slot-machine' as const, medals: 3_210, at: NOW - 60_000 },
       { id: '20261016-a1b2c3d4', state: 'void' as const, name: null, tag: '0042', game: 'roulette' as const, medals: 9_999, at: NOW - 86_400_000 },
     ];
-    const shown = renderToStaticMarkup(<JackpotWins {...w} wins={wins.map(({ id: _id, state: _state, ...win }) => win)} now={NOW} />);
+    const shown = plain(renderToStaticMarkup(<JackpotWins {...w} wins={wins.map(({ id: _id, state: _state, ...win }) => win)} now={NOW} />));
     expect(shown).toContain('Lucky Cat</bdi> hit the FLOOR JACKPOT: 3,210 medals');
     expect(shown).toContain('Player 0042');
     expect(shown).not.toContain('jackpot-void');
@@ -341,7 +357,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sugoroku-jp', 'whale-ride', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sicbo-triple', 'sicbo-any-triple', 'sugoroku-jp', 'whale-ride', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

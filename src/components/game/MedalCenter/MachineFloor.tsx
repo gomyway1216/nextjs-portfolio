@@ -9,6 +9,7 @@ import { linked } from '@/lib/medalFloor/jackpot';
 import { getGameCoverPath } from '../constants/games';
 import type { GameLanguage } from '../constants/gameTranslations';
 import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, spansOf, zoneOf } from './floorPlan';
+import { MedalTray } from './MedalTray';
 import type { CenterStrings } from './strings';
 import styles from './MachineFloor.module.css';
 
@@ -66,9 +67,9 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
       <div className={styles.plan} data-testid="center-machines">
         {corners.map(({ zone, machines: here }, index) => {
           const titleId = `center-zone-${zone}-title`;
-          const { span, squeezed } = spans[index];
+          const { span, squeezed, tall } = spans[index];
           return (
-            <div key={zone} className={styles.zone} data-zone={zone} data-width={span} data-squeezed={squeezed} data-testid={`center-zone-${zone}`}>
+            <div key={zone} className={styles.zone} data-zone={zone} data-width={span} data-squeezed={squeezed} data-tall={tall} data-testid={`center-zone-${zone}`}>
               {/* The sign over the corner, hung from the ceiling. */}
               <div className={styles.sign}>
                 <h3 id={titleId} className={styles.signTitle}>
@@ -118,6 +119,8 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
                           </span>
                         )}
                       </div>
+                      {/* A cabinet as tall as the corner beside it: the lower body of a medal machine, its tray of medals. */}
+                      {tall && <MedalTray />}
                       <div className={styles.plate}>
                         <p className={styles.pitch} data-testid={`center-pitch-${id}`}>
                           {pitchOf(id, language) ?? translate(`games.${id}.description`)}

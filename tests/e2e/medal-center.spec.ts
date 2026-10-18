@@ -76,7 +76,7 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   // The bank is written down at once, as a new member's.
   await expect.poll(() => bankBalance(page)).toBe(WELCOME);
   // The floor: the Medal Pusher and the casino games already on the medals open and linked, the ones still to come shown
-  // as not open yet; all fourteen machines are on it, one way or the other.
+  // as not open yet; all fifteen machines are on it, one way or the other.
   await expect(page.getByTestId('center-play-medal-pusher')).toHaveAttribute('href', '/games/medal-pusher');
   await expect(page.getByTestId('center-play-slot-machine')).toHaveAttribute('href', '/games/slot-machine');
   await expect(page.getByTestId('center-play-janken')).toHaveAttribute('href', '/games/janken');
@@ -91,12 +91,13 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-ball-bingo')).toHaveAttribute('href', '/games/ball-bingo');
   await expect(page.getByTestId('center-play-big-wheel')).toHaveAttribute('href', '/games/big-wheel');
   await expect(page.getByTestId('center-play-high-low')).toHaveAttribute('href', '/games/high-low');
+  await expect(page.getByTestId('center-play-sic-bo')).toHaveAttribute('href', '/games/sic-bo');
   await expect(page.getByTestId('center-play-sugoroku')).toHaveAttribute('href', '/games/sugoroku');
-  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sugoroku']) {
+  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
-  // Fifteen machines on the floor: those open, and the rest shown as coming.
-  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(15);
+  // Sixteen machines on the floor: those open, and the rest shown as coming.
+  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(16);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('center-reset')).toBeEnabled();
@@ -162,6 +163,27 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   expect(Math.abs(race.y - bingo.y)).toBeLessThan(2);
   expect(race.width).toBeGreaterThan(slotBox.width * 1.8);
   expect(errors).toEqual([]);
+});
+
+test('on a desk the pusher stands as tall as the video machines beside it, its tray of medals filling the cabinet, and the two corners end level', async ({ page }) => {
+  await openCenter(page);
+  const bottom = (id: string) => page.locator(id).evaluate((el) => el.getBoundingClientRect().bottom);
+  const tray = page.getByTestId('center-tray');
+  for (const width of [1280, 1024, 900, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    const where = `${width} px`;
+    // The two corners side by side end level, and so do their cabinets: the pusher's and the video corner's last row.
+    expect(Math.abs((await bottom('[data-testid="center-zone-pusher"]')) - (await bottom('[data-testid="center-zone-video"]'))), where).toBeLessThanOrEqual(3);
+    expect(Math.abs((await bottom('li[data-machine="medal-pusher"]')) - (await bottom('[data-testid="center-zone-video"] li:last-child'))), where).toBeLessThanOrEqual(3);
+    // The extra height is the cabinet's lower body, a tray of medals, not a blank panel: drawn, and taller than a strip.
+    await expect(tray, where).toBeVisible();
+    expect((await tray.boundingBox())!.height, where).toBeGreaterThan(60);
+  }
+  // Where the video machines have a row of their own, the pusher is as it always was: no tray.
+  await page.setViewportSize({ width: 600, height: 900 });
+  await expect(tray).toBeHidden();
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(tray).toBeHidden();
 });
 
 test('every cabinet’s cover loads once it is scrolled into view, at a phone’s width', async ({ page }) => {

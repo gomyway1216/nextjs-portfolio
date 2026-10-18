@@ -46,6 +46,7 @@ export const FLOOR_GAMES = [
   'ball-bingo',
   'big-wheel',
   'high-low',
+  'sic-bo',
   'sugoroku',
 ] as const;
 
@@ -193,6 +194,15 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   // Named: the top of the ladder, on every bet.
   'high-low': rule(2_000, 3_000, 300, 50, 0.8997, {
     'ladder-top': { amounts: [200, 400, 800, 2_000], feed: true },
+  }),
+  // Moonlit Sic Bo: a triple 2 or 5 with 99 medals on every area that wins it (the triple 181, any triple 31, the double
+  // 11, the total 6 or 15 18, the single number three times 4): 245 × 99 = 24,255. A roll every two seconds or so at
+  // the quickest (SHAKE, then skip): 6,000 a minute, as the other tables. Taken: all 50 areas at their most, 4,950.
+  // Best return: 35/36 (97.22%) on Small or Big, on the Atlantic City paytable (Wizard of Odds), rounded up.
+  // Named: a triple bet won (the whole roll's medals back, from 181 on one medal), or else Any Triple won (from 31).
+  'sic-bo': rule(24_255, 6_000, 300, 4_950, 0.9723, {
+    'sicbo-triple': { min: 181, max: 24_255, feed: true },
+    'sicbo-any-triple': { min: 31, max: 24_255, feed: false },
   }),
   // Whale Isle Sugoroku: every figure is per 2 medals bet, on a bet of 2, 4, 6 or 10 (1, 2, 3 or 5 of those). The most
   // a roll pays is the whale ride's: two squares of 2 up the whale's back and the jackpot of 200 at the blowhole, 204

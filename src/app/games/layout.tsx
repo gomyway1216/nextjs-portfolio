@@ -25,6 +25,8 @@ export const metadata: Metadata = {
 
 // Inline first-paint colors for the /games subtree. Keep this route keyed to
 // the app's explicit theme class instead of forcing dark from OS preference.
+// The light muted text is at least 4.5:1 on the light grey panels and table
+// heads the games put it on, not only on white (#6e6e73 was 4.4:1 there).
 export default function GamesLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -32,7 +34,7 @@ export default function GamesLayout({ children }: { children: React.ReactNode })
         html{
           --games-route-bg:linear-gradient(180deg,#f5f5f7 0%,#ffffff 48%,#f5f5f7 100%);
           --games-route-fg:#1d1d1f;
-          --games-route-muted:#6e6e73;
+          --games-route-muted:#5f5f64;
           --games-route-border:rgba(0,0,0,.1);
           --games-route-surface:rgba(255,255,255,.84);
           --games-route-surface-solid:#ffffff;

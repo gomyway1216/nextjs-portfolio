@@ -7,6 +7,16 @@
   content: none;
 }
 
+/* A section's accent as text (the games link, the game's name): darkened on the light toolbar, where the bright
+   accents are under 3:1 on white (#0ea5e9 is 2.7:1), and as it is on the dark one. */
+.accentText {
+  color: color-mix(in srgb, var(--toolbar-accent) 60%, #000);
+}
+
+:global(html.dark) .accentText {
+  color: var(--toolbar-accent);
+}
+
 .brandSlot {
   order: 1;
 }

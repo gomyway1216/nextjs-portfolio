@@ -15,6 +15,11 @@
   /* Result text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
   --rl-win-text: #15803d;
   --rl-lose-text: #b91c1c;
+  /* The gold, sky and violet of the charts as text on the panels: the bright ones are 2.1 to 2.7:1 on white, so
+     darker on the light surfaces and the bright ones on the dark (below). */
+  --rl-gold-text: #8a6100;
+  --rl-sky-text: #0369a1;
+  --rl-violet-text: #6d28d9;
   --rl-line: rgba(255, 255, 255, 0.28);
 
   min-height: 100%;
@@ -24,6 +29,9 @@
 :global(html.dark) .root {
   --rl-win-text: #4ade80;
   --rl-lose-text: #f87171;
+  --rl-gold-text: #e0a83c;
+  --rl-sky-text: #38bdf8;
+  --rl-violet-text: #a78bfa;
 }
 
 .shell {
@@ -162,7 +170,7 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--rl-gold);
+  color: var(--rl-gold-text);
 }
 
 .resultBadge {
@@ -343,7 +351,8 @@
   }
 }
 .ledEmpty {
-  color: #78716c;
+  /* On the board's black glass: 4.1:1 was #78716c. */
+  color: #a8a29e;
   font-size: 0.75rem;
   text-align: center;
   padding: 0.6rem 0;
@@ -1289,7 +1298,7 @@ select.input {
   font-size: 0.9rem;
 }
 .intro strong {
-  color: var(--rl-gold);
+  color: var(--rl-gold-text);
 }
 .intro p {
   margin: 0 0 0.6rem;

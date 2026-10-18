@@ -156,6 +156,29 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   expect(errors).toEqual([]);
 });
 
+test('every cabinet’s cover loads once it is scrolled into view, at a phone’s width', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const broken: string[] = [];
+  page.on('response', (response) => {
+    // A cover comes through the image optimizer, its path in the query: decoded to be found.
+    if (decodeURIComponent(response.url()).includes('/img/games/covers/') && response.status() >= 400) broken.push(`${response.status()} ${response.url()}`);
+  });
+  await openCenter(page);
+  const tiles = page.getByTestId('center-machines').locator('li[data-machine]');
+  const ids = await tiles.evaluateAll((items) => items.map((item) => item.getAttribute('data-machine') ?? ''));
+  // Every machine on the floor has a cabinet.
+  expect(ids.length).toBeGreaterThanOrEqual(12);
+  for (const id of ids) {
+    const tile = page.locator(`li[data-machine="${id}"]`);
+    await tile.scrollIntoViewIfNeeded();
+    // The covers load lazily, as they come near the screen: by the time the cabinet is in view, its cover has.
+    await expect
+      .poll(() => tile.locator('img').evaluate((image: HTMLImageElement) => (image.complete ? image.naturalWidth : 0)), { message: id, timeout: 15_000 })
+      .toBeGreaterThan(0);
+  }
+  expect(broken).toEqual([]);
+});
+
 test('the Medal Pusher plays from the bank: a medal fed comes out of it, a medal won goes back, and the hub and the machine agree after a reload', async ({ page }) => {
   test.setTimeout(90_000);
   await openPusher(page);
@@ -180,13 +203,17 @@ test('the Medal Pusher plays from the bank: a medal fed comes out of it, a medal
   const bank = await bankBalance(page);
   await page.reload();
   await settled(page);
-  await expect.poll(() => counter(page, 'credits'), { timeout: 15_000 }).toBe(await bankBalance(page));
+  // The field is still settling and may bring a medal back at any moment, so the machine and the bank are compared
+  // afresh each time, never against a number read once.
+  await expect.poll(async () => (await counter(page, 'credits')) - (await bankBalance(page)), { timeout: 15_000 }).toBe(0);
   const afterReload = await counter(page, 'credits');
   // A medal or two may have been won while the field settled; none was lost or made.
   expect(afterReload).toBeGreaterThanOrEqual(bank);
   await openCenter(page);
-  await expect.poll(() => shownAtCenter(page)).toBe(await bankBalance(page));
-  expect(await shownAtCenter(page)).toBe(afterReload);
+  // At the medal center no machine is playing, so the bank holds still: the counter shows it, and it holds every medal
+  // the machine showed, and any it won after that.
+  await expect.poll(async () => (await shownAtCenter(page)) - (await bankBalance(page))).toBe(0);
+  expect(await shownAtCenter(page)).toBeGreaterThanOrEqual(afterReload);
 });
 
 test('the reset asks first, then empties the bank to a new member’s medals and starts the machine over; the bonus card is kept', async ({ page }) => {

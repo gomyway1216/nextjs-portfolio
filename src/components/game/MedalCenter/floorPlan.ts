@@ -115,13 +115,44 @@ export function cornersOf<T extends { id: string }>(machines: readonly T[]): Flo
 }
 
 /**
- * A machine's best return in percent, to one decimal, as the floor's rules
- * (src/lib/medalFloor/games.ts) publish it, or null for a machine not in them
- * yet. Each rule is its machine's exact odds rounded to four places, sometimes
- * up, so a last digit of 5 is rounded down here: the plate never says a
- * machine brings back more than it does (9/6 video poker's 99.544% is 99.5%).
+ * Where the floor's rule for a machine (`bestReturn` in src/lib/medalFloor/games.ts) is not a figure a player can get
+ * by playing, the return its plate shows instead, as a fraction of the medals played, from the machine's own exact
+ * odds (each pinned by a test against them). The rule is the best of any one bet, rounded up: right for deciding which
+ * machines the floor jackpot is linked to, which must never be told less than a machine can bring back, but not what a
+ * plate should promise.
+ *
+ * - **craps:** the odds behind a line bet pay true odds and bring back every medal, but cannot be made alone. The best
+ *   a player can do is Don't Pass laying the full 6× odds behind it: 1,097 of every 1,100 medals wagered (99.73%; the
+ *   Pass Line with 3-4-5× odds brings back 99.63%).
+ * - **horse-race:** every ticket on a race brings back that race's return, which each race card sets between 89.5% and
+ *   90%. No ticket is better than another, so the plate gives the range.
  */
-export function bestReturnPercent(id: string): number | null {
+export const PLATE_RETURNS: Readonly<Record<string, { least?: number; most: number }>> = {
+  craps: { most: 1_097 / 1_100 },
+  'horse-race': { least: 0.895, most: 0.9 },
+};
+
+/** A machine's return on its plate, in percent to one decimal: its best, or the range every play of it brings back. */
+export interface PlateReturn {
+  /** The least, where every play brings back a figure in a range; null where the plate gives the best. */
+  least: number | null;
+  most: number;
+}
+
+/**
+ * A fraction as a percent to one decimal. The floor's rules round each machine's exact odds to four places, sometimes
+ * up, so a last digit of 5 is rounded down here: the plate never says a machine brings back more than it does (9/6
+ * video poker's 99.544% is 99.5%).
+ */
+const percent = (fraction: number): number => Math.round(fraction * 1_000 - 1e-6) / 10;
+
+/**
+ * A machine's return as its plate shows it: the playable figure where the floor's rule is only a bound
+ * (`PLATE_RETURNS`), else its rule's best return; null for a machine not in the floor's rules yet.
+ */
+export function plateReturn(id: string): PlateReturn | null {
+  const shown = Object.prototype.hasOwnProperty.call(PLATE_RETURNS, id) ? PLATE_RETURNS[id] : undefined;
+  if (shown) return { least: shown.least === undefined ? null : percent(shown.least), most: percent(shown.most) };
   if (!isFloorGame(id)) return null;
-  return Math.round(FLOOR_RULES[id].bestReturn * 1_000 - 1e-6) / 10;
+  return { least: null, most: percent(FLOOR_RULES[id].bestReturn) };
 }

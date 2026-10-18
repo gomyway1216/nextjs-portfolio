@@ -162,13 +162,13 @@ const Results = ({ state }: { state: SimState }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div>
-        <h3 className={styles.blockTitle} style={{ color: 'var(--rl-gold)' }}>{t.mcResult(trials)}</h3>
+        <h3 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.mcResult(trials)}</h3>
         <div className={styles.statGrid}>
-          <Stat label={t.bustRate} value={`${bustRate}%`} accent="var(--rl-lose)" />
-          <Stat label={t.medianSpinsToBust} value={summary.medianSpinsToBust === null ? '—' : `${summary.medianSpinsToBust}`} accent="#38bdf8" />
-          <Stat label={t.medianFinal} value={summary.medianFinalBankroll.toFixed(0)} accent="#a78bfa" />
-          <Stat label={t.meanFinal} value={summary.meanFinalBankroll.toFixed(1)} accent="#a78bfa" />
-          <Stat label={t.tableMaxHitRate} value={`${tableHitRate}%`} accent="var(--rl-gold)" />
+          <Stat label={t.bustRate} value={`${bustRate}%`} accent="var(--rl-lose-text)" />
+          <Stat label={t.medianSpinsToBust} value={summary.medianSpinsToBust === null ? '—' : `${summary.medianSpinsToBust}`} accent="var(--rl-sky-text)" />
+          <Stat label={t.medianFinal} value={summary.medianFinalBankroll.toFixed(0)} accent="var(--rl-violet-text)" />
+          <Stat label={t.meanFinal} value={summary.meanFinalBankroll.toFixed(1)} accent="var(--rl-violet-text)" />
+          <Stat label={t.tableMaxHitRate} value={`${tableHitRate}%`} accent="var(--rl-gold-text)" />
         </div>
         <p className={styles.note}>{t.meanFinalNote(config.initialBankroll)}</p>
       </div>
@@ -181,11 +181,11 @@ const Results = ({ state }: { state: SimState }) => {
       <div>
         <h4 className={styles.subTitle}>{t.sampleRun}</h4>
         <div style={{ marginBottom: '0.4rem', color: 'var(--games-route-muted)', fontSize: '0.85rem' }}>
-          <span style={{ color: sample.outcome === 'bust' ? 'var(--rl-lose)' : 'var(--rl-win)', fontWeight: 700 }}>
+          <span style={{ color: sample.outcome === 'bust' ? 'var(--rl-lose-text)' : 'var(--rl-win-text)', fontWeight: 700 }}>
             {sampleOutcomeLabel[sample.outcome]}
           </span>{' '}
           / {t.sampleMeta(sample.spins, sample.finalBankroll, sample.maxBetReached)}
-          {sample.hitTableMax && <span style={{ color: 'var(--rl-gold)' }}>{t.hitCapSuffix}</span>}
+          {sample.hitTableMax && <span style={{ color: 'var(--rl-gold-text)' }}>{t.hitCapSuffix}</span>}
         </div>
         <BankrollChart
           trajectory={sample.trajectory}

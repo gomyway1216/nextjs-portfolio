@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   DropdownMenu,
@@ -297,12 +297,15 @@ export function GlobalToolbar() {
   return (
     <div
       className={`${styles.toolbar} sticky top-0 z-50`}
-      style={{
-        backgroundColor: toolbarBg,
-        borderBottom: `1px solid ${toolbarBorder}`,
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-      }}
+      style={
+        {
+          backgroundColor: toolbarBg,
+          borderBottom: `1px solid ${toolbarBorder}`,
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          '--toolbar-accent': theme.accent,
+        } as CSSProperties
+      }
     >
       <div
         className={`${styles.container} mx-auto flex min-h-[58px] max-w-[1120px] flex-wrap items-center gap-x-3 gap-y-2 px-5 py-2 sm:px-6 lg:flex-nowrap lg:py-0`}
@@ -319,8 +322,8 @@ export function GlobalToolbar() {
           {isGameSubPage && (
             <Link
               href="/games"
-              className="hidden h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition-colors hover:bg-muted sm:inline-flex"
-              style={{ borderColor: toolbarBorder, color: theme.accent }}
+              className={`${styles.accentText} hidden h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition-colors hover:bg-muted sm:inline-flex`}
+              style={{ borderColor: toolbarBorder }}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               Games
@@ -328,8 +331,8 @@ export function GlobalToolbar() {
           )}
           {displayedGame && !gameContent?.left && (
             <span
-              className="hidden min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold sm:inline-flex"
-              style={{ backgroundColor: accentSoft, color: theme.accent }}
+              className={`${styles.accentText} hidden min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold sm:inline-flex`}
+              style={{ backgroundColor: accentSoft }}
               title={displayedGameTitle}
             >
               <span aria-hidden="true">{displayedGame.thumbnail}</span>
@@ -337,7 +340,7 @@ export function GlobalToolbar() {
             </span>
           )}
           {hasGameContent && gameContent?.left && (
-            <div className="flex min-w-0 items-center gap-2 border-l pl-3" style={{ borderColor: toolbarBorder, color: theme.accent }}>
+            <div className={`${styles.accentText} flex min-w-0 items-center gap-2 border-l pl-3`} style={{ borderColor: toolbarBorder }}>
               {gameContent.left}
             </div>
           )}
@@ -395,8 +398,8 @@ export function GlobalToolbar() {
 
         {hasGameContent && gameContent?.center && (
           <div
-            className={`${styles.gameCenter} flex w-full items-center gap-2 border-t pt-2 text-sm font-medium md:w-auto md:border-t-0 md:pt-0`}
-            style={{ borderColor: toolbarBorder, color: theme.accent }}
+            className={`${styles.gameCenter} ${styles.accentText} flex w-full items-center gap-2 border-t pt-2 text-sm font-medium md:w-auto md:border-t-0 md:pt-0`}
+            style={{ borderColor: toolbarBorder }}
           >
             {gameContent.center}
           </div>
@@ -465,18 +468,24 @@ export function GlobalToolbar() {
           </button>
 
           {!presumedSignedIn ? (
+            // One control, the link, named even where its word is hidden (a phone shows only the icon). It used to
+            // hold a <button>, which made two stops for one control and left both unnamed on a phone.
             <Link
               href={`/signin?redirect=${encodeURIComponent(pathname)}`}
+              aria-label={t('auth.login')}
+              className="rounded-md"
               style={{ color: 'var(--muted-foreground)' }}
             >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 rounded-md px-2.5 text-sm font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              <span
+                className={buttonVariants({
+                  variant: 'ghost',
+                  size: 'sm',
+                  className: 'h-8 gap-1.5 rounded-md px-2.5 text-sm font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                })}
               >
-                <LogIn className="h-3.5 w-3.5" />
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">{t('auth.login')}</span>
-              </Button>
+              </span>
             </Link>
           ) : !currentUser ? (
             // Session still restoring. Same box as the resolved avatar so the

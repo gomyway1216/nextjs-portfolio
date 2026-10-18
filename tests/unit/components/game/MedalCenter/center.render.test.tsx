@@ -4,14 +4,17 @@ import { describe, expect, it } from 'vitest';
 
 import { COUNTER_PLACES, FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MachineFloor } from '@/components/game/MedalCenter/MachineFloor';
-import { MACHINE_PITCHES, MACHINE_ZONES, ZONES, ZONE_SIGNS, bestReturnPercent, cornersOf, isNewMachine, zoneOf, type ZoneId } from '@/components/game/MedalCenter/floorPlan';
+import { MACHINE_PITCHES, MACHINE_ZONES, PLATE_RETURNS, ZONES, ZONE_SIGNS, cornersOf, isNewMachine, plateReturn, zoneOf, type ZoneId } from '@/components/game/MedalCenter/floorPlan';
+import { ODDS_OPTIONS, allBetOdds, combinedDontPassEdge, combinedPassEdge, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
+import { RETURN_LEAST as HORSE_RETURN_LEAST, RETURN_MOST as HORSE_RETURN_MOST } from '@/components/game/HorseRace/card';
+import { toNumber as horseNumber } from '@/components/game/HorseRace/fraction';
 import { MedalsOut } from '@/components/game/MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH, MEDAL_PUSHER_PATH } from '@/components/game/MedalCenter/paths';
 import { getCenterStrings } from '@/components/game/MedalCenter/strings';
 import { games } from '@/components/game/constants/games';
 import { createI18nInstance } from '@/lib/i18n';
 import { linked } from '@/lib/medalFloor/jackpot';
-import { FLOOR_GAMES } from '@/lib/medalFloor/games';
+import { FLOOR_GAMES, FLOOR_RULES } from '@/lib/medalFloor/games';
 
 /** No word of money, in either language: what every line the medal center shows is checked against. */
 const MONEY = /bankroll|\bbank\b|deposit|withdraw|cash|money|dollar|balance|credit|\$|預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|所持金|収支/i;
@@ -150,30 +153,61 @@ describe('the medal center’s front, as the server sends it', () => {
     for (const words of [t.legendJp, t.legendNew, t.legendReturn, t.jpSay, t.newSay, t.bestReturn('95.3%'), ja.legendJp, ja.legendNew, ja.legendReturn, ja.jpSay, ja.newSay, ja.bestReturn('95.3%')]) expect(words).not.toMatch(MONEY);
   });
 
-  it('marks the machines linked to the floor jackpot, and shows each one’s best return as its rules publish it, never rounded up', () => {
+  it('marks the machines linked to the floor jackpot, and shows each one’s best return a player can actually get, never rounded up', () => {
     const html = render();
     for (const { id } of FLOOR) {
       const isLinked = (FLOOR_GAMES as readonly string[]).includes(id) && linked(id as (typeof FLOOR_GAMES)[number]);
       expect(html.includes(`data-testid="center-jp-${id}"`), id).toBe(isLinked);
-      expect(html, id).toContain(`data-testid="center-best-${id}">Best return `);
+      const ranged = PLATE_RETURNS[id]?.least !== undefined;
+      expect(html, id).toContain(`data-testid="center-best-${id}">${ranged ? 'Return ' : 'Best return '}`);
     }
     expect(html).toContain('data-testid="center-jp-medal-pusher"');
     expect(html).not.toContain('data-testid="center-jp-video-poker"');
     // 9/6 video poker brings back 99.544%: its rule says 0.9955, and the plate says 99.5%, not 99.6%.
-    expect(bestReturnPercent('video-poker')).toBe(99.5);
+    expect(plateReturn('video-poker')).toEqual({ least: null, most: 99.5 });
     expect(html).toContain('data-testid="center-best-video-poker">Best return 99.5%</span>');
     expect(html).toContain('data-testid="center-best-slot-machine">Best return 95.3%</span>');
     expect(html).toContain('data-testid="center-best-roulette">Best return 97.3%</span>');
-    expect(html).toContain('data-testid="center-best-craps">Best return 100.0%</span>');
     expect(html).toContain('data-testid="center-best-janken">Best return 90.0%</span>');
-    expect(render('ja')).toContain('data-testid="center-best-slot-machine">最高還元率95.3%</span>');
+    // Craps: not the free odds' 100%, which cannot be bet alone, but Don't Pass with the full 6× lay behind it.
+    expect(html).toContain('data-testid="center-best-craps">Best return 99.7%</span>');
+    expect(html).not.toContain('100.0%');
+    // The horse race: every ticket on a race brings back that race's return, between 89.5% and 90%.
+    expect(html).toContain('data-testid="center-best-horse-race">Return 89.5%–90.0%</span>');
+    const ja = render('ja');
+    expect(ja).toContain('data-testid="center-best-slot-machine">最高還元率95.3%</span>');
+    expect(ja).toContain('data-testid="center-best-craps">最高還元率99.7%</span>');
+    expect(ja).toContain('data-testid="center-best-horse-race">還元率89.5%〜90.0%</span>');
     // The key under the floor's lead says what the sticker means; NEW is in it only while a machine is marked NEW.
     expect(html).toContain('data-testid="center-legend"');
     expect(html).toContain(getCenterStrings('en').legendJp);
     const fresh = FLOOR.filter(({ id }) => isNewMachine(id)).length;
     expect(html.match(/data-new="true"/g)?.length ?? 0).toBe(fresh);
     expect(html.includes(`</span> ${getCenterStrings('en').legendNew}</li>`)).toBe(fresh > 0);
-    expect(bestReturnPercent('not-a-machine')).toBeNull();
+    expect(plateReturn('not-a-machine')).toBeNull();
+  });
+
+  it('takes a plate’s return from the machine’s own exact odds where its floor rule is only a bound', () => {
+    // Craps: the rule is the free odds' 100%, a bet that cannot be made alone, so the jackpot is never told less.
+    expect(FLOOR_RULES.craps.bestReturn).toBe(1);
+    const alone = allBetOdds().filter((bet) => crapsNumber(bet.houseEdge) === 0).map((bet) => bet.id);
+    expect(alone).toEqual(['passOdds', 'dontPassOdds']);
+    // What a player can get: Don't Pass with the full 6× lay, per medal wagered on both, exactly 1,097 / 1,100 …
+    const dontPass = 1 - crapsNumber(combinedDontPassEdge());
+    expect(PLATE_RETURNS.craps!.most).toBeCloseTo(dontPass, 12);
+    expect(PLATE_RETURNS.craps!.least).toBeUndefined();
+    // … better than the Pass Line with 3-4-5× odds, and than any bet that can be made alone.
+    const pass = 1 - crapsNumber(combinedPassEdge(ODDS_OPTIONS.find((option) => option.id === '3-4-5x')!.multiple));
+    expect(pass).toBeLessThan(dontPass);
+    for (const bet of allBetOdds().filter((odds) => !alone.includes(odds.id))) expect(1 - crapsNumber(bet.houseEdge), bet.id).toBeLessThan(dontPass);
+    expect(plateReturn('craps')).toEqual({ least: null, most: 99.7 });
+    // The horse race: the rule is the most a race's tickets can bring back; a race card sets them from 89.5% to it.
+    expect(PLATE_RETURNS['horse-race']).toEqual({ least: horseNumber(HORSE_RETURN_LEAST), most: horseNumber(HORSE_RETURN_MOST) });
+    expect(FLOOR_RULES['horse-race'].bestReturn).toBe(horseNumber(HORSE_RETURN_MOST));
+    expect(plateReturn('horse-race')).toEqual({ least: 89.5, most: 90 });
+    // Every other machine's rule is a play a player can make, rounded up by at most a hair (rules.test.ts checks each
+    // against its exact odds): its plate shows it.
+    for (const game of FLOOR_GAMES) if (!(game in PLATE_RETURNS)) expect(plateReturn(game)?.least, game).toBeNull();
   });
 
   it('puts a machine that comes onto the floor with no corner yet among the new machines, by the door, marked NEW, with its catalog description on its plate', () => {

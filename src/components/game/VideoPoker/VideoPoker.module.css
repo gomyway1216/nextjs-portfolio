@@ -1179,7 +1179,7 @@
   background: var(--games-route-surface-raised);
   font-size: 0.86rem;
 }
-.callItem h4 {
+.callItem h3 {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
 }

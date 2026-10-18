@@ -67,9 +67,9 @@ export const OddsTab = () => {
       </div>
 
       <section className={styles.panel} aria-labelledby="baccarat-outcome-title">
-        <h3 id="baccarat-outcome-title" className={styles.blockTitle}>
+        <h2 id="baccarat-outcome-title" className={styles.blockTitle}>
           {t.outcomeTitle}
-        </h3>
+        </h2>
         <div className={styles.outcomeBar} aria-hidden="true">
           {OUTCOMES.map((w) => (
             <span key={w} data-winner={w} style={{ flexGrow: counts[w] }}>
@@ -115,9 +115,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-edge-title">
-        <h3 id="baccarat-edge-title" className={styles.blockTitle}>
+        <h2 id="baccarat-edge-title" className={styles.blockTitle}>
           {t.edgeTitle}
-        </h3>
+        </h2>
         <div className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
@@ -151,9 +151,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-tableau-title">
-        <h3 id="baccarat-tableau-title" className={styles.blockTitle}>
+        <h2 id="baccarat-tableau-title" className={styles.blockTitle}>
           {t.tableauTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           {t.tableauIntro}
         </p>
@@ -195,9 +195,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-why-title">
-        <h3 id="baccarat-why-title" className={styles.blockTitle}>
+        <h2 id="baccarat-why-title" className={styles.blockTitle}>
           {t.whyTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.whyBody}
         </p>
@@ -228,18 +228,18 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-pair-title">
-        <h3 id="baccarat-pair-title" className={styles.blockTitle}>
+        <h2 id="baccarat-pair-title" className={styles.blockTitle}>
           {t.pairTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }} data-testid="pair-body">
           {t.pairBody(decks, `${fmt(pairN)}/${fmt(pairD)}`, pct(pair.win, 2), pct(-pair.ev, 2))}
         </p>
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-decks-title">
-        <h3 id="baccarat-decks-title" className={styles.blockTitle}>
+        <h2 id="baccarat-decks-title" className={styles.blockTitle}>
           {t.decksTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.decksIntro}
         </p>

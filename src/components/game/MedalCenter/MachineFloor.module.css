@@ -269,7 +269,11 @@
   line-height: 1.2;
   letter-spacing: 0.02em;
   overflow-wrap: anywhere;
-  /* Japanese breaks between phrases, not inside a word, where the browser can tell them apart. */
+  /* Japanese breaks between phrases, not inside a word, where the browser can tell them apart (Chromium's
+     auto-phrase). Safari and Firefox have no auto-phrase and would break a name anywhere in its kana
+     (「ルーレット & マーチ｜ンゲール」): keep-all keeps its words whole there, breaking it only at a space or
+     between the words the floor marks (<wbr>). */
+  word-break: keep-all;
   word-break: auto-phrase;
 }
 /* Static, against the site's global `a { position: relative }`, so that the cover below can stretch over the cabinet. */

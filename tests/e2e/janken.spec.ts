@@ -6,6 +6,7 @@ import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Calico Janken plays with the medal center's medals. The cat's hand and the roulette's lamp are drawn with
@@ -32,14 +33,12 @@ async function shown(page: Page): Promise<number> {
   return Number(((await page.getByTestId('janken-medals').textContent()) ?? '').replace(/,/g, ''));
 }
 
-/** The cat's next draws, queued just before the press that uses them. */
+/**
+ * The cat's next draws (its hand, and the roulette's lamp on a won play), served only to the press that draws them
+ * (rigPresses): the page's other callers of Math.random get real ones, as the floor's live strip does on the live site.
+ */
 async function cat(page: Page, draws: number[]) {
-  await page.evaluate((queue) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const left = [...queue];
-    Math.random = () => (left.length ? left.shift()! : w.__random!());
-  }, draws);
+  await rigPresses(page, draws);
 }
 
 /** Puts a medal in, retrying until hydration has attached the handler and the machine holds the card. */

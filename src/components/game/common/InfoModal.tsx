@@ -7,7 +7,7 @@
  * closes, so that a keyboard or screen reader user is never left behind it.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { X as XIcon } from 'lucide-react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getUITranslation } from '../constants/gameTranslations';
@@ -40,15 +40,17 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   useEffect(() => {
     close.current = onClose;
   });
-  // The control a press last went down on. Safari does not give a button the focus when it is clicked or tapped, so
-  // there the focus is still on the page when the dialog opens, and this is what opened it.
+  // The control the last click was on, noted before the page's own handlers hear it. Safari does not give a button
+  // the focus when it is clicked or tapped, so there the focus is still on the page when the dialog opens, and this is
+  // what opened it. (A click, not the press before it: a page that comes to life between the two has heard only the
+  // click. It is listened for as the dialog is put in the page, in the same step as the button's own handler.)
   const pressed = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const note = (event: PointerEvent) => {
+  useLayoutEffect(() => {
+    const note = (event: MouseEvent) => {
       pressed.current = event.target instanceof Element ? event.target.closest<HTMLElement>(FOCUSABLE) : null;
     };
-    document.addEventListener('pointerdown', note, true);
-    return () => document.removeEventListener('pointerdown', note, true);
+    document.addEventListener('click', note, true);
+    return () => document.removeEventListener('click', note, true);
   }, []);
 
   useEffect(() => {

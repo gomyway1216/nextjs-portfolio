@@ -161,7 +161,7 @@ describe('the floor jackpot', () => {
     expect(html.indexOf('floor-jackpot-amount')).toBeLessThan(html.indexOf('floor-feed-empty'));
     expect(html).toContain('>FLOOR JACKPOT<');
     // Nothing is known on the server: dashes, not a number.
-    expect(html).toContain('– – – –');
+    expect(html).toContain('–,–––');
     expect(html).toContain('data-standing="guest"');
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);

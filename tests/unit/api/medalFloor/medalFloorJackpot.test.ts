@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { JACKPOT_START, nextJackpot } from '@/components/game/MedalCenter/floor/useFloorJackpot';
 import { FLOOR_RULES } from '@/lib/medalFloor/games';
-import { CLAIM_LEASE_MS, DAILY_PLAYED_MOST, JACKPOT_SEED, winChance, type FloorJackpotView, type JackpotPrize } from '@/lib/medalFloor/jackpot';
+import { CLAIM_LEASE_MS, DAILY_PLAYED_MOST, JACKPOT_SEED, jackpotFrom, winChance, type FloorJackpotView, type JackpotPrize } from '@/lib/medalFloor/jackpot';
 import type { FloorMe, FloorReportResult, FloorSummary } from '@/lib/medalFloor/types';
 import { FakeFirestore, FakeRtdb, fakeAuth, type FakeToken } from './fakeFirebase';
 
@@ -339,6 +340,74 @@ describe('the owner', () => {
     const pid = floor.day.won.length === 0 ? (db().read('medal_floor_players/test-uid-ann') as { pid: string }).pid : floor.day.won[0]!.pid!;
     expect(await owner({ action: 'block', pid })).toBe(200);
     expect((await wins('fake-token-ann', { action: 'claim', device: 'phone00001' })).status).toBe(403);
+  });
+});
+
+describe('the live mirror, as a page reads it', () => {
+  /** What a page shows after hearing the route, then the mirror (in that order, and the other). */
+  const shown = async () => {
+    const view = (await jackpot()).body;
+    const value = rtdb().at('medalFloor/jackpot') ?? null;
+    return {
+      view,
+      value,
+      routeFirst: nextJackpot(nextJackpot(JACKPOT_START, { kind: 'route', view, at: Date.now() }), { kind: 'live', value }),
+      mirrorFirst: nextJackpot(nextJackpot(JACKPOT_START, { kind: 'live', value }), { kind: 'route', view, at: Date.now() }),
+    };
+  };
+
+  it('is not there until the first report has fed the pool: the page shows the route’s seed, and asks the route', async () => {
+    const { view, value, routeFirst, mirrorFirst } = await shown();
+    expect(value).toBeNull();
+    expect(jackpotFrom(value)).toBeNull();
+    expect(view).toMatchObject({ available: true, amount: JACKPOT_SEED, seq: 0, v: 0 });
+    for (const state of [routeFirst, mirrorFirst]) expect(state).toMatchObject({ amount: JACKPOT_SEED, v: 0, live: false });
+  });
+
+  it('is written in the shape the page reads, with the pool’s version, the same as the route’s', async () => {
+    await join('fake-token-ann', 'Lucky Cat');
+    await report('fake-token-ann', { game: 'slot-machine', played: 400 });
+    const fed = await shown();
+    expect(jackpotFrom(fed.value)).toEqual({ amount: JACKPOT_SEED + 4, seq: 0, v: fed.view.v, last: null });
+    expect(fed.view.v).toBeGreaterThan(0);
+    for (const state of [fed.routeFirst, fed.mirrorFirst]) expect(state).toMatchObject({ amount: JACKPOT_SEED + 4, v: fed.view.v, live: true });
+    // A win: the mirror carries it as the page reads it, with no account in it.
+    fakes.draws.push(0);
+    await report('fake-token-ann', { game: 'roulette', played: 100 });
+    const won = await shown();
+    expect(jackpotFrom(won.value)).toEqual({ amount: JACKPOT_SEED, seq: 1, v: won.view.v, last: { name: 'Lucky Cat', tag: expect.any(String), game: 'roulette', medals: JACKPOT_SEED + 5, at: NOON } });
+    expect(JSON.stringify(won.value)).not.toContain('test-uid');
+    expect(won.routeFirst).toMatchObject({ amount: JACKPOT_SEED, seq: 1, live: true, wins: [expect.objectContaining({ name: 'Lucky Cat', medals: JACKPOT_SEED + 5 })] });
+  });
+
+  it('left behind when the server could not write it, is not believed over the route: the page shows the pool and asks the route', async () => {
+    await join('fake-token-ann');
+    await report('fake-token-ann', { game: 'slot-machine', played: 2_000 });
+    // The next write of the mirror fails; the report is counted all the same.
+    const ref = rtdb().ref.bind(rtdb());
+    rtdb().ref = (path = '') => {
+      const real = ref(path);
+      if (path === 'medalFloor/jackpot') real.transaction = () => Promise.reject(new Error('fake RTDB: unavailable'));
+      return real;
+    };
+    expect((await report('fake-token-ann', { game: 'slot-machine', played: 500 })).status).toBe(200);
+    const { view, value, routeFirst, mirrorFirst } = await shown();
+    expect(jackpotFrom(value)?.amount).toBe(JACKPOT_SEED + 20);
+    expect(view.amount).toBe(JACKPOT_SEED + 25);
+    for (const state of [routeFirst, mirrorFirst]) expect(state).toMatchObject({ amount: JACKPOT_SEED + 25, v: view.v, live: false });
+  });
+
+  it('is written again after a void, one version on', async () => {
+    await join('fake-token-ann', 'Cheater');
+    fakes.draws.push(0);
+    fakes.names.push('deadbeef');
+    await report('fake-token-ann', { game: 'slot-machine', played: 300 });
+    const before = jackpotFrom(rtdb().at('medalFloor/jackpot'))!;
+    expect(await owner({ action: 'void-jackpot', id: '20261017-deadbeef' })).toBe(200);
+    const { view, value, routeFirst } = await shown();
+    expect(jackpotFrom(value)).toEqual({ amount: JACKPOT_SEED + 3, seq: 1, v: before.v + 1, last: null });
+    expect(view).toMatchObject({ amount: JACKPOT_SEED + 3, v: before.v + 1, wins: [] });
+    expect(routeFirst).toMatchObject({ amount: JACKPOT_SEED + 3, live: true });
   });
 });
 

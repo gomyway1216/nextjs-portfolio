@@ -287,7 +287,7 @@ function readWin(data: unknown): WinDoc | null {
 
 /** A win as everybody is shown it: the name or the digits, the machine, the medals, the time. */
 const shownWin = (win: JackpotWinShown): JackpotWinShown => ({ name: win.name, tag: win.tag, game: win.game, medals: win.medals, at: win.at });
-const poolView = (pool: PoolDoc, now: number): FloorJackpotView => ({ now, available: true, amount: poolAmount(pool), seq: pool.seq, wins: pool.wins.map(shownWin) });
+const poolView = (pool: PoolDoc, now: number): FloorJackpotView => ({ now, available: true, amount: poolAmount(pool), seq: pool.seq, v: pool.v, wins: pool.wins.map(shownWin) });
 
 function meOf(player: PlayerDoc | null): FloorMe {
   if (!player) return { joined: false, name: null, tag: null, blocked: false };

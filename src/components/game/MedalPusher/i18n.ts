@@ -783,7 +783,7 @@ const ja: PusherStrings = {
       poured >= medals ? '筒にタワーを積む空きがないため、すべてフィールドに降ります。' : `そのうち${poured}枚がフィールドに降り、残りはタワーに積まれます。`
     }`,
   sayEmpty: 'メダルがなくなりました。',
-  sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
+  sayBonus: (medals) => `デイリーボーナス：メダルが${medals}枚増えました。`,
   tallyTitle: 'このマシンのここまで',
   tallyPlayed: '落とした',
   tallyWon: '獲得',

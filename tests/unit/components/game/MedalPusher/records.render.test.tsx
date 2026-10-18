@@ -215,7 +215,7 @@ describe('the bonus plate beside the cabinet', () => {
     expect(shown(html, 'pusher-bonus-status')).toBe(`Day 4 is ready: ${BONUS_CARD[3]} medals.`);
     expect(count(html, /data-on="true"/g)).toBe(3);
     expect(html).toContain(`aria-label="3 of ${BONUS_CARD.length} stamped"`);
-    expect(render(<BonusStripView state={banking(three)} />, 'ja')).toContain(`4日目のボーナスを受け取れます: ${BONUS_CARD[3]}枚`);
+    expect(render(<BonusStripView state={banking(three)} />, 'ja')).toContain(`4日目のボーナス、${BONUS_CARD[3]}枚を受け取れます。`);
   });
 
   it('shows today’s stamp once it is taken, and what tomorrow gives', () => {
@@ -643,7 +643,7 @@ describe('the words', () => {
 
   it('announce the bonus in the cabinet’s own words', () => {
     expect(getStrings('en').sayBonus(30)).toBe('Daily bonus: 30 medals added to your medals.');
-    expect(getStrings('ja').sayBonus(30)).toBe('デイリーボーナス: メダルが30枚増えました。');
+    expect(getStrings('ja').sayBonus(30)).toBe('デイリーボーナス：メダルが30枚増えました。');
   });
 
   it('turn no two neighbouring stamps the same way, and none far', () => {

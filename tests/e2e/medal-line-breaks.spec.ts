@@ -3,9 +3,11 @@ import { test, expect, type Browser, type Locator } from '@playwright/test';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { refillParts } from '../../src/components/game/MedalCenter/KeysHint';
 import { nameWords } from '../../src/components/game/MedalCenter/floorPlan';
-import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
-import { holdFloor } from './layoutShift';
+import type { FloorFeedEntry } from '../../src/lib/medalFloor/types';
+import { emptyFloor, holdFloor } from './layoutShift';
 import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
@@ -174,6 +176,76 @@ for (const width of WIDTHS) {
       const text = ((await refill.textContent()) ?? '').trim();
       const lines = await linesOf(refill);
       expect([[text], refillParts(text)], `${path} at ${width} px: 「${lines.join('｜')}」`).toContainEqual(lines);
+    }
+    await context.close();
+  });
+}
+
+// ── The daily bonus, and the floor's moments, over days ─────────────────────
+
+/** The words the daily bonus's lines are made of, none of which a line may be broken inside. */
+const BONUS_WORDS = ['前回', 'あいた', '新しい', 'カード', 'なりました', 'ボーナス', '受け取れます', 'スタンプ', '押しました', 'いっぱい', '明日'];
+
+/** The places in `lines` a word of `words` is broken, or a count from its 「枚」 or a digit from the next: none, as a list. */
+function brokenInside(lines: readonly string[], words: readonly string[]): string[] {
+  const joined = lines.join('｜');
+  const broken = words.filter((word) => Array.from({ length: word.length - 1 }, (_, i) => `${word.slice(0, i + 1)}｜${word.slice(i + 1)}`).some((cut) => joined.includes(cut)));
+  return [...broken, ...(joined.match(/[+\d,]｜[\d,枚]/g) ?? [])];
+}
+
+/** A day in Japan, `back` days before today, as the bank keeps it. */
+const daysAgo = (back: number) => {
+  const japan = new Date(Date.now() + 9 * 3_600_000 - back * 86_400_000);
+  return dayFrom(japan.getUTCFullYear(), japan.getUTCMonth() + 1, japan.getUTCDate());
+};
+
+/** A guest's medals whose bonus was last taken on the days given, in Japan. */
+const claimedOn = (days: readonly Day[]) => days.reduce((ledger, day) => claimBonus(ledger, day).ledger, createLedger('testdevice01'));
+
+for (const width of WIDTHS) {
+  test(`the daily bonus says what it says between phrases, never inside a word, in Japanese at ${width} px`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    for (const [path, plate] of [
+      ['/games/medal-center', 'center-bonus'],
+      ['/games/medal-pusher', 'pusher-panel-machine'],
+    ] as const) {
+      // A player back after a few days away: a new card. Then one on the seventh day in a row, who fills it.
+      for (const days of [[daysAgo(3)], [6, 5, 4, 3, 2, 1].map(daysAgo)]) {
+        const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true, timezoneId: 'Asia/Tokyo' });
+        await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+        const page = await context.newPage();
+        (await holdFloor(page)).release();
+        await page.addInitScript(([key, text]) => window.localStorage.setItem(key, text), [BANK_KEY, serializeLedger(claimedOn(days))] as const);
+        await page.goto(path);
+        await arrived(page);
+        const status = page.locator(path.endsWith('center') ? `[data-testid="${plate}"]` : `#${plate}`).getByTestId('pusher-bonus-status');
+        await expect(status).toContainText(days.length === 1 ? '新しいカードになりました' : '7日目のボーナス');
+        const said = [await linesOf(status)];
+        if (days.length > 1) {
+          await pressUntil(page.getByTestId('pusher-bonus-take').first(), async () => (await status.textContent())?.includes('いっぱい') ?? false);
+          said.push(await linesOf(status));
+        }
+        for (const lines of said) expect(brokenInside(lines, BONUS_WORDS), `${path} at ${width} px: 「${lines.join('｜')}」`).toEqual([]);
+        await context.close();
+      }
+    }
+  });
+
+  test(`the floor's moments keep a count with its 「枚」 in Japanese at ${width} px`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
+    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    const page = await context.newPage();
+    const now = Date.now();
+    const moment = (id: number, game: FloorFeedEntry['game'], label: string | null, medals: number, name: string | null, tag: string): FloorFeedEntry => ({ id, name, tag, game, label, medals, at: now - id * 60_000 });
+    const feed = [moment(1, 'medal-pusher', 'jackpot', 1_500, null, '0042'), moment(2, 'slot-machine', 'seven3', 12_000, 'タマ', '1234'), moment(3, 'roulette', null, 3_564, 'ミケ', '0007')];
+    (await holdFloor(page, () => ({ ...emptyFloor(), feed }))).release();
+    await page.goto('/games/medal-center/rankings');
+    await arrived(page);
+    const moments = page.getByTestId('floor-moment');
+    await expect(moments).toHaveCount(3);
+    for (const text of await moments.locator('[class*="momentText"]').all()) {
+      const lines = await linesOf(text);
+      expect(brokenInside(lines, ['ジャックポット', 'そろって', '当たり']), `「${lines.join('｜')}」 at ${width} px`).toEqual([]);
     }
     await context.close();
   });

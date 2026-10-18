@@ -49,9 +49,9 @@ export function bonusStatus(t: RecordStrings, state: BankState, card: BonusCard 
     case 'ready':
       // A press is waiting to hear whether another device has taken today's already, or the account is still being found.
       if (state.asking || state.where === 'checking') return t.bonusAsking;
-      return `${card.restarted ? `${t.bonusRestarted} ` : ''}${t.bonusReady(card.today, card.medals)}`;
+      return card.restarted ? t.then(t.bonusRestarted, t.bonusReady(card.today, card.medals)) : t.bonusReady(card.today, card.medals);
     case 'taken':
-      return `${t.bonusTaken(card.medals)} ${card.stamped === BONUS_CARD.length ? t.bonusNewCard(card.next) : t.bonusTomorrow(card.next)}`;
+      return t.then(t.bonusTaken(card.medals), card.stamped === BONUS_CARD.length ? t.bonusNewCard(card.next) : t.bonusTomorrow(card.next));
     case 'later':
       return card.nextDay ? t.bonusLater(t.date(card.nextDay), card.next) : t.bonusNoDay;
     case 'off':

@@ -267,7 +267,7 @@ const EN: BingoStrings = {
     'The bingo pinballs of the 1950s: a field of 25 numbered holes, five balls a game, a ball staying in its hole, three, four or five in a line paying more.',
     'The ball bingo machines of the Japanese medal corner that followed them: 25 numbered holes and a hole that gives the ball back, five balls a game and up to three extra balls, three, four and five in a line paying from 4 to 600 medals.',
     'The big bingo machines of today’s arcades: five balls a game into numbered holes, a hole that shoots the ball again, features that add lines and balls; and bingo bonus games played on a 3 × 3 card.',
-    'Medal games are set to give back about 85 to 95% of the medals played, about 90% most often.',
+    'Medal games are said to be set to give back about 85 to 95% of the medals played; this one gives back about 90%.',
   ],
 };
 
@@ -404,7 +404,7 @@ const JA: BingoStrings = {
     '1950年代のビンゴピンボール：25の数字の穴、1ゲーム5球、ボールは穴に残り、3つ・4つ・5つ並ぶほど配当が上がる。',
     'その後の日本のメダルコーナーのボールビンゴ：25の数字の穴とボールを戻す穴、1ゲーム5球と最大3球の追加球、3・4・5並びで4枚〜600枚。',
     '今のゲームセンターの大型ビンゴ：1ゲーム5球を数字の穴へ、ボールを打ち直す穴、ラインやボールを増やすフィーチャー。3×3のカードで遊ぶビンゴのボーナスゲーム。',
-    'メダルゲームのペイアウト率は、遊んだメダルの85〜95%前後、多くは90%前後に設定されています。',
+    'メダルゲームのペイアウト率は、遊んだメダルの85〜95%ぐらいに設定されていることが多いといわれます。この台は約90%です。',
   ],
 };
 

@@ -114,6 +114,8 @@ export interface BingoStrings {
   colOneIn: string;
   colPays: string;
   colShare: string;
+  /** The note under the table for the full card's row, which is marked with a star. */
+  fullCardMark: string;
   total: string;
   impossible: string;
   pocketsTitle: string;
@@ -233,9 +235,10 @@ const EN: BingoStrings = {
   linesIntro: 'The chance of a game ending with each count of lines, what it pays a medal bet, and what it adds to the return. Seven lines cannot be held on a 3 × 3 card: the eighth comes with the seventh.',
   colLines: 'Lines',
   colChance: 'Chance',
-  colOneIn: 'One game in',
+  colOneIn: '1 game in',
   colPays: 'Pays',
   colShare: 'Adds',
+  fullCardMark: '★ The full card: all eight lines.',
   total: 'Total',
   impossible: 'cannot happen',
   pocketsTitle: 'The pockets',
@@ -370,9 +373,10 @@ const JA: BingoStrings = {
   linesIntro: 'ゲームがそれぞれのライン数で終わる確率、ベット1枚あたりの払い出し、戻りへの寄与です。3×3のカードでは7ラインはありえません（7本目がそろうと8本目もそろいます）。',
   colLines: 'ライン',
   colChance: '確率',
-  colOneIn: '何ゲームに1回',
-  colPays: '払い出し',
+  colOneIn: '何回に1回',
+  colPays: '配当',
   colShare: '寄与',
+  fullCardMark: '★ パーフェクト：8ライン全部。',
   total: '合計',
   impossible: 'ありえない',
   pocketsTitle: 'ポケット',

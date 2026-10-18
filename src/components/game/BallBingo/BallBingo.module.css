@@ -849,6 +849,22 @@
 .oddsTable th:first-child {
   text-align: left;
 }
+.oddsTable th {
+  white-space: nowrap;
+}
+@media (max-width: 400px) {
+  .odds .panel {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.3rem 0.16rem;
+  }
+}
 .payOn {
   color: var(--bb-accent-text);
   font-weight: 800;

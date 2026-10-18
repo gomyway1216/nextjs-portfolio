@@ -101,7 +101,9 @@ export const OddsTab = () => {
             <tbody>
               {odds.lines.map((row) => (
                 <tr key={row.lines} data-lines={row.lines} data-impossible={row.lines === 7}>
-                  <th scope="row">{row.lines === FULL_CARD_LINES ? `${t.fullCard} (8)` : row.lines}</th>
+                  <th scope="row" title={row.lines === FULL_CARD_LINES ? t.fullCard : undefined}>
+                    {row.lines === FULL_CARD_LINES ? `${row.lines}★` : row.lines}
+                  </th>
                   {row.lines === 7 ? (
                     <td colSpan={4} className={styles.impossible}>
                       {t.impossible}
@@ -128,6 +130,7 @@ export const OddsTab = () => {
             </tfoot>
           </table>
         </div>
+        <p className={styles.oddsNote}>{t.fullCardMark}</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="bingo-pockets-title">

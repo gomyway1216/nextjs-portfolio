@@ -1574,3 +1574,8 @@
     font-size: 0.82rem;
   }
 }
+
+/* "Clear record" beside the session's title keeps its words on one line; the title wraps instead. */
+.statsHead .linkButton {
+  white-space: nowrap;
+}

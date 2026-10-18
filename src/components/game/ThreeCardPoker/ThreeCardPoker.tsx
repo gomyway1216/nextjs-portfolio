@@ -9,6 +9,7 @@ import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './ThreeCardPoker.module.css';
+import floorTabs from '../MedalCenter/tabs.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -44,7 +45,7 @@ export const ThreeCardPoker = () => {
           </button>
         </div>
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -53,7 +54,7 @@ export const ThreeCardPoker = () => {
               id={`tcp-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`tcp-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}

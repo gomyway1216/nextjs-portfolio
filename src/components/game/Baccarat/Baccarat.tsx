@@ -9,6 +9,7 @@ import { OddsTab } from './OddsTab';
 import { GUEST_PLAYER, PlayTab, type TablePlayer } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './Baccarat.module.css';
+import floorTabs from '../MedalCenter/tabs.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -49,7 +50,7 @@ export const Baccarat = ({ player = GUEST_PLAYER }: BaccaratProps = {}) => {
           </button>
         </div>
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -58,7 +59,7 @@ export const Baccarat = ({ player = GUEST_PLAYER }: BaccaratProps = {}) => {
               id={`baccarat-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`baccarat-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}

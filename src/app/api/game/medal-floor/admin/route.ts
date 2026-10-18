@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import { ensureAdmin } from '@/lib/auth-utils';
-import { FloorRefusal, blockPlayer, hideLine, hideMoment, isBoard, isPeriodId, isPid, readFloor, storeUnavailable } from '@/lib/medalFloor/store';
+import { isWinId } from '@/lib/medalFloor/jackpot';
+import { FloorRefusal, blockPlayer, hideLine, hideMoment, isBoard, isPeriodId, isPid, readFloor, storeUnavailable, voidWin } from '@/lib/medalFloor/store';
 
 // The owner's controls for the medal floor (admin only, by `ensureAdmin`).
 //
-// GET  → the full floor with every line, hidden ones marked, and each line's opaque player id (never the account id)
+// GET  → the full floor with every line, hidden ones marked, and each line's opaque player id (never the account id),
+//        and the floor jackpot's last wins with each one's name and state
 // POST { action: 'hide-line' | 'show-line', period, board, pid }   one line of one board
 //      { action: 'hide-moment', id }                               one moment on show
 //      { action: 'block' | 'unblock', pid }                       a player: nothing more counted, their lines hidden
+//      { action: 'void-jackpot', id }                             a floor jackpot that is plainly not real: not paid, and the pool given back
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
@@ -55,6 +58,10 @@ export const POST = withActivityLog('next_api.game.medal_floor.admin.POST', asyn
       case 'unblock':
         if (!isPid(body.pid)) break;
         await blockPlayer(body.pid, body.action === 'block', Date.now());
+        return NextResponse.json({ done: true }, { headers: NO_STORE });
+      case 'void-jackpot':
+        if (!isWinId(body.id)) break;
+        await voidWin(body.id, Date.now());
         return NextResponse.json({ done: true }, { headers: NO_STORE });
       default:
         break;

@@ -55,7 +55,7 @@ export function FeedList({ feed, now, loading, unavailable, onHide, t, gameName,
   return (
     <ol className={styles.feed} data-testid="floor-feed" aria-live="polite" aria-relevant="additions">
       {feed.map((entry) => (
-        <li key={entry.id} className={styles.moment} data-testid="floor-moment" data-game={entry.game} data-label={entry.label ?? ''} data-big={entry.label === 'jackpot' || entry.label === 'seven3' || entry.label === 'royal'}>
+        <li key={entry.id} className={styles.moment} data-testid="floor-moment" data-game={entry.game} data-label={entry.label ?? ''} data-big={entry.label === 'jackpot' || entry.label === 'seven3' || entry.label === 'royal' || entry.label === 'floor-jackpot'}>
           <span className={styles.momentText}>
             <bdi className={styles.who}>{shownName(t, entry)}</bdi> <span>{t.moment(entry.label, fmt(entry.medals))}</span>
           </span>

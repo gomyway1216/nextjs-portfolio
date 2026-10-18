@@ -787,6 +787,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       if (session.inserted !== fedSeen) {
         const rolling = session.machine.rolling;
         fedNow = rolling.slice(Math.max(0, rolling.length - (session.inserted - fedSeen))).map((medal) => (medal.arm === 0 ? -1 : 1));
+        // The medals fed are the medals played: they feed the floor jackpot (it adds them up, and is told about once a minute).
+        if (session.inserted > fedSeen) floorReport(PUSHER.game, { played: session.inserted - fedSeen });
         fedSeen = session.inserted;
         wake.current?.played();
       }

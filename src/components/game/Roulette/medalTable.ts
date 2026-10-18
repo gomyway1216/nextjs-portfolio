@@ -332,6 +332,8 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
         if (stored) remove(key);
         return null;
       }
+      // The medals played feed the floor jackpot, once, as the stake goes in.
+      floorReport(ROULETTE_GAME, { played: wagered });
       // The spin before this one is no longer on record: nothing will look at its receipts again.
       bank.forget(ROULETTE_GAME, [record.id]);
       // The bank could not write the stake down: the spin is not left on record either, or a page that dies now would

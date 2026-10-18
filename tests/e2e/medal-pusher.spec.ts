@@ -637,6 +637,9 @@ async function openOnChests(page: Page) {
 
 test('a chest on the screen is picked by pressing it, though the picture is over it, and no medal is fed', async ({ page }) => {
   await openOnChests(page);
+  // The pointer is moved to where the chests are on the screen: the screen is brought into view first, wherever what
+  // is over the cabinet (the floor jackpot's strip, the notes) has put it.
+  await machine(page).getByTestId('pusher-screen').scrollIntoViewIfNeeded();
   const field = machine(page).getByTestId('pusher-field');
   const stage = await field.boundingBox();
   const screen = await machine(page).getByTestId('pusher-screen').boundingBox();

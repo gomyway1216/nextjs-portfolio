@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { DAILY_WON_MOST, FLOOR_RULES } from '@/lib/medalFloor/games';
 import { NAME_MAX, checkName, tagFrom } from '@/lib/medalFloor/names';
 import { dayStart, periodAt, periodBefore, weekStart } from '@/lib/medalFloor/periods';
-import { REPORTS_PER_MINUTE, allowanceAt, checkReport, countable, nextWindow } from '@/lib/medalFloor/report';
+import { DAILY_PLAYED_MOST } from '@/lib/medalFloor/jackpot';
+import { REPORTS_PER_MINUTE, allowanceAt, checkReport, countable, countablePlayed, nextWindow, playAllowanceAt } from '@/lib/medalFloor/report';
 import { feedFrom, ranked } from '@/lib/medalFloor/store';
 
 describe('names on the floor', () => {
@@ -113,6 +114,31 @@ describe('reports', () => {
     expect(window).toEqual({ minute: 1, count: REPORTS_PER_MINUTE });
     expect(nextWindow(window!, 119_999)).toBeNull();
     expect(nextWindow(window!, 120_000)).toEqual({ minute: 2, count: 1 });
+  });
+});
+
+describe('reports of medals played', () => {
+  it('are taken alone or with a win, in whole medals, no more at once than the machine’s allowance holds', () => {
+    expect(checkReport({ game: 'slot-machine', played: 90 })).toEqual({ ok: true, report: { game: 'slot-machine', won: 0, played: 90 } });
+    expect(checkReport({ game: 'slot-machine', won: 30, played: 90 })).toEqual({ ok: true, report: { game: 'slot-machine', won: 30, played: 90 } });
+    expect(checkReport({ game: 'slot-machine', won: 30, played: 0 })).toEqual({ ok: true, report: { game: 'slot-machine', won: 30 } });
+    const rule = FLOOR_RULES.roulette;
+    expect(checkReport({ game: 'roulette', played: rule.playBurst }).ok).toBe(true);
+    for (const played of [rule.playBurst + 1, -1, 1.5, '90', Number.NaN, Number.POSITIVE_INFINITY, 2 ** 60]) {
+      expect(checkReport({ game: 'roulette', played }), String(played)).toEqual({ ok: false, error: 'Medals played out of range' });
+    }
+    expect(checkReport({ game: 'slot-machine', won: 0, played: 0 })).toEqual({ ok: false, error: 'Nothing to report' });
+  });
+
+  it('believe a machine’s medals played at up to its fastest, and a full allowance for a new player', () => {
+    const rule = FLOOR_RULES['medal-pusher'];
+    expect(playAllowanceAt('medal-pusher', undefined, 0)).toBe(rule.playBurst);
+    expect(playAllowanceAt('medal-pusher', { level: 0, at: 0 }, 60_000)).toBe(rule.perMinute);
+    expect(playAllowanceAt('medal-pusher', { level: 0, at: 0 }, 3_600_000)).toBe(rule.playBurst);
+    expect(playAllowanceAt('medal-pusher', { level: Number.NaN, at: 0 }, 0)).toBe(rule.playBurst);
+    expect(countablePlayed(500, 300.7, 0)).toBe(300);
+    expect(countablePlayed(500, 10_000, DAILY_PLAYED_MOST - 120)).toBe(120);
+    expect(countablePlayed(500, 10_000, DAILY_PLAYED_MOST)).toBe(0);
   });
 });
 

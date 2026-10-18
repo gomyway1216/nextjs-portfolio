@@ -9,9 +9,11 @@ import type { FloorRow } from '@/lib/medalFloor/types';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { MEDAL_CENTER_PATH } from '../paths';
 import { ownerAct, type OwnerAction } from './api';
+import { JackpotCounter, JackpotWins, LinkedMachines } from './FloorJackpot';
 import { Board, FeedList, PeriodTabs, PlaceCard, placeKey, useServerNow, type PeriodChoice } from './FloorParts';
 import { getFloorStrings } from './strings';
 import { useFloor } from './useFloor';
+import { useFloorJackpot } from './useFloorJackpot';
 import { useFloorPlace, type FloorMember } from './useFloorPlace';
 import styles from './Floor.module.css';
 
@@ -32,6 +34,8 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
   const words = { t, fmt: (n: number) => n.toLocaleString(locale), gameName: (game: FloorGame) => translate(`games.${game}.title`) };
   const floor = useFloor('full', owner);
   const now = useServerNow(floor.skew);
+  const jackpot = useFloorJackpot();
+  const ownedWins = owner ? floor.summary?.jackpot?.owned : undefined;
   const [period, setPeriod] = useState<PeriodChoice>('day');
   const place = useFloorPlace(member, settled, t);
   const boards = floor.summary ? (period === 'day' ? floor.summary.day : floor.summary.week) : null;
@@ -100,6 +104,16 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
           </div>
         )}
 
+        <section className={styles.panel} aria-labelledby="rankings-jackpot-title" data-testid="rankings-jackpot">
+          <h2 id="rankings-jackpot-title" className={styles.panelTitle}>
+            {t.jackpotWinsTitle}
+          </h2>
+          <JackpotCounter amount={jackpot.unavailable ? null : jackpot.amount} t={t} locale={locale} size="small" testId="rankings-jackpot-amount" />
+          <LinkedMachines t={t} testId="rankings-jackpot-linked" />
+          <JackpotWins wins={ownedWins ?? jackpot.wins} t={t} fmt={words.fmt} gameName={words.gameName} now={now} owner={ownedWins ? (id) => act({ action: 'void-jackpot', id }) : undefined} />
+          {ownedWins && <p className={styles.note}>{t.jackpotVoidNote}</p>}
+        </section>
+
         <section className={styles.panel} aria-labelledby="rankings-feed-title">
           <div className={styles.panelHead}>
             <h2 id="rankings-feed-title" className={styles.panelTitle}>
@@ -123,6 +137,9 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
 
         <p className={styles.honesty} data-testid="floor-honesty">
           {t.honesty}
+        </p>
+        <p className={styles.honesty} data-testid="jackpot-honesty">
+          {t.jackpotHonesty}
         </p>
         <p className={styles.srOnly} aria-live="polite">
           {place.said}

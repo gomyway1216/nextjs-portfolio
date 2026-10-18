@@ -1,0 +1,234 @@
+/* The floor jackpot: an LED counter in an arcade fitting, the same on the medal center's front and over every machine,
+   whatever that machine's own theme. Its palette is fixed and reads in light and dark; every text colour on it is at
+   least 4.5:1 on what it stands on (the digits #ffd65c and the label #ffb7d4 on #14072a are 12:1 and 10:1). The words
+   around it follow the --games-route-* theme vars where a page has them. */
+
+.panel,
+.strip,
+.odds,
+.wins {
+  --jp-night: #14072a;
+  --jp-frame: #4a2a8a;
+  --jp-frame-hi: #8a5cf0;
+  --jp-gold: #ffd65c;
+  --jp-pink: #ffb7d4;
+  --jp-ink: #fff6d6;
+  --jp-soft: #e2dbff;
+  --jp-lead: var(--games-route-muted, #6b6385);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.led {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.7rem 0.9rem 0.75rem;
+  border-radius: 14px;
+  border: 3px solid var(--jp-frame);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 214, 92, 0.16) 0%, rgba(255, 214, 92, 0) 70%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 2px, rgba(0, 0, 0, 0) 2px 4px),
+    var(--jp-night);
+  box-shadow:
+    inset 0 0 0 2px rgba(138, 92, 240, 0.45),
+    inset 0 0 18px rgba(0, 0, 0, 0.6),
+    0 6px 18px rgba(20, 7, 42, 0.35);
+  color: var(--jp-gold);
+  text-align: center;
+}
+.ledLabel {
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: var(--jp-pink);
+  text-shadow: 0 0 6px rgba(255, 140, 196, 0.6);
+}
+.ledDigits {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  font-size: clamp(2rem, 9vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: 0.08em;
+  color: var(--jp-gold);
+  text-shadow:
+    0 0 4px rgba(255, 214, 92, 0.9),
+    0 0 14px rgba(246, 184, 28, 0.55);
+}
+.ledUnit {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--jp-soft);
+}
+
+.led[data-size='small'] {
+  grid-template-columns: auto auto auto;
+  align-items: baseline;
+  justify-content: center;
+  column-gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-width: 2px;
+  border-radius: 10px;
+}
+.led[data-size='small'] .ledLabel {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+}
+.led[data-size='small'] .ledDigits {
+  font-size: clamp(1.15rem, 5vw, 1.45rem);
+}
+.led[data-size='small'] .ledUnit {
+  font-size: 0.68rem;
+}
+
+.lead,
+.last,
+.linked,
+.joinLine {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 0.92rem;
+  color: var(--jp-lead);
+}
+.last {
+  font-weight: 700;
+}
+.joinLine {
+  font-weight: 700;
+}
+.link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link:focus-visible,
+.ownerButton:focus-visible {
+  outline: 3px solid var(--jp-frame-hi);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.paid {
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  border: 2px solid var(--jp-gold);
+  background: var(--jp-night);
+  color: var(--jp-gold);
+  font-weight: 900;
+  line-height: 1.4;
+  text-align: center;
+}
+.paid[hidden] {
+  display: none;
+}
+
+/* Over a machine, whatever its own colours: a fitting of its own, so that its words stand on its own night. */
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  min-width: 0;
+  margin: 0.25rem 0 0.6rem;
+  padding: 0.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--jp-frame);
+  background: var(--jp-night);
+}
+.strip .led {
+  flex: 0 1 auto;
+  border-width: 0;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+}
+.stripText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.strip .joinLine {
+  font-size: 0.85rem;
+  color: var(--jp-soft);
+}
+
+.odds {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 2px solid var(--jp-frame);
+  background: var(--jp-night);
+  color: var(--jp-ink);
+}
+.oddsTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--jp-gold);
+}
+.oddsLine,
+.oddsHonesty,
+.odds .linked {
+  margin: 0 0 0.45rem;
+  line-height: 1.55;
+  font-size: 0.88rem;
+}
+.oddsHonesty,
+.odds .linked {
+  margin: 0;
+  color: var(--jp-soft);
+  font-size: 0.82rem;
+}
+
+.wins {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.win {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.6rem;
+  min-width: 0;
+}
+.winText {
+  font-weight: 800;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.winWhere {
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+.ownerButton {
+  padding: 0.15rem 0.6rem;
+  border-radius: 8px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.odds .linked {
+  margin-top: 0.45rem;
+}

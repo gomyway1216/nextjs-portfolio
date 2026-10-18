@@ -11,6 +11,7 @@ import { EdgeTab } from './EdgeTab';
 import { getStrings, betName } from './i18n';
 import { BET_ODDS } from './engine';
 import styles from './Roulette.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'play' | 'sim' | 'edge';
 
@@ -67,6 +68,9 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
           </div>
         )}
 
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip game="roulette" />
+
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
@@ -94,6 +98,8 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
         </div>
         <div role="tabpanel" id="rl-panel-edge" aria-labelledby="rl-tab-edge" hidden={tab !== 'edge'}>
           <EdgeTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote game="roulette" />
         </div>
       </div>
 

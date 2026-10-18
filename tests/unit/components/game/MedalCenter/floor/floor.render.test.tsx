@@ -1,14 +1,18 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
+import { FloorJackpotOddsNote, FloorJackpotPanel, FloorJackpotStrip, JackpotWins } from '@/components/game/MedalCenter/floor/FloorJackpot';
 import { Board, BestAtEach, FeedList, PlaceCard, type PlaceState } from '@/components/game/MedalCenter/floor/FloorParts';
 import { FloorRankings } from '@/components/game/MedalCenter/floor/FloorRankings';
 import { FloorTogether } from '@/components/game/MedalCenter/floor/FloorTogether';
 import { MEDAL_RANKINGS_PATH } from '@/components/game/MedalCenter/floor/paths';
 import { getFloorStrings, type FloorStrings } from '@/components/game/MedalCenter/floor/strings';
 import { createI18nInstance } from '@/lib/i18n';
+import { FLOOR_GAMES } from '@/lib/medalFloor/games';
 import type { FloorFeedEntry, FloorRow } from '@/lib/medalFloor/types';
 
 const inLanguage = (lang: 'en' | 'ja', node: React.ReactNode) => renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
@@ -149,6 +153,115 @@ describe('the floor on the medal center’s front', () => {
   });
 });
 
+describe('the floor jackpot', () => {
+  it('is on the medal center’s front, over the moments, with a guest told how to take part, before anything is read', () => {
+    const html = inLanguage('en', <MedalCenter signInHref="/signin" together={<FloorTogether member={null} settled signInHref="/signin" />} />);
+    const t = getFloorStrings('en');
+    expect(html).toContain('data-testid="floor-jackpot"');
+    expect(html.indexOf('floor-jackpot-amount')).toBeLessThan(html.indexOf('floor-feed-empty'));
+    expect(html).toContain('>FLOOR JACKPOT<');
+    // Nothing is known on the server: dashes, not a number.
+    expect(html).toContain('– – – –');
+    expect(html).toContain('data-standing="guest"');
+    expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
+    expect(html).toContain(t.jackpotHonesty);
+    // Which machines are linked to it, by name.
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker.');
+  });
+
+  it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
+    const t = getFloorStrings('en');
+    expect(inLanguage('en', <FloorJackpotPanel standing="off" />)).toContain(t.jackpotJoinHere);
+    expect(inLanguage('en', <FloorJackpotPanel standing="on" />)).toContain(t.jackpotIn);
+    expect(inLanguage('en', <FloorJackpotPanel standing="none" />)).not.toContain('jackpot-join');
+    expect(inLanguage('ja', <FloorJackpotPanel standing="off" />)).toContain('フロアジャックポット');
+  });
+
+  it('is over every machine, small, with the way to the medal center to join', () => {
+    const html = inLanguage('en', <FloorJackpotStrip game="slot-machine" />);
+    expect(html).toContain('data-testid="floor-jackpot-strip"');
+    expect(html).toContain('data-linked="true"');
+    expect(html).toContain('data-size="small"');
+    expect(html).toContain('href="/games/medal-center"');
+    expect(inLanguage('ja', <FloorJackpotStrip game="slot-machine" />)).toContain(getFloorStrings('ja').jackpotJoinThere);
+  });
+
+  it('says plainly over a table that is not linked to it that play there neither feeds it nor wins it', () => {
+    for (const game of ['blackjack', 'video-poker', 'baccarat', 'craps'] as const) {
+      const html = inLanguage('en', <FloorJackpotStrip game={game} />);
+      expect(html, game).toContain('data-linked="false"');
+      expect(html, game).toContain(getFloorStrings('en').jackpotNotLinked);
+      expect(html, game).not.toContain('jackpot-join');
+    }
+    expect(inLanguage('ja', <FloorJackpotStrip game="craps" />)).toContain(getFloorStrings('ja').jackpotNotLinked);
+  });
+
+  it('says on every linked machine’s Odds tab what it adds, on top, and on what terms, in both languages', () => {
+    const en = inLanguage('en', <FloorJackpotOddsNote game="slot-machine" />);
+    expect(en).toContain('+ 1% of every medal played goes to the floor jackpot');
+    expect(en).toContain('1 medal for every 100 you play');
+    expect(en).toContain('1 in 150,000');
+    expect(en).toContain('starts again at 1,000 medals');
+    expect(en).toContain('1.67 medals for every 100 played');
+    expect(en).toContain('first 20,000 medals');
+    expect(en).toContain('exactly as shown');
+    expect(en).toContain(getFloorStrings('en').jackpotHonesty);
+    const ja = inLanguage('ja', <FloorJackpotOddsNote game="slot-machine" />);
+    expect(ja).toContain('遊んだメダルの1%');
+    expect(ja).toContain('150,000分の1');
+    expect(ja).toContain('100枚につき1.67枚');
+    expect(ja).toContain('20,000枚まで');
+    expect(ja).toContain('対象のマシン：メダルプッシャー');
+  });
+
+  it('says on the Odds tab of a table that is not linked that it takes no part, with no figures', () => {
+    const en = inLanguage('en', <FloorJackpotOddsNote game="video-poker" />);
+    expect(en).toContain(getFloorStrings('en').jackpotRulesOut);
+    expect(en).not.toContain('150,000');
+    expect(en).not.toContain(getFloorStrings('en').jackpotHonesty);
+    expect(inLanguage('ja', <FloorJackpotOddsNote game="video-poker" />)).toContain(getFloorStrings('ja').jackpotRulesOut);
+  });
+
+  it('is shown on every machine on the floor, and under every one of their Odds tabs, which still never touch the medals', () => {
+    const folders: Record<string, [string, string]> = {
+      'medal-pusher': ['MedalPusher/MedalPusher.tsx', 'OddsTab'],
+      'slot-machine': ['SlotMachine/SlotMachine.tsx', 'OddsTab'],
+      janken: ['Janken/Janken.tsx', 'OddsTab'],
+      roulette: ['Roulette/Roulette.tsx', 'EdgeTab'],
+      blackjack: ['Blackjack/Blackjack.tsx', 'OddsTab'],
+      'video-poker': ['VideoPoker/VideoPoker.tsx', 'OddsTab'],
+      baccarat: ['Baccarat/Baccarat.tsx', 'OddsTab'],
+      craps: ['Craps/Craps.tsx', 'OddsTab'],
+      'three-card-poker': ['ThreeCardPoker/ThreeCardPoker.tsx', 'OddsTab'],
+    };
+    expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
+    const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');
+    for (const [game, [machine, odds]] of Object.entries(folders)) {
+      const text = source(machine);
+      expect(text, game).toContain(`<FloorJackpotStrip game="${game}" />`);
+      // In the Odds tab's panel, straight after the tab.
+      expect(text, game).toMatch(new RegExp(`<${odds} />\\s*\\{/\\*[^*]*\\*/\\}\\s*<FloorJackpotOddsNote game="${game}" />`));
+      expect(source(`${machine.split('/')[0]}/${odds}.tsx`), game).not.toContain('MedalCenter');
+    }
+  });
+
+  it('lists its last wins, and gives the owner a void on each that is not void already', () => {
+    const w = words();
+    const wins = [
+      { id: '20261017-a1b2c3d4', state: 'pending' as const, name: 'Lucky Cat', tag: '0001', game: 'slot-machine' as const, medals: 3_210, at: NOW - 60_000 },
+      { id: '20261016-a1b2c3d4', state: 'void' as const, name: null, tag: '0042', game: 'roulette' as const, medals: 9_999, at: NOW - 86_400_000 },
+    ];
+    const shown = renderToStaticMarkup(<JackpotWins {...w} wins={wins.map(({ id: _id, state: _state, ...win }) => win)} now={NOW} />);
+    expect(shown).toContain('Lucky Cat</bdi> hit the FLOOR JACKPOT: 3,210 medals');
+    expect(shown).toContain('Player 0042');
+    expect(shown).not.toContain('jackpot-void');
+    const owned = renderToStaticMarkup(<JackpotWins {...w} wins={wins} now={NOW} owner={() => {}} />);
+    expect(owned.match(/data-testid="jackpot-void"/g)).toHaveLength(1);
+    expect(owned).toContain(getFloorStrings('en').jackpotState.void);
+    expect(renderToStaticMarkup(<JackpotWins {...w} wins={[]} now={NOW} />)).toContain(getFloorStrings('en').jackpotNever);
+  });
+});
+
 describe('the floor’s words', () => {
   const everything = (t: FloorStrings): string[] => {
     const out: string[] = [];
@@ -156,7 +269,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

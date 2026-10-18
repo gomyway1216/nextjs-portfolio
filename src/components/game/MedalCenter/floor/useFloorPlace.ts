@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FloorMe } from '@/lib/medalFloor/types';
 import { FloorCallError, deleteMe, fetchMe, putMe } from './api';
 import type { PlaceState } from './FloorParts';
-import { announceFloorPlace } from './reporter';
+import { announceFloorPlace, jackpotDue } from './reporter';
 import type { FloorStrings } from './strings';
 
 /** The signed-in account the card is for (never a guest), or null. */
@@ -52,6 +52,8 @@ export function useFloorPlace(member: FloorMember | null, settled: boolean, t: F
         const me = await fetchMe(await asking.token());
         state = stateOf(me);
         if (!gone) announceFloorPlace(uid, me.joined);
+        // A floor jackpot of theirs still to go into their medals: the page's payer pays it.
+        if (!gone && (me.due ?? 0) > 0) jackpotDue(uid);
       } catch (error) {
         state = error instanceof FloorCallError && error.status === 403 ? { kind: 'guest' } : { kind: 'unavailable' };
       }

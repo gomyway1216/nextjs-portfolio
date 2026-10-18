@@ -128,6 +128,7 @@ import {
   parseLedger,
   printOf,
   receiptOf,
+  receiptsOf,
   refill,
   refillDue,
   resetLedger,
@@ -1258,6 +1259,60 @@ export function createBank(env: BankEnv) {
       noted({ type: 'move', game: move.game, round: move.round, step: move.step, medals: move.medals });
       publish();
       return 'applied';
+    },
+
+    /**
+     * Pays medals in from outside the machines (a floor jackpot won on the
+     * server: MedalCenter/floor/jackpotPayer.ts) under a receipt, once, as
+     * `apply` makes a round's move, but with the card: at once on a page that
+     * holds it, and otherwise as soon as it is given, as the hub's buttons do.
+     * The same write lets go of the game's other receipts on this device but
+     * those `keep` says are still needed. Resolves to `applied`, `already`
+     * (made before, here or on any device whose medals have been joined in),
+     * or null: not made, because the medals were not read yet, another
+     * player's medals came onto the table meanwhile, or the move will not do.
+     */
+    credit(move: Move, keep: (round: string) => boolean): Promise<'applied' | 'already' | null> {
+      return new Promise((resolve) => {
+        const at = desk;
+        if (!at || !started || !Number.isSafeInteger(move.medals) || move.medals <= 0) {
+          resolve(null);
+          return;
+        }
+        withCard(() => {
+          if (at !== desk) {
+            resolve(null);
+            return;
+          }
+          fresh(at);
+          if (move.era !== undefined && move.era !== at.ledger.era) {
+            resolve(null);
+            return;
+          }
+          const receipt = receiptOf(move.game, move.round, move.step);
+          const moved = receipt === null ? null : applyMove(at.ledger, receipt, move.medals, false);
+          if (!moved) {
+            resolve(null);
+            return;
+          }
+          const prefix = `${move.game}:`;
+          const rounds = receiptsOf(moved.ledger, moved.ledger.device)
+            .ids.filter((id) => id.startsWith(prefix))
+            .map((id) => id.slice(prefix.length, id.indexOf(':', prefix.length)));
+          const ledger = forgetReceipts(moved.ledger, move.game, [move.round, ...rounds.filter(keep)]);
+          let kept = true;
+          if (ledger !== at.ledger) {
+            at.ledger = ledger;
+            kept = store(at);
+            // Medals that are no machine's round: only what is left is noted in the history.
+            if (moved.applied) noted({ type: 'medals' });
+            sync?.save('moment');
+          }
+          // Made, but not kept by this browser's storage: it is in the medals on the page, and goes to the account with
+          // them. Said as not made yet, so that whoever asked waits a while before saying it is paid.
+          resolve(!kept ? null : moved.applied ? 'applied' : 'already');
+        });
+      });
     },
 
     /** Whether a move of a round's medals has been made in the medals on the table: its receipt is there. */

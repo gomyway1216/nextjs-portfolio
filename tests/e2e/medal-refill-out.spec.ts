@@ -5,7 +5,11 @@ import { WELCOME, createLedger, serializeLedger, take } from '../../src/componen
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
+import { quietFloor } from './quietFloor';
 import { arrived } from './streamedPage';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI held up the hub's navigation to the machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // No free refill while medals are out on a round ("Medals out" in MedalCenter/ledger.ts): a player whose last medals
 // are on a video poker double-up still waiting for its pick has none to play with, and has not run out of them either.

@@ -7,7 +7,11 @@ import { HANDS, PAY_TABLES, payout, rankCards } from '../../src/components/game/
 import { HAND_KEY, NOTICE_KEY } from '../../src/components/game/VideoPoker/medals';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { rigPresses } from './rigPresses';
+import { quietFloor } from './quietFloor';
 import { arrived } from './streamedPage';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI held up the hub's navigation to the machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Hands are random: the tests read the cards off the screen, recompute the
 // exact best play and the payout with the engine, and compare. Where a test

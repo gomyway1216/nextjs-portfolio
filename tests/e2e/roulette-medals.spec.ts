@@ -30,6 +30,18 @@ async function coverTheWheel(page: Page) {
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
 
+/** Stops the pages' clock (installed with `page.clock.install`) a moment from now: time moves on while the page is asked, so a moment that has gone by is asked again. */
+async function stopClock(page: Page): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 300);
+      return;
+    } catch (error) {
+      if (attempt >= 4 || !String(error).includes('past')) throw error;
+    }
+  }
+}
+
 test('a bet takes medals when the wheel spins, a win puts medals back, and the medal center shows the same count after a reload', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoulette(page);
@@ -214,7 +226,10 @@ test('a spin settled while the medal center borrowed the medals still goes on th
 
 test('a win paid while the medal center borrowed the medals is not shown before the ball stops, and runs in once it has', async ({ page, context }) => {
   test.setTimeout(60_000);
-  // The medal center is open in another tab first, so that taking the day's bonus there is one press while the ball rolls.
+  // The pages' clock is the test's: it runs as usual until it is stopped, and then the ball stays where it is while the
+  // medal center borrows the medals, however long that takes.
+  await page.clock.install();
+  // The medal center is open in another tab first, so that the day's bonus is there to take while the ball rolls.
   const hub = await context.newPage();
   await openCenter(hub);
   await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
@@ -233,6 +248,7 @@ test('a win paid while the medal center borrowed the medals is not shown before 
   });
   const wheel = page.locator('[data-spinning]');
   await expect(wheel).toHaveAttribute('data-spinning', 'true');
+  await stopClock(page);
   // The bonus is taken at the medal center while the ball rolls: it borrows the medals for a moment, and the spin is
   // settled as they go. The 36 are the player's at once, and once only.
   await hub.getByTestId('pusher-bonus-take').click();
@@ -244,10 +260,11 @@ test('a win paid while the medal center borrowed the medals is not shown before 
   // stopped on yet.
   const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
   await expect.poll(() => shownMedals(page)).toBe(WELCOME - 3 + bonus);
-  expect(await led()).toBe(WELCOME - 3 + bonus);
+  await expect.poll(led).toBe(WELCOME - 3 + bonus);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
   await expect(wheel).toHaveAttribute('data-spinning', 'true');
-  // The ball stops on zero: the 36 show, and run into the medals on the counter.
+  // Time goes on, and the ball stops on zero: the 36 show, and run into the medals on the counter.
+  await page.clock.resume();
   expect(await settledResult(page)).toBe(0);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
   expect(await shownMedals(page)).toBe(WELCOME - 3 + bonus + 36);

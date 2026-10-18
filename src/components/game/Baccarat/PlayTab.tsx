@@ -873,9 +873,9 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           </div>
         </div>
 
-        {/* The machine's front: the counter, the felt and its buttons, then the odds. On a phone the felt and the buttons come first. */}
+        {/* The machine's front: the counter over the felt and its buttons, then what the medals are and the table, then the odds. */}
         <div className={styles.front}>
-          <div className={`${styles.part} ${styles.counterPart}`}>
+          <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="baccarat-buttons">
             <MedalCounter
               loaded={bankState.loaded}
               medals={shownMedals}
@@ -893,33 +893,6 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
                 waiting: t.medalsWaiting,
               }}
             />
-            <p className={styles.notMoney} data-testid="baccarat-not-money">
-              {t.notMoney}
-            </p>
-            <p className={`${styles.note} ${styles.medalsFrom}`} data-testid="baccarat-medals-from">
-              {t.medalsFrom}{' '}
-              <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="baccarat-center-note-link">
-                {t.centerLink}
-              </a>
-            </p>
-            <div className={styles.modeRow} role="radiogroup" aria-label={t.tableMode}>
-              {(['ez', 'commission'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === m}
-                  className={styles.modeBtn}
-                  onClick={() => switchMode(m)}
-                  disabled={busy}
-                >
-                  {t.modeName[m]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="baccarat-buttons">
             {/* Out of medals: the medal center's free refill, right by the felt it lets the player bet on again. Not while
                 some are out on a round at another machine: the line says where. */}
             {outOfMedals && bankState.out.length > 0 && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="baccarat-out" />}
@@ -1006,6 +979,33 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
             </div>
             <KeysHint text={t.keysHint} className={styles.keysHint} testId="baccarat-keys" />
 
+          </div>
+
+          <div className={`${styles.part} ${styles.counterPart}`}>
+            <p className={styles.notMoney} data-testid="baccarat-not-money">
+              {t.notMoney}
+            </p>
+            <p className={`${styles.note} ${styles.medalsFrom}`} data-testid="baccarat-medals-from">
+              {t.medalsFrom}{' '}
+              <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="baccarat-center-note-link">
+                {t.centerLink}
+              </a>
+            </p>
+            <div className={styles.modeRow} role="radiogroup" aria-label={t.tableMode}>
+              {(['ez', 'commission'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m}
+                  className={styles.modeBtn}
+                  onClick={() => switchMode(m)}
+                  disabled={busy}
+                >
+                  {t.modeName[m]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className={`${styles.part} ${styles.morePart}`}>

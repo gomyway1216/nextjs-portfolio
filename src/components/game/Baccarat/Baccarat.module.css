@@ -1583,3 +1583,64 @@
 .modeBtn {
   min-height: 44px;
 }
+
+/*
+ * On a phone (one column) the counter is the machine's credit meter on its panel, right under the table and over the
+ * buttons, as at the other machines of the floor: one row of windows, the medals, the bet and the win, each with its
+ * name over it. The medals written in type stay for a screen reader; the note that medals are not money follows the
+ * buttons. A row of a set height, so nothing under it moves as the medals are read.
+ */
+@media (max-width: 900px) {
+  .buttonsPart > .counter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 0.5rem;
+    position: relative;
+    margin: 0 0 0.55rem;
+    padding: 0.3rem 0.55rem 0.35rem;
+  }
+  .buttonsPart > .counter .counterMain {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    flex-wrap: nowrap;
+  }
+  .buttonsPart > .counter .counterLabel,
+  .buttonsPart > .counter .ledLabel {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .buttonsPart > .counter .counterMedal {
+    display: none;
+  }
+  .buttonsPart > .counter .ledBig {
+    margin-left: 0;
+  }
+  .buttonsPart > .counter .ledBig > span {
+    width: 100%;
+    height: 26px;
+    padding: 3px 6px;
+  }
+  .buttonsPart > .counter .counterSmall {
+    display: contents;
+  }
+  .buttonsPart > .counter .ledPair {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+  }
+  .buttonsPart > .counter .ledSmall > span {
+    height: 26px;
+    padding: 3px 5px;
+  }
+  .buttonsPart > .counter .counterText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

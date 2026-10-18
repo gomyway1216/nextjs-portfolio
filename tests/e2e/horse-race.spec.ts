@@ -224,16 +224,28 @@ for (const width of [375, 320]) {
           const stage = at('hr-board');
           return ['hr-track', 'hr-commentary', 'hr-result', 'hr-meter', 'hr-win-tickets', 'hr-quinella-tickets', 'hr-start', 'hr-skip'].map((id) => {
             const box = at(id);
-            return [id, Math.round(box.top - stage.top), Math.round(box.height), Math.round(box.left)];
+            return { id, top: box.top - stage.top, height: box.height, left: box.left };
           });
         });
+      /**
+       * Nothing has moved: every box is where it was to within half a pixel. Not compared rounded to whole pixels: a box
+       * that stands on a half pixel (at 320 px, Skip is 1663.5 px down the board) is read there as 1663.4999 or 1663.5000
+       * in Firefox by where the page is scrolled, which START changes, and rounding then made a move of it.
+       */
+      const expectStill = async (then: Awaited<ReturnType<typeof places>>) => {
+        const now = await places();
+        expect(now.map(({ id }) => id)).toEqual(then.map(({ id }) => id));
+        now.forEach((box, i) => {
+          for (const side of ['top', 'height', 'left'] as const) expect(Math.abs(box[side] - then[i][side]), `${box.id} ${side}: ${then[i][side]} → ${box[side]}`).toBeLessThan(0.5);
+        });
+      };
       const before = await places();
       await rigPresses(page, IN_GATE_ORDER);
       await page.getByTestId('hr-start').click();
       await expect(page.getByTestId('hr-machine')).toHaveAttribute('data-phase', 'running');
-      expect(await places()).toEqual(before);
+      await expectStill(before);
       await expect(page.getByTestId('hr-result')).toHaveAttribute('data-shown', 'true', { timeout: 15_000 });
-      expect(await places()).toEqual(before);
+      await expectStill(before);
       expect(await sideways(page)).toBeLessThanOrEqual(0);
     });
   }

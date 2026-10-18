@@ -2,11 +2,11 @@
  * Monte Carlo simulation for the Three Card Poker Simulation tab. Every hand
  * is dealt from a freshly shuffled deck and settled by the rules engine, so
  * the simulation can't drift from the table; the exact numbers it is compared
- * with come from `analysis.ts`.
+ * with come from `analysis.ts`, as published (`published.ts`).
  */
 
-import { strategyOdds } from './analysis';
 import { STRATEGY_IDS, STRATEGY_PLAYS, dealRound, settle, type Bets, type StrategyId } from './engine';
+import { PUBLISHED_STRATEGIES } from './published';
 
 export const STRATEGY_COLORS: Record<StrategyId, string> = {
   optimal: '#22c55e',
@@ -15,7 +15,7 @@ export const STRATEGY_COLORS: Record<StrategyId, string> = {
 };
 
 /** The exact house edge of a strategy, relative to the Ante. */
-export const exactEdge = (id: StrategyId): number => strategyOdds(id).houseEdge;
+export const exactEdge = (id: StrategyId): number => PUBLISHED_STRATEGIES[id].houseEdge;
 
 const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const YIELD_EVERY = 10_000;

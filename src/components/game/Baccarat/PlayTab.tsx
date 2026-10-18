@@ -8,7 +8,8 @@ import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { KeysHint } from '../MedalCenter/KeysHint';
-import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
+import { betOdds, oddsBetFor } from './analysis';
+import { publishedShoeOdds, unseenOdds } from './published';
 import {
   BET_IDS,
   DEFAULT_DECKS,
@@ -549,10 +550,11 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     timers.current.push(setTimeout(turn, unveil), setTimeout(finish, settle));
   };
 
-  const nextOdds = useMemo(() => exactOdds(unseen), [unseen]);
+  // A fresh shoe's odds are published (published.ts); a shoe with cards gone is counted as it is dealt.
+  const nextOdds = useMemo(() => unseenOdds(unseen), [unseen]);
   const unseenTotal = nextOdds.cards;
   const freshShoe = unseenTotal === DEFAULT_DECKS * 52;
-  const exact = shoeOdds(DEFAULT_DECKS);
+  const exact = publishedShoeOdds(DEFAULT_DECKS);
 
   const onTable = totalOnTable(bets);
   const settledHand = round?.settled ? round.hand : null;

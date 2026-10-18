@@ -7,10 +7,7 @@ import {
   TABLE_RULES,
   VALUES,
   dealerOutcome,
-  gameValue,
-  medalBetEdge,
   optimalChart,
-  policyValue,
   type Action,
   type ChartCell,
   type Rules,
@@ -19,9 +16,10 @@ import {
 import { HARD_CHART, PAIR_CHART, SOFT_CHART, naturalWin } from './engine';
 import { getStrings } from './i18n';
 import { MAX_BET, MIN_BET } from './medalTable';
+import { PUBLISHED_MEDAL_BET_EDGES, PUBLISHED_POLICY_EDGES, PUBLISHED_VALUE, PUBLISHED_VARIANT_EDGES, type RuleVariantId } from './published';
 import styles from './Blackjack.module.css';
 
-const RULE_VARIANTS: { id: 'table' | 'h17' | 'sixFive' | 'noDas' | 'splitOnce' | 'surrender'; rules: Rules }[] = [
+export const RULE_VARIANTS: { id: RuleVariantId; rules: Rules }[] = [
   { id: 'table', rules: TABLE_RULES },
   { id: 'surrender', rules: { ...TABLE_RULES, surrender: true } },
   { id: 'splitOnce', rules: { ...TABLE_RULES, maxHands: 2 } },
@@ -46,15 +44,16 @@ export const OddsTab = () => {
   const pct = (v: number, digits = 3) => `${(v * 100).toFixed(digits)}%`;
   const signed = (v: number, digits = 3) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
 
-  const value = useMemo(() => gameValue(), []);
+  // The games' values as published (published.ts): never worked out here. The chart and the dealer cost next to nothing.
+  const value = PUBLISHED_VALUE;
   const dealer = useMemo(() => VALUES.map((up) => ({ up, d: dealerOutcome(up) })), []);
   const chart = useMemo(() => optimalChart(), []);
-  const variants = useMemo(() => RULE_VARIANTS.map((v) => ({ ...v, edge: gameValue(v.rules).houseEdge })), []);
+  const variants = useMemo(() => RULE_VARIANTS.map((v) => ({ ...v, edge: PUBLISHED_VARIANT_EDGES[v.id] })), []);
   const players = useMemo(
     () => [
       { id: 'optimal' as const, edge: value.houseEdge },
-      { id: 'mimic' as const, edge: -policyValue((h) => h.total < 17) },
-      { id: 'neverBust' as const, edge: -policyValue((h) => h.total <= 11 || (h.soft && h.total < 18)) },
+      { id: 'mimic' as const, edge: PUBLISHED_POLICY_EDGES.mimic },
+      { id: 'neverBust' as const, edge: PUBLISHED_POLICY_EDGES.neverBust },
     ],
     [value],
   );
@@ -63,7 +62,7 @@ export const OddsTab = () => {
     () =>
       Array.from({ length: MAX_BET - MIN_BET + 1 }, (_, i) => {
         const bet = MIN_BET + i;
-        return { bet, wins: naturalWin(bet, true), edge: medalBetEdge(bet) };
+        return { bet, wins: naturalWin(bet, true), edge: PUBLISHED_MEDAL_BET_EDGES[bet] };
       }),
     [],
   );

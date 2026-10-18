@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { ODDS_BETS, betOdds, expectedCardsPerHand, reduced, shoeOdds, type OddsBet } from './analysis';
+import { ODDS_BETS, betOdds, expectedCardsPerHand, reduced, type OddsBet } from './analysis';
+import { publishedShoeOdds } from './published';
 import { CUT_CARD_FROM_END, DEFAULT_DECKS, bankerDraws, type Winner } from './engine';
 import { getStrings } from './i18n';
 import styles from './Baccarat.module.css';
@@ -29,7 +30,8 @@ export const OddsTab = () => {
   const pct = (v: number, digits = 3) => `${(v * 100).toFixed(digits)}%`;
 
   const [decks, setDecks] = useState<number>(DEFAULT_DECKS);
-  const odds = useMemo(() => shoeOdds(decks), [decks]);
+  // Every fresh shoe's odds as published (published.ts): never counted here.
+  const odds = useMemo(() => publishedShoeOdds(decks), [decks]);
   const bets = useMemo(
     () => ODDS_BETS.map((id) => betOdds(id, odds)).sort((a, b) => b.ev - a.ev),
     [odds],
@@ -44,7 +46,7 @@ export const OddsTab = () => {
   const handsPerShoe = (decks * 52 - CUT_CARD_FROM_END - 1 - averageBurn) / cardsPerHand;
   const [pairN, pairD] = reduced(odds.pair, odds.pairTotal);
   const pair = betOdds('pair', odds);
-  const byDecks = useMemo(() => DECK_OPTIONS.map((d) => ({ decks: d, odds: shoeOdds(d) })), []);
+  const byDecks = useMemo(() => DECK_OPTIONS.map((d) => ({ decks: d, odds: publishedShoeOdds(d) })), []);
 
   return (
     <div className={styles.oddsLayout}>

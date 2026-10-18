@@ -8,12 +8,9 @@ import {
   HAND_COUNT,
   TOTAL_COMBINATIONS,
   handCounts,
-  highCardCurve,
   pairPlusOdds,
   qualifyingHands,
-  ranksOdds,
   scoreRanksOf,
-  strategyOdds,
 } from './analysis';
 import {
   ANTE_BONUS_PAYS,
@@ -32,6 +29,7 @@ import { rankLabel } from './Cards';
 import { EvCurve, type CurveTick } from './charts';
 import { getStrings } from './i18n';
 import { SPOT_MAX } from './medalTable';
+import { PUBLISHED_CURVE, PUBLISHED_STRATEGIES, publishedRanks } from './published';
 import styles from './ThreeCardPoker.module.css';
 
 const PAY_TABLE_IDS: PairPlusTableId[] = ['standard', 'old'];
@@ -82,7 +80,8 @@ export const OddsTab = () => {
   const pairPlus = useMemo(() => pairPlusOdds(PAIR_PLUS_TABLES[payTable]), [payTable]);
   const pairPlusEdges = useMemo(() => PAY_TABLE_IDS.map((id) => ({ id, edge: -pairPlusOdds(PAIR_PLUS_TABLES[id]).ev })), []);
 
-  const optimal = strategyOdds('optimal');
+  // The exact figures over every hand against every dealer hand, as published (published.ts): never worked out here.
+  const optimal = PUBLISHED_STRATEGIES.optimal;
   const outcomeCounts: Record<Showdown, number> = {
     fold: optimal.fold,
     notQualified: optimal.notQualified,
@@ -93,12 +92,12 @@ export const OddsTab = () => {
   const bonusTotal = BONUS_CATEGORIES.reduce((sum, c) => sum + optimal.bonus[c], 0) / TOTAL_COMBINATIONS;
   const qualifyRate = qualifyingHands() / HAND_COUNT;
 
-  const threshold = useMemo(() => THRESHOLD_HANDS.map((ranks) => ({ ranks, odds: ranksOdds(ranks) })), []);
-  const worstPlay = ranksOdds(PLAY_THRESHOLD).evMin;
-  const bestFold = ranksOdds(['Q', '6', '3']).evMax;
+  const threshold = useMemo(() => THRESHOLD_HANDS.map((ranks) => ({ ranks, odds: publishedRanks(ranks) })), []);
+  const worstPlay = publishedRanks(PLAY_THRESHOLD).evMin;
+  const bestFold = publishedRanks(['Q', '6', '3']).evMax;
 
   const curve = useMemo(() => {
-    const points = highCardCurve();
+    const points = PUBLISHED_CURVE;
     const ticks: CurveTick[] = [];
     points.forEach((p, index) => {
       const top = scoreRanksOf(p.score)[0];
@@ -108,9 +107,9 @@ export const OddsTab = () => {
     return { values: points.map((p) => p.evPlay), threshold: points.findIndex((p) => p.score >= PLAY_THRESHOLD_SCORE), ticks };
   }, []);
 
-  const strategies = useMemo(() => STRATEGY_IDS.map((id) => ({ id, odds: strategyOdds(id) })).sort((a, b) => a.odds.houseEdge - b.odds.houseEdge), []);
+  const strategies = useMemo(() => STRATEGY_IDS.map((id) => ({ id, odds: PUBLISHED_STRATEGIES[id] })).sort((a, b) => a.odds.houseEdge - b.odds.houseEdge), []);
   const maxEdge = Math.max(...strategies.map((s) => s.odds.houseEdge));
-  const mimicExtra = strategyOdds('mimic').played - optimal.played;
+  const mimicExtra = PUBLISHED_STRATEGIES.mimic.played - optimal.played;
   const alwaysExtra = HAND_COUNT - optimal.played;
   const hopeless = HAND_COUNT - qualifyingHands();
 

@@ -106,7 +106,7 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   expect(errors).toEqual([]);
 });
 
-test('the floor stands in corners under hanging signs: two cabinets a row on a phone, four on a desktop, each one a link by its name', async ({ page }) => {
+test('the floor stands in corners under hanging signs: two cabinets a row on a phone, four on a desktop, each one a link by its name', async ({ page, browserName }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
@@ -136,9 +136,10 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   // Nothing moves when it is hovered, for a player who asks for less motion.
   await page.locator('li[data-machine="baccarat"]').hover();
   expect(await page.locator('li[data-machine="baccarat"]').evaluate((element) => getComputedStyle(element).transform)).toBe('none');
-  // By the keyboard: from one cabinet, Tab goes to the next, and the cabinet shows it has the focus.
+  // By the keyboard: from one cabinet, Tab goes to the next, and the cabinet shows it has the focus. (Safari's Tab passes
+  // links by, unless the player has asked otherwise in its settings; Option-Tab goes to every link and control there.)
   await page.getByTestId('center-play-roulette').focus();
-  await page.keyboard.press('Tab');
+  await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
   await expect(page.getByTestId('center-play-blackjack')).toBeFocused();
   expect(await page.locator('li[data-machine="blackjack"]').evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
   // At 320 px the floor still fits.

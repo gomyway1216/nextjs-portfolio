@@ -1183,11 +1183,11 @@
 /* The best-play chart: one row a rung, one column a card. */
 .chart {
   table-layout: fixed;
-  min-width: 300px;
+  min-width: 280px;
 }
 .chart thead th:first-child,
 .chartRow {
-  width: 4.6rem;
+  width: 4.2rem;
   font-size: 0.68rem;
   font-weight: 700;
   white-space: nowrap;

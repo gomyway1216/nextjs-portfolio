@@ -50,8 +50,6 @@ export interface CrapsStrings {
   takeDown: string;
   /** Under the table: what is printed on the felt and not played. */
   printedNote: string;
-  soundOn: string;
-  soundOff: string;
   quickRoll: string;
   puckOn: string;
   puckOff: string;
@@ -286,8 +284,6 @@ const EN: CrapsStrings = {
   takeDown: 'Take down',
   printedNote:
     'COME and DON’T COME are bet once a point is on, as a line bet for the next roll: a number other than 7, 11, 2, 3 or 12 moves the bet to that number, where its own odds can be put on (tap it there). The line’s odds go behind the line bet, on ODDS and LAY.',
-  soundOn: 'Sound: on',
-  soundOff: 'Sound: off',
   quickRoll: 'Quick roll',
   puckOn: 'ON',
   puckOff: 'OFF',
@@ -497,8 +493,6 @@ const JA: CrapsStrings = {
   takeDown: '引き上げる',
   printedNote:
     'カム・ドントカムはポイントが決まってから置く、次の1投のためのラインベットです。7・11・2・3・12 以外の目が出るとその数字に移り、そこでオッズを付けられます（数字の上のベットをタップ）。ラインのオッズはラインベットの後ろの ODDS・LAY に置きます。',
-  soundOn: '音: オン',
-  soundOff: '音: オフ',
   quickRoll: 'クイックロール',
   puckOn: 'ON',
   puckOff: 'OFF',

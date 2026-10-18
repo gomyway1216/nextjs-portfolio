@@ -430,10 +430,10 @@ test('bonuses taken at the medal center are stamped on the cabinet’s card, and
   }
   await openGame(page, 'ja');
   await page.getByRole('tab', { name: '記録' }).click();
-  // The card is the medal center's: both days are stamped on it, and it says so.
+  // There is one card, the medal center's: both days are stamped on it, and it says where a bonus can be taken.
   const card = records(page).getByTestId('pusher-card');
   await expect(card.locator('li[data-stamped="true"]')).toHaveCount(2);
-  await expect(card).toContainText('カードはメダルゲームセンター共通');
+  await expect(card).toContainText('カードは1枚だけで、メダルゲームセンターで受け取っても、この台で受け取っても押されます。');
   // The board is the cabinet's: it took no bonus itself, and its rows say that what they count is the cabinet's.
   const board = records(page).getByTestId('pusher-records-board');
   await expect(board.getByRole('heading', { name: 'この台で遊んだ日' })).toBeVisible();

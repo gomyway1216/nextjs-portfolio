@@ -130,7 +130,7 @@ const en: RecordStrings = {
 
   cardTitle: 'Daily stamp card',
   cardLead: (week) =>
-    `One stamp a day, and medals with each. Every day in a row gives more, day ${week} gives the most, and then a new card begins. Miss a day and the card starts again. The card is the Medal Center’s: a bonus taken there or at any machine is stamped on it.`,
+    `One stamp a day, and medals with each. Every day in a row gives more, day ${week} gives the most, and then a new card begins. Miss a day and the card starts again. There is one card: a bonus taken at the Medal Center or at this cabinet is stamped on it.`,
   dayN: (square) => `DAY ${square}`,
   today: 'TODAY',
   medals: (medals) => `+${medals}`,
@@ -262,7 +262,7 @@ const ja: RecordStrings = {
 
   cardTitle: 'デイリースタンプカード',
   cardLead: (week) =>
-    `1日1回、スタンプと一緒にメダルがもらえます。続けて来るほど増え、${week}日目がいちばん多く、そのあと新しいカードになります。1日あくとカードは最初からです。カードはメダルゲームセンター共通で、どこで受け取っても押されます。`,
+    `1日1回、スタンプと一緒にメダルがもらえます。続けて来るほど増え、${week}日目がいちばん多く、そのあと新しいカードになります。1日あくとカードは最初からです。カードは1枚だけで、メダルゲームセンターで受け取っても、この台で受け取っても押されます。`,
   dayN: (square) => `${square}日目`,
   today: '今日',
   medals: (medals) => `+${medals}`,

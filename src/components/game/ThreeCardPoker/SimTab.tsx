@@ -8,6 +8,7 @@ import type { StrategyId } from './engine';
 import { getStrings } from './i18n';
 import { STRATEGY_COLORS, exactEdge, simulateStrategies, type SimResult } from './sim';
 import styles from './ThreeCardPoker.module.css';
+import selectStyles from '../common/select.module.css';
 import { ScrollArea } from '../common/ScrollArea';
 
 export const HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
@@ -59,7 +60,7 @@ export const SimTab = () => {
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.handsLabel}</span>
-            <select className={styles.input} value={hands} onChange={(e) => setHands(Number(e.target.value))} disabled={busy}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={hands} onChange={(e) => setHands(Number(e.target.value))} disabled={busy}>
               {HAND_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}

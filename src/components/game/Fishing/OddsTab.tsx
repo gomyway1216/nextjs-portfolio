@@ -6,6 +6,7 @@ import { FishArt } from './art';
 import { analyzeMachine, seeded, simulateSessions, valueOf, type Fraction, type SessionSummary } from './engine';
 import { getStrings } from './i18n';
 import styles from './Fishing.module.css';
+import selectStyles from '../common/select.module.css';
 import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeMachine();
@@ -213,7 +214,7 @@ export const OddsTab = () => {
         <div className={styles.simControls}>
           <label htmlFor={ids.casts}>
             {t.simCasts}
-            <select id={ids.casts} value={casts} onChange={(e) => setCasts(Number(e.target.value))} data-testid="fishing-sim-casts">
+            <select className={selectStyles.select} id={ids.casts} value={casts} onChange={(e) => setCasts(Number(e.target.value))} data-testid="fishing-sim-casts">
               {SIM_CASTS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -223,7 +224,7 @@ export const OddsTab = () => {
           </label>
           <label htmlFor={ids.sessions}>
             {t.simSessions}
-            <select id={ids.sessions} value={sessions} onChange={(e) => setSessions(Number(e.target.value))} data-testid="fishing-sim-sessions">
+            <select className={selectStyles.select} id={ids.sessions} value={sessions} onChange={(e) => setSessions(Number(e.target.value))} data-testid="fishing-sim-sessions">
               {SIM_SESSIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}

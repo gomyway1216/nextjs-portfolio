@@ -7,6 +7,7 @@ import { CatFace } from './art';
 import { lampAt } from './Cabinet';
 import { getStrings } from './i18n';
 import styles from './Janken.module.css';
+import selectStyles from '../common/select.module.css';
 import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeMachine();
@@ -239,7 +240,7 @@ export const OddsTab = () => {
         <div className={styles.simControls}>
           <label htmlFor={ids.medals}>
             {t.simMedals}
-            <select id={ids.medals} value={medals} onChange={(e) => setMedals(Number(e.target.value))} data-testid="janken-sim-medals">
+            <select className={selectStyles.select} id={ids.medals} value={medals} onChange={(e) => setMedals(Number(e.target.value))} data-testid="janken-sim-medals">
               {SIM_MEDALS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -249,7 +250,7 @@ export const OddsTab = () => {
           </label>
           <label htmlFor={ids.sessions}>
             {t.simSessions}
-            <select id={ids.sessions} value={sessions} onChange={(e) => setSessions(Number(e.target.value))} data-testid="janken-sim-sessions">
+            <select className={selectStyles.select} id={ids.sessions} value={sessions} onChange={(e) => setSessions(Number(e.target.value))} data-testid="janken-sim-sessions">
               {SIM_SESSIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -259,7 +260,7 @@ export const OddsTab = () => {
           </label>
           <label htmlFor={ids.doubles}>
             {t.simDoubles}
-            <select id={ids.doubles} value={doubles} onChange={(e) => setDoubles(Number(e.target.value))} data-testid="janken-sim-doubles">
+            <select className={selectStyles.select} id={ids.doubles} value={doubles} onChange={(e) => setDoubles(Number(e.target.value))} data-testid="janken-sim-doubles">
               {Array.from({ length: MAX_DOUBLES + 1 }, (_, k) => (
                 <option key={k} value={k}>
                   {k}

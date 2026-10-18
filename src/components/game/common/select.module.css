@@ -1,0 +1,31 @@
+/*
+ * A select on the floor (a simulation's settings, an odds tab's choices, video poker's pay table), as every machine
+ * shows it. Each machine keeps its own colours, border, corners and type; these rules draw the box and its arrow the
+ * same way in every browser and keep it 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Left to the system, Safari
+ * draws its own menu at its own height (22 to 24 px on a phone) whatever min-height says.
+ *
+ * The arrow is drawn in the select's own text colour (currentColor), so it follows each machine's light and dark
+ * themes: two small squares side by side, each crossed by one stroke of the V. The class is named twice so that these
+ * rules hold over a machine's own rule for its selects (`.input`, `.simControls select`) whichever stylesheet comes last.
+ * It lives here and not beside MedalCenter/tabs.module.css: the Simulation and Odds tabs name nothing of the medal
+ * center's, which their unit tests check, as proof that they never touch the medals.
+ */
+select.select.select {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 44px;
+  padding-right: 2rem;
+  background-image:
+    linear-gradient(45deg, transparent 38%, currentColor 42%, currentColor 58%, transparent 62%),
+    linear-gradient(-45deg, transparent 38%, currentColor 42%, currentColor 58%, transparent 62%);
+  /* Whole pixels, so that the two strokes meet at the point of the V in every browser. */
+  background-size: 6px 6px;
+  background-position:
+    right 17px center,
+    right 11px center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+select.select.select:disabled {
+  cursor: default;
+}

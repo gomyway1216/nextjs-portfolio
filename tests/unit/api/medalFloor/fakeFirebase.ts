@@ -1,7 +1,8 @@
 /**
  * In-memory stand-ins for the parts of the Firebase Admin SDK the medal floor
- * uses: Firestore documents, queries, transactions and batches, the Realtime
- * Database's refs, multi-path updates and transactions, and ID token checks.
+ * and the Kuizu daily leaderboard use: Firestore documents, queries,
+ * transactions and batches, the Realtime Database's refs, multi-path updates
+ * and transactions, and ID token checks.
  * Nothing here talks to a network; no real project, account or token is used.
  */
 
@@ -123,6 +124,14 @@ export class FakeQuery {
     return new FakeQuery(this.db, this.path, this.filters, this.order, count);
   }
 
+  /** A new document under an id of the store's choosing, as `add` does. */
+  async add(data: Data): Promise<FakeDocRef> {
+    this.db.autoIds += 1;
+    const ref = this.doc(`auto-${this.db.autoIds}`);
+    this.db.write(ref, 'set', data);
+    return ref;
+  }
+
   async get(): Promise<{ docs: FakeSnapshot[]; empty: boolean; size: number }> {
     let found = [...this.db.docs.entries()]
       .filter(([path]) => path.startsWith(`${this.path}/`) && !path.slice(this.path.length + 1).includes('/'))
@@ -183,6 +192,7 @@ export class FakeFirestore {
   readonly docs = new Map<string, Data>();
   reads = 0;
   writes = 0;
+  autoIds = 0;
   /** Set to make every call fail, as a store that is down does. */
   failing: Error | null = null;
 

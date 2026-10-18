@@ -346,8 +346,10 @@ export const InstructionPlate = ({ language, rules = PLATE_RULES }: { language: 
 /**
  * The plate, taken off the cabinet and held up to read: what the How to play
  * button opens. It is a dialog of the browser's own, so the page behind it is
- * out of reach while it is up, the focus goes into it and comes back to
- * whatever opened it, and Escape closes it.
+ * out of reach while it is up, the focus goes into it, and Escape closes it.
+ * The focus comes back to whatever opened it, `opener`: the browser gives it
+ * back to what had it before, and Safari does not give a button the focus
+ * when it is clicked or tapped, so there that was the page itself.
  *
  * Under the plate is the explanation it replaced, in full sentences, for
  * anyone who would rather read than look. That is in the page from the first
@@ -355,7 +357,20 @@ export const InstructionPlate = ({ language, rules = PLATE_RULES }: { language: 
  * itself is a thousand strokes of drawing, and is printed when it is first
  * asked for: until then the page does not carry it.
  */
-export const InstructionPlateDialog = ({ isOpen, onClose, title, body }: { isOpen: boolean; onClose: () => void; title: string; body: string[] }) => {
+export const InstructionPlateDialog = ({
+  isOpen,
+  onClose,
+  title,
+  body,
+  opener,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  body: string[];
+  /** What opened the plate, to have the focus back when it closes. */
+  opener?: () => HTMLElement | null;
+}) => {
   const { language } = useGameLanguage();
   const t = getPlateStrings(language);
   const ref = useRef<HTMLDialogElement>(null);
@@ -363,6 +378,12 @@ export const InstructionPlateDialog = ({ isOpen, onClose, title, body }: { isOpe
   const [printed, setPrinted] = useState(isOpen);
   if (isOpen && !printed) setPrinted(true);
 
+  const findOpener = useRef(opener);
+  useEffect(() => {
+    findOpener.current = opener;
+  });
+  // Whether it has been up since the page came: only a plate that was up gives the focus back.
+  const shown = useRef(false);
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
@@ -371,9 +392,17 @@ export const InstructionPlateDialog = ({ isOpen, onClose, title, body }: { isOpe
       if (typeof dialog.showModal === 'function') dialog.showModal();
       else dialog.setAttribute('open', '');
       dialog.scrollTop = 0;
-    } else if (!isOpen && dialog.open) {
-      if (typeof dialog.close === 'function') dialog.close();
-      else dialog.removeAttribute('open');
+      shown.current = true;
+    } else if (!isOpen) {
+      // Closed here, or by the browser (Escape), which has closed it already.
+      if (dialog.open) {
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+      }
+      if (!shown.current) return;
+      shown.current = false;
+      const back = findOpener.current?.();
+      if (back?.isConnected && document.activeElement !== back) back.focus({ preventScroll: true });
     }
   }, [isOpen]);
 

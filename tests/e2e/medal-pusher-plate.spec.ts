@@ -238,7 +238,8 @@ for (const { name, viewport, still } of [
   test.describe(`with the cabinet filling a phone held ${name}`, () => {
     test.use({ viewport, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 
-    test('the compact plate is put away, the cabinet fits the screen, and the plate is back when fullscreen is left', async ({ page }) => {
+    test('the compact plate is put away, the cabinet fits the screen, and the plate is back when fullscreen is left', async ({ page, browserName }) => {
+      test.skip(browserName === 'webkit', 'WebKit on a phone, as an iPhone, cannot put an element in fullscreen: the cabinet has no button for it there');
       test.setTimeout(60_000);
       await openGame(page);
       // The fullscreen switch is there once the browser has taken the page over.

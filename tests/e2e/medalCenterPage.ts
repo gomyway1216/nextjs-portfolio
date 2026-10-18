@@ -13,6 +13,16 @@ export async function openCenter(page: Page, language: 'en' | 'ja' = 'en'): Prom
   await expect(page.getByTestId('center-counter')).toHaveAttribute('data-loaded', 'true');
 }
 
+/**
+ * Waits until this browser's storage has the guest's bank. A page shows the medals as soon as it has read them, and a
+ * new member's are written down when the page is first given the card, a moment later (in WebKit under load, after a
+ * spec had already looked and found none). Not part of openCenter: a spec may open the center while the card is
+ * kept from it on purpose (medal-card-handoff), or signed in, when the bank is kept under the member's key.
+ */
+export async function bankWritten(page: Page): Promise<void> {
+  await expect.poll(async () => (await storedBank(page)) !== null).toBe(true);
+}
+
 /** The medal bank this browser keeps for a guest, read the way the bank reads it, or null when it keeps none. */
 export async function storedBank(page: Page, uid: string | null = null): Promise<Ledger | null> {
   return parseLedger(await page.evaluate((key) => window.localStorage.getItem(key), uid === null ? BANK_KEY : ledgerKey(uid)));

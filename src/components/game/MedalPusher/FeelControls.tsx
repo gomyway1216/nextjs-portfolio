@@ -13,6 +13,8 @@ export interface FeelControlsProps {
   /** Whether vibration is on, or null where the device has no motor: there is no switch for it then. */
   vibration: boolean | null;
   onVibration: (on: boolean) => void;
+  /** Whether the browser has said what the device can do (useFeel's `known`): the row says so in `data-ready`. */
+  ready?: boolean;
 }
 
 const ICON = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
@@ -51,12 +53,12 @@ const FullscreenIcon = ({ active }: { active: boolean }) => (
  * of its own: it comes last in the controls, after whatever row another
  * switch has opened under this one.
  */
-export const FeelControls = ({ strings: t, sweep, onSweep, vibration, onVibration }: FeelControlsProps) => {
+export const FeelControls = ({ strings: t, sweep, onSweep, vibration, onVibration, ready = false }: FeelControlsProps) => {
   const row = useRef<HTMLDivElement | null>(null);
   const fullscreen = useFullscreen(() => row.current?.closest(`.${styles.cabinet}`) ?? null);
 
   return (
-    <div ref={row} className={styles.feel} data-testid="pusher-feel">
+    <div ref={row} className={styles.feel} data-testid="pusher-feel" data-ready={ready}>
       <div className={styles.feelRow} role="group" aria-label={t.feelLabel}>
         <button type="button" className={styles.toggle} aria-pressed={sweep} title={t.swingHint} data-testid="pusher-sweep" onClick={() => onSweep(!sweep)}>
           <SweepIcon /> {t.swing}

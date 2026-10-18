@@ -16,6 +16,7 @@ import {
 import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
 import { bankBalance, resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { onPageError } from './pageErrors';
 
 // The Medal Pusher's daily bonus and record book. The machine itself is covered in medal-pusher.spec.ts; these
 // check what is the player's own: the stamp card, the Records tab, and that neither gets in the machine's way.
@@ -60,7 +61,7 @@ const sideways = (page: Page) => page.evaluate(() => ({ scroll: document.documen
 /** Collects what would show that the page the server sent and the page in the browser disagreed, and any error nobody caught. */
 function watchForTrouble(page: Page): string[] {
   const trouble: string[] = [];
-  page.on('pageerror', (error) => trouble.push(`uncaught: ${error.message}`));
+  onPageError(page, (error) => trouble.push(`uncaught: ${error.message}`));
   page.on('console', (message) => {
     const text = message.text();
     if (/hydrat|Minified React error #4(18|23|25)/i.test(text)) trouble.push(`${message.type()}: ${text}`);

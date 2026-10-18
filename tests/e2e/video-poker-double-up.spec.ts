@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { instantScroll } from './instantScroll';
 import { bankBalance } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
@@ -85,6 +86,9 @@ async function pick(page: Page, dealer: string, card: string) {
   await page.locator('[data-pick="0"]').click();
   await expect(page.locator('[data-pick="0"]')).toHaveAttribute('data-picked', 'true');
 }
+
+// The page scrolls at once, not smoothly: see instantScroll.
+test.beforeEach(async ({ context }) => instantScroll(context));
 
 test('a double-up won: the 45 go out as the dealer’s card turns, and 90 come back for a higher card', async ({ page }) => {
   await openVideoPoker(page);

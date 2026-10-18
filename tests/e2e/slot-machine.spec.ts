@@ -6,6 +6,7 @@ import { PHYSICAL_STOPS, REELS, evaluateLine, type Line, type SymbolId } from '.
 import { NOTICE_KEY, ROUND_KEY, SLOT_GAME, parseRound } from '../../src/components/game/SlotMachine/medals';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
@@ -354,7 +355,7 @@ test('the reset at the medal center starts the machine over with a new member’
 test('says once that the machine plays with the player’s medals now, and fits a phone in both languages', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // Whatever a device kept under the machine's names before (it never saved its old count) is passed over.
   await page.addInitScript(() => {
     if (window.localStorage.getItem('slot-machine-seeded') !== null) return;

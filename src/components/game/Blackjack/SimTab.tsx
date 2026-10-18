@@ -14,6 +14,7 @@ import {
   type StrategiesResult,
 } from './sim';
 import styles from './Blackjack.module.css';
+import selectStyles from '../common/select.module.css';
 import { ScrollArea } from '../common/ScrollArea';
 
 export const ROUND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
@@ -90,7 +91,7 @@ export const SimTab = () => {
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.roundsLabel}</span>
-            <select className={styles.input} value={rounds} onChange={(e) => setRounds(Number(e.target.value))} disabled={progress !== null}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={rounds} onChange={(e) => setRounds(Number(e.target.value))} disabled={progress !== null}>
               {ROUND_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -161,7 +162,7 @@ export const SimTab = () => {
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.roundsLabel}</span>
-            <select className={styles.input} value={countRounds} onChange={(e) => setCountRounds(Number(e.target.value))} disabled={countProgress !== null}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={countRounds} onChange={(e) => setCountRounds(Number(e.target.value))} disabled={countProgress !== null}>
               {COUNT_ROUND_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}

@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Locator } from '@playwright/test';
+import { test, expect, type Browser, type Locator, type Page } from '@playwright/test';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { refillParts } from '../../src/components/game/MedalCenter/KeysHint';
@@ -336,13 +336,34 @@ const HL_WORDS = ['段目', 'テイク', '予想', '引き分け', 'ハズレ', 
 const SB_WORDS = ['いちばん', '戻る', 'エリア', '少ない', '合計', 'ゾロ目', '選ぶ', '通り', '倍率', '取り分'];
 const hlCard = (rank: number, suit = 1) => (rank * 4 + suit + 0.5) / 52;
 
-for (const width of WIDTHS) {
-  test(`the High & Low Ladder's lines and its Odds tab's tables break between phrases in Japanese at ${width} px`, async ({ browser }) => {
+/**
+ * Lays the page's lines out as Safari and Firefox do. Neither has `word-break: auto-phrase`, so where Chromium breaks a
+ * line between phrases they fall back to the rule written under it, keep-all, and break only where the words carry a
+ * break (a space, a zero-width space, 、。：). Here every element on auto-phrase is put on keep-all: in Chromium that is
+ * how CI (Chromium alone) sees what an iPhone shows; in Safari and Firefox nothing is on auto-phrase, and nothing
+ * changes. Sic Bo's 「いちばん戻るエリア」 beside 97.2% pushed the page 7 px sideways in WebKit and 16 px in Firefox at
+ * 320 px, and so it does in Chromium laid out this way.
+ */
+async function asSafariBreaks(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll<HTMLElement>('main *')) {
+      if (getComputedStyle(el).wordBreak === 'auto-phrase') el.style.setProperty('word-break', 'keep-all', 'important');
+    }
+  });
+}
+
+/** How far the page reaches past the right edge of the screen, in px. */
+const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`the High & Low Ladder's lines and its Odds tab's tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
     test.setTimeout(90_000);
     const { context, page } = await phone(browser, width);
     await page.goto('/games/high-low');
     await arrived(page);
     await expect(page.getByTestId('hl-machine')).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
     const status = page.getByTestId('hl-status');
     const said: string[] = [];
     // A 7, then a King (HIGH), then a 3 (LOW): the rungs' offers; then TAKE, and an 8 tied.
@@ -368,24 +389,31 @@ for (const width of WIDTHS) {
     await expect(status).toContainText('ここまで');
     said.push(...(await brokenIn(status, HL_WORDS)));
     said.push(...(await brokenIn(page.locator('#hl-session-title ~ dl dt'), HL_WORDS)));
+    expect(await sideways(page), `the table at ${width} px${as}`).toBe(0);
     await page.getByRole('tab', { name: '確率' }).click();
     const odds = page.locator('[role="tabpanel"]:not([hidden])');
     await expect(odds.locator('table').first()).toBeVisible();
+    if (safari) await asSafariBreaks(page);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), HL_WORDS)));
-    expect(said, `at ${width} px`).toEqual([]);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });
 
-  test(`Moonlit Sic Bo's figures and its Odds tab's tables break between phrases in Japanese at ${width} px`, async ({ browser }) => {
+  test(`Moonlit Sic Bo's figures and its Odds tab's tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
     const { context, page } = await phone(browser, width);
     await page.goto('/games/sic-bo');
     await arrived(page);
+    if (safari) await asSafariBreaks(page);
     const said = await brokenIn(page.locator('#sb-stats-title ~ dl dt'), SB_WORDS);
+    expect(await sideways(page), `the table at ${width} px${as}`).toBe(0);
     await page.locator('#sb-tab-odds').click();
     const odds = page.locator('[role="tabpanel"]:not([hidden])');
     await expect(odds.getByTestId('sb-odds-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), SB_WORDS)));
-    expect(said, `at ${width} px`).toEqual([]);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });
 }

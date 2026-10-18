@@ -35,6 +35,7 @@ import { roundOutcome, type DoubleOutcome } from './doubleUp';
 import { canDouble, cardsOf, createMedalPlay, deviceStore, doubleOf, doublePending, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
 import { PRECOMPUTED } from './precomputed';
 import styles from './VideoPoker.module.css';
+import selectStyles from '../common/select.module.css';
 
 /** Animation pacing (ms): the gap between cards turning over and the pause before the result is shown. */
 export const TIMING = { step: 90, flip: 340, settle: 200 } as const;
@@ -810,7 +811,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
 
         <div className={styles.settingsRow}>
           <label htmlFor="vp-paytable-select">{t.payTableLabel}</label>
-          <select id="vp-paytable-select" className={styles.select} value={payId} onChange={(e) => setPayId(e.target.value as PayTableId)} disabled={!canChange}>
+          <select id="vp-paytable-select" className={`${styles.select} ${selectStyles.select}`} value={payId} onChange={(e) => setPayId(e.target.value as PayTableId)} disabled={!canChange}>
             {PAY_TABLE_IDS.map((id) => (
               <option key={id} value={id}>
                 {t.payTableOption(id, `${(PRECOMPUTED[id].payback * 100).toFixed(2)}%`)}

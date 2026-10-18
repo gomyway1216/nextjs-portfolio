@@ -6,6 +6,7 @@ import { Bet, HOUSE_EDGE, HouseEdgeResult, simulateHouseEdge } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings, betName } from './i18n';
 import styles from './Roulette.module.css';
+import selectStyles from '../common/select.module.css';
 
 // Representative bet of each family so the demo shows the edge is identical.
 const BET_OPTIONS: { id: string; label: string; bet: Bet }[] = [
@@ -56,7 +57,7 @@ export const EdgeTab = () => {
       <div className={styles.formGrid} style={{ marginBottom: '1rem' }}>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{t.edgeBetLabel}</span>
-          <select className={styles.input} value={betId} onChange={(e) => setBetId(e.target.value)} disabled={running}>
+          <select className={`${styles.input} ${selectStyles.select}`} value={betId} onChange={(e) => setBetId(e.target.value)} disabled={running}>
             {BET_OPTIONS.map((o) => (
               <option key={o.id} value={o.id}>
                 {betName(o.label, language)}
@@ -66,7 +67,7 @@ export const EdgeTab = () => {
         </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{t.edgeSpinsLabel}</span>
-          <select className={styles.input} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={running}>
+          <select className={`${styles.input} ${selectStyles.select}`} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={running}>
             {SPIN_OPTIONS.map((n) => (
               <option key={n} value={n}>
                 {n.toLocaleString()}

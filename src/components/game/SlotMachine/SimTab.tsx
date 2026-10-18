@@ -15,6 +15,7 @@ import { ConvergenceChart, Histogram, TrajectoryChart } from './charts';
 import { getStrings } from './i18n';
 import { BET_OPTIONS } from './medals';
 import styles from './SlotMachine.module.css';
+import selectStyles from '../common/select.module.css';
 
 const ODDS = analyzeMachine();
 export const CONVERGENCE_SPINS = [10_000, 100_000, 1_000_000, 10_000_000] as const;
@@ -102,7 +103,7 @@ export const SimTab = () => {
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.spinsLabel}</span>
-            <select className={styles.input} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={busy}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={busy}>
               {CONVERGENCE_SPINS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -163,7 +164,7 @@ export const SimTab = () => {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.betLabel}</span>
             <select
-              className={styles.input}
+              className={`${styles.input} ${selectStyles.select}`}
               value={session.bet}
               onChange={(e) => setSession({ ...session, bet: Number(e.target.value) })}
               disabled={busy}

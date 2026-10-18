@@ -9,6 +9,7 @@ import { JACKPOT_START, JACKPOT_STEP, spinValue, tierChance, type Tier } from '.
 import { MAX_STOCK } from './session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS, PACES, WARM_UP, frontShare, simulate, steadyReturn, type Pace, type SimResult } from './sim';
 import styles from './MedalPusher.module.css';
+import selectStyles from '../common/select.module.css';
 import { ScrollArea } from '../common/ScrollArea';
 
 /**
@@ -91,7 +92,7 @@ export const SimTab = () => {
             <label htmlFor={paceId} className={styles.fieldLabel}>
               {t.paceLabel}
             </label>
-            <select id={paceId} className={styles.select} value={pace} disabled={busy} onChange={(event) => setPace(Number(event.target.value) as Pace)}>
+            <select id={paceId} className={`${styles.select} ${selectStyles.select}`} value={pace} disabled={busy} onChange={(event) => setPace(Number(event.target.value) as Pace)}>
               {PACES.map((option) => (
                 <option key={option} value={option}>
                   {t.paceOption(option)}
@@ -103,7 +104,7 @@ export const SimTab = () => {
             <label htmlFor={medalsId} className={styles.fieldLabel}>
               {t.medalsLabel}
             </label>
-            <select id={medalsId} className={styles.select} value={medals} disabled={busy} onChange={(event) => setMedals(Number(event.target.value))}>
+            <select id={medalsId} className={`${styles.select} ${selectStyles.select}`} value={medals} disabled={busy} onChange={(event) => setMedals(Number(event.target.value))}>
               {MEDAL_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {fmt(option)}

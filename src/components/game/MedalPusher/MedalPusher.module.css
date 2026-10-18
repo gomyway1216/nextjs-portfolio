@@ -3501,6 +3501,10 @@
 }
 .slider {
   width: 100%;
+  /* 44 px to hit, as every control on the floor (tests/e2e/medal-tap-targets.spec.ts): the track and the thumb are
+     drawn in the middle of it, as before; only what takes a finger is taller. */
+  height: 44px;
+  margin: 0;
   accent-color: var(--mp-s-centre);
 }
 .calcResult {

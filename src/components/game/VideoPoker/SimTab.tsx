@@ -15,6 +15,7 @@ import {
   type StrategiesResult,
 } from './sim';
 import styles from './VideoPoker.module.css';
+import selectStyles from '../common/select.module.css';
 import { ScrollArea } from '../common/ScrollArea';
 
 export const HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
@@ -91,7 +92,7 @@ export const SimTab = () => {
   const select = (value: number, options: readonly number[], onChange: (n: number) => void, busy: boolean, label: string) => (
     <label className={styles.field}>
       <span className={styles.fieldLabel}>{label}</span>
-      <select className={styles.input} value={value} onChange={(e) => onChange(Number(e.target.value))} disabled={busy}>
+      <select className={`${styles.input} ${selectStyles.select}`} value={value} onChange={(e) => onChange(Number(e.target.value))} disabled={busy}>
         {options.map((n) => (
           <option key={n} value={n}>
             {fmt(n)}

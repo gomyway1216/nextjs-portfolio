@@ -647,9 +647,10 @@
   color: #fff4c4;
 }
 .resumedBadge {
+  /* Over the top right of the cards, clear of the row of cards turned, which starts at the left. */
   position: absolute;
   top: 2px;
-  left: 2px;
+  right: 2px;
   z-index: 3;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FLOOR_GAMES, type FloorGame } from '@/lib/medalFloor/games';
 import { FLOOR_TIME_ZONE } from '@/lib/medalFloor/periods';
-import type { FloorRow } from '@/lib/medalFloor/types';
+import type { FloorBoards, FloorRow } from '@/lib/medalFloor/types';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { MEDAL_CENTER_PATH } from '../paths';
 import { ownerAct, type OwnerAction } from './api';
@@ -25,7 +25,20 @@ export interface FloorRankingsProps {
   owner: (() => Promise<string>) | null;
 }
 
-/** The medal floor's rankings in full: every machine's board for today and this week, and every moment on show. */
+/** The boards as they are drawn while the floor is being read: empty, every line held unseen. */
+const HELD: Pick<FloorBoards, 'won' | 'best'> = { won: [], best: {} };
+
+/**
+ * When the floor's day starts, as a time of day, held in the note's place until the floor has been read: the same on
+ * the server and in the browser, and about as wide as the time that comes in.
+ */
+const heldTime = (locale: string): string => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(Date.UTC(2000, 0, 1, 12, 0));
+
+/**
+ * The medal floor's rankings in full: every machine's board for today and this week, and every moment on show. While
+ * the floor is being read, the boards and the note on when its days start are drawn as they will be, empty and unseen,
+ * so that nothing under them moves when it comes in (the page jumped by its whole height on a phone).
+ */
 export function FloorRankings({ member, settled, signInHref, owner }: FloorRankingsProps) {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
@@ -39,6 +52,8 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
   const [period, setPeriod] = useState<PeriodChoice>('day');
   const place = useFloorPlace(member, settled, t);
   const boards = floor.summary ? (period === 'day' ? floor.summary.day : floor.summary.week) : null;
+  const holding = floor.summary === null && !floor.unavailable;
+  const shown = boards ?? (holding ? HELD : null);
   const periodId = boards ? `${boards.kind}-${boards.key}` : '';
   // When the floor's day starts, in this viewer's own time (shown only once the floor has been read, so never in the server's render).
   const startsAt = floor.summary
@@ -75,9 +90,9 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
         </Link>
         <h1 className={styles.pageTitle}>{t.rankingsTitle}</h1>
         <p className={styles.lead}>{t.lead}</p>
-        {startsAt && (
-          <p className={styles.note} data-testid="rankings-period-note" data-time-zone={FLOOR_TIME_ZONE}>
-            {t.periodNote(startsAt)}
+        {(startsAt || holding) && (
+          <p className={startsAt ? styles.note : `${styles.note} ${styles.unseen}`} data-testid="rankings-period-note" data-time-zone={FLOOR_TIME_ZONE} aria-hidden={!startsAt || undefined}>
+            {t.periodNote(startsAt ?? heldTime(locale))}
           </p>
         )}
 
@@ -86,10 +101,10 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
           {owner && <span className={styles.ownerBadge}>{t.ownerTitle}</span>}
         </div>
 
-        {boards && (
-          <div className={styles.fullBoards} data-period={period} data-testid="rankings-boards">
+        {shown && (
+          <div className={styles.fullBoards} data-period={period} data-testid="rankings-boards" data-loaded={boards !== null}>
             <section className={styles.panel} aria-label={t.wonBoard}>
-              <Board {...words} title={t.wonBoard} rows={boards.won} testId="rankings-won" owner={ownerControls?.('won')} />
+              <Board {...words} title={t.wonBoard} rows={shown.won} testId="rankings-won" holding={!boards} owner={ownerControls?.('won')} />
               <p className={styles.note}>{t.wonNote}</p>
             </section>
             <section className={styles.panel} aria-label={t.bestBoard}>
@@ -97,7 +112,15 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
               <p className={styles.note}>{t.bestNote}</p>
               <div className={styles.gameBoards}>
                 {FLOOR_GAMES.map((game) => (
-                  <Board key={game} {...words} title={words.gameName(game)} rows={boards.best[game] ?? []} testId={`rankings-best-${game}`} owner={ownerControls?.(`best:${game}`)} />
+                  <Board
+                    key={game}
+                    {...words}
+                    title={words.gameName(game)}
+                    rows={shown.best[game] ?? []}
+                    testId={`rankings-best-${game}`}
+                    holding={!boards}
+                    owner={ownerControls?.(`best:${game}`)}
+                  />
                 ))}
               </div>
             </section>

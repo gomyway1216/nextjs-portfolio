@@ -103,7 +103,7 @@ describe('the boards', () => {
 
   it('give the hub the biggest win at each machine that has one', () => {
     const html = renderToStaticMarkup(
-      <BestAtEach {...words()} boards={{ kind: 'day', key: '2026-10-17', start: 0, end: 1, won: [], best: { roulette: [rows[0]!], 'slot-machine': [rows[1]!] } }} />,
+      <BestAtEach {...words()} boards={{ best: { roulette: [rows[0]!], 'slot-machine': [rows[1]!] } }} />,
     );
     expect(html.match(/data-testid="floor-best-row"/g)).toHaveLength(2);
     // In the floor's own order: the slot machine comes before roulette.
@@ -159,6 +159,9 @@ describe('the floor on the medal center’s front', () => {
     expect(html).toContain('data-state="guest"');
     // The place card is where the floor jackpot's line sends a player who has not joined.
     expect(html).toContain(`<div id="${FLOOR_PLACE_ANCHOR}" `);
+    // Its short boards are drawn empty while the floor is read, their lines held unseen, so they come in where they are.
+    expect(html).toMatch(/data-period="day" data-loaded="false"><div[^>]*data-testid="floor-won"><h4[^>]*>[^<]*<\/h4><p class="[^"]*unseen[^"]*" aria-hidden="true">/);
+    expect(html).toMatch(/data-testid="floor-best"><h4[^>]*>[^<]*<\/h4><p class="[^"]*unseen[^"]*" aria-hidden="true">/);
     // Nothing time-based is in the server's render: the floor is read in the browser.
     expect(html).not.toContain('<time');
     expect(HUB_MOMENTS_SHOWN).toBe(3);
@@ -169,6 +172,22 @@ describe('the floor on the medal center’s front', () => {
     expect(html).toContain('ランキング');
     expect(html).toContain('data-state="checking"');
     expect(html).toContain(getFloorStrings('ja').honesty);
+  });
+
+  it('the rankings page draws what the floor will fill in where it will be, held unseen, so that nothing moves when it does', () => {
+    const t = getFloorStrings('en');
+    const html = inLanguage('en', <FloorRankings member={null} settled={false} owner={null} />);
+    // Every board, empty, its line held unseen.
+    expect(html).toMatch(/data-testid="rankings-boards" data-loaded="false"/);
+    for (const testId of ['rankings-won', ...FLOOR_GAMES.map((game) => `rankings-best-${game}`)]) {
+      expect(html, testId).toMatch(new RegExp(`data-testid="${testId}"><h4[^>]*>[^<]*</h4><p class="[^"]*unseen[^"]*" aria-hidden="true">${t.boardEmpty}</p>`));
+    }
+    // The note on when the floor's days start, held with a time of day that is the same on the server and in the browser.
+    expect(html).toMatch(/<p class="[^"]*unseen[^"]*" data-testid="rankings-period-note" data-time-zone="Asia\/Tokyo" aria-hidden="true">Days start at midnight Japan time \(12:00 PM where you are\)/);
+    // The moments: dots over the quiet floor's line, which holds its place.
+    expect(html).toMatch(new RegExp(`data-testid="floor-feed-empty"><span>…</span><span class="[^"]*unseen[^"]*" aria-hidden="true">${t.feedEmpty}</span>`));
+    // The player's place: the question over a guest's line, which holds its place.
+    expect(html).toMatch(new RegExp(`<span>${t.checking}</span><span class="[^"]*unseen[^"]*" aria-hidden="true">${t.signInToJoin}</span>`));
   });
 });
 

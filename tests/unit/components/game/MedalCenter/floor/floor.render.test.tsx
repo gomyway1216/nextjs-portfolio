@@ -62,6 +62,28 @@ describe('the floor’s moments', () => {
     expect(html).toContain('2分前');
   });
 
+  it('say how long ago in whole units gone by: never "60 min" or "24 h", and a day and a half is a day', () => {
+    const MIN = 60;
+    const H = 3_600;
+    const D = 86_400;
+    const cases: [number, string, string][] = [
+      [10, 'just now', 'たったいま'],
+      [50, '1 min ago', '1分前'],
+      [119, '1 min ago', '1分前'],
+      [59.6 * MIN, '59 min ago', '59分前'],
+      [60 * MIN, '1 h ago', '1時間前'],
+      [100 * MIN, '1 h ago', '1時間前'],
+      [23.7 * H, '23 h ago', '23時間前'],
+      [24 * H, '1 d ago', '1日前'],
+      [36 * H, '1 d ago', '1日前'],
+      [6.5 * D, '6 d ago', '6日前'],
+    ];
+    for (const [seconds, en, ja] of cases) {
+      expect(getFloorStrings('en').ago(Math.round(seconds)), `${seconds} s`).toBe(en);
+      expect(getFloorStrings('ja').ago(Math.round(seconds)), `${seconds} s`).toBe(ja);
+    }
+  });
+
   it('say so when the floor is quiet or cannot be reached, and give the owner a way to take one off', () => {
     expect(renderToStaticMarkup(<FeedList {...words()} feed={[]} now={NOW} loading={false} unavailable={false} />)).toContain(getFloorStrings('en').feedEmpty);
     expect(renderToStaticMarkup(<FeedList {...words()} feed={[]} now={NOW} loading={false} unavailable />)).toContain(getFloorStrings('en').feedUnavailable);

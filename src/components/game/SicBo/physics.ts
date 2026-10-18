@@ -13,12 +13,14 @@
  * Which face ends up is the physics' own, as it would be. The faces drawn are
  * then given to the dice like this: the model is run once, each die's last
  * face is read, and the die is turned over in its own frame (by one of the
- * cube's 24 turns, the smallest one that brings the drawn number up) a little
- * at a time while it tumbles fastest, early in the shake, and not at all
- * afterwards. A die spinning at a few dozen turns a second is not seen to
- * turn a quarter more; everything after the turn is the model's own motion of
- * a cube, which looks the same whichever way round it is labelled. So every
- * roll ends on the faces drawn, and the odds are the game's.
+ * cube's 24 turns, the smallest one that brings the drawn number up) while it
+ * tumbles in the shake, in step with its own tumbling: the extra goes in
+ * fastest when the die turns fastest, and not at all while it is still. A die
+ * turns two to five whole turns in that time, so the extra half turn at most is
+ * a small part of any frame's (a fifth at the very most). Everything after the
+ * shake is the model's own motion of a cube, which looks the same whichever way
+ * round it is labelled. So every roll ends on the faces drawn, and the odds are
+ * the game's.
  *
  * Units: the edge of a die is 1. The platter is seen from above at a slant:
  * x runs to the right, y towards the player, z up off the platter. The dome
@@ -498,6 +500,45 @@ function simulate(start: readonly Pose[], seed: number): Run {
   return { raw, count, events, end, duration: (count - 1) / FRAME_RATE };
 }
 
+/** The part of the shake a die's face is turned in: from a moment after it starts until a moment before it ends. */
+const TURN_WINDOW = { from: 0.1, to: SHAKE_TIME - 0.3 } as const;
+
+/**
+ * How far each die has been turned towards its face of the roll, frame by frame, from 0 to 1: in step with how far the
+ * die itself turns in the window, so that the extra turn goes fastest when the die tumbles fastest and not at all when
+ * it is still. A die that hardly turns in the window (never seen) is turned evenly through it.
+ */
+function turnProgress(run: Run): number[][] {
+  const from = Math.round(TURN_WINDOW.from * FRAME_RATE);
+  const to = Math.min(run.count - 1, Math.round(TURN_WINDOW.to * FRAME_RATE));
+  return [0, 1, 2].map((die) => {
+    const quat = (f: number): Quat => {
+      const at = (f * 3 + die) * PER_DIE;
+      return { w: run.raw[at + 3], x: run.raw[at + 4], y: run.raw[at + 5], z: run.raw[at + 6] };
+    };
+    const steps: number[] = [];
+    let total = 0;
+    for (let f = from; f < to; f++) {
+      const a = quat(f);
+      const b = quat(f + 1);
+      const step = angleOf(qmul(b, conj(a)));
+      steps.push(step);
+      total += step;
+    }
+    const out = new Array<number>(run.count).fill(0);
+    let done = 0;
+    for (let f = 0; f < run.count; f++) {
+      if (f <= from) out[f] = 0;
+      else if (f >= to) out[f] = 1;
+      else {
+        done += steps[f - from - 1];
+        out[f] = total > 0.5 ? done / total : smooth((f - from) / (to - from));
+      }
+    }
+    return out;
+  });
+}
+
 /** Every order the three dice can take the three faces drawn in. */
 const ORDERS: readonly (readonly [number, number, number])[] = [
   [0, 1, 2],
@@ -539,14 +580,12 @@ export function planShake(start: readonly Pose[], dice: Dice, seed: number): Sha
 
   const frames = new Float32Array(run.raw.length);
   const jolt = new Float32Array(run.count);
-  const rampFrom = 0.1;
-  const rampTo = SHAKE_TIME - 0.3;
+  const progress = turnProgress(run);
   for (let f = 0; f < run.count; f++) {
     const t = f / FRAME_RATE;
-    const s = smooth((t - rampFrom) / (rampTo - rampFrom));
     for (let die = 0; die < 3; die++) {
       const at = (f * 3 + die) * PER_DIE;
-      const q = qnorm(qmul({ w: run.raw[at + 3], x: run.raw[at + 4], y: run.raw[at + 5], z: run.raw[at + 6] }, partOf(turns[die], s)));
+      const q = qnorm(qmul({ w: run.raw[at + 3], x: run.raw[at + 4], y: run.raw[at + 5], z: run.raw[at + 6] }, partOf(turns[die], progress[die][f])));
       // While it is being turned it is never shown in the platter.
       const z = Math.max(run.raw[at + 2], depthOf(q));
       frames.set([run.raw[at], run.raw[at + 1], z, q.w, q.x, q.y, q.z], at);

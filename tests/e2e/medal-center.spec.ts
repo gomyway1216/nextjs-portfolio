@@ -101,6 +101,53 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   expect(errors).toEqual([]);
 });
 
+test('the floor stands in corners under hanging signs: two cabinets a row on a phone, four on a desktop, each one a link by its name', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 375, height: 812 });
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await openCenter(page);
+  // Each corner's sign is a heading, in the page's language (its Japanese is there for the look, not read twice).
+  for (const sign of ['PUSHER CORNER', 'VIDEO & SLOTS', 'TABLE GAMES', 'KIDS & CANDY SHOP']) {
+    await expect(page.getByRole('heading', { level: 3, name: sign, exact: true })).toBeVisible();
+  }
+  // Each cabinet is a link named by the machine, and the whole cabinet takes the tap.
+  const slot = page.getByRole('link', { name: 'Slot Machine', exact: true });
+  await expect(slot).toHaveAttribute('href', '/games/slot-machine');
+  const box = async (id: string) => (await page.locator(`li[data-machine="${id}"]`).boundingBox())!;
+  // On a phone: two to a row, and the pusher, a big cabinet, the whole row.
+  const [slotBox, pokerBox, pusherBox] = [await box('slot-machine'), await box('video-poker'), await box('medal-pusher')];
+  expect(Math.abs(slotBox.y - pokerBox.y)).toBeLessThan(2);
+  expect(slotBox.width).toBeLessThan(375 / 2);
+  expect(pusherBox.width).toBeGreaterThan(slotBox.width * 1.8);
+  // A machine's own line, and its stickers.
+  await expect(page.getByTestId('center-pitch-craps')).toHaveText('Roll the dice; the odds bet pays true odds.');
+  await expect(page.getByTestId('center-jp-slot-machine')).toBeVisible();
+  await expect(page.getByTestId('center-jp-craps')).toHaveCount(0);
+  // Pressed anywhere on the cabinet, not only on its name, it takes the player in.
+  await page.locator('li[data-machine="craps"]').click();
+  await expect(page).toHaveURL(/\/games\/craps$/);
+  await openCenter(page);
+  // Nothing moves when it is hovered, for a player who asks for less motion.
+  await page.locator('li[data-machine="baccarat"]').hover();
+  expect(await page.locator('li[data-machine="baccarat"]').evaluate((element) => getComputedStyle(element).transform)).toBe('none');
+  // By the keyboard: from one cabinet, Tab goes to the next, and the cabinet shows it has the focus.
+  await page.getByTestId('center-play-roulette').focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('center-play-blackjack')).toBeFocused();
+  expect(await page.locator('li[data-machine="blackjack"]').evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
+  // At 320 px the floor still fits.
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await sideways(page)).toBeLessThanOrEqual(320);
+  // On a desktop: the four tables in a row, and the pusher's and the video machines' corners side by side.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const tables = await Promise.all(['roulette', 'blackjack', 'baccarat', 'craps'].map(box));
+  for (const table of tables) expect(Math.abs(table.y - tables[0]!.y)).toBeLessThan(2);
+  const [pusherSign, videoSign] = [await page.getByTestId('center-zone-pusher').boundingBox(), await page.getByTestId('center-zone-video').boundingBox()];
+  expect(Math.abs(pusherSign!.y - videoSign!.y)).toBeLessThan(2);
+  expect(errors).toEqual([]);
+});
+
 test('the Medal Pusher plays from the bank: a medal fed comes out of it, a medal won goes back, and the hub and the machine agree after a reload', async ({ page }) => {
   test.setTimeout(90_000);
   await openPusher(page);

@@ -1,0 +1,449 @@
+/* The floor of machines, corner by corner. The signs and the cabinets are arcade fittings in a fixed dark palette that
+   reads on the light page and the dark one alike; the words around them follow the --games-route-* theme vars. Every
+   text colour on a fitting is at least 4.5:1 on the darkest and the lightest of what it stands on (the corner's colour
+   on #24155e is 6.8:1 at the least, for the new machines' #ff8796; the plate's #d9d2f5 on #1c1147 is 11.9:1; the NEW
+   sticker's white on #e11d48 is 4.7:1, and the floor jackpot sticker's #2a1400 on #ffd65c 12.5:1). */
+
+.plan,
+.legend {
+  --mf-ink: #fff6d6;
+  --mf-ink-soft: #d9d2f5;
+  --mf-panel: #1c1147;
+  --mf-panel-top: #24155e;
+  --mf-panel-low: #140c36;
+  --mf-night: #0d0726;
+  --mf-cyan: #7df0ff;
+  --mf-gold: #ffd65c;
+}
+
+/* Each corner's colour, on its sign and round each of its cabinets, and the glow it gives off. */
+.zone[data-zone='new'] {
+  --accent: #ff8796;
+  --glow: rgba(255, 135, 150, 0.45);
+}
+.zone[data-zone='pusher'] {
+  --accent: #ffd65c;
+  --glow: rgba(255, 214, 92, 0.45);
+}
+.zone[data-zone='big'] {
+  --accent: #ffad5c;
+  --glow: rgba(255, 173, 92, 0.45);
+}
+.zone[data-zone='video'] {
+  --accent: #7df0ff;
+  --glow: rgba(125, 240, 255, 0.4);
+}
+.zone[data-zone='table'] {
+  --accent: #72e6a2;
+  --glow: rgba(114, 230, 162, 0.4);
+}
+.zone[data-zone='kids'] {
+  --accent: #ffa3d1;
+  --glow: rgba(255, 163, 209, 0.45);
+}
+
+/* ---------- The key ---------- */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.legendList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.legendList li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.legendNote {
+  margin: 0;
+  color: var(--games-route-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* ---------- The plan: two columns on a phone, four where there is room ---------- */
+.plan {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 0.6rem;
+  row-gap: 1.1rem;
+  align-items: start;
+  margin-top: 0.35rem;
+}
+@media (min-width: 480px) {
+  .plan {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 680px) {
+  .plan {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 0.85rem;
+  }
+}
+
+/* A corner fills the row, or, where there is room beside it, only the columns its machines need, so that two small
+   corners stand side by side as they do on a real floor. */
+.zone {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  row-gap: 0.6rem;
+  min-width: 0;
+}
+@media (min-width: 480px) {
+  .zone[data-width='1'] {
+    grid-column: span 1;
+  }
+  .zone[data-width='2'] {
+    grid-column: span 2;
+  }
+}
+@media (min-width: 680px) {
+  .zone[data-width='3'] {
+    grid-column: span 3;
+  }
+}
+
+/* The sign, hung from the ceiling on two wires. */
+.sign {
+  grid-column: 1 / -1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-top: 14px;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  border: 2px solid var(--accent);
+  background: linear-gradient(180deg, var(--mf-panel-top) 0%, var(--mf-night) 100%);
+  box-shadow:
+    0 0 12px var(--glow),
+    inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+.sign::before,
+.sign::after {
+  content: '';
+  position: absolute;
+  top: -16px;
+  width: 2px;
+  height: 14px;
+  background: linear-gradient(180deg, #9a98ad 0%, #5d5b72 100%);
+}
+.sign::before {
+  left: 16%;
+}
+.sign::after {
+  right: 16%;
+}
+/* A sign over a corner one column wide: its name a little smaller, and the count under it. */
+@media (min-width: 480px) {
+  .zone[data-width='1'] .sign {
+    flex-wrap: wrap;
+  }
+  .zone[data-width='1'] .signMain {
+    font-size: 0.88rem;
+    letter-spacing: 0.06em;
+  }
+}
+.signTitle {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.05rem 0.6rem;
+  line-height: 1.2;
+}
+.signMain {
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--glow);
+}
+.signSub {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--mf-ink);
+}
+.signCount {
+  flex: none;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--mf-ink-soft);
+  color: var(--mf-ink-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ---------- The cabinets ---------- */
+.tiles {
+  grid-column: 1 / -1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: subgrid;
+  row-gap: 0.6rem;
+  min-width: 0;
+}
+@supports not (grid-template-columns: subgrid) {
+  .zone,
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  position: relative;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 14px 14px 10px 10px;
+  border: 2px solid var(--accent);
+  background: linear-gradient(180deg, var(--mf-panel-top) 0%, var(--mf-panel) 45%, var(--mf-panel-low) 100%);
+  color: var(--mf-ink);
+  box-shadow:
+    0 0 10px var(--glow),
+    0 8px 18px rgba(18, 10, 46, 0.3);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+/* A big cabinet takes two columns. */
+.tile[data-wide='true'] {
+  grid-column: span 2;
+}
+.tile:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 18px var(--glow),
+    0 12px 22px rgba(18, 10, 46, 0.35);
+}
+.tile:has(.link:focus-visible) {
+  outline: 3px solid var(--mf-cyan);
+  outline-offset: 3px;
+}
+
+/* The lit name over the cabinet. */
+.name {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(2 * 1.2em + 0.8rem);
+  padding: 0.4rem 0.45rem;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 2px solid var(--accent);
+  /* A row of small bulbs along the top of the cabinet's sign, unlit-gold, and the sign's glass. */
+  background:
+    radial-gradient(circle, #fff3b0 0 1.1px, rgba(255, 185, 46, 0.85) 1.6px, rgba(255, 185, 46, 0) 2.6px) 50% 3px / 11px 6px repeat-x,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 70%),
+    var(--mf-night);
+  padding-top: 0.6rem;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  /* Japanese breaks between phrases, not inside a word, where the browser can tell them apart. */
+  word-break: auto-phrase;
+}
+/* Static, against the site's global `a { position: relative }`, so that the cover below can stretch over the cabinet. */
+.link {
+  position: static;
+  color: var(--mf-ink);
+  text-decoration: none;
+  text-shadow: 0 0 8px var(--glow);
+  transition: none;
+}
+.link:hover {
+  color: var(--mf-ink);
+}
+/* The whole cabinet is the link. The site's global `a::after` is a thin underline that grows on hover: this one is
+   the cabinet's whole face instead, and does not grow. */
+.link::after,
+.link:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  background: none;
+  transition: none;
+}
+.link:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The screen, with its stickers on the glass. */
+.screen {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: 0.4rem 0.4rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--mf-night);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55);
+}
+.screen img {
+  object-fit: cover;
+}
+.stickers {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.new,
+.jp {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+/* NEW: white on rose, 4.7:1. */
+.new {
+  background: #e11d48;
+  color: #ffffff;
+  border: 1.5px solid #ffe4ea;
+  box-shadow: 0 0 8px rgba(225, 29, 72, 0.7);
+}
+/* Linked to the floor jackpot: the jackpot's own gold, with dark brown on it, 12:1. */
+.jp {
+  background: #ffd65c;
+  color: #2a1400;
+  border: 1.5px solid #fff3b0;
+  box-shadow: 0 0 8px rgba(255, 214, 92, 0.7);
+}
+.stickers .jp {
+  margin-left: auto;
+}
+
+/* The plate under the screen: what the machine is, and its best return. */
+.plate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.45rem 0.55rem 0.55rem;
+}
+.pitch {
+  margin: 0;
+  word-break: auto-phrase;
+  color: var(--mf-ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.foot {
+  margin: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.best {
+  min-width: 0;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.playMark {
+  flex: none;
+  margin-left: auto;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe27a 0%, #f6b81c 100%);
+  color: #2a1400;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 #a86a00;
+}
+
+/* On the narrowest cabinets (a 320px phone), the PLAY mark is its arrow alone, so the best return keeps two lines. */
+@container (max-width: 150px) {
+  .playWord {
+    display: none;
+  }
+}
+
+/* A big cabinet: its name bigger, and its screen wider than the others'. */
+.tile[data-wide='true'] .name {
+  min-height: 0;
+  font-size: 1.05rem;
+}
+.tile[data-wide='true'] .screen {
+  aspect-ratio: 2 / 1;
+}
+.tile[data-wide='true'] .pitch {
+  font-size: 0.88rem;
+}
+@media (min-width: 680px) {
+  /* Beside the smaller cabinets, a big one's screen is wider still, so that the corners side by side stand about as tall. */
+  .tile[data-wide='true'] .screen {
+    aspect-ratio: 12 / 5;
+  }
+  .name {
+    font-size: 0.98rem;
+  }
+  .pitch {
+    font-size: 0.84rem;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+  }
+  .tile:hover {
+    transform: none;
+  }
+}

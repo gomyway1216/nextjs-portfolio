@@ -3,6 +3,7 @@
    them follows the --games-route-* theme vars. Every text colour on a panel is at least 4.5:1 on what it stands on. */
 
 .together,
+.now,
 .page,
 .place {
   --fl-night: #120a2e;
@@ -18,10 +19,46 @@
   --fl-lead: var(--games-route-muted);
 }
 
-.together {
+.together,
+.now {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  min-width: 0;
+}
+
+/* The board by the door: the floor jackpot over the latest big wins; side by side on a tablet, where the board has the
+   page's width to itself (from 960px it stands beside the medal counter, and they go one over the other again). */
+.nowBoard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+@media (min-width: 680px) and (max-width: 959px) {
+  .nowBoard {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+/* The latest big wins as the lines of an LED message board: one under the other, ruled, not boxed. */
+.ticker {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1.5px) 0 0 / 5px 5px,
+    linear-gradient(180deg, #1a0f45 0%, var(--fl-night) 100%);
+}
+.ticker .feed {
+  gap: 0;
+}
+.ticker .moment,
+.ticker .moment[data-big='true'] {
+  padding: 0.45rem 0.15rem;
+  border: 0;
+  border-top: 1px dashed rgba(217, 210, 245, 0.25);
+  border-radius: 0;
+  background: transparent;
+}
+.ticker .moment:first-child {
+  border-top: 0;
 }
 .title {
   margin: 0.4rem 0 0;
@@ -305,6 +342,8 @@
 
 /* ---------- A player's place ---------- */
 .place {
+  /* Clear of the site's header when the floor jackpot's line links down to it. */
+  scroll-margin-top: 80px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

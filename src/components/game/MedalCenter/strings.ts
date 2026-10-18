@@ -39,11 +39,25 @@ export interface CenterStrings {
   // The floor
   floorTitle: string;
   floorLead: string;
-  open: string;
   soon: string;
   play: string;
-  playsFromBank: string;
   soonNote: string;
+  // The machines' plates
+  /** The sticker on a machine new to the floor, and what it says to a screen reader. */
+  newBadge: string;
+  newSay: string;
+  /** The sticker on a machine linked to the floor jackpot, and what it says to a screen reader. */
+  jpBadge: string;
+  jpSay: string;
+  /** A machine's best return, as its Odds tab publishes it. */
+  bestReturn: (percent: string) => string;
+  /** How many machines stand in a corner. */
+  machineCount: (count: number) => string;
+  /** The key to the plates, under the floor's lead. */
+  legendTitle: string;
+  legendJp: string;
+  legendNew: string;
+  legendReturn: string;
   // How the bank works
   rulesTitle: string;
   rules: string[];
@@ -100,11 +114,19 @@ const en: CenterStrings = {
   myPageNote: 'Your history and records at every machine',
   floorTitle: 'THE FLOOR',
   floorLead: 'Every open machine plays with your medals, and the medals it wins come straight back to you.',
-  open: 'OPEN',
   soon: 'COMING SOON',
-  play: 'Play',
-  playsFromBank: 'Plays with your medals.',
+  play: 'PLAY',
   soonNote: 'These casino games are coming onto the medal floor one by one. Until each does, it keeps its own chips on its own page, apart from your medals.',
+  newBadge: 'NEW',
+  newSay: 'New on the floor.',
+  jpBadge: 'FLOOR JP',
+  jpSay: 'Linked to the floor jackpot.',
+  bestReturn: (percent) => `Best return ${percent}`,
+  machineCount: (count) => (count === 1 ? '1 machine' : `${count} machines`),
+  legendTitle: 'On the plates',
+  legendJp: 'linked to the floor jackpot',
+  legendNew: 'new on the floor',
+  legendReturn: 'Best return: the medals a machine brings back for every 100 played, at its best play, in the long run.',
   rulesTitle: 'ABOUT YOUR MEDALS',
   rules: [
     'Every medal you drop at a machine comes out of your medals, and every medal you win is added to them as it lands. Nothing is left behind at the machine.',
@@ -155,11 +177,19 @@ const ja: CenterStrings = {
   myPageNote: '持ちメダルの履歴と、各マシンの記録',
   floorTitle: 'フロア',
   floorLead: '遊べるマシンは持ちメダルで遊べ、勝ったメダルはそのまま持ちメダルに加わります。',
-  open: '営業中',
   soon: '準備中',
   play: '遊ぶ',
-  playsFromBank: '持ちメダルで遊べます。',
   soonNote: 'これらのカジノゲームは、順番にメダルフロアに入る予定です。それまでは各ゲームのページで、メダルとは別のそのゲームのチップで遊びます。',
+  newBadge: '新台',
+  newSay: '新台です。',
+  jpBadge: 'JP対象',
+  jpSay: 'フロアジャックポットの対象です。',
+  bestReturn: (percent) => `最高還元率${percent}`,
+  machineCount: (count) => `${count}台`,
+  legendTitle: '台の見かた',
+  legendJp: 'フロアジャックポットの対象',
+  legendNew: '新しく入った台',
+  legendReturn: '最高還元率：いちばん良い遊び方で、遊んだメダル100枚につき長い目で見て戻ってくる枚数です。',
   rulesTitle: 'メダルについて',
   rules: [
     'マシンに入れたメダルは持ちメダルから減り、勝ったメダルは落ちたそばから持ちメダルに加わります。マシンに残しておくメダルはありません。',

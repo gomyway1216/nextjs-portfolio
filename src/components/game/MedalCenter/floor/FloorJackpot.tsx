@@ -20,6 +20,7 @@ import type { GameLanguage } from '../../constants/gameTranslations';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { useBank } from '../bank';
 import { MEDAL_CENTER_PATH } from '../paths';
+import { FLOOR_PLACE_ANCHOR } from './paths';
 import { shownName, useServerNow } from './FloorParts';
 import { useJackpotPayer } from './pagePayer';
 import { lastKnownPlace, onFloorPlace } from './reporter';
@@ -76,7 +77,10 @@ function JoinLine({ standing, t, where, signInHref }: { standing: JackpotStandin
   return (
     <p className={styles.joinLine} data-testid="jackpot-join" data-standing={standing}>
       {where === 'here' ? (
-        t.jackpotJoinHere
+        // The place card is further down the page, past the machines: the line takes the player there.
+        <a className={styles.link} href={`#${FLOOR_PLACE_ANCHOR}`} data-testid="jackpot-join-here">
+          {t.jackpotJoinHere}
+        </a>
       ) : (
         <Link className={styles.link} href={MEDAL_CENTER_PATH} data-testid="jackpot-join-link">
           {t.jackpotJoinThere}
@@ -129,7 +133,11 @@ export interface FloorJackpotPanelProps {
   signInHref?: string;
 }
 
-/** The medal center's front: the floor jackpot, big, with its last win and how to take part. */
+/**
+ * The medal center's front: the floor jackpot, big, with its last win and how
+ * to take part, as the board by the door shows it. How it works, and which
+ * machines are linked to it, open under it.
+ */
 export function FloorJackpotPanel({ standing, signInHref }: FloorJackpotPanelProps) {
   const { language } = useGameLanguage();
   const t = getFloorStrings(language);
@@ -143,10 +151,13 @@ export function FloorJackpotPanel({ standing, signInHref }: FloorJackpotPanelPro
     <div className={styles.panel} data-testid="floor-jackpot" data-live={jackpot.live}>
       <JackpotCounter amount={jackpot.unavailable ? null : jackpot.amount} t={t} locale={locale} size="big" testId="floor-jackpot-amount" />
       <Paid medals={paid} t={t} fmt={fmt} />
-      <p className={styles.lead}>{t.jackpotLead}</p>
-      <LinkedMachines t={t} testId="jackpot-linked" />
       {jackpot.unavailable ? <p className={styles.last}>{t.jackpotUnavailable}</p> : <LastWin last={jackpot.wins[0]} t={t} fmt={fmt} now={now} />}
       <JoinLine standing={standing} t={t} where="here" signInHref={signInHref} />
+      <details className={styles.how} data-testid="jackpot-how">
+        <summary className={styles.howSummary}>{t.jackpotMore}</summary>
+        <p className={styles.lead}>{t.jackpotLead}</p>
+        <LinkedMachines t={t} testId="jackpot-linked" />
+      </details>
     </div>
   );
 }

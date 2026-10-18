@@ -120,6 +120,30 @@
   border-radius: 4px;
 }
 
+/* How the floor jackpot works, and which machines are linked to it: open under the counter on the medal center's front. */
+.how {
+  font-size: 0.92rem;
+  color: var(--jp-lead);
+}
+.how .lead,
+.how .linked {
+  margin-top: 0.4rem;
+}
+/* The summary keeps the browser's own open-and-shut triangle; its line is tall enough to tap. */
+.howSummary {
+  padding: 0.55rem 0;
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--games-route-fg, var(--jp-ink));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.howSummary:focus-visible {
+  outline: 3px solid var(--jp-frame-hi);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .paid {
   margin: 0;
   padding: 0.45rem 0.7rem;

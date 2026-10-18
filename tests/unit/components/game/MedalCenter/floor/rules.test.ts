@@ -40,6 +40,7 @@ import { allBetOdds as crapsOdds, toNumber as crapsNumber } from '@/components/g
 import { pairPlusOdds, strategyOdds as tcpStrategy } from '@/components/game/ThreeCardPoker/analysis';
 import { PAIR_PLUS_TABLES } from '@/components/game/ThreeCardPoker/engine';
 import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
+import { BET_OPTIONS as BINGO_BETS, FULL_CARD_LINES, MOST_WIN as BINGO_MOST, analyzeMachine as bingoOdds, paysFor as bingoPays } from '@/components/game/BallBingo/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -123,6 +124,8 @@ describe('the most each machine can take from the player at once, for the medals
     // An Ante, Pair Plus and a Play bet, each at its most.
     expect(FLOOR_RULES['three-card-poker'].stakeMost).toBe(TCP_HAND_MAX);
     expect(TCP_HAND_MAX).toBe(3 * TCP_SPOT_MAX);
+    // Ball Bingo: a game's bet at its biggest.
+    expect(FLOOR_RULES['ball-bingo'].stakeMost).toBe(Math.max(...BINGO_BETS));
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -158,6 +161,8 @@ describe('which machines are linked to the floor jackpot', () => {
       craps: Math.max(...crapsOdds().map((bet) => 1 - crapsNumber(bet.houseEdge))),
       // The Ante and Play per medal wagered (the element of risk), or Pair Plus on either table.
       'three-card-poker': Math.max(1 - tcp.elementOfRisk, ...Object.values(PAIR_PLUS_TABLES).map((table) => 1 + pairPlusOdds(table).ev)),
+      // The same on every bet: worked out over every state a game can be in.
+      'ball-bingo': bingoOdds().rtp,
     };
   };
 
@@ -173,7 +178,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'ball-bingo']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -290,6 +295,13 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES['three-card-poker'].most).toBe(most);
   });
 
+  it('Ball Bingo: the full card on the biggest bet, and the full card on every bet', () => {
+    expect(FLOOR_RULES['ball-bingo'].most).toBe(BINGO_MOST);
+    expect(BINGO_MOST).toBe(bingoPays(FULL_CARD_LINES) * Math.max(...BINGO_BETS));
+    expect(FLOOR_RULES['ball-bingo'].labels['full-card'].amounts).toEqual(BINGO_BETS.map((bet) => bingoPays(FULL_CARD_LINES) * bet));
+    expect(FLOOR_RULES['ball-bingo'].labels['full-card'].feed).toBe(true);
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -312,6 +324,8 @@ describe('named wins and the feed', () => {
     expect(labelPays('video-poker', 'double-up', 45)).toBe(false);
     expect(labelPays('slot-machine', 'constructor', 1)).toBe(false);
     expect(labelPays('roulette', 'seven3', 1_000)).toBe(false);
+    expect(labelPays('ball-bingo', 'full-card', 1_500)).toBe(true);
+    expect(labelPays('ball-bingo', 'full-card', 1_499)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -323,5 +337,7 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('slot-machine', 50)).toBe(false);
     expect(feedWorthy('roulette', 360)).toBe(true);
     expect(feedWorthy('medal-pusher', 50, 'bowl')).toBe(false);
+    expect(feedWorthy('ball-bingo', 500, 'full-card')).toBe(true);
+    expect(feedWorthy('ball-bingo', 100)).toBe(false);
   });
 });

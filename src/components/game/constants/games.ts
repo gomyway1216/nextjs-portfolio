@@ -434,4 +434,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'ball-bingo',
+    title: 'Ball Bingo',
+    description: 'A ball-drop bingo of the Medal Center: shoot balls through the pins into numbered pockets, line up a 3×3 card, catch FREE and CHANCE for more balls — and see the exact odds of every line, and why about 90 of every 100 medals come back.',
+    thumbnail: '🎱',
+    path: '/games/ball-bingo',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

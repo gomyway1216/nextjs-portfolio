@@ -117,6 +117,8 @@ const enMoment = (label: string | null, medals: string): string => {
       return `drew four of a kind: ${medals} medals`;
     case 'floor-jackpot':
       return `hit the FLOOR JACKPOT: ${medals} medals`;
+    case 'full-card':
+      return `filled the whole bingo card: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -142,6 +144,8 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `フォーカードで${medals}枚`;
     case 'floor-jackpot':
       return `フロアジャックポット！${medals}枚`;
+    case 'full-card':
+      return `ビンゴカードが全部そろって${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

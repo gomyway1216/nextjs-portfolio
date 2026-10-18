@@ -141,7 +141,7 @@ export const EdgeChart = ({ points, theoretical, width = 600, height = 260, theo
       {/* theoretical reference */}
       <line x1={padding.left} x2={width - padding.right} y1={theoY} y2={theoY} stroke="#e0a83c" strokeDasharray="5 4" strokeWidth={1.5} />
       {theoreticalLabel && (
-        <text x={width - padding.right} y={theoY - 5} textAnchor="end" fill="#e0a83c" fontSize="10" fontWeight={700}>{theoreticalLabel}</text>
+        <text x={width - padding.right} y={theoY - 5} textAnchor="end" fill="var(--rl-gold-text)" fontSize="10" fontWeight={700}>{theoreticalLabel}</text>
       )}
 
       {/* empirical line */}

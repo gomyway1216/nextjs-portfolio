@@ -894,7 +894,8 @@
   min-height: 60px;
   border-radius: 16px;
   border: 3px solid #fff1b8;
-  background: linear-gradient(180deg, #ff8a3d 0%, #e5531c 55%, #b23b10 100%);
+  /* The white CAST is large type: at least 3:1 over the whole button (the old top, #ff8a3d, was 2.5:1). */
+  background: linear-gradient(180deg, #f0702c 0%, #dc4f1a 55%, #b23b10 100%);
   color: #fff;
   font-weight: 900;
   font-size: 1.2rem;

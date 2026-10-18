@@ -308,7 +308,8 @@
   border-radius: 8px;
   border: 2px solid #3a3384;
   background: #15123f;
-  color: #5d5994;
+  /* Unlit, the lamp's word is still read: dimmer than lit, but at least 4.5:1 (#5d5994 was 2.8:1). */
+  color: #8580c4;
   font-weight: 900;
   font-size: 0.78rem;
   letter-spacing: 0.08em;

@@ -387,7 +387,8 @@
   pointer-events: none;
 }
 .feltQualify {
-  color: var(--tcp-gold);
+  /* A paler gold than the rail's: --tcp-gold is 4.0:1 on the felt. */
+  color: #f5d995;
   font-weight: 900;
   letter-spacing: 0.12em;
   text-transform: uppercase;

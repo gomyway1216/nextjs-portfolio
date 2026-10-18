@@ -6,6 +6,7 @@ import { DRAWS, SPOTS, analyzeWheel, checkSpins, seeded, valueOf, type CheckResu
 import { getStrings } from './i18n';
 import { lookOf } from './Wheel';
 import styles from './BigWheel.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeWheel();
 /** How many spins the check runs. */
@@ -98,7 +99,7 @@ export const OddsTab = () => {
         <h2 id="bw-numbers-title" className={styles.blockTitle}>
           {t.numbersTitle}
         </h2>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bw-numbers-table">
             <thead>
               <tr>
@@ -133,7 +134,7 @@ export const OddsTab = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.spreadNote}</p>
       </section>
 
@@ -141,7 +142,7 @@ export const OddsTab = () => {
         <h2 id="bw-lamps-title" className={styles.blockTitle}>
           {t.lampsTitle}
         </h2>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bw-lamps-table">
             <thead>
               <tr>
@@ -160,7 +161,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.lampsNote(`${frac(ODDS.lampMean)} = ${fmt(valueOf(ODDS.lampMean), 4)}`)}</p>
       </section>
 
@@ -168,7 +169,7 @@ export const OddsTab = () => {
         <h2 id="bw-pays-title" className={styles.blockTitle}>
           {t.paysTitle}
         </h2>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bw-pays-table">
             <thead>
               <tr>
@@ -185,7 +186,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section aria-labelledby="bw-compare-title">

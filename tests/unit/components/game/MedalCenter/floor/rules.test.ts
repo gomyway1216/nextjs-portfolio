@@ -4,8 +4,18 @@ import { PAYS as BACCARAT_PAYS } from '@/components/game/Baccarat/engine';
 import { SPOT_MAX as BACCARAT_SPOT_MAX } from '@/components/game/Baccarat/medals';
 import { MAX_HANDS } from '@/components/game/Blackjack/engine';
 import { MAX_BET as BLACKJACK_MAX_BET } from '@/components/game/Blackjack/medalTable';
-import { ONE_ROLL_PAYS } from '@/components/game/Craps/engine';
-import { SPOT_MAX as CRAPS_SPOT_MAX } from '@/components/game/Craps/medalTable';
+import {
+  BET_IDS as CRAPS_BET_IDS,
+  ONE_ROLL_PAYS,
+  POINT_NUMBERS,
+  comePoint,
+  isOddsBet,
+  maxOdds,
+  resolveRoll,
+  type Bets as CrapsBets,
+  type PointNumber,
+} from '@/components/game/Craps/engine';
+import { SPOT_MAX as CRAPS_SPOT_MAX, spotLimit as crapsSpotLimit, stakeStep as crapsStakeStep } from '@/components/game/Craps/medalTable';
 import { MAX_DOUBLES, VALUES as JANKEN_LAMPS } from '@/components/game/Janken/engine';
 import { MOST_MEDALS as JANKEN_MOST } from '@/components/game/Janken/round';
 import { FLOOR } from '@/components/game/MedalCenter/MedalCenter';
@@ -96,9 +106,45 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES.baccarat.most).toBe(Math.max(dragon, panda));
   });
 
-  it('craps: aces on the come-out, with Don’t Pass, the Field, Any Craps and Aces', () => {
+  it('craps: every roll of the dice against the fullest table there can be, with the line’s point or none', () => {
+    // Every bet is settled on its own, so the most one roll can give back is that roll against every spot the table can
+    // hold at once, each at its most. A spot's most is its limit (SPOT_MAX, in whole steps of what it pays); the odds go
+    // up to 3-4-5x the bet in front of them, the lay to 6x. A come point is at most the Come or Don't Come bet that moved
+    // there: a bet moves onto a number only on a roll of that number, which decides the one already there.
+    // What a table cannot hold at once:
+    // - Come and Don't Come bets in their boxes on the come-out: the roll after they are made moves or decides them.
+    // - The line's odds without a point.
+    // - A come point on the line's own point: the roll that would move a bet there makes the point instead, and the
+    //   come-out roll that sets the point decides the come points on that number.
+    const fullest = (point: PointNumber | null): CrapsBets => {
+      const bets: CrapsBets = {};
+      for (const id of CRAPS_BET_IDS) {
+        if (isOddsBet(id)) continue;
+        const come = comePoint(id);
+        if (come) {
+          if (come.n !== point) bets[id] = crapsSpotLimit(come.kind === 'come' ? 'come' : 'dontCome', point, {});
+        } else if (point !== null || (id !== 'come' && id !== 'dontCome')) bets[id] = crapsSpotLimit(id, point, {});
+      }
+      for (const id of CRAPS_BET_IDS) {
+        if (!isOddsBet(id) || ((id === 'passOdds' || id === 'dontPassOdds') && point === null)) continue;
+        const most = maxOdds(id, point, bets);
+        if (most > 0) bets[id] = most - (most % crapsStakeStep(id, point));
+      }
+      return bets;
+    };
+    let most = 0;
+    for (const point of [null, ...POINT_NUMBERS]) {
+      const bets = fullest(point);
+      for (let a = 1; a <= 6; a += 1) for (let b = 1; b <= 6; b += 1) most = Math.max(most, resolveRoll(point, bets, [a, b]).returned);
+    }
+    expect(FLOOR_RULES.craps.most).toBe(most);
+    // That roll is a seven on the come-out: the Pass Line, Any Seven, a Don't Come bet with its lay on every number, and
+    // the odds behind a Come bet on every number, which are off on the come-out and come back.
+    expect(resolveRoll(null, fullest(null), [3, 4]).returned).toBe(most);
+    // More than the aces on the come-out the floor believed before Come and Don't Come: Don't Pass, the Field, Any
+    // Craps and Aces.
     const won = ([to, per]: readonly [number, number]) => CRAPS_SPOT_MAX * (to / per + 1);
-    expect(FLOOR_RULES.craps.most).toBe(2 * CRAPS_SPOT_MAX + won(ONE_ROLL_PAYS.field[2]) + won(ONE_ROLL_PAYS.anyCraps) + won(ONE_ROLL_PAYS.aces));
+    expect(resolveRoll(null, fullest(null), [1, 1]).returned).toBe(2 * CRAPS_SPOT_MAX + won(ONE_ROLL_PAYS.field[2]) + won(ONE_ROLL_PAYS.anyCraps) + won(ONE_ROLL_PAYS.aces));
   });
 
   it('three card poker: a straight flush against a dealer who qualifies', () => {

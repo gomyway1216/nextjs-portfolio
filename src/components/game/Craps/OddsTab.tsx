@@ -16,6 +16,7 @@ import { LAY_ODDS, PLACE_PAYS, TRUE_ODDS, WAYS, type BetId, type PointNumber, ty
 import { getStrings } from './i18n';
 import { stakeStep } from './medalTable';
 import styles from './Craps.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const BETS = [...allBetOdds()].sort((a, b) => toNumber(a.houseEdge) - toNumber(b.houseEdge));
 /** The bets that pay a fraction of their stake, and how many medals each takes at a time so that it pays whole medals. */
@@ -68,9 +69,9 @@ export const OddsTab = () => {
       <p className={styles.intro}>{t.oddsIntro}</p>
 
       <section className={styles.panel} aria-labelledby="craps-dice-title">
-        <h3 id="craps-dice-title" className={styles.blockTitle}>
+        <h2 id="craps-dice-title" className={styles.blockTitle}>
           {t.diceTitle}
-        </h3>
+        </h2>
         <div className={styles.waysChart} role="img" aria-label={Object.entries(WAYS).map(([k, v]) => `${k}: ${t.ways(v)}`).join(', ')}>
           {Object.entries(WAYS).map(([total, ways]) => (
             <div key={total} className={styles.waysCol} data-seven={total === '7' ? 'true' : undefined}>
@@ -84,10 +85,10 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-edge-title">
-        <h3 id="craps-edge-title" className={styles.blockTitle}>
+        <h2 id="craps-edge-title" className={styles.blockTitle}>
           {t.edgeTableTitle}
-        </h3>
-        <div className={styles.tableWrap}>
+        </h2>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
               <tr>
@@ -116,16 +117,16 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.edgeNote}</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-whole-title">
-        <h3 id="craps-whole-title" className={styles.blockTitle}>
+        <h2 id="craps-whole-title" className={styles.blockTitle}>
           {t.wholeTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.wholeIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="craps-whole-medals">
             <thead>
               <tr>
@@ -144,16 +145,16 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.wholeNote}</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-pass-title">
-        <h3 id="craps-pass-title" className={styles.blockTitle}>
+        <h2 id="craps-pass-title" className={styles.blockTitle}>
           {t.passTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.passIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
               <tr>
@@ -198,13 +199,13 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-oddsfx-title">
-        <h3 id="craps-oddsfx-title" className={styles.blockTitle}>
+        <h2 id="craps-oddsfx-title" className={styles.blockTitle}>
           {t.oddsEffectTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.oddsEffectIntro}</p>
         <table className={styles.oddsTable}>
           <thead>
@@ -231,9 +232,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-shooter-title">
-        <h3 id="craps-shooter-title" className={styles.blockTitle}>
+        <h2 id="craps-shooter-title" className={styles.blockTitle}>
           {t.shooterTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.shooterIntro}</p>
         <div className={styles.statGrid}>
           <div className={styles.stat}>

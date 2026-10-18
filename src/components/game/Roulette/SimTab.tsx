@@ -162,7 +162,7 @@ const Results = ({ state }: { state: SimState }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div>
-        <h3 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.mcResult(trials)}</h3>
+        <h2 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.mcResult(trials)}</h2>
         <div className={styles.statGrid}>
           <Stat label={t.bustRate} value={`${bustRate}%`} accent="var(--rl-lose-text)" />
           <Stat label={t.medianSpinsToBust} value={summary.medianSpinsToBust === null ? '—' : `${summary.medianSpinsToBust}`} accent="var(--rl-sky-text)" />
@@ -174,12 +174,12 @@ const Results = ({ state }: { state: SimState }) => {
       </div>
 
       <div>
-        <h4 className={styles.subTitle}>{t.finalDist}</h4>
+        <h3 className={styles.subTitle}>{t.finalDist}</h3>
         <Histogram values={summary.finalBankrolls} color="#a78bfa" xLabel={t.medianFinal} />
       </div>
 
       <div>
-        <h4 className={styles.subTitle}>{t.sampleRun}</h4>
+        <h3 className={styles.subTitle}>{t.sampleRun}</h3>
         <div style={{ marginBottom: '0.4rem', color: 'var(--games-route-muted)', fontSize: '0.85rem' }}>
           <span style={{ color: sample.outcome === 'bust' ? 'var(--rl-lose-text)' : 'var(--rl-win-text)', fontWeight: 700 }}>
             {sampleOutcomeLabel[sample.outcome]}

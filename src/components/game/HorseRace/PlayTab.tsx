@@ -631,9 +631,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
           {/* The win tickets: one a horse, with its gate, name, way of running and odds. */}
           <section className={styles.tickets} aria-labelledby="hr-win-title" data-testid="hr-win-tickets">
-            <h3 id="hr-win-title" className={styles.ticketsTitle}>
+            <h2 id="hr-win-title" className={styles.ticketsTitle}>
               {t.win} <span className={styles.ticketsHelp}>{t.winHelp}</span>
-            </h3>
+            </h2>
             <ul className={styles.winList}>
               {Array.from({ length: FIELD }, (_, i) => {
                 const gate = i + 1;
@@ -675,9 +675,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
           {/* The quinellas, as the board sets them out: a triangle of pairs, the lower gate down the side. */}
           <section className={styles.tickets} aria-labelledby="hr-quinella-title" data-testid="hr-quinella-tickets">
-            <h3 id="hr-quinella-title" className={styles.ticketsTitle}>
+            <h2 id="hr-quinella-title" className={styles.ticketsTitle}>
               {t.quinella} <span className={styles.ticketsHelp}>{t.quinellaHelp}</span>
-            </h3>
+            </h2>
             <div className={styles.quinellaGrid} role="group" aria-labelledby="hr-quinella-title">
               <span className={styles.gridCorner} aria-hidden />
               {Array.from({ length: FIELD - 1 }, (_, j) => (
@@ -726,9 +726,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <KeysHint text={t.keysHint} className={styles.keysHint} testId="hr-keys" />
 
         <section className={styles.history} aria-labelledby="hr-history-title">
-          <h3 id="hr-history-title" className={styles.ticketsTitle}>
+          <h2 id="hr-history-title" className={styles.ticketsTitle}>
             {t.historyTitle}
-          </h3>
+          </h2>
           {history.length === 0 ? (
             <p className={styles.muted}>{t.historyEmpty}</p>
           ) : (

@@ -105,11 +105,11 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
         {shown && (
           <div className={styles.fullBoards} data-period={period} data-testid="rankings-boards" data-floor-read={boards !== null}>
             <section className={styles.panel} aria-label={t.wonBoard}>
-              <Board {...words} title={t.wonBoard} rows={shown.won} testId="rankings-won" holding={!boards} owner={ownerControls?.('won')} />
+              <Board {...words} title={t.wonBoard} rows={shown.won} testId="rankings-won" holding={!boards} level={2} owner={ownerControls?.('won')} />
               <p className={styles.note}>{t.wonNote}</p>
             </section>
             <section className={styles.panel} aria-label={t.bestBoard}>
-              <h3 className={styles.panelTitle}>{t.bestBoard}</h3>
+              <h2 className={styles.panelTitle}>{t.bestBoard}</h2>
               <p className={styles.note}>{t.bestNote}</p>
               <div className={styles.gameBoards}>
                 {FLOOR_GAMES.map((game) => (
@@ -120,6 +120,7 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
                     rows={shown.best[game] ?? []}
                     testId={`rankings-best-${game}`}
                     holding={!boards}
+                    level={3}
                     owner={ownerControls?.(`best:${game}`)}
                   />
                 ))}

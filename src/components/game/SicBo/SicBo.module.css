@@ -1465,3 +1465,28 @@
   min-width: 44px;
   min-height: 44px;
 }
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the lines a player reads most and the Odds tab's tables
+ * (「いちばん戻るエ｜リア」, 「合計9｜か12」, 「数を選｜ぶ）」, 「216通り｜中」 on a phone): where the browser can tell phrases
+ * apart, at them; elsewhere at the 、。： and spaces the words carry. A word longer than its line still breaks.
+ */
+.status,
+.statLabel,
+.statNote,
+.statList dt,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .status,
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

@@ -200,13 +200,15 @@ describe('the floor jackpot', () => {
     expect(inLanguage('ja', <FloorJackpotPanel standing="off" />)).toContain('フロアジャックポット');
   });
 
-  it('is over every machine, small, with the way to the medal center to join', () => {
+  it('is over every machine, small; until the medals are read, its line holds a guest’s line’s place, unseen', () => {
     const html = inLanguage('en', <FloorJackpotStrip game="slot-machine" />);
     expect(html).toContain('data-testid="floor-jackpot-strip"');
     expect(html).toContain('data-linked="true"');
     expect(html).toContain('data-size="small"');
-    expect(html).toContain('href="/games/medal-center"');
-    expect(inLanguage('ja', <FloorJackpotStrip game="slot-machine" />)).toContain(getFloorStrings('ja').jackpotJoinThere);
+    // Most visitors are guests: their line comes in where it was held, and nothing under the strip moves.
+    const held = (language: 'en' | 'ja') => new RegExp(`<p class="[^"]*unseen[^"]*" data-testid="jackpot-join" data-standing="unknown" aria-hidden="true">${getFloorStrings(language).jackpotGuest}</p>`);
+    expect(html).toMatch(held('en'));
+    expect(inLanguage('ja', <FloorJackpotStrip game="slot-machine" />)).toMatch(held('ja'));
   });
 
   it('says plainly over a table that is not linked to it that play there neither feeds it nor wins it', () => {

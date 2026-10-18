@@ -3,7 +3,9 @@
 import { useCallback, useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { NOTICE_KEY } from './medalTable';
 import { putNoticeAway, useNoticeShown } from './notice';
 import { PlayTab, type PlayTabProps } from './PlayTab';
 import { SimTab } from './SimTab';
@@ -55,17 +57,20 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
         </div>
 
         {noticeShown && (
-          <div className={styles.notice} role="note" data-testid="roulette-notice">
-            <p>
-              {t.notice}{' '}
-              <a className={styles.meterLink} href={MEDAL_CENTER_PATH}>
-                {t.noticeLink}
-              </a>
-            </p>
-            <button type="button" className={styles.btn} onClick={putNoticeAway} data-testid="roulette-notice-ok">
-              {t.noticeOk}
-            </button>
-          </div>
+          <>
+            <NoteGate name="roulette" storageKey={NOTICE_KEY} />
+            <div className={styles.notice} role="note" data-testid="roulette-notice" {...noteAttributes('roulette')}>
+              <p>
+                {t.notice}{' '}
+                <a className={styles.meterLink} href={MEDAL_CENTER_PATH}>
+                  {t.noticeLink}
+                </a>
+              </p>
+              <button type="button" className={styles.btn} onClick={putNoticeAway} data-testid="roulette-notice-ok">
+                {t.noticeOk}
+              </button>
+            </div>
+          </>
         )}
 
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}

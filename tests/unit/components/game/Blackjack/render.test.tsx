@@ -53,9 +53,14 @@ describe('PlayTab', () => {
     // That medals are not money, by the counter; and the way to the medal center.
     expect(markup).toContain(`data-testid="bj-not-money">${NOT_MONEY.en}<`);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}"`);
-    // Nothing of the chips the table had before.
-    expect(markup).not.toContain('1000');
-    expect(markup).not.toMatch(/bankroll|chip/i);
+    // The note that the table plays with medals now is in the server's drawing, with its gate, which hides it before
+    // the first paint where it has been told: the table never moves for it (MedalCenter/onceNote.tsx).
+    expect(markup).toMatch(/<script>[^<]*blackjack-medals-notice[^<]*<\/script><aside[^>]*data-testid="bj-notice"[^>]*data-once-note="blackjack"/);
+    // Nothing of the chips the table had before, but for the note that says they are retired.
+    const table = markup.replace(/<aside[^>]*data-testid="bj-notice"[\s\S]*?<\/aside>/, '');
+    expect(table).not.toContain('bj-notice');
+    expect(table).not.toContain('1000');
+    expect(table).not.toMatch(/bankroll|chip/i);
   });
 
   it('is localized', () => {

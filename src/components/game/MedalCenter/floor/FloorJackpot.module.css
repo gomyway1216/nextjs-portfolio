@@ -194,6 +194,10 @@
   font-size: 0.85rem;
   color: var(--jp-soft);
 }
+/* A line holding its place until the medals have been read. */
+.unseen {
+  visibility: hidden;
+}
 
 .odds {
   margin: 1rem 0 0;

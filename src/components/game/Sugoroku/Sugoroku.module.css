@@ -531,7 +531,12 @@
   color: #b9a78a;
 }
 .lamps[data-set='none'] .lamp {
-  opacity: 0.55;
+  opacity: 0.7;
+}
+/* A machine left standing runs its lamps round the dome, with its squares, until the next press. */
+.board[data-attract='true'] .lamps[data-set='none'] .lamp::after {
+  animation: sg-chase 1.8s linear infinite;
+  animation-delay: calc(var(--i) * 0.15s);
 }
 .lamps[data-stopped='true'] .lamp[data-lit='true']::after {
   animation: sg-blink 0.32s steps(2) 4;

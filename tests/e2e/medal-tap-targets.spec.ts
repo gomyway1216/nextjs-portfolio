@@ -15,7 +15,13 @@ import { arrived } from './streamedPage';
 // - the roulette and craps felts: a casino felt laid out at a table's proportions, its spots and the hit zones on the
 //   borders between them as the real table has them (both machines also take their bets from the keyboard, and each
 //   spot says what it is to a screen reader);
-// - the site's own header, which is not the floor's.
+// - the site's own header, which is not the floor's;
+// - blackjack's strategy chart (its Odds tab): 34 rows by 10 columns of cells, each a button that explains its cell. At
+//   44 px a side the chart would be twice a phone's width; each cell is 30 × 28 px, over WCAG 2.5.8's 24 px, and Tab
+//   reaches every one.
+//
+// The machines' first tabs are measured at both widths; every other tab (the odds, the simulations, the house edge) at
+// 375 px.
 
 const MIN = 44;
 /** A pixel short is layout rounding (fonts differ by fractions between systems), not a small control. */
@@ -28,7 +34,7 @@ async function smallTargets(page: Page): Promise<string[]> {
   return page.evaluate(
     async ({ min, slack }) => {
       const root = document.querySelector('main') ?? document.body;
-      const felt = '[data-testid="roulette-felt"], [data-testid="craps-table"]';
+      const felt = '[data-testid="roulette-felt"], [data-testid="craps-table"], table[data-chart]';
       const candidates = [...root.querySelectorAll<HTMLElement>('button, [role="tab"], select, summary, a[href], input:not([type="hidden"])')];
       const seen = new Set<HTMLElement>();
       const targets: HTMLElement[] = [];
@@ -96,4 +102,29 @@ for (const width of [375, 320] as const) {
       await context.close();
     });
   }
+}
+
+for (const game of FLOOR_GAMES) {
+  test(`/games/${game}'s other tabs at 375 px: every control is at least ${MIN} px to hit`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const context = await browser.newContext({ viewport: { width: 375, height: 740 }, isMobile: true, hasTouch: true });
+    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    const page = await context.newPage();
+    const floor = await holdFloor(page);
+    floor.release();
+    expect((await page.goto(`/games/${game}`))?.status()).toBe(200);
+    await arrived(page);
+    await expect(page.locator('[data-loaded="false"]')).toHaveCount(0, { timeout: 20_000 });
+    const tabs = page.locator('main [role="tablist"]').first().getByRole('tab');
+    await expect(tabs.nth(1), `${game} has a second tab`).toBeVisible();
+    const count = await tabs.count();
+    for (let i = 1; i < count; i++) {
+      const tab = tabs.nth(i);
+      const name = ((await tab.textContent()) ?? '').trim();
+      await tab.click();
+      await expect(tab).toHaveAttribute('aria-selected', 'true');
+      expect(await smallTargets(page), `/games/${game}, the ${name} tab, at 375 px`).toEqual([]);
+    }
+    await context.close();
+  });
 }

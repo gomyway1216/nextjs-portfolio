@@ -13,6 +13,7 @@ import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './VideoPoker.module.css';
 import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
+import floorTabs from '../MedalCenter/tabs.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -96,7 +97,7 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
         {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
         <FloorJackpotStrip />
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -105,7 +106,7 @@ export const VideoPoker = ({ player, bankStore = null, legacy = {} }: VideoPoker
               id={`vp-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`vp-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}

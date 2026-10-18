@@ -3,9 +3,11 @@ import { test, expect } from '@playwright/test';
 import { betOdds, exactOdds } from '../../src/components/game/Baccarat/analysis';
 import { RANKS, fullShoeCounts, type Rank } from '../../src/components/game/Baccarat/engine';
 import { medalsBack } from '../../src/components/game/Baccarat/medals';
+import { getStrings } from '../../src/components/game/Baccarat/i18n';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, cardsOf, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, replay, spot } from './baccaratPage';
 import { arrived } from './streamedPage';
+import { pressUntil } from './pressUntil';
 import { bankBalance } from './medalCenterPage';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 
@@ -300,4 +302,73 @@ test('on a desk the keys play the table as its buttons do: P, B and T bet, U tak
   await page.getByRole('tab', { name: 'Table' }).click();
   expect(await onTable(page)).toBe(0);
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(2);
+});
+
+test('on a phone the shoe line keeps its two lines through a shoe’s first deal and the call-out says any result on one line, so the table and its buttons do not move', async ({ browser }) => {
+  test.setTimeout(90_000);
+  for (const width of [320, 375]) {
+    for (const language of ['en', 'ja'] as const) {
+      const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+      const page = await context.newPage();
+      await openBaccarat(page, language);
+      if (await page.getByTestId('baccarat-notice-ok').isVisible()) await page.getByTestId('baccarat-notice-ok').click();
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      const shoe = page.getByTestId('shoe-info');
+      /** The shoe line's height, how many lines each of its rows takes, and whether any row's words run past its end. */
+      const shoeLine = () =>
+        shoe.evaluate((el) => ({
+          height: Math.round(el.getBoundingClientRect().height * 10) / 10,
+          // Lines, as the tops of the row's boxes that are more than half a line apart.
+          rows: [...el.children].map((row) => {
+            const range = document.createRange();
+            range.selectNodeContents(row);
+            const tops = [...range.getClientRects()].map((r) => r.top).sort((a, b) => a - b);
+            return tops.filter((top, i) => i === 0 || top - tops[i - 1] > 8).length;
+          }),
+          cut: [...el.children].filter((row) => row.scrollWidth > row.clientWidth).map((row) => row.textContent),
+        }));
+      /** Where the Player spot starts, on the page. */
+      const playerAt = () => page.locator('button[data-bet="player"]:visible').first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+      const before = await shoeLine();
+      expect(before.rows, `${width} ${language}`).toEqual([1, 1]);
+      expect(before.cut, `${width} ${language}`).toEqual([]);
+      const spotBefore = await playerAt();
+      const player = page.locator('button[data-bet="player"]:visible').first();
+      await pressUntil(player, async () => (await onTable(page)) > 0);
+      await page.getByRole('button', { name: language === 'en' ? 'DEAL' : 'ディール', exact: true }).click();
+      await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(1, { timeout: 10_000 });
+      await expect(shoe).toContainText(language === 'en' ? /Burn card .+ burned/ : /バーンカード .+捨て札/);
+      const after = await shoeLine();
+      expect(after.rows, `${width} ${language}`).toEqual([1, 1]);
+      expect(after.cut, `${width} ${language}`).toEqual([]);
+      expect(after.height, `${width} ${language}`).toBe(before.height);
+      expect(Math.abs((await playerAt()) - spotBefore), `${width} ${language}`).toBeLessThan(1);
+
+      // Whatever a hand ends in, the call-out says it on one line: every result there is, put in its place in turn.
+      const t = getStrings(language);
+      const said: string[] = [t.placeBets, t.dealing];
+      for (const natural of [false, true])
+        for (const winner of ['player', 'banker', 'tie'] as const) said.push(t.result(winner, 9, 8, natural));
+      said.push(`${t.result('banker', 6, 7, false)} · ${t.dragon7Hit}`, `${t.result('player', 7, 8, false)} · ${t.panda8Hit}`);
+      const wrapped = await page
+        .getByTestId('baccarat-callout')
+        .locator('span')
+        .first()
+        .evaluate((span, texts) => {
+          const kept = span.textContent;
+          const out: string[] = [];
+          for (const text of texts) {
+            span.textContent = text;
+            const range = document.createRange();
+            range.selectNodeContents(span);
+            const tops = [...range.getClientRects()].map((r) => r.top).sort((a, b) => a - b);
+            if (tops.filter((top, i) => i === 0 || top - tops[i - 1] > 8).length > 1) out.push(text);
+          }
+          span.textContent = kept;
+          return out;
+        }, said);
+      expect(wrapped, `${width} ${language}`).toEqual([]);
+      await context.close();
+    }
+  }
 });

@@ -1062,6 +1062,14 @@
   }
 }
 
+/* On the narrowest phones Undo, Clear and Rebet (「同じベット」) keep their words on one line under DEAL. */
+@media (max-width: 360px) {
+  .actions .btn {
+    white-space: nowrap;
+    font-size: 0.85rem;
+  }
+}
+
 /* ---------- Live odds ---------- */
 .live {
   margin-top: 1rem;
@@ -1404,4 +1412,52 @@
   .keysHint {
     display: none;
   }
+}
+
+/* The shoe line is two lines of a set height, before a shoe's first deal and after it, so the table under it does not
+   move: the shoe and the hand on the first, beside the sound switch, and the cards left and the burn card under them,
+   across the whole width (a little smaller on the narrowest phones, so that they fit). (After the rules they adjust.) */
+.tableTop {
+  display: block;
+  position: relative;
+}
+.tableTop > .soundToggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.shoeBar {
+  display: grid;
+  gap: 0.1rem;
+  line-height: 1.4;
+}
+.shoeRow {
+  display: flex;
+  align-items: center;
+  gap: 0 0.8rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.shoeRow > * {
+  font-size: inherit;
+}
+.shoeRow:first-child {
+  min-height: 36px;
+  padding-right: 7.5rem;
+}
+.shoeRow + .shoeRow {
+  /* A set height: a suit sign drawn from another font would otherwise make the line a little taller after the deal. */
+  height: 1.4em;
+  font-size: clamp(0.7rem, 3.7vw, 0.8rem);
+}
+
+/* The call-out is one line on every phone, in either language, so the table and its buttons do not move as a hand is
+   settled: its type scales down with a narrow screen (「ナチュラル — プレイヤーの勝ち（9対8）」 at 320 px) and is
+   unchanged from about 420 px up. */
+.callout {
+  font-size: clamp(0.8rem, 4.2vw, 1.1rem);
+}
+.calloutIdle {
+  font-size: clamp(0.78rem, 3.7vw, 0.95rem);
 }

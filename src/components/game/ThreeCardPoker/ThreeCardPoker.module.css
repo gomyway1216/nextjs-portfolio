@@ -1480,3 +1480,11 @@
     display: none;
   }
 }
+
+/* On the narrowest phones Undo, Clear and Rebet (「同じベット」) keep their words on one line under DEAL. */
+@media (max-width: 360px) {
+  .actions .btn {
+    white-space: nowrap;
+    font-size: 0.85rem;
+  }
+}

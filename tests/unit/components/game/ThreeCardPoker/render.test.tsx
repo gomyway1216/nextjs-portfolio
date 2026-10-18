@@ -17,6 +17,9 @@ import { createI18nInstance } from '@/lib/i18n';
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
 
+/** The words of the keys line the markup shows, its parts' tags taken out. */
+const keysLine = (markup: string, testId: string) => markup.match(new RegExp(`data-testid="${testId}">(.*?)</p>`))?.[1].replace(/<[^>]+>/g, '');
+
 describe('cards', () => {
   it('labels a face-up card by rank and suit, writing tens as 10', () => {
     const markup = renderToStaticMarkup(<PlayingCard card={{ rank: 'T', suit: '♥' }} />);
@@ -90,10 +93,8 @@ describe('PlayTab', () => {
   });
 
   it('names its keys for a desk, in both languages', () => {
-    expect(render(<PlayTab />)).toContain('data-testid="tcp-keys">Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo<');
-    expect(render(<PlayTab />, 'ja')).toContain(
-      'data-testid="tcp-keys">キー：Space か Enter でディール・A でアンティ・P でプレイ・F でフォールド・R で同じベット・U で取り消し<',
-    );
+    expect(keysLine(render(<PlayTab />), 'tcp-keys')).toBe('Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo');
+    expect(keysLine(render(<PlayTab />, 'ja'), 'tcp-keys')).toBe('キー：Space か Enter でディール・A でアンティ・P でプレイ・F でフォールド・R で同じベット・U で取り消し');
   });
 
   it('paces the deal and the reveal, and drops every delay for reduced motion', () => {

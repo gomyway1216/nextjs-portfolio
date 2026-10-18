@@ -6,6 +6,7 @@ import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint } from '../MedalCenter/KeysHint';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
@@ -967,9 +968,7 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
               {t.rebet}
             </button>
           </div>
-          <p className={styles.keysHint} data-testid="tcp-keys">
-            {t.keysHint}
-          </p>
+          <KeysHint text={t.keysHint} className={styles.keysHint} testId="tcp-keys" />
         </div>
 
         <div className={`${styles.part} ${styles.morePart}`}>

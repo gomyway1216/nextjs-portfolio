@@ -204,7 +204,7 @@ test('starts over after the reset at the Medal Game Center: the medals are a new
   await openBaccarat(page);
   await expect.poll(() => medalsShown(page)).toBe(WELCOME);
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(0);
-  await expect(page.getByTestId('shoe-info')).toHaveText('A fresh eight-deck shoe is shuffled on the first deal.');
+  await expect(page.getByTestId('shoe-info')).toHaveText('New shoeEight decks, shuffled on the first deal');
   await expect(page.getByTestId('baccarat-message')).toHaveText('Your medals were reset at the Medal Game Center, so this table starts over with a new shoe.');
   // Written down as started over on this device, once.
   await expect.poll(async () => {
@@ -236,7 +236,7 @@ test('opens with old or damaged saved state without an error, and pays nothing f
   await page.waitForTimeout(1_000);
   expect(await medalsShown(page)).toBe(WELCOME);
   expect(await bankBalance(page)).toBe(WELCOME);
-  await expect(page.getByTestId('shoe-info')).toHaveText('A fresh eight-deck shoe is shuffled on the first deal.');
+  await expect(page.getByTestId('shoe-info')).toHaveText('New shoeEight decks, shuffled on the first deal');
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -71,6 +71,8 @@ export interface BaccaratStrings {
   cardsLeft: (n: number) => string;
   burnInfo: (card: string, burned: number) => string;
   cutCardOut: string;
+  /** The shoe line before a shoe's first deal: its first line, and its second. */
+  shoeNew: string;
   shoeWaiting: string;
   beadPlate: string;
   bigRoad: string;
@@ -241,7 +243,8 @@ const en: BaccaratStrings = {
   cardsLeft: (n) => `${n} cards left`,
   burnInfo: (card, burned) => `Burn card ${card} → ${burned} burned`,
   cutCardOut: 'The cut card is out — that was the last hand of this shoe. The next deal shuffles a new one.',
-  shoeWaiting: 'A fresh eight-deck shoe is shuffled on the first deal.',
+  shoeNew: 'New shoe',
+  shoeWaiting: 'Eight decks, shuffled on the first deal',
   beadPlate: 'Bead plate',
   bigRoad: 'Big road',
   roadLetter: { banker: 'B', player: 'P', tie: 'T' },
@@ -445,7 +448,8 @@ const ja: BaccaratStrings = {
   cardsLeft: (n) => `残り${n}枚`,
   burnInfo: (card, burned) => `バーンカード ${card} → ${burned}枚を捨て札`,
   cutCardOut: 'カットカードが出ました。この回でシューは終わりで、次のディールで新しいシューをシャッフルします。',
-  shoeWaiting: '最初のディールで8デッキのシューをシャッフルします。',
+  shoeNew: '新しいシュー',
+  shoeWaiting: '8デッキ、最初のディールでシャッフル',
   beadPlate: 'ビーズプレート',
   bigRoad: '大路（ビッグロード）',
   roadLetter: { banker: 'B', player: 'P', tie: 'T' },

@@ -91,8 +91,11 @@ export interface MyPageStrings {
   showMore: (count: number) => string;
   shownOf: (shown: number, all: number) => string;
   olderTitle: string;
-  olderLead: string;
+  /** The days kept by their totals: the latest `days` with anything in them. */
+  olderLead: (days: number) => string;
   dayLine: (bet: string, won: string, free: string, rounds: string) => string;
+  /** Under the oldest day the list reaches, once it may have lost its earlier things: what the day's totals (`dayLine`) after it are. */
+  dayCut: string;
   dayLeft: (count: string) => string;
 }
 
@@ -176,8 +179,9 @@ const en: MyPageStrings = {
   showMore: (count) => `Show ${count} more`,
   shownOf: (shown, all) => `Showing ${shown} of ${all}.`,
   olderTitle: 'EARLIER DAYS',
-  olderLead: 'Each day’s totals, for the days the list above no longer reaches.',
-  dayLine: (bet, won, free, rounds) => `Bet ${bet} · won ${won} · given ${free} · ${rounds} rounds`,
+  olderLead: (days) => `Each day’s totals, for the days the list above no longer reaches. The latest ${days} days with anything in them are kept.`,
+  dayLine: (bet, won, free, rounds) => `Bet ${bet} · won ${won} · given ${free} · ${rounds} ${rounds === '1' ? 'round' : 'rounds'}`,
+  dayCut: 'The whole day, with what the list no longer holds:',
   dayLeft: (count) => `${count} medals at the end of the day`,
 };
 
@@ -261,8 +265,9 @@ const ja: MyPageStrings = {
   showMore: (count) => `さらに${count}件を表示`,
   shownOf: (shown, all) => `${all}件のうち${shown}件を表示しています。`,
   olderTitle: 'それより前の日',
-  olderLead: '上の一覧に入りきらない日の、1日ごとの合計です。',
+  olderLead: (days) => `上の一覧に入りきらない日の、1日ごとの合計です。記録のある日のうち、新しい${days}日分まで残ります。`,
   dayLine: (bet, won, free, rounds) => `ベット${bet}枚・獲得${won}枚・無料${free}枚・${rounds}回`,
+  dayCut: 'この日の合計（一覧にない分も含む）：',
   dayLeft: (count) => `その日の終わりの持ちメダル ${count}枚`,
 };
 

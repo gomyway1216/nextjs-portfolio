@@ -133,6 +133,32 @@ describe('the medal center’s my page, for a player', () => {
     expect(html).toContain('Show 5 more');
   });
 
+  it('says the whole of the oldest day it lists once earlier things have been let go, and how many days it keeps', () => {
+    // Three days of play: a round on the first, the bonus and three rounds on the second, two rounds on the third.
+    const at = (date: number, minute: number) => new Date(2026, 9, date, 20, minute).getTime();
+    const steps: Observation[] = [
+      { type: 'move', game: 'roulette', round: 'a1', step: 'pay', medals: 5, at: at(15, 0), day: '2026-10-15', left: 105 },
+      { type: 'bonus', medals: 40, at: at(16, 0), day: '2026-10-16', left: 145 },
+      ...[1, 2, 3].map((n): Observation => ({ type: 'move', game: 'roulette', round: `b${n}`, step: 'pay', medals: 2, at: at(16, n), day: '2026-10-16', left: 145 + 2 * n })),
+      ...[1, 2].map((n): Observation => ({ type: 'move', game: 'roulette', round: `c${n}`, step: 'pay', medals: 1, at: at(17, n), day: '2026-10-17', left: 151 + n })),
+    ];
+    const whole = steps.reduce(record, createHistory('phone00001', at(15, 0) - 60_000));
+    // The oldest entries let go, as a history does past what it keeps: all of the first day, and the bonus and the first round of the second.
+    const kept: History = { ...whole, entries: whole.entries.slice(0, 4) };
+    const html = view('en', null, kept);
+    expect(html.match(/data-testid="mypage-entry"/g)).toHaveLength(4);
+    // Under the second day, which lists two of its four things: all four, added up.
+    const cut = html.match(/data-testid="mypage-day-cut">([\s\S]*?)<\/p>/);
+    expect(textOf(cut?.[1] ?? '').trim()).toBe('The whole day, with what the list no longer holds: Bet 0 · won 6 · given 40 · 3 rounds');
+    // The first day, which it lists nothing of, by its totals; and how long those are kept.
+    const older = html.match(/data-testid="mypage-older"[\s\S]*$/)?.[0] ?? '';
+    expect(textOf(older)).toContain('Bet 0 · won 5 · given 0 · 1 round ');
+    expect(textOf(html)).toContain('The latest 90 days with anything in them are kept.');
+    expect(textOf(view('ja', null, kept)).replace(/ /g, '')).toContain('この日の合計（一覧にない分も含む）：ベット0枚・獲得6枚・無料40枚・3回');
+    // A history that has let nothing go says nothing of the kind.
+    expect(view('en', null, whole)).not.toContain('mypage-day-cut');
+  });
+
   it('reads in Japanese, in the words of a medal counter, and nothing on it reads as money', () => {
     const ja = view('ja');
     expect(ja).toContain('マイページ');

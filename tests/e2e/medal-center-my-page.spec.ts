@@ -298,3 +298,59 @@ test('a floor jackpot is an entry of its own, with records apart from the machin
   await openMyPage(page, 'ja');
   await expect(entries(page).and(page.locator('[data-kind="floor"]'))).toContainText('フロアジャックポット +2,431枚');
 });
+
+test('a player who came back every evening for a month: the oldest day the list reaches says its whole, the days before it their totals', async ({ browser }) => {
+  test.setTimeout(60_000);
+  // A month of evenings in Japan, each the daily bonus and twelve rounds of janken: 390 things, more than the 300 the
+  // history keeps, so the list reaches back only part of the way into its oldest day.
+  const JST = 9 * 3_600_000;
+  const DAY = 86_400_000;
+  const today = Math.floor((Date.now() + JST) / DAY) * DAY - JST;
+  const dayOf = (t: number) => new Date(t + JST).toISOString().slice(0, 10) as Observation['day'];
+  let history = createHistory('testdevice01', today - 30 * DAY);
+  let left = 100;
+  for (let d = 30; d >= 1; d--) {
+    const evening = today - d * DAY + 20 * 3_600_000;
+    left += 30;
+    history = record(history, { type: 'bonus', medals: 30, at: evening, day: dayOf(evening), left });
+    for (let r = 0; r < 12; r++) {
+      const at = evening + (r + 1) * 60_000;
+      left += r < 3 ? 5 : -5;
+      history = record(history, { type: 'round', game: 'janken', round: `d${d}r${r}`, bet: 5, won: r < 3 ? 10 : 0, at, day: dayOf(at), left });
+    }
+  }
+  expect(history.entries).toHaveLength(300);
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, timezoneId: 'Asia/Tokyo' });
+  await quietFloor(context);
+  const page = await context.newPage();
+  await page.addInitScript(
+    ([bankKey, bank, historyKey, text]) => {
+      if (window.localStorage.getItem(historyKey) === null) {
+        window.localStorage.setItem(bankKey, bank);
+        window.localStorage.setItem(historyKey, text);
+      }
+    },
+    [BANK_KEY, serializeLedger(give(createLedger('testdevice01'), left - WELCOME)), HISTORY_KEY, serializeHistory(history)] as const,
+  );
+  await openMyPage(page, 'ja');
+  await expect(page.getByTestId('mypage-history')).toHaveAttribute('data-entries', '300');
+  // Every page of the list.
+  const more = page.getByTestId('mypage-more');
+  for (let shown = 40; shown < 300; shown += 40) {
+    await more.click();
+    await expect(entries(page)).toHaveCount(Math.min(300, shown + 40));
+  }
+  await expect(more).toHaveCount(0);
+  // 300 is 23 whole evenings of 13 and the last round of the evening before: that day lists one of its thirteen
+  // things, and under it says all of them.
+  const cut = page.getByTestId('mypage-day-cut');
+  await expect(cut).toHaveCount(1);
+  await expect(cut).toHaveText('この日の合計（一覧にない分も含む）： ベット60枚・獲得30枚・無料30枚・12回');
+  await expect(cut.locator('xpath=..').getByTestId('mypage-entry')).toHaveCount(1);
+  // The six evenings before it, by their totals, and how many days those are kept for.
+  const older = page.getByTestId('mypage-older');
+  await expect(older.locator('li')).toHaveCount(6);
+  await expect(older).toContainText('新しい90日分まで残ります');
+  expect(await sideways(page)).toBeLessThanOrEqual(375);
+  await context.close();
+});

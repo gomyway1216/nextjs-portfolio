@@ -1540,3 +1540,37 @@
     display: none;
   }
 }
+
+/* The call-out is one line on every phone, in either language, so nothing under it moves as it changes: the question
+   while insurance is offered is short, and the longest result (a dealer blackjack, a bust with a big win) scales down
+   with a narrow screen instead of wrapping. (After the rules they adjust, which they would otherwise lose to.) */
+.callout {
+  font-size: clamp(0.85rem, 4.3vw, 1.05rem);
+}
+.calloutIdle {
+  font-size: clamp(0.8rem, 3.9vw, 0.95rem);
+}
+
+/* The shoe line keeps the same room before a shoe's first deal (a sentence that takes two lines on a narrow phone) and
+   after it (one line): two lines of a set height, beside the sound switch, so the table under it does not move. */
+.shoeBar {
+  align-items: center;
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+
+/* The insurance answers side by side, the same width, as a machine's YES and NO. */
+.insuranceChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+/* On the narrowest phones the bet buttons' words fit inside them (「MAXベット」 ran over its edge at 320 px). */
+@media (max-width: 360px) {
+  .betButtons .btn {
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+    font-size: 0.82rem;
+  }
+}

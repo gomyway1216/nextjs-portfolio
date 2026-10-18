@@ -346,7 +346,7 @@ test('on a phone the shoe line keeps its two lines through a shoe’s first deal
 
       // Whatever a hand ends in, the call-out says it on one line: every result there is, put in its place in turn.
       const t = getStrings(language);
-      const said: string[] = [t.placeBets, t.dealing];
+      const said: string[] = [t.placeBets, t.dealing, t.squeezing];
       for (const natural of [false, true])
         for (const winner of ['player', 'banker', 'tie'] as const) said.push(t.result(winner, 9, 8, natural));
       said.push(`${t.result('banker', 6, 7, false)} · ${t.dragon7Hit}`, `${t.result('player', 7, 8, false)} · ${t.panda8Hit}`);

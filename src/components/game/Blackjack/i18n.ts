@@ -64,9 +64,15 @@ export interface BlackjackStrings {
   blackjack: string;
   bust: string;
   outcome: Record<HandOutcome, string>;
-  insuranceQuestion: (cost: string) => string;
+  /** The call-out while insurance is offered: one line on the narrowest phone. */
+  insuranceAsked: string;
+  /** What insurance costs, over its two buttons. */
+  insuranceFor: (cost: string) => string;
+  /** The two answers, short enough to sit side by side on the narrowest phone, and what each says to a screen reader. */
   insuranceYes: string;
+  insuranceYesAria: string;
   insuranceNo: string;
+  insuranceNoAria: string;
   insuranceAdvice: string;
   noMedals: string;
   placeBet: string;
@@ -221,9 +227,12 @@ const en: BlackjackStrings = {
   blackjack: 'Blackjack',
   bust: 'Bust',
   outcome: { blackjack: 'Blackjack 3:2', win: 'Win', push: 'Push', lose: 'Lose', bust: 'Bust' },
-  insuranceQuestion: (cost) => `The dealer shows an ace. Insurance for ${cost}?`,
-  insuranceYes: 'Take insurance',
-  insuranceNo: 'No insurance',
+  insuranceAsked: 'The dealer shows an ace.',
+  insuranceFor: (cost) => `Insurance for ${cost}?`,
+  insuranceYes: 'Yes',
+  insuranceYesAria: 'Yes, take insurance',
+  insuranceNo: 'No',
+  insuranceNoAria: 'No insurance',
   insuranceAdvice: 'Basic strategy: never. It pays 2:1 but only wins 4 times in 13 — a 7.7% house edge.',
   noMedals: 'Not enough medals for that.',
   placeBet: 'Place a bet and deal.',
@@ -405,9 +414,12 @@ const ja: BlackjackStrings = {
   blackjack: 'ブラックジャック',
   bust: 'バスト',
   outcome: { blackjack: 'ブラックジャック 3:2', win: '勝ち', push: '引き分け', lose: '負け', bust: 'バスト' },
-  insuranceQuestion: (cost) => `ディーラーのアップカードはA。${cost}でインシュランスを掛けますか？`,
-  insuranceYes: 'インシュランスを掛ける',
+  insuranceAsked: 'ディーラーのアップカードはA。',
+  insuranceFor: (cost) => `インシュランスは${cost}です。`,
+  insuranceYes: '掛ける',
+  insuranceYesAria: 'インシュランスを掛ける',
   insuranceNo: '掛けない',
+  insuranceNoAria: '掛けない',
   insuranceAdvice: 'ベーシックストラテジーでは掛けません。配当は2:1ですが勝つのは13回に4回、ハウスエッジは7.7%です。',
   noMedals: 'メダルが足りません。',
   placeBet: 'ベットしてディールしてください。',

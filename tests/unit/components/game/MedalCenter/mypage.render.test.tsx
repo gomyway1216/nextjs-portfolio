@@ -101,6 +101,21 @@ describe('the medal center’s my page, for a player', () => {
     expect(html.match(/<a[^>]*data-testid="mypage-book-open"[^>]*>/)?.[0]).toContain(`href="${MEDAL_PUSHER_PATH}"`);
   });
 
+  it('draws a guest’s counter until the medals have been read, unless a member is expected, so that it does not move as they come in', () => {
+    const t = getMyPageStrings('en');
+    const waiting = (presumedMember: boolean) =>
+      // Without React's markers between the pieces of text.
+      wrap(<MyPageView bank={BANK_WAITING} history={HISTORY_WAITING} book={BOOK_WAITING} signInHref="/signin" presumedMember={presumedMember} />).replace(/<!-- -->/g, '');
+    const guest = waiting(false);
+    expect(guest).toMatch(new RegExp(`data-testid="mypage-member" data-owner="guest">${t.memberGuest}<`));
+    expect(guest).toContain(`${t.whose.guest} ${t.where.device}`);
+    expect(guest).toContain('data-testid="mypage-sign-in"');
+    const member = waiting(true);
+    expect(member).toMatch(new RegExp(`data-testid="mypage-member" data-owner="guest">${t.memberChecking}<`));
+    expect(member).toContain(`${t.whose.account} ${t.where.checking}`);
+    expect(member).not.toContain('data-testid="mypage-sign-in"');
+  });
+
   it('invites a guest to sign in, and tells a member their account keeps it', () => {
     expect(view()).toContain('data-testid="mypage-sign-in"');
     const member = view('en', 'test-player-1');

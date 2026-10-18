@@ -63,6 +63,11 @@ export const MedalStack = ({ count }: { count: number }) => (
 export interface MedalCenterProps {
   /** Where a guest goes to sign in, so that the bank is kept on an account. */
   signInHref?: string;
+  /**
+   * Whether the site expects a member, before it knows who is playing (AuthProvider's `presumedSignedIn`). Until the
+   * medals have been read, everyone else is shown the counter a guest will see, so it does not move when they are.
+   */
+  presumedMember?: boolean;
   /** The floor played together, by the door (floor/FloorTogether.tsx): the floor jackpot and the latest big wins, over the machines. */
   now?: ReactNode;
   /** The floor played together, further in: its rankings and the player's place on the floor, under the machines. */
@@ -76,7 +81,7 @@ export interface MedalCenterProps {
  * then the floor of machines that play from the bank, corner by corner; then
  * the rankings, how the medals work, and the one reset.
  */
-export const MedalCenter = ({ signInHref, now, together }: MedalCenterProps) => {
+export const MedalCenter = ({ signInHref, presumedMember = false, now, together }: MedalCenterProps) => {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getCenterStrings(language);
@@ -140,7 +145,10 @@ export const MedalCenter = ({ signInHref, now, together }: MedalCenterProps) => 
   };
 
   const account = state.owner !== null;
-  const member = !state.loaded ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
+  // Until the medals have been read: a guest's counter, unless a member is expected (most visitors are guests, and
+  // their counter then stays as it is when the medals come in).
+  const guest = state.loaded ? !account : !presumedMember;
+  const member = !state.loaded && presumedMember ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
 
   return (
     <div className={styles.root}>
@@ -195,8 +203,8 @@ export const MedalCenter = ({ signInHref, now, together }: MedalCenterProps) => 
                 </p>
               )}
               <p className={styles.where} data-testid="center-where" data-where={state.where} data-kept={state.kept}>
-                {state.kept ? t.where[state.where] : t.notKept}
-                {state.loaded && !account && state.kept && signInHref && (
+                {state.kept ? t.where[!state.loaded && presumedMember ? 'checking' : state.where] : t.notKept}
+                {guest && state.kept && signInHref && (
                   <>
                     {' '}
                     <a className={styles.link} href={signInHref} data-testid="center-sign-in">

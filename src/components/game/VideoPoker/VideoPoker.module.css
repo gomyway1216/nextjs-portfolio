@@ -954,11 +954,17 @@
   white-space: nowrap;
 }
 .select {
-  background: #0b0b0f;
+  /* Drawn by the page, not the system: Safari draws a system menu at its own height (23 px on a phone), whatever
+     min-height says, so the arrow is the page's too. */
+  -webkit-appearance: none;
+  appearance: none;
+  background: #0b0b0f
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.5 6 6l4.5-4.5' fill='none' stroke='%23f8fafc' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 0.6rem center / 0.7rem auto;
   color: #f8fafc;
   border: 1px solid #3f3f46;
   border-radius: 8px;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 1.9rem 0.35rem 0.6rem;
   font-size: 0.85rem;
 }
 .select:disabled {

@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { colorOf } from '../../src/components/game/Roulette/engine';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 /** The roulette table: opened, arrived, and the player's medals found. */
@@ -19,10 +20,7 @@ export const spinButton = (page: Page) => page.getByRole('button', { name: 'SPIN
 
 /** Taps a bet until hydration has attached the handlers and the table holds the medals (SPIN becomes enabled). */
 export async function placeFirstBet(page: Page, betLabel: RegExp): Promise<void> {
-  await expect(async () => {
-    await page.getByRole('button', { name: betLabel }).click();
-    await expect(spinButton(page)).toBeEnabled({ timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(page.getByRole('button', { name: betLabel }), () => spinButton(page).isEnabled());
 }
 
 /** The medals on the table's counter that are not on the felt. */

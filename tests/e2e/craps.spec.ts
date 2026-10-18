@@ -5,6 +5,7 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { TABLE_KEY, parseTable, unreadKey } from '../../src/components/game/Craps/medalTable';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // Random rolls are read back from the table and checked against the engine;
@@ -26,12 +27,9 @@ const medalsShown = (page: Page) => page.getByTestId('craps-medals');
 const onTable = (page: Page) => page.getByTestId('craps-on-table');
 const betSpot = (page: Page, name: RegExp) => play(page).getByRole('button', { name });
 
-/** Clicks the Pass Line until hydration has attached handlers and the table holds the player's medals. */
+/** Clicks the Pass Line until hydration has attached handlers and the table holds the player's medals: one bet, never two. */
 async function firstBet(page: Page) {
-  await expect(async () => {
-    await betSpot(page, /^Pass Line \(1:1\)/).click({ timeout: 1_000 });
-    await expect(onTable(page)).not.toHaveText('0', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(betSpot(page, /^Pass Line \(1:1\)/), async () => (await onTable(page).textContent()) !== '0');
 }
 
 /** The table, which says when a throw is in the air and which throw last came to rest. */

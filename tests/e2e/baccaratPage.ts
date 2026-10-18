@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { playRound, type Card, type Rank, type Suit } from '../../src/components/game/Baccarat/engine';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // The baccarat table, as the specs drive it. Hands are random: a spec reads the dealt cards off the table, replays
@@ -34,10 +35,7 @@ export async function betStep(page: Page, medals: number): Promise<void> {
 
 /** Presses a spot until the table holds the player's card and takes the bet (hydration, and the card, come a moment after the page). */
 export async function firstBet(page: Page, name: RegExp): Promise<void> {
-  await expect(async () => {
-    await spot(page, name).click({ timeout: 1_000 });
-    expect(await onTable(page)).toBeGreaterThan(0);
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(spot(page, name), async () => (await onTable(page)) > 0);
 }
 
 export async function dealAndSettle(page: Page): Promise<void> {

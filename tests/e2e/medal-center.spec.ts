@@ -8,6 +8,7 @@ import { START_CREDITS, createSession } from '../../src/components/game/MedalPus
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { pressUntil } from './pressUntil';
 
 // The medal center's front and its one medal bank, which the Medal Pusher plays from. The machine itself is covered in
 // medal-pusher.spec.ts; these check the medals: where they are, that every machine and page sees the same ones, and
@@ -37,10 +38,7 @@ async function shownAtCenter(page: Page): Promise<number> {
 /** Feeds one medal into the left rail, retrying until hydration has attached the handlers and the card is here. */
 async function feedOne(page: Page) {
   const before = await counter(page, 'played');
-  await expect(async () => {
-    await machine(page).getByTestId('pusher-feed-left').click({ timeout: 1_000 });
-    expect(await counter(page, 'played')).toBeGreaterThan(before);
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(machine(page).getByTestId('pusher-feed-left'), async () => (await counter(page, 'played')) > before);
 }
 
 /** A Medal Pusher saved before there was a bank, with its own purse, put in this browser before the page opens. */

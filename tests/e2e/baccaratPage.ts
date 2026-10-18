@@ -1,13 +1,17 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { playRound, type Card, type Rank, type Suit } from '../../src/components/game/Baccarat/engine';
+import { bankWritten } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // The baccarat table, as the specs drive it. Hands are random: a spec reads the dealt cards off the table, replays
 // them through the engine's drawing rules and checks the table, and the player's medals, against that.
 
-/** Opens the table, waits for the page to have streamed in, and for the player's medals to be on the counter. */
+/**
+ * Opens the table, waits for the page to have streamed in, for the player's medals to be on the counter, and for them
+ * to be written down in this browser (bankWritten).
+ */
 export async function openBaccarat(page: Page, language: 'en' | 'ja' = 'en'): Promise<void> {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/baccarat');
@@ -16,6 +20,7 @@ export async function openBaccarat(page: Page, language: 'en' | 'ja' = 'en'): Pr
   await arrived(page);
   await expect(page.getByTestId('baccarat-callout')).toBeVisible();
   await expect(page.getByTestId('baccarat-counter')).toHaveAttribute('data-loaded', 'true');
+  await bankWritten(page);
 }
 
 const medalsIn = async (locator: Locator): Promise<number> => Number(await locator.getAttribute('data-medals'));

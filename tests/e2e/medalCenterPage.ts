@@ -4,13 +4,23 @@ import { BANK_KEY, ledgerKey } from '../../src/components/game/MedalCenter/bank'
 import { balanceOf, parseLedger, type Ledger } from '../../src/components/game/MedalCenter/ledger';
 import { arrived } from './streamedPage';
 
-/** The medal center's front: opened, arrived, and its bank read. */
+/** The medal center's front: opened, arrived, and its bank read and written down. */
 export async function openCenter(page: Page, language: 'en' | 'ja' = 'en'): Promise<void> {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/medal-center');
   expect(response?.status()).toBe(200);
   await arrived(page);
   await expect(page.getByTestId('center-counter')).toHaveAttribute('data-loaded', 'true');
+  await bankWritten(page);
+}
+
+/**
+ * Waits until this browser's storage has the guest's bank. A page shows the medals as soon as it has read them, and a
+ * new member's are written down when the page is first given the card, a moment later (in WebKit under load, after a
+ * spec had already looked and found none).
+ */
+export async function bankWritten(page: Page): Promise<void> {
+  await expect.poll(async () => (await storedBank(page)) !== null).toBe(true);
 }
 
 /** The medal bank this browser keeps for a guest, read the way the bank reads it, or null when it keeps none. */

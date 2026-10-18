@@ -43,6 +43,9 @@ export interface BaccaratStrings {
   betButtonAria: (medals: number) => string;
   deal: string;
   dealing: string;
+  /** The call-out while the last card is squeezed, and the button over it that turns it at once. */
+  squeezing: string;
+  squeezeTurn: string;
   undo: string;
   clear: string;
   rebet: string;
@@ -212,6 +215,8 @@ const en: BaccaratStrings = {
   betButtonAria: (n) => `Bet ${n} ${n === 1 ? 'medal' : 'medals'} a press`,
   deal: 'DEAL',
   dealing: 'Dealing…',
+  squeezing: 'Squeezing… tap to turn it',
+  squeezeTurn: 'Turn the last card over',
   undo: 'Undo',
   clear: 'Clear',
   rebet: 'Rebet',
@@ -417,6 +422,8 @@ const ja: BaccaratStrings = {
   betButtonAria: (n) => `1回${n}枚ベット`,
   deal: 'ディール',
   dealing: 'ディール中…',
+  squeezing: '絞り中… タップでめくる',
+  squeezeTurn: '最後のカードをめくる',
   undo: '取り消し',
   clear: 'クリア',
   rebet: '同じベット',

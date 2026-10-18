@@ -246,6 +246,33 @@ describe('a reload while the wheel turns', () => {
   });
 });
 
+describe('a page looking at the medals while SPIN stakes', () => {
+  // The bank tells the page of every move it makes as it makes it, SPIN's own stake among them, and the page then looks
+  // for a spin left unfinished to finish. While SPIN is staking, the spin on record is that press's own: the page is
+  // told of none, and nothing is settled under it. (Before, it was handed the spin being staked; the page began it as
+  // one resumed and SPIN began it again in the same press, which React drew as one. Nothing a player saw changed.)
+  it('is told of no spin left unfinished while SPIN stakes, and the spin’s medals stay out', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const machine = machineOn(page);
+    await quiet(browser);
+    const seen: (string | null)[] = [];
+    const out: (readonly string[])[] = [];
+    page.bank.subscribe(() => {
+      seen.push(machine.table.leftover()?.id ?? null);
+      out.push(page.bank.getState().out);
+    });
+    const staked = machine.spin([TEN], HIT_TEN)!;
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).toEqual(seen.map(() => null));
+    expect(out[out.length - 1]).toEqual([BIG_WHEEL_GAME]);
+    // Once SPIN is done, a spin on record still to be finished is one to finish, as for a page opened after a reload.
+    expect(machine.table.leftover()?.id).toBe(staked.record.id);
+    expect(machine.stop()).toBe('paid');
+    expect(stored(browser)).toBe(WELCOME - TEN.amount + TEN_WINS);
+  });
+});
+
 describe('the medals out on a spin', () => {
   it('are out from SPIN until the wheel stops, a losing spin included, and stay out over a page killed while it turns', async () => {
     const browser = new FakeBrowser();

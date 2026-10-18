@@ -166,6 +166,49 @@ for (const [game, counter, top, buttons] of [
   });
 }
 
+// The note left the cabinet's dark glass for the page's own panel: in the light theme it is dark type on a light
+// note, not the pale lavender it had on the cabinet. Measured on the note's own colours, at a desk and on a phone.
+for (const [game, note] of [
+  ['blackjack', 'bj-not-money'],
+  ['baccarat', 'baccarat-not-money'],
+  ['three-card-poker', 'tcp-not-money'],
+] as const) {
+  test(`${game}: the note that medals are not money reads on the light page`, async ({ browser }) => {
+    for (const [width, height, phone] of [
+      [1280, 900, false],
+      [375, 812, true],
+    ] as const) {
+      const context = await browser.newContext({ viewport: { width, height }, isMobile: phone, hasTouch: phone, colorScheme: 'light' });
+      await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+      const page = await context.newPage();
+      const floor = await holdFloor(page);
+      floor.release();
+      await page.goto(`/games/${game}`);
+      await arrived(page);
+      const ratio = await page.getByTestId(note).evaluate((el) => {
+        const rgb = (c: string) => (c.match(/[\d.]+/g) ?? []).slice(0, 4).map(Number);
+        const lum = ([r, g, b]: number[]) => {
+          const [R, G, B] = [r, g, b].map((v) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4));
+          return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+        };
+        // The first opaque background from the note outwards.
+        let back = [255, 255, 255];
+        for (let at: Element | null = el; at; at = at.parentElement) {
+          const c = rgb(getComputedStyle(at).backgroundColor);
+          if (c.length === 3 || (c.length === 4 && c[3] === 1)) {
+            back = c.slice(0, 3);
+            break;
+          }
+        }
+        const [a, b] = [lum(rgb(getComputedStyle(el).color)), lum(back)];
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      });
+      expect(ratio, `${width}×${height}`).toBeGreaterThanOrEqual(4.5);
+      await context.close();
+    }
+  });
+}
+
 test('My Page: each machine not played yet says its name, then its arrow, apart', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
   await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint } from '../MedalCenter/KeysHint';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
@@ -785,9 +786,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
           </button>
         )}
         {outOfMedals && !refillDue && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="vp-out" />}
-        <p className={styles.keysHint} data-testid="vp-keys">
-          {t.keysHint}
-        </p>
+        <KeysHint text={t.keysHint} className={styles.keysHint} testId="vp-keys" />
 
         <div className={styles.settingsRow}>
           <label htmlFor="vp-paytable-select">{t.payTableLabel}</label>

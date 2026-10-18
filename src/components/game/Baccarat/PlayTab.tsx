@@ -7,6 +7,7 @@ import { REFILL } from '../MedalCenter/ledger';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint } from '../MedalCenter/KeysHint';
 import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
 import {
   BET_IDS,
@@ -910,9 +911,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
                 {t.rebet}
               </button>
             </div>
-            <p className={styles.keysHint} data-testid="baccarat-keys">
-              {t.keysHint}
-            </p>
+            <KeysHint text={t.keysHint} className={styles.keysHint} testId="baccarat-keys" />
 
           </div>
 

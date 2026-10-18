@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY, ledgerKey, type Seat } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import type { Player } from '@/components/game/MedalPusher/account';
 import { ROULETTE_RESULTS_STORAGE_KEY, parseStoredResults } from '@/components/game/Roulette/resultsStore';
 import {
@@ -252,6 +252,48 @@ describe('a reload while the ball is rolling', () => {
     await quiet(browser);
     expect(reopened.spin([RED], HITS_17)).toBeNull();
     expect(stored(browser)).toBe(WELCOME - 10);
+  });
+});
+
+describe('the medals out on a spin', () => {
+  it('are out from the stake until the ball stops, a loss included, and stay out over a page killed while it rolls', async () => {
+    const browser = new FakeBrowser();
+    const killed = browser.open();
+    const roulette = rouletteOn(killed);
+    await quiet(browser);
+    const out = () => medalsOutAt(parseLedger(browser.storage.get(BANK_KEY) ?? null)!);
+    // Red, and the ball is to stop on 17, a black number: the spin loses.
+    expect(roulette.spin([RED], HITS_17)).not.toBeNull();
+    expect(out()).toEqual([ROULETTE_GAME]);
+    crash(browser, killed);
+    const next = browser.open();
+    const reopened = rouletteOn(next);
+    await quiet(browser);
+    const left = reopened.table.leftover();
+    expect(left).toMatchObject({ won: 0, paid: false });
+    // The spin is still to be finished: its medals are still out on it.
+    expect(out()).toEqual([ROULETTE_GAME]);
+    expect(reopened.table.settle({ record: left!, stored: true, paid: false, void: false })).toBe('paid');
+    expect(out()).toEqual([]);
+    expect(stored(browser)).toBe(WELCOME - 10);
+  });
+
+  it('are out no more once a page that settled a spin died before it could say so: the next page finds it settled', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const roulette = rouletteOn(page);
+    await quiet(browser);
+    roulette.spin([RED], HITS_17);
+    // As a page that wrote the spin down as paid and then died: the record says paid, the medals still say out.
+    const ledger = parseLedger(browser.storage.get(BANK_KEY) ?? null)!;
+    browser.storage.set(spinKey(null), serializeSpin({ ...record(browser)!, paid: true }));
+    crash(browser, page);
+    expect(medalsOutAt(ledger)).toEqual([ROULETTE_GAME]);
+    const next = browser.open();
+    const reopened = rouletteOn(next);
+    await quiet(browser);
+    expect(reopened.table.leftover()).toBeNull();
+    expect(medalsOutAt(parseLedger(browser.storage.get(BANK_KEY) ?? null)!)).toEqual([]);
   });
 });
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
+import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
@@ -814,8 +815,10 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           </div>
 
           <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="baccarat-buttons">
-            {/* Out of medals: the medal center's free refill, right by the felt it lets the player bet on again. */}
-            {outOfMedals && (
+            {/* Out of medals: the medal center's free refill, right by the felt it lets the player bet on again. Not while
+                some are out on a round at another machine: the line says where. */}
+            {outOfMedals && bankState.out.length > 0 && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="baccarat-out" />}
+            {outOfMedals && bankState.out.length === 0 && (
               <button type="button" className={`${styles.btn} ${styles.refill}`} data-testid="baccarat-refill" onClick={() => medalBank().refill()}>
                 {t.refill(REFILL)}
               </button>

@@ -70,7 +70,7 @@ const storedBalance = (browser: FakeBrowser, uid: string | null = null): number 
 };
 
 /** A page with a machine on it: it sits at the bank and writes down what it is told. */
-function machine(page: FakePage, game = PUSHER.game) {
+function machine(page: FakePage, game: string = PUSHER.game) {
   const told: string[] = [];
   const handlers: SeatHandlers = {
     granted: (moved) => told.push(moved ? 'granted, moved' : 'granted'),
@@ -402,6 +402,64 @@ describe('the refill and the reset', () => {
     await quiet(browser);
     expect(storedBalance(browser)).toBe(WELCOME);
     expect(heard).toEqual([{ type: 'refill', medals: WELCOME }]);
+  });
+
+  it('gives no refill while medals are out on a round, at the hub or at a machine, and gives it once they are back', async () => {
+    const browser = new FakeBrowser();
+    const table = browser.open();
+    machine(table, 'video-poker');
+    await quiet(browser);
+    // All of the player's medals on a double-up still waiting for its pick: none to play with, and none run out of.
+    expect(table.bank.apply({ game: 'video-poker', round: 'hand0001', step: 'double1', medals: -WELCOME })).toBe('applied');
+    expect(table.bank.getState()).toMatchObject({ balance: 0, out: ['video-poker'] });
+    expect(table.bank.refill()).toBe(false);
+    // The player walks over to the hub: the machine's page is closed, and the double still waits.
+    table.close();
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(hub.bank.getState()).toMatchObject({ loaded: true, balance: 0, out: ['video-poker'] });
+    hub.bank.refill();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(0);
+    hub.close();
+    // Back at the machine, the card picked is lower: the double is settled with nothing back, and says so.
+    const again = browser.open();
+    const heard = hear(again);
+    machine(again, 'video-poker');
+    await quiet(browser);
+    const before = again.bank.getState().out;
+    expect(again.bank.settle('video-poker', ['hand0001'])).toBe(true);
+    // The same list while it says the same.
+    expect(again.bank.getState().out).toBe(before);
+    expect(again.bank.settle('video-poker')).toBe(true);
+    expect(again.bank.getState().out).toEqual([]);
+    expect(again.bank.refill()).toBe(true);
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME);
+    expect(heard).toEqual([{ type: 'refill', medals: WELCOME }]);
+  });
+
+  it('settles a round only with the card: another tab says nothing of the medals out', async () => {
+    const browser = new FakeBrowser();
+    const table = browser.open();
+    machine(table, 'video-poker');
+    await quiet(browser);
+    table.bank.apply({ game: 'video-poker', round: 'hand0001', step: 'deal', medals: -WELCOME });
+    const other = browser.open();
+    other.bank.subscribe(() => undefined);
+    await quiet(browser);
+    expect(other.bank.settle('video-poker')).toBe(false);
+    expect(table.bank.getState().out).toEqual(['video-poker']);
+    expect(other.bank.getState().out).toEqual(['video-poker']);
+    // Lost at the machine: settled there, and the refill is the player's from any page.
+    expect(table.bank.settle('video-poker')).toBe(true);
+    await quiet(browser);
+    expect(other.bank.getState().out).toEqual([]);
+    // Paid with the card, which the machine's page lends it for a moment.
+    other.bank.refill();
+    await quiet(browser);
+    expect(storedBalance(browser)).toBe(WELCOME);
   });
 
   it('resets from the hub: the bank is a new member’s, the bonus days stay, and the machine in the other tab hears it and starts over', async () => {

@@ -42,7 +42,7 @@ import {
   type TableStore,
 } from '@/components/game/Baccarat/medals';
 import { ledgerKey, type BankState } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, parseLedger, receiptsOf, resetLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, resetLedger, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { GUEST } from '@/components/game/MedalPusher/account';
 import { BONUS_CARD } from '@/components/game/MedalPusher/records';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
@@ -641,8 +641,11 @@ describe('a browser that dies between two writes', () => {
           const { page, table } = await reopened(after);
           expect(storedBalance(after), `died after ${reached} writes`).toBe(dealt ? WELCOME - 10 + returned : WELCOME);
           expect(after.storage.has(keyOf(page)), `died after ${reached} writes`).toBe(false);
+          // Settled, none of its medals are out any more, wherever the browser died: nothing keeps a refill back.
+          expect(medalsOutAt(parseLedger(after.storage.get(ledgerKey(null)) ?? null)!), `died after ${reached} writes`).toEqual([]);
           // The next coup deals and pays as ever, with every receipt let go of once it is settled.
           const next = table.deal(5, 10)!;
+          expect(medalsOutAt(parseLedger(after.storage.get(ledgerKey(null)) ?? null)!)).toEqual(['baccarat']);
           expect(table.settle(next.id)).toBe('paid');
           const ledger = parseLedger(after.storage.get(ledgerKey(null)) ?? null)!;
           expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([]);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Seat } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, medalsOutAt, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 import { BET_IDS, POINT_NUMBERS, comePoint, maxOdds, resolveRoll, type BetId, type Bets, type Dice, type PointNumber } from '@/components/game/Craps/engine';
 import {
@@ -659,6 +659,7 @@ describe('whose table it is', () => {
       },
       applied: ({ game, round, step }) => made.has(`${owner}/${game}:${round}:${step}`),
       forget: () => true,
+      settle: () => true,
       restartDue: () => false,
       restarted: () => undefined,
       kept: () => true,
@@ -749,11 +750,16 @@ describe('a browser that dies between two writes', () => {
         // Opened again, nothing changes; played on, it still adds up, and once a move is made only its receipt is kept.
         table.sync();
         expect(squared(page, table)).toBe(0);
+        // Medals are out at the table while bets lie on it, and only then, wherever the browser died.
+        const out = () => medalsOutAt(parseLedger(after.storage.get('medal-center-bank') ?? null)!);
+        expect(out(), `died after ${reached} writes`).toEqual(onTable(table.table()) > 0 ? [CRAPS_GAME] : []);
         table.roll([1, 1]);
+        expect(out(), `died after ${reached} writes`).toEqual(onTable(table.table()) > 0 ? [CRAPS_GAME] : []);
         expect(table.place('field', 1).ok).toBe(true);
         expect(squared(page, table), `died after ${reached} writes`).toBe(0);
         const ledger = parseLedger(after.storage.get('medal-center-bank') ?? null)!;
-        expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${CRAPS_GAME}:${table.table().id}-${table.table().seq}:move`]);
+        const round = `${CRAPS_GAME}:${table.table().id}-${table.table().seq}`;
+        expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${round}:move`, `${round}:out`]);
       },
     );
     expect(writes).toBeGreaterThanOrEqual(12);

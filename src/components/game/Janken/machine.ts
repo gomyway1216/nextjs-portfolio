@@ -59,7 +59,7 @@ export interface RoundStorage {
 }
 
 /** What the machine needs of the medal center's bank. */
-export type MachineBank = Pick<Bank, 'apply' | 'applied' | 'forget' | 'owner' | 'restartDue' | 'restarted' | 'sit' | 'listen' | 'subscribe' | 'getState' | 'balance' | 'refill'>;
+export type MachineBank = Pick<Bank, 'apply' | 'applied' | 'forget' | 'settle' | 'owner' | 'restartDue' | 'restarted' | 'sit' | 'listen' | 'subscribe' | 'getState' | 'balance' | 'refill'>;
 
 /** The names of a round's two moves of medals at the bank: the medal put in, and the medals it ends with. */
 export const INSERT_STEP = 'in';
@@ -198,7 +198,12 @@ export function createMachine({ bank, storage, random, newId = randomId }: Machi
    * the round and the medals) was never played, and is struck out; a round being paid is paid, once, and struck out.
    */
   function square(): void {
-    if (!round || !holding()) return;
+    if (!holding()) return;
+    // Only the round in play has medals out: with none, none are, a round lost included, which pays nothing.
+    if (!round) {
+      bank.settle(JANKEN_GAME);
+      return;
+    }
     if (round.paying !== undefined) {
       finishPaying(round, true);
       return;
@@ -218,6 +223,8 @@ export function createMachine({ bank, storage, random, newId = randomId }: Machi
       // Not kept: the page plays on with the round it has, and the medals are where the bank says.
       unsaved.set(key, next);
     }
+    // No round in play: none of the machine's medals are out (a round lost pays nothing, and is simply struck out).
+    if (next === null) bank.settle(JANKEN_GAME);
     publish();
   };
 

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY, ledgerKey, type BankEvent } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, medalsOutAt, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import { PAY_TABLES, payout, rankCards } from '@/components/game/VideoPoker/engine';
 import {
   GAME,
@@ -674,10 +674,14 @@ describe('a browser that dies between two writes', () => {
           // Looked at again, nothing more is paid; the next hand lets go of this one's receipts.
           play.read();
           expect(storedBalance(after)).toBe(dealt ? WELCOME - 5 + won : WELCOME);
+          // Drawn, none of its medals are out any more, wherever the browser died: nothing keeps a refill back.
+          expect(medalsOutAt(parseLedger(after.storage.get(BANK_KEY) ?? null)!), `died after ${reached} writes`).toEqual([]);
           const next = play.deal(1, '9/6');
           expect(next.kind).toBe('dealt');
           const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
-          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${GAME}:${next.kind === 'dealt' ? next.hand.id : ''}:deal`]);
+          // The new hand's bet is out on it.
+          const id = next.kind === 'dealt' ? next.hand.id : '';
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${GAME}:${id}:deal`, `${GAME}:${id}:out`]);
         },
       );
       expect(writes).toBeGreaterThanOrEqual(won > 0 ? 4 : 3);

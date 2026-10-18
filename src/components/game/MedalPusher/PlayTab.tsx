@@ -37,6 +37,7 @@ import {
 import { START_CREDITS, advance, createSession, insert, pickChest, type ActiveRoulette, type Session, type SessionEvent } from './session';
 import { PUSHER, bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { floorReport } from '../MedalCenter/floor/reporter';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
@@ -1503,11 +1504,13 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
           {t.keysNote}
         </p>
 
-        {hud.credits === 0 && (
+        {hud.credits === 0 && bankState.out.length === 0 && (
           <button type="button" className={`${styles.refill} ${look.attendant}`} data-testid="pusher-refill" onClick={onRefill}>
             {t.refill(START_CREDITS)}
           </button>
         )}
+        {/* None left here, and some still out on a round at another machine: no cupful until they are back. */}
+        {hud.credits === 0 && bankState.out.length > 0 && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="pusher-out" />}
         <PlateSticker />
         <div className={styles.bulbs} aria-hidden />
       </div>

@@ -8,6 +8,7 @@ import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
+import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
@@ -572,8 +573,10 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
     }
     return false;
   });
-  // No refill while medals are on a double-up: they are the player's, and may come back.
-  const refillDue = bankState.loaded && playable && bankState.balance === 0 && phase !== 'dealt' && !doubling;
+  // No refill while medals are on a double-up: they are the player's, and may come back. Nor while they are out on a
+  // round at another machine: the line says where.
+  const outOfMedals = bankState.loaded && playable && bankState.balance === 0 && phase !== 'dealt' && !doubling;
+  const refillDue = outOfMedals && bankState.out.length === 0;
 
   const describe = (h: HoldValue) => {
     if (!hand) return null;
@@ -781,6 +784,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
             {t.refill(REFILL)}
           </button>
         )}
+        {outOfMedals && !refillDue && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="vp-out" />}
         <p className={styles.keysHint} data-testid="vp-keys">
           {t.keysHint}
         </p>

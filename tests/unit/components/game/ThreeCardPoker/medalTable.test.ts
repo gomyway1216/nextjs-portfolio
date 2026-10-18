@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { BANK_KEY } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, createLedger, give, parseLedger, receiptOf, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, createLedger, give, medalsOutAt, parseLedger, receiptOf, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import {
   ANTE_BONUS_PAYS,
   CATEGORIES,
@@ -73,6 +73,7 @@ function table(page: FakePage, onYield: (why: string) => void = () => undefined)
     apply: (move) => page.bank.apply(move),
     applied: (move) => page.bank.applied(move),
     forget: (game, keep) => page.bank.forget(game, keep),
+    settle: (game, keep) => page.bank.settle(game, keep),
   };
   // The browser's storage, which can be made full: then it can be read, and takes no write.
   const store: TableStore = {
@@ -429,6 +430,7 @@ describe('what storage holds', () => {
       },
       applied: ({ game, round, step }) => made.has(`${game}:${round}:${step}`),
       forget: () => true,
+      settle: () => true,
     };
     const blocked: TableStore = {
       read: () => {
@@ -597,9 +599,12 @@ describe('a browser that dies between two writes', () => {
           expect(['none', 'over'], `died after ${reached} writes`).toContain(handStage(at.game.open()));
           // Played again, nothing more is taken or paid; and the next hand starts with the last one's receipts let go of.
           expect(at.game.pay()).toBeNull();
+          // Over, none of its medals are out any more, wherever the browser died: nothing keeps a refill back.
+          expect(medalsOutAt(parseLedger(after.storage.get(BANK_KEY) ?? null)!), `died after ${reached} writes`).toEqual([]);
           expect(at.game.deal({ ante: 1, pairPlus: 0 }, RAGS).ok).toBe(true);
           const ledger = parseLedger(after.storage.get(BANK_KEY) ?? null)!;
-          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([receiptOf(TCP_GAME, at.game.open()!.id!, 'deal')]);
+          // The new hand's Ante is out on it.
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([receiptOf(TCP_GAME, at.game.open()!.id!, 'deal'), receiptOf(TCP_GAME, at.game.open()!.id!, 'out')]);
         },
       );
       expect(writes).toBeGreaterThanOrEqual(decision === 'play' ? 6 : 4);

@@ -210,6 +210,8 @@ export const FLOOR_DOUBLE = 'double-up';
 export const doubleOf = (h: SavedHand): DoubleState => doubleState(wonBy(h), h.doubles ?? []);
 /** Whether a double-up waits for its pick: its medals are out, and the hand is not over until it is picked. */
 export const doublePending = (h: SavedHand): boolean => h.drawn && doubleOf(h).pending;
+/** Whether a hand has medals out: dealt and not drawn yet, or with a double-up waiting for its pick. */
+export const inPlay = (h: SavedHand): boolean => !h.drawn || doublePending(h);
 /** Whether the medals on offer may be put on a double-up now. */
 export const canDouble = (h: SavedHand): boolean => {
   if (!h.drawn || h.taken || !h.receipts) return false;
@@ -232,7 +234,7 @@ export const deviceStore: HandStore = {
 };
 
 /** What of the medal center's bank the machine uses. */
-export type MedalBank = Pick<Bank, 'owner' | 'balance' | 'apply' | 'applied' | 'forget' | 'getState' | 'restartDue' | 'restarted'>;
+export type MedalBank = Pick<Bank, 'owner' | 'balance' | 'apply' | 'applied' | 'forget' | 'settle' | 'getState' | 'restartDue' | 'restarted'>;
 
 export interface MedalPlayEnv {
   bank: MedalBank;
@@ -330,7 +332,7 @@ export function createMedalPlay(env: MedalPlayEnv) {
   };
 
   /** A move of a hand's medals, under its receipt. */
-  const move = (h: SavedHand, step: string, medals: number) => bank.apply({ game: GAME, round: h.id, step, medals, era: h.era });
+  const move = (h: SavedHand, step: string, medals: number, out?: boolean) => bank.apply({ game: GAME, round: h.id, step, medals, era: h.era, out });
   const moved = (h: SavedHand, step: string): boolean => bank.applied({ game: GAME, round: h.id, step });
 
   /**
@@ -374,7 +376,7 @@ export function createMedalPlay(env: MedalPlayEnv) {
       const outcome = roundOutcome(round);
       if (outcome === null) return h;
       const back = stake * DOUBLE_RETURN[outcome];
-      if (back > 0 && !moved(h, doublePayStep(n))) move(h, doublePayStep(n), back);
+      if (back > 0 && !moved(h, doublePayStep(n))) move(h, doublePayStep(n), back, false);
       stake = back;
     }
     return h;
@@ -388,8 +390,11 @@ export function createMedalPlay(env: MedalPlayEnv) {
    */
   const look = (): { ok: true; hand: SavedHand | null; from: string | null } | { ok: false } => {
     const found = lookUp();
-    if (!found.ok || !found.hand) return found;
-    return { ok: true, hand: square(found.hand, found.from), from: found.from };
+    if (!found.ok) return found;
+    const hand = found.hand ? square(found.hand, found.from) : null;
+    // Only a hand in play has medals out: one over has none, even if the page that settled it died before it could say so.
+    if (holding()) bank.settle(GAME, hand && inPlay(hand) ? [hand.id] : []);
+    return found.hand ? { ok: true, hand, from: found.from } : found;
   };
 
   const lookUp = (): { ok: true; hand: SavedHand | null; from: string | null } | { ok: false } => {
@@ -486,7 +491,7 @@ export function createMedalPlay(env: MedalPlayEnv) {
       if (!ledger || !Number.isInteger(coins) || coins < 1 || coins > MAX_COINS) return { kind: 'away' };
       const before = look();
       // A hand still dealt, or a double-up waiting for its pick (its medals are out), is played first.
-      if (before.ok && before.hand && (!before.hand.drawn || doublePending(before.hand))) return { kind: 'inPlay', hand: before.hand };
+      if (before.ok && before.hand && inPlay(before.hand)) return { kind: 'inPlay', hand: before.hand };
       if (bank.balance() < coins) return { kind: 'short' };
       const { hand, stub } = dealCards(random);
       const dealt: SavedHand = { v: HAND_VERSION, id: newId(), era: ledger.era, device: ledger.device, hand, stub, coins, payId, held: 0, drawn: false, receipts: true };
@@ -581,6 +586,8 @@ export function createMedalPlay(env: MedalPlayEnv) {
       const won = wonBy(drawn);
       // The medal floor hears of a win once, as it goes in.
       if (won > 0 && move(drawn, PAY_STEP, won) === 'applied') floorReport(GAME, { won, prize: { medals: won, label: FLOOR_HANDS[rankCards(cardsOf(drawn))] } });
+      // Drawn: none of its medals are out any more, a hand lost included, which pays nothing.
+      bank.settle(GAME);
       return { kind: 'drawn', hand: drawn, won };
     },
 
@@ -638,7 +645,9 @@ export function createMedalPlay(env: MedalPlayEnv) {
       } else memory = { key: key(), hand: next };
       const outcome = roundOutcome(picked)!;
       const back = stake * DOUBLE_RETURN[outcome];
-      const paid = back > 0 ? move(next, doublePayStep(n), back) : null;
+      // Picked: the double's medals are out no more, whether they come back or not.
+      const paid = back > 0 ? move(next, doublePayStep(n), back, false) : null;
+      bank.settle(GAME);
       // The medal floor hears of a double won once, as its medals go in: what it made, the stake again (the stake was
       // counted as it was won), and the medals it brought back for the boards. A push or a loss makes nothing.
       if (outcome === 'win' && paid === 'applied') floorReport(GAME, { won: back - stake, prize: { medals: back, label: FLOOR_DOUBLE } });

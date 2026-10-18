@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
+import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
@@ -447,10 +448,14 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
             </dd>
           </div>
         </dl>
-        {bankState.loaded && medals === 0 && staked === 0 && bankState.card === 'here' && !rolling && (
+        {bankState.loaded && medals === 0 && staked === 0 && bankState.card === 'here' && !rolling && bankState.out.length === 0 && (
           <button type="button" className={styles.refill} data-testid="craps-refill" onClick={() => medalBank().refill()}>
             {t.refill(REFILL)}
           </button>
+        )}
+        {/* Out of medals here, and some still out on a round at another machine: no refill until they are back. */}
+        {bankState.loaded && medals === 0 && staked === 0 && bankState.card === 'here' && !rolling && bankState.out.length > 0 && (
+          <MedalsOut games={bankState.out} language={language} className={styles.counterNote} testId="craps-out" />
         )}
         <p className={styles.counterNote} data-testid="craps-not-money">
           {t.notMoney}

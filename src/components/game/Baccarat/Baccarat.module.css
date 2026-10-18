@@ -768,6 +768,12 @@
   width: 100%;
   margin: 0 0 0.6rem;
 }
+/* Clear of the chosen medal's ring below it, which is drawn outside the medal. */
+.outNote {
+  margin: 0 0 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
 
 /* ---------- Told once: the table plays with the player's medals now ---------- */
 .notice {

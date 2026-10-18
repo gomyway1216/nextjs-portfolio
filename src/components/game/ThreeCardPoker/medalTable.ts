@@ -204,6 +204,8 @@ export interface TableMedals {
   applied: (move: Pick<Move, 'game' | 'round' | 'step'>) => boolean;
   /** Lets go of the receipts of every hand but those in `keep`. */
   forget: (game: string, keep?: readonly string[]) => boolean;
+  /** Says that every hand but those in `keep` has no medals out any more: no refill is given while one does. */
+  settle: (game: string, keep?: readonly string[]) => boolean;
 }
 
 /** Where hands are kept: this device's storage. Any call may throw, when storage is blocked or full. */
@@ -323,7 +325,11 @@ export function createTable(medals: TableMedals, store: TableStore, newId: () =>
     const ledger = medals.ledger();
     if (!ledger) return null;
     const hand = parseHand(readText(tableKey(ledger.device)));
-    return hand && hand.device === ledger.device && hand.era === ledger.era ? square(hand) : null;
+    const found = hand && hand.device === ledger.device && hand.era === ledger.era ? square(hand) : null;
+    // Only the hand in play has medals out: a hand paid, lost or folded has none, even if the table that paid it died
+    // before it could say so.
+    if (medals.holding()) medals.settle(TCP_GAME, found && !found.paid && found.id !== undefined ? [found.id] : []);
+    return found;
   };
 
   return {
@@ -409,6 +415,8 @@ export function createTable(medals: TableMedals, store: TableStore, newId: () =>
       if (settlement.returned > 0 && move(next, PAY_STEP, settlement.returned) === 'applied') {
         floorReport(TCP_GAME, { won: settlement.returned, prize: { medals: settlement.returned, label: settlement.player.category === 'straightFlush' ? 'straight-flush' : undefined } });
       }
+      // Paid: none of its medals are out any more, a hand lost or folded included, which pays nothing.
+      medals.settle(TCP_GAME);
       return { hand: next, settlement };
     },
 

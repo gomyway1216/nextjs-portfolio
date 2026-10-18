@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PUSHER } from '@/components/game/MedalCenter/bank';
-import { WELCOME, balanceOf, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
+import { WELCOME, balanceOf, medalsOutAt, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
 import { DECKS, RANKS, STRATEGIES, SUITS, createShoe, legalActions, type Card, type Rank, type Shoe } from '@/components/game/Blackjack/engine';
 import {
   DEFAULT_BET,
@@ -574,9 +574,12 @@ describe('a browser that dies between two writes', () => {
           // Looked at again, nothing more; and the next hand starts with the last one's receipts let go of.
           table.refresh(true);
           expect(medals(after)).toBe(dealt ? end : WELCOME);
+          // Played out, none of its medals are out any more, wherever the browser died: nothing keeps a refill back.
+          expect(medalsOutAt(parseLedger(after.storage.get('medal-center-bank') ?? null)!), `died after ${reached} writes`).toEqual([]);
           expect(table.deal(1).ok).toBe(true);
           const ledger = parseLedger(after.storage.get('medal-center-bank') ?? null)!;
-          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${GAME}:${table.current().id}:deal`]);
+          // The new hand's bet is out on it.
+          expect(receiptsOf(ledger, ledger.device).ids, `died after ${reached} writes`).toEqual([`${GAME}:${table.current().id}:deal`, `${GAME}:${table.current().id}:out`]);
         },
       );
       expect(writes).toBeGreaterThanOrEqual(6);

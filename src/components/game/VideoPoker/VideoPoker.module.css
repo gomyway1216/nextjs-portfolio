@@ -894,6 +894,13 @@
   font-size: 1rem;
 }
 /* The machine's keys, on a desktop. Phones have no keys, so it is not shown there. */
+.outNote {
+  margin: 0.7rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-align: center;
+  color: #fde047;
+}
 .keysHint {
   margin: 0.7rem 0 0;
   font-size: 0.74rem;

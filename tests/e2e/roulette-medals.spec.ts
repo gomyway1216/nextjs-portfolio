@@ -212,6 +212,52 @@ test('a spin settled while the medal center borrowed the medals still goes on th
   await expect.poll(() => boardNumbers(page)).toEqual([staked!.result]);
 });
 
+test('a win paid while the medal center borrowed the medals is not shown before the ball stops, and runs in once it has', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  // The medal center is open in another tab first, so that taking the day's bonus there is one press while the ball rolls.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openRoulette(page);
+  await coverTheWheel(page);
+  // Zero comes up: the medal on it wins 36 (35 and the medal back).
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.5 / 37;
+  });
+  await spinButton(page).click();
+  await page.evaluate(() => {
+    Math.random = (window as unknown as { __random: () => number }).__random;
+  });
+  const wheel = page.locator('[data-spinning]');
+  await expect(wheel).toHaveAttribute('data-spinning', 'true');
+  // The bonus is taken at the medal center while the ball rolls: it borrows the medals for a moment, and the spin is
+  // settled as they go. The 36 are the player's at once, and once only.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+  const bonus = (await bankBalance(page)) - (WELCOME - 3 + 36);
+  expect(bonus).toBeGreaterThan(0);
+  // Still rolling: the counter has the bonus, which is no win of the table's, and not the 36, which the ball has not
+  // stopped on yet.
+  const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
+  await expect.poll(() => shownMedals(page)).toBe(WELCOME - 3 + bonus);
+  expect(await led()).toBe(WELCOME - 3 + bonus);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
+  await expect(wheel).toHaveAttribute('data-spinning', 'true');
+  // The ball stops on zero: the 36 show, and run into the medals on the counter.
+  expect(await settledResult(page)).toBe(0);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
+  expect(await shownMedals(page)).toBe(WELCOME - 3 + bonus + 36);
+  expect(await led()).toBeLessThan(WELCOME - 3 + bonus + 36);
+  await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + bonus + 36);
+  // Paid once: what the medal center borrowed the medals for put the 36 in, and the ball stopping put nothing more.
+  expect(await bankBalance(page)).toBe(WELCOME - 3 + bonus + 36);
+  await hub.close();
+});
+
 test('a reset at the medal center while the ball rolls: once it stops, the table shows nothing of before', async ({ page, context }) => {
   test.setTimeout(60_000);
   await openRoulette(page);

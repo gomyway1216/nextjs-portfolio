@@ -160,7 +160,7 @@ describe('the floor on the medal center’s front', () => {
     // The place card is where the floor jackpot's line sends a player who has not joined.
     expect(html).toContain(`<div id="${FLOOR_PLACE_ANCHOR}" `);
     // Its short boards are drawn empty while the floor is read, their lines held unseen, so they come in where they are.
-    expect(html).toMatch(/data-period="day" data-loaded="false"><div[^>]*data-testid="floor-won"><h4[^>]*>[^<]*<\/h4><p class="[^"]*unseen[^"]*" aria-hidden="true">/);
+    expect(html).toMatch(/data-period="day" data-floor-read="false"><div[^>]*data-testid="floor-won"><h4[^>]*>[^<]*<\/h4><p class="[^"]*unseen[^"]*" aria-hidden="true">/);
     expect(html).toMatch(/data-testid="floor-best"><h4[^>]*>[^<]*<\/h4><p class="[^"]*unseen[^"]*" aria-hidden="true">/);
     // Nothing time-based is in the server's render: the floor is read in the browser.
     expect(html).not.toContain('<time');
@@ -178,7 +178,7 @@ describe('the floor on the medal center’s front', () => {
     const t = getFloorStrings('en');
     const html = inLanguage('en', <FloorRankings member={null} settled={false} owner={null} />);
     // Every board, empty, its line held unseen.
-    expect(html).toMatch(/data-testid="rankings-boards" data-loaded="false"/);
+    expect(html).toMatch(/data-testid="rankings-boards" data-floor-read="false"/);
     for (const testId of ['rankings-won', ...FLOOR_GAMES.map((game) => `rankings-best-${game}`)]) {
       expect(html, testId).toMatch(new RegExp(`data-testid="${testId}"><h4[^>]*>[^<]*</h4><p class="[^"]*unseen[^"]*" aria-hidden="true">${t.boardEmpty}</p>`));
     }

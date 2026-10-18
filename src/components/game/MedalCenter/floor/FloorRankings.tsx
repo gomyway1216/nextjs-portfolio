@@ -101,8 +101,9 @@ export function FloorRankings({ member, settled, signInHref, owner }: FloorRanki
           {owner && <span className={styles.ownerBadge}>{t.ownerTitle}</span>}
         </div>
 
+        {/* `data-floor-read`, not `data-loaded`: that one says the page has read the player's own medals. */}
         {shown && (
-          <div className={styles.fullBoards} data-period={period} data-testid="rankings-boards" data-loaded={boards !== null}>
+          <div className={styles.fullBoards} data-period={period} data-testid="rankings-boards" data-floor-read={boards !== null}>
             <section className={styles.panel} aria-label={t.wonBoard}>
               <Board {...words} title={t.wonBoard} rows={shown.won} testId="rankings-won" holding={!boards} owner={ownerControls?.('won')} />
               <p className={styles.note}>{t.wonNote}</p>

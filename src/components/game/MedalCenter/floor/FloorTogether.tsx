@@ -127,8 +127,9 @@ export function FloorTogether({ words, floor, place, signInHref }: PartProps) {
           <h3 className={styles.panelTitle}>{t.rankingsTitle}</h3>
           <PeriodTabs value={period} onChange={setPeriod} t={t} />
         </div>
+        {/* `data-floor-read`, not `data-loaded`: that one says the page has read the player's own medals. */}
         {shown && (
-          <div className={styles.boards} data-period={period} data-loaded={boards !== null}>
+          <div className={styles.boards} data-period={period} data-floor-read={boards !== null}>
             <Board {...words} title={t.wonBoard} rows={shown.won} testId="floor-won" holding={!boards} />
             <BestAtEach {...words} boards={shown} holding={!boards} />
           </div>

@@ -193,7 +193,10 @@ export interface LoadSteps {
   answered: (page: Page) => Promise<void>;
 }
 
-/** Waits until something on the page says `data-loaded="true"` and nothing says `"false"` any more. */
+/**
+ * Waits until something on the page says `data-loaded="true"` and nothing says `"false"` any more: the page has read
+ * the player's own medals. A part the floor fills says `data-floor-read` instead, since the floor is held until then.
+ */
 export async function everythingLoaded(page: Page): Promise<void> {
   await expect(page.locator('[data-loaded="true"]').first(), 'the page says when it has read what it shows').toBeAttached({ timeout: 20_000 });
   await expect(page.locator('[data-loaded="false"]'), 'the page has read what it shows').toHaveCount(0, { timeout: 20_000 });

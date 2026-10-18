@@ -6,6 +6,7 @@ import type { FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { periodAt } from '../../src/lib/medalFloor/periods';
 import type { FloorSummary } from '../../src/lib/medalFloor/types';
 import { openCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
 
 // The floor jackpot: one pool for the whole floor, its LED counter on the medal center's front and over every machine,
@@ -68,7 +69,7 @@ const sideways = (page: Page) => page.evaluate(() => document.documentElement.sc
 test('the medal center’s front shows the floor jackpot, its last win, and how a guest takes part, at a phone’s width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   const floor = await fakeFloor(page, () => jackpot(3_214));
   await openCenter(page);
   const panel = page.getByTestId('floor-jackpot');
@@ -131,7 +132,7 @@ test('a floor jackpot that cannot be reached shows dashes and says so, and the m
 test('every machine shows the floor jackpot over it; a linked one’s Odds tab says what it adds on top, and a table that is not linked says play there takes no part', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   const floor = await fakeFloor(page, () => jackpot(2_718));
   await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);
   for (const [path, linked] of [

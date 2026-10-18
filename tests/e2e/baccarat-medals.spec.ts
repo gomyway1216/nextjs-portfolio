@@ -5,7 +5,8 @@ import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { WELCOME, rowOf, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, spot } from './baccaratPage';
-import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { bankBalance, bankWritten, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
 import { quietFloor } from './quietFloor';
 
@@ -30,7 +31,7 @@ test('plays with the medals from the Medal Game Center: a bet takes them at the 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
 
   // The floor has the table open, with a way in.
   await openCenter(page);
@@ -142,6 +143,7 @@ test('a hand dealt just before a reload is finished, not refunded, and its medal
 
 test('a hand left unpaid by a page that was killed mid-deal is paid by the next one, once', async ({ page }) => {
   await openCenter(page);
+  await bankWritten(page);
   // As a page killed mid-deal leaves it: the stake taken from the medals, and the hand written down unpaid.
   const ledger = (await storedBank(page))!;
   const after = take(ledger, 10)!;
@@ -224,9 +226,10 @@ test('starts over after the reset at the Medal Game Center: the medals are a new
 
 test('opens with old or damaged saved state without an error, and pays nothing from it', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // The player's medals, then damaged saved state of the table's beside them.
   await openCenter(page);
+  await bankWritten(page);
   await page.evaluate(
     ([tableKey, coup]) => {
       window.localStorage.setItem(tableKey, '{"v":1,"mode":"ez","shoe":{"decks":8,"cards":"A♠');

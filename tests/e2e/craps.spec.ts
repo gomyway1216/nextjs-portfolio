@@ -5,6 +5,7 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { TABLE_KEY, parseTable, unreadKey } from '../../src/components/game/Craps/medalTable';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
@@ -272,7 +273,7 @@ test('a reset at the Medal Game Center clears the table, whose bets went with th
 test('says once that the table plays with medals now, at a phone’s width, with the note that medals are not money', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCraps(page);
   const notice = page.getByTestId('craps-notice');
   await expect(notice).toBeVisible();
@@ -308,7 +309,7 @@ test('a craps table kept under the table’s name that cannot be read does not s
     [TABLE_KEY, old],
   );
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCraps(page);
   await expect(medalsShown(page)).toHaveText(String(WELCOME));
   await expect(onTable(page)).toHaveText('0');
@@ -428,7 +429,7 @@ test('the layout is played with the keyboard too', async ({ page }) => {
 
 test('the sound switch is the floor’s: off on every visit, the throw heard once it is on, and Quick roll still kept', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A device where the old switch was left on, and every sound the page starts counted, with its length (a headless
   // browser has nothing to listen with). The throw's knocks and clicks are cut from one second of noise.
   await page.addInitScript((key) => {
@@ -484,7 +485,7 @@ test('in Japanese the switch says 音なし, as everywhere on the floor', async 
 
 test('with the sound on a medal is heard going down, the dice land on a win to a fanfare, and the counter counts the medals in', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A headless browser has nothing to listen with: every sound the page starts is noted instead, with its length
   // (as in medal-machine-sound.spec.ts). The floor's sounds are the medal set down (0.16 s), the fanfare (0.9 s) and the
   // chirp of a medal counted in (under 0.05 s); the throw's own knocks and clicks are cut from one second of noise.

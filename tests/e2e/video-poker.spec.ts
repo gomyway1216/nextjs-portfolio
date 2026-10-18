@@ -5,7 +5,9 @@ import { WELCOME, createLedger, serializeLedger, take } from '../../src/componen
 import { analyzeHand } from '../../src/components/game/VideoPoker/analysis';
 import { HANDS, PAY_TABLES, payout, rankCards } from '../../src/components/game/VideoPoker/engine';
 import { HAND_KEY, NOTICE_KEY } from '../../src/components/game/VideoPoker/medals';
+import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { rigPresses } from './rigPresses';
 import { quietFloor } from './quietFloor';
 import { arrived } from './streamedPage';
@@ -95,6 +97,9 @@ async function holdMaskOnScreen(page: Page, mask: number) {
     if (pressed !== ((mask & (1 << i)) !== 0)) await slot.click();
   }
 }
+
+// The page scrolls at once, not smoothly: see instantScroll.
+test.beforeEach(async ({ context }) => instantScroll(context));
 
 test('the best play on screen is the exact optimum, and the draw pays by the table', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -517,7 +522,7 @@ test('a player with no medals left is offered the free refill', async ({ page })
 test('says once that it plays with the medals now, says what medals are, and fits a phone in both languages', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openVideoPoker(page);
   const notice = page.getByTestId('vp-notice');
   await expect(notice).toBeVisible();
@@ -546,7 +551,7 @@ test('says once that it plays with the medals now, says what medals are, and fit
 
 test('anything else lying where the hand is kept is taken for no hand: the machine opens, and plays', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await page.addInitScript(
     ([hand, notice]) => {
       window.localStorage.setItem(hand, '{"v":1,"credits":1000,"hand":[1,2,3]}');

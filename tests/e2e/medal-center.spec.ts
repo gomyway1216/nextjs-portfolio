@@ -8,6 +8,7 @@ import { START_CREDITS, createSession } from '../../src/components/game/MedalPus
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { quietFloor } from './quietFloor';
 
@@ -64,7 +65,7 @@ const sideways = (page: Page) => page.evaluate(() => document.documentElement.sc
 test('shows a new member’s medals on a big counter, the floor and the one reset, at a phone’s width, in both languages', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCenter(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('MEDAL GAME CENTER');
   await expect(page.getByTestId('center-balance')).toHaveText(String(WELCOME));
@@ -109,11 +110,11 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   expect(errors).toEqual([]);
 });
 
-test('the floor stands in corners under hanging signs: two cabinets a row on a phone, four on a desktop, each one a link by its name', async ({ page }) => {
+test('the floor stands in corners under hanging signs: two cabinets a row on a phone, four on a desktop, each one a link by its name', async ({ page, browserName }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCenter(page);
   // Each corner's sign is a heading, in the page's language (its Japanese is there for the look, not read twice).
   for (const sign of ['PUSHER CORNER', 'VIDEO & SLOTS', 'TABLE GAMES', 'KIDS & CANDY SHOP']) {
@@ -139,9 +140,10 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   // Nothing moves when it is hovered, for a player who asks for less motion.
   await page.locator('li[data-machine="baccarat"]').hover();
   expect(await page.locator('li[data-machine="baccarat"]').evaluate((element) => getComputedStyle(element).transform)).toBe('none');
-  // By the keyboard: from one cabinet, Tab goes to the next, and the cabinet shows it has the focus.
+  // By the keyboard: from one cabinet, Tab goes to the next, and the cabinet shows it has the focus. (Safari's Tab passes
+  // links by, unless the player has asked otherwise in its settings; Option-Tab goes to every link and control there.)
   await page.getByTestId('center-play-roulette').focus();
-  await page.keyboard.press('Tab');
+  await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
   await expect(page.getByTestId('center-play-blackjack')).toBeFocused();
   expect(await page.locator('li[data-machine="blackjack"]').evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
   // At 320 px the floor still fits.
@@ -345,8 +347,12 @@ test('two machines in two tabs: the one played last has the medals, the other wa
   // The first tab's machine waits, and says why, with a button to play it there again.
   await expect(machine(page).getByTestId('pusher-card-away')).toBeVisible({ timeout: 10_000 });
   await expect(machine(page).getByTestId('pusher-play-here')).toHaveText('Play here');
-  // The second plays from the same bank: it shows what the first left in it.
-  await expect.poll(() => counter(other, 'credits')).toBe(await bankBalance(other));
+  // The second plays from the same bank: it shows what the first left in it. And it plays the machine the first left:
+  // it draws the one it found as it opened, and opens the first's once it has the card, which can be a moment later
+  // (WebKit). A medal fed is counted on that machine only after that. A medal the first left on the field can still pay
+  // on the second as it plays on, so the two are read together each time, never the bank once before the wait.
+  await expect.poll(async () => (await counter(other, 'credits')) - (await bankBalance(other)), { timeout: 15_000 }).toBe(0);
+  await expect.poll(() => counter(other, 'played'), { timeout: 15_000 }).toBe(await counter(page, 'played'));
   await feedOne(other);
   // Back to the first: it has the card again, and the machine the second saved, and the second waits.
   await page.bringToFront();

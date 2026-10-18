@@ -7,6 +7,7 @@ import { getStrings } from '../../src/components/game/Roulette/i18n';
 import { ROULETTE_RESULTS_STORAGE_KEY } from '../../src/components/game/Roulette/resultsStore';
 import { NOTICE_KEY, ROULETTE_GAME, SPIN_KEY, parseSpin, winningsOf, type SpinRecord } from '../../src/components/game/Roulette/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { boardNumbers, openRoulette, placeFirstBet, settledResult, shownBet, shownMedals, spinButton } from './roulettePage';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
@@ -295,8 +296,19 @@ test('a reset at the medal center while the ball rolls: once it stops, the table
   await expect(page.getByText('No spins yet.')).toBeVisible();
 });
 
-test('a page that dies mid-spin: the next one spins the wheel again to the same number and pays it once', async ({ page, context }) => {
+test('a page that dies mid-spin: the next one spins the wheel again to the same number and pays it once', async ({ page, context, browserName }) => {
   test.setTimeout(60_000);
+  // Only Chromium can have a tab's renderer crash (by its DevTools protocol). Elsewhere the page dies the same way to
+  // itself: from the moment it is dead, the events a page is told as it goes (hidden, hide, unload) stop at the window,
+  // before anything of the page's hears them, and the page is closed.
+  if (browserName !== 'chromium') {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __dead?: boolean };
+      for (const type of ['visibilitychange', 'pagehide', 'beforeunload', 'unload', 'freeze']) {
+        window.addEventListener(type, (event) => w.__dead && event.stopImmediatePropagation(), true);
+      }
+    });
+  }
   await openRoulette(page);
   await placeFirstBet(page, /^Red \(1:1\)$/);
   await page.getByRole('button', { name: /^Black \(1:1\)$/ }).click();
@@ -305,10 +317,15 @@ test('a page that dies mid-spin: the next one spins the wheel again to the same 
   const staked = await spinOnRecord(page);
   expect(staked).toMatchObject({ wagered: 2, paid: false });
   // The tab's renderer dies: no pagehide, nothing settled.
-  const cdp = await context.newCDPSession(page);
-  const crashed = page.waitForEvent('crash');
-  void cdp.send('Page.crash').catch(() => undefined);
-  await crashed;
+  if (browserName === 'chromium') {
+    const cdp = await context.newCDPSession(page);
+    const crashed = page.waitForEvent('crash');
+    void cdp.send('Page.crash').catch(() => undefined);
+    await crashed;
+  } else {
+    await page.evaluate(() => ((window as unknown as { __dead?: boolean }).__dead = true));
+    await page.close();
+  }
 
   const next = await context.newPage();
   await openRoulette(next);
@@ -388,7 +405,7 @@ test('the medal center’s reset starts the table over; the winning numbers, whi
 
 test('old saved state: the board is kept, the chips are retired, and the note that says so is shown once', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // What a player of the chip-era table has on this device: the results board (the chips were never saved), and,
   // where the table now writes its spin, text it cannot read.
   await page.addInitScript(

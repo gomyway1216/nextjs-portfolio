@@ -33,6 +33,7 @@ import { EvCurve, type CurveTick } from './charts';
 import { getStrings } from './i18n';
 import { SPOT_MAX } from './medalTable';
 import styles from './ThreeCardPoker.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const PAY_TABLE_IDS: PairPlusTableId[] = ['standard', 'old'];
 /** Best hand first, the way pay tables are printed. */
@@ -130,7 +131,7 @@ export const OddsTab = () => {
             </button>
           ))}
         </div>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="tcp-hand-table">
             <thead>
               <tr>
@@ -171,7 +172,7 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
         <div className={styles.statGrid}>
           {pairPlusEdges.map(({ id, edge }) => (
             <div key={id} className={styles.stat} data-current={id === payTable ? 'true' : undefined}>
@@ -234,7 +235,7 @@ export const OddsTab = () => {
             </span>
           </div>
         </div>
-        <div className={styles.tableWrap} style={{ marginTop: '0.8rem' }}>
+        <ScrollArea className={styles.tableWrap} style={{ marginTop: '0.8rem' }}>
           <table className={styles.oddsTable} data-testid="tcp-outcome-table">
             <thead>
               <tr>
@@ -275,7 +276,7 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.anteNote(pct(optimal.houseEdge), optimal.averageWager.toFixed(3), pct(optimal.elementOfRisk))}</p>
         {/* The same edges in medals, at the table's limit on each spot. */}
         <p className={styles.note} data-testid="tcp-medals-note">
@@ -304,7 +305,7 @@ export const OddsTab = () => {
           ariaLabel={t.curveAria}
           ticks={curve.ticks}
         />
-        <div className={styles.tableWrap} style={{ marginTop: '0.8rem' }}>
+        <ScrollArea className={styles.tableWrap} style={{ marginTop: '0.8rem' }}>
           <table className={styles.oddsTable} data-testid="tcp-threshold-table">
             <thead>
               <tr>
@@ -343,7 +344,7 @@ export const OddsTab = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note} data-testid="tcp-threshold-note">
           {t.thresholdNote(signed(worstPlay, 4), signed(bestFold, 4))}
         </p>
@@ -356,7 +357,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           {t.bonusIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="tcp-bonus-table">
             <thead>
               <tr>
@@ -387,7 +388,7 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.bonusNote(pct(bonusTotal), pct(optimal.houseEdge + bonusTotal))}</p>
       </section>
 
@@ -398,7 +399,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           {t.strategyIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="tcp-strategy-table">
             <thead>
               <tr>
@@ -426,7 +427,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.strategyNote(fmt(mimicExtra), fmt(alwaysExtra), fmt(hopeless))}</p>
       </section>
     </div>

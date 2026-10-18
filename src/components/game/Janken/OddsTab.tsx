@@ -7,6 +7,7 @@ import { CatFace } from './art';
 import { lampAt } from './Cabinet';
 import { getStrings } from './i18n';
 import styles from './Janken.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeMachine();
 const LAMP_TONE: Readonly<Record<number, string>> = { 1: 'one', 2: 'two', 3: 'three', 5: 'five', 10: 'ten' };
@@ -98,7 +99,7 @@ export const OddsTab = () => {
         <h2 id="janken-throw-title" className={styles.blockTitle}>
           {t.throwTitle}
         </h2>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="janken-throw-table">
             <thead>
               <tr>
@@ -117,7 +118,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.throwNote}</p>
       </section>
 
@@ -145,7 +146,7 @@ export const OddsTab = () => {
               );
             })}
           </svg>
-          <div className={styles.tableWrap}>
+          <ScrollArea className={styles.tableWrap}>
             <table className={styles.oddsTable} data-testid="janken-ring-table">
               <thead>
                 <tr>
@@ -183,7 +184,7 @@ export const OddsTab = () => {
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollArea>
         </div>
       </section>
 
@@ -192,7 +193,7 @@ export const OddsTab = () => {
           {t.doubleTitle}
         </h2>
         <p className={styles.note}>{t.doubleIntro(MAX_DOUBLES)}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="janken-double-table">
             <thead>
               <tr>
@@ -216,7 +217,7 @@ export const OddsTab = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section aria-labelledby="janken-compare-title">

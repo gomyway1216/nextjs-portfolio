@@ -6,6 +6,7 @@ import { FishArt } from './art';
 import { analyzeMachine, seeded, simulateSessions, valueOf, type Fraction, type SessionSummary } from './engine';
 import { getStrings } from './i18n';
 import styles from './Fishing.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeMachine();
 
@@ -121,7 +122,7 @@ export const OddsTab = () => {
           {t.fishTitle}
         </h2>
         <p className={styles.note}>{t.fishIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="fishing-fish-table">
             <thead>
               <tr>
@@ -161,7 +162,7 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section aria-labelledby="fishing-chest-title">
@@ -169,7 +170,7 @@ export const OddsTab = () => {
           {t.chestTitle}
         </h2>
         <p className={styles.note}>{t.chestIntro}</p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="fishing-chest-table">
             <thead>
               <tr>
@@ -190,7 +191,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section aria-labelledby="fishing-real-title">

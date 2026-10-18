@@ -6,6 +6,7 @@ import { ODDS_BETS, betOdds, expectedCardsPerHand, reduced, shoeOdds, type OddsB
 import { CUT_CARD_FROM_END, DEFAULT_DECKS, bankerDraws, type Winner } from './engine';
 import { getStrings } from './i18n';
 import styles from './Baccarat.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const DECK_OPTIONS = [1, 2, 4, 6, 8] as const;
 const OUTCOMES: Winner[] = ['banker', 'player', 'tie'];
@@ -77,7 +78,7 @@ export const OddsTab = () => {
             </span>
           ))}
         </div>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
               <tr>
@@ -110,7 +111,7 @@ export const OddsTab = () => {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.outcomeNote(fmt(odds.total))}</p>
       </section>
 
@@ -118,7 +119,7 @@ export const OddsTab = () => {
         <h2 id="baccarat-edge-title" className={styles.blockTitle}>
           {t.edgeTitle}
         </h2>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable}>
             <thead>
               <tr>
@@ -146,7 +147,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.edgeNote}</p>
       </section>
 
@@ -157,7 +158,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           {t.tableauIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.tableau} data-testid="tableau">
             <thead>
               <tr>
@@ -191,7 +192,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-why-title">
@@ -243,7 +244,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.decksIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="decks-table">
             <thead>
               <tr>
@@ -268,7 +269,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
     </div>
   );

@@ -17,6 +17,7 @@ import {
   type PatternsResult,
 } from './sim';
 import styles from './Baccarat.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 export const HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const PATTERN_HAND_OPTIONS = [10_000, 100_000, 1_000_000] as const;
@@ -128,7 +129,7 @@ export const SimTab = () => {
                 points: lines[id].points,
               }))}
             />
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="baccarat-sim-lines">
                 <thead>
                   <tr>
@@ -151,7 +152,7 @@ export const SimTab = () => {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.linesNote}</p>
           </>
         )}
@@ -168,7 +169,7 @@ export const SimTab = () => {
         </div>
         {patterns && (
           <>
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="baccarat-sim-patterns">
                 <thead>
                   <tr>
@@ -196,7 +197,7 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.patternsNote}</p>
             {streaks.length > 0 && (
               <>
@@ -222,7 +223,7 @@ export const SimTab = () => {
         </div>
         {counting && (
           <>
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={`${styles.oddsTable} ${styles.simTable}`} data-testid="baccarat-sim-counting">
                 <thead>
                   <tr>
@@ -250,7 +251,7 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
             <p className={styles.note}>{t.countingNote(fmt(counting.shoes), fmt(counting.hands))}</p>
             <h3 className={styles.subTitle}>{t.sampleShoeTitle}</h3>
             <ShoeChart

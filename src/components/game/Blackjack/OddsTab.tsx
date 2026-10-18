@@ -20,6 +20,7 @@ import { HARD_CHART, PAIR_CHART, SOFT_CHART, naturalWin } from './engine';
 import { getStrings } from './i18n';
 import { MAX_BET, MIN_BET } from './medalTable';
 import styles from './Blackjack.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const RULE_VARIANTS: { id: 'table' | 'h17' | 'sixFive' | 'noDas' | 'splitOnce' | 'surrender'; rules: Rules }[] = [
   { id: 'table', rules: TABLE_RULES },
@@ -84,7 +85,7 @@ export const OddsTab = () => {
   const renderChart = (section: Section, rows: Record<number, ChartCell[]>, title: string) => (
     <div className={styles.chartBlock}>
       <h3 className={styles.subTitle}>{title}</h3>
-      <div className={styles.tableWrap}>
+      <ScrollArea className={styles.tableWrap}>
         <table className={styles.chart} data-chart={section}>
           <thead>
             <tr>
@@ -128,7 +129,7 @@ export const OddsTab = () => {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollArea>
     </div>
   );
 
@@ -175,7 +176,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.medalIntro(MIN_BET, MAX_BET)}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bj-medal-table">
             <thead>
               <tr>
@@ -196,7 +197,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.medalNote(pct(unmatched, 2))}</p>
       </section>
 
@@ -207,7 +208,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.dealerIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bj-dealer-table">
             <thead>
               <tr>
@@ -239,7 +240,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-chart-title">
@@ -299,7 +300,7 @@ export const OddsTab = () => {
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.rulesIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bj-rules-table">
             <thead>
               <tr>
@@ -320,7 +321,7 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-players-title">

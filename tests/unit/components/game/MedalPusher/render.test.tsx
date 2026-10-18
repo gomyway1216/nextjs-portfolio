@@ -1271,8 +1271,8 @@ describe('strings', () => {
     expect(ja.partText.chuckers).toContain(`メダル1枚分に左右それぞれ幅の${across(CHECKERS.halfWidth)}%を足した広さ`);
     expect(en.partText.chuckers).toContain(`so that each takes medals up to ${across(CHECKERS.wingWidth)}% of the width to either side`);
     expect(ja.partText.chuckers).toContain(`左右それぞれ幅の${across(CHECKERS.wingWidth)}%までのメダルが入ります`);
-    expect([CHECKERS.halfWidth, CHECKERS.wingWidth]).toEqual([1.27, 1.42]);
-    expect([across(CHECKERS.halfWidth), across(CHECKERS.wingWidth)]).toEqual(['1.6', '1.8']);
+    expect([CHECKERS.halfWidth, CHECKERS.wingWidth]).toEqual([1.27, 1.7]);
+    expect([across(CHECKERS.halfWidth), across(CHECKERS.wingWidth)]).toEqual(['1.6', '2.2']);
     expect(CHECKERS.positions[1]).toBe(FIELD.width / 2);
     expect(en.partText.chuckers).toContain('side by side in the middle of the pusher’s lip');
     expect(en.partText.chuckers).toContain('do not move along it');
@@ -1369,9 +1369,9 @@ describe('strings', () => {
     expect(ja.simNotes('1.37', MAX_STOCK, JACKPOT_STEP).join('')).toContain('ここではどの狙い方もランプには合わせません。メダルが縁に着くまでに30秒ほどかそれ以上かかる');
     // The calculator's note gives what was measured: how long a medal is on its way, how far the pile carries it, and what aiming at the lamp returned.
     expect(en.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)).toContain('Aiming at the lit START pocket does not pay. Four medals in five take from 19 seconds to about a minute and a quarter to get from the rail to the lip, half of them between 25 and 47 seconds, and the pile carries a medal about an eighth of the field’s width');
-    expect(en.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)).toContain('about 85.9% came back, and aimed at the column the light would be on 34 seconds later about 85.6%: both less than the 88.8% of feeding the middle');
+    expect(en.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)).toContain('about 86.3% came back, and aimed at the column the light would be on 34 seconds later about 85.9%: both less than the 88.7% of feeding the middle');
     expect(ja.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)).toContain('光っているチャッカーを狙っても得にはなりません。メダルがレールから縁に着くまでには、5枚のうち4枚が19秒から約1分15秒（半数は25秒から47秒）かかり、そのあいだに山に押されて左右に幅の8分の1ほどずれる');
-    expect(ja.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)).toContain('約85.9%、34秒後に光っているはずの列に向けても約85.6%で、どちらも中央に落とし続ける場合の88.8%に届きません');
+    expect(ja.calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH)).toContain('約86.3%、34秒後に光っているはずの列に向けても約85.9%で、どちらも中央に落とし続ける場合の88.7%に届きません');
     // What is said aloud when a medal is held through a lit pocket.
     expect(en.sayLucky).toBe('A medal slid down the plate into a lit START pocket. Its spin is gold.');
     expect(ja.sayLucky).toBe('メダルがプレートをすべって、光っているチャッカーに入りました。金の抽選です。');
@@ -1381,35 +1381,35 @@ describe('strings', () => {
     const en = getStrings('en').calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH);
     const ja = getStrings('ja').calcNote(MAX_STOCK, 100 * JACKPOT_GROWTH);
     // What comes back, as scripts/medal-pusher-tune.ts measured it over 36 machines of 3,000 medals: at two a second
-    // (88.77%), at a medal a second (88.52%) and every two seconds, which is the best there is (90.16% ± 0.44), at five
-    // a second (85.23%) and with both buttons held down (82.10%). The field gives back the same share at every pace
-    // (57.8%, and 58.0% at five a second), so it is the screen that makes slow play the best, and a full hold is never
-    // worth filling.
+    // (88.67%), at a medal a second (89.56%) and every two seconds, which is the best there is (90.40% ± 0.49), at five
+    // a second (87.55%) and with both buttons held down (83.71%). The field gives back the same share at every pace
+    // (57.8%, and 58.0% at five a second), so it is the screen that makes slow play the best, fast play is helped by
+    // the wings that chance time opens, and a full hold is never worth filling.
     expect(en).toContain('about 58% of the medals that leave the field drop into the tray, and a spin starts about 18 times for every 100 medals dropped: about 89% of the medals come back. That is about what a real machine is set to give.');
     expect(en).toContain('There the field alone returns about half to six tenths of what reaches it, the side holes take the rest, and the lottery makes up the difference; so it is here.');
     expect(en).toContain('since the lucky lamp makes about a third of all spins gold');
     expect(en).toContain(`The machine holds up to ${MAX_STOCK} spins and plays them the faster the more it holds, but at that pace about one medal in 4 through a START pocket finds the hold full, many of them the medals of a tower that went over at a pocket, which all arrive at once.`);
     expect(en).toContain('Drop anywhere at all instead and a spin starts about 12 times, and about 76% comes back.');
-    expect(en).toContain('Dropping more slowly gains a little: at a medal every two seconds about 90% comes back, and that is the most this machine gives; at a medal a second about 89%, as at two a second.');
+    expect(en).toContain('Dropping more slowly gains a little: at a medal every two seconds about 90% comes back, and that is the most this machine gives; at a medal a second about 89.6%, and at two a second about 88.7%.');
     expect(en).toContain('The field gives back the same share of what leaves it however fast it is fed, so what changes with the pace is the screen. Dropping faster loses, if less than it would with a screen that did not hurry');
-    expect(en).toContain('at five a second about one in four of the medals through a START pocket finds the hold full, and fewer medals get to a START pocket at all, since the pile on the pusher spreads them wider; about 85% comes back.');
-    expect(en).toContain('about two in five of them find the hold full: about 82% comes back');
+    expect(en).toContain('at five a second the pile on the pusher spreads the medals wider, so fewer reach a START pocket on their own, and about one in three of those that do finds the hold full. But chance time comes about twice as often as at two a second, and while it lasts the wings let more medals in, so about 87.6% comes back.');
+    expect(en).toContain('nearly half of them find the hold full: about 84% comes back');
     expect(en).toContain('of the medals that go through one on their own, nine in ten are medals you dropped');
     expect(en).toContain('thrown on loose, which is about a fifth of the medals that go over the lip one at a time');
     expect(en).toContain('That gives back part of what a full hold wastes, and never all of it.');
     expect(ja).toContain('戻ってくるのは約89%です。これは実機の設定とほぼ同じです。');
     expect(ja).toContain('ラッキーランプで抽選の約3分の1が金の抽選になるからです');
     expect(ja).toContain('場所を決めずに落とすと、抽選は約12回になり、戻ってくるのは約76%です');
-    expect(ja).toContain('2秒に1枚なら戻ってくるのは約90%で、このマシンではこれが最高です。1秒に1枚なら約89%で、毎秒2枚と同じくらいです。');
+    expect(ja).toContain('2秒に1枚なら戻ってくるのは約90%で、このマシンではこれが最高です。1秒に1枚なら約89.6%、毎秒2枚なら約88.7%です。');
     expect(ja).toContain('フィールドは、入れる速さにかかわらず、出ていくメダルのうち同じ割合を返します。速さで変わるのは画面のほうです。速く落とすと損になりますが、画面が保留を速く回すので、損は小さくなっています。');
-    expect(ja).toContain('毎秒5枚では、チャッカーを通ったメダルの約4枚に1枚が満杯の保留に当たり、プッシャーの上の山がメダルを広く散らすので、チャッカーまで届くメダルそのものも減って、戻ってくるのは約85%です。');
-    expect(ja).toContain('チャッカーを通ったメダルの約5枚に2枚が満杯の保留に当たって、戻ってくるのは約82%です');
+    expect(ja).toContain('毎秒5枚では、プッシャーの上の山がメダルを広く散らすので、自分でチャッカーまで届くメダルが減り、届いたメダルの約3枚に1枚は満杯の保留に当たります。ただしチャンスタイムが毎秒2枚のときの2倍ほど起こり、そのあいだは羽根が開いてメダルが多く入るので、戻ってくるのは約87.6%です。');
+    expect(ja).toContain('チャッカーを通ったメダルの半分近くが満杯の保留に当たって、戻ってくるのは約84%です');
     expect(ja).toContain('満杯で無駄になった分の一部はこれで戻りますが、全部は戻りません。');
     // The jackpot's part of it is said plainly: how seldom it comes, and what comes back without it.
-    // Played the best way a spin starts for 19.37 medals in 100, 57.75% of what leaves the field drops into the tray,
-    // and 90.16 come back: the jackpot's growth and what a spin is worth for its sake are 6.56 of them.
-    expect(Math.round(1 / (0.1937 * JACKPOT_CHANCE) / 100) * 100).toBe(7900);
-    expect(0.5775 * (0.1937 * JACKPOT_CHANCE * JACKPOT_START + JACKPOT_GROWTH) * 100).toBeCloseTo(6.56, 2);
+    // Played the best way a spin starts for 19.40 medals in 100, 57.78% of what leaves the field drops into the tray,
+    // and 90.40 come back: the jackpot's growth and what a spin is worth for its sake are 6.56 of them.
+    expect(Math.round(1 / (0.194 * JACKPOT_CHANCE) / 100) * 100).toBe(7900);
+    expect(0.5778 * (0.194 * JACKPOT_CHANCE * JACKPOT_START + JACKPOT_GROWTH) * 100).toBeCloseTo(6.56, 1);
     expect(en).toContain('played the best way it comes about once in 7,900 medals. It is about 6.6 of the 90 medals in 100 that come back, and without it about 84 do.');
     expect(ja).toContain('出るのはメダル約7,900枚に1回です。100枚につき戻る約90枚のうち約6.6枚がその分で、ジャックポットを除くと戻りは約84枚です。');
     // It says how much the jackpot grows by, as it is told.
@@ -1421,7 +1421,9 @@ describe('strings', () => {
     // field gave back less at two medals a second than at one.
     for (const text of [en, ja]) expect(text).not.toMatch(/96\.5%|about 95%|約95%|about 93%|約93%|about 94%|約94%|leave by the front|手前から出て/);
     for (const text of [en, ja]) expect(text).not.toMatch(/about 81%|約81%|about 69%|約69%|about 87%|約87%|two in three|3分の2|83\.5|約83\.5枚|one medal in 5 through|約4割/);
-    for (const text of [en, ja]) expect(text).not.toMatch(/about 84%|約84%|about 80%|約80%|about 77%|約77%|82\.8%|81\.9%|7,700|45 seconds|45秒|a sixth of the field|6分の1/);
+    for (const text of [en, ja]) expect(text).not.toMatch(/about 80%|約80%|about 77%|約77%|82\.8%|81\.9%|7,700|45 seconds|45秒|a sixth of the field|6分の1/);
+    // Nor are those of the wings before they were opened wider again: five a second gave back 85% and both buttons 82%.
+    for (const text of [en, ja]) expect(text).not.toMatch(/about 85%|約85%|about 82%|約82%|85\.6%|88\.8%|two in five of them|約5枚に2枚/);
     // The calculator's own sum, at what it starts from, comes to about what was measured at two medals a second: every
     // spin at its average, a third of what being gold adds, and what the jackpot grows by.
     const start = returnFor(CALC_DEFAULT.front / 100, CALC_DEFAULT.spins / 100, calcSpinValue(JACKPOT_START));
@@ -1475,8 +1477,8 @@ describe('strings', () => {
     // And what it gives back, which is what a real machine is set to.
     expect(info.en).toContain('the machine gives back about 90 medals of every 100, which is about what a real one is set to: the field alone returns under 60, and the screen’s games make up the rest.');
     expect(info.ja).toContain('戻ってくるのはメダル100枚につき約90枚で、実機の設定とほぼ同じです。フィールドだけなら戻りは60枚に届かず、残りは画面の抽選が補います。');
-    expect(en.oddsIntro).toContain('about 90 medals of every 100 to the best play. About 58 of those are your own medals coming back over the front, and about 32 are medals the screen paid.');
-    expect(ja.oddsIntro).toContain('メダル100枚につき約90枚です。そのうち約58枚は自分のメダルが手前から戻った分、約32枚は画面から払い出されたメダルです。');
+    expect(en.oddsIntro).toContain('about 90 medals of every 100 to the best play. About 58 of those are your own medals coming back over the front, and about 33 are medals the screen paid.');
+    expect(ja.oddsIntro).toContain('メダル100枚につき約90枚です。そのうち約58枚は自分のメダルが手前から戻った分、約33枚は画面から払い出されたメダルです。');
     // The Simulation tab's notes give the four aims as they were measured, and say that the jackpot's growth is counted.
     const notes = { en: en.simNotes('3.19', MAX_STOCK, JACKPOT_STEP).join(' '), ja: ja.simNotes('3.19', MAX_STOCK, JACKPOT_STEP).join('') };
     expect(notes.en).toContain(`It also counts the medal the jackpot grows by for every ${JACKPOT_STEP} dropped`);
@@ -1484,12 +1486,12 @@ describe('strings', () => {
     expect(notes.en).toContain('about 58% down the middle and about 31% from the edges');
     expect(notes.en).toContain('Fed at the edges, the medals are pushed along a side wall and out of the open side where the wall ends.');
     expect(notes.en).toContain('The screen hurries through the spins it holds, but plays only about one spin a second at most');
-    expect(notes.en).toContain('the middle then returns about 82% and the edges about 54%');
+    expect(notes.en).toContain('the middle then returns about 84% and the edges about 54%');
     expect(notes.ja).toContain(`メダル${JACKPOT_STEP}枚ごとにジャックポットが1枚増える分も数えます`);
     expect(notes.ja).toContain('中央で約89%、場所を決めない場合で約76%、チャッカーの両脇に固定で約72%、両端で約35%です');
     expect(notes.ja).toContain('中央で約58%、両端で約31%です');
     expect(notes.ja).toContain('両端に落としたメダルは脇の壁に沿って押され、壁が切れたところで開いた脇から押し出されます。');
-    expect(notes.ja).toContain('そのときの戻りは、中央で約82%、両端で約54%です');
+    expect(notes.ja).toContain('そのときの戻りは、中央で約84%、両端で約54%です');
   });
 
   it('describes the feed arms as the engine works them', () => {
@@ -3275,7 +3277,7 @@ describe('chance time on the screen and in the words', () => {
     expect(html).toContain(`it is worth ${CHANCE_BONUS.toFixed(2)} medals more than one ordinary spin`);
     expect(html).toContain('it is worth 1.34 medals more than one ordinary spin');
     // Both buttons held down, as it was measured, next to what steady play returns.
-    expect(html).toContain('holding both buttons down returns about 82%, where feeding the middle at two medals a second returns about 89%: a full hold is not worth filling');
+    expect(html).toContain('holding both buttons down returns about 84%, where feeding the middle at two medals a second returns about 89%: a full hold is not worth filling');
     expect(html).not.toContain('never better');
     // At the end of the section, small: the lucky lamp's rule, and the two spins' worth to five places.
     const section = html.split(`>${getStrings('en').chanceOddsTitle}</h2>`)[1]?.split('</section>')[0] ?? '';
@@ -3291,7 +3293,7 @@ describe('chance time on the screen and in the words', () => {
     expect(ja).toContain('チャンスタイム');
     expect(ja).toContain('ふつうの抽選より1.34枚多く払い出します');
     expect(ja).toContain('羽根は穴の両わきの板で、下へ開いて穴を広げます');
-    expect(ja).toContain('両方のボタンを押し続けたときに戻ってくるのは約82%で、中央に毎秒2枚ずつ落とす場合の約89%に届きません');
+    expect(ja).toContain('両方のボタンを押し続けたときに戻ってくるのは約84%で、中央に毎秒2枚ずつ落とす場合の約89%に届きません');
     expect(ja).toContain(`プッシャーが1往復する${LUCKY.dwell}秒ごとに、光が左から順にとなりのチャッカーへ移ります`);
     expect(ja).toContain(`ふつうの抽選1回の価値は平均${ordinary}枚、金の抽選1回は平均${gold}枚です`);
     expect(ja).toContain(`毎秒2枚までの速さで実測すると、抽選全体の約${LAMP_SHARE}%がランプによる金の抽選でした`);

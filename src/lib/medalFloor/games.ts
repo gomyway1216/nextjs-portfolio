@@ -42,6 +42,7 @@ export const FLOOR_GAMES = [
   'craps',
   'three-card-poker',
   'fishing',
+  'horse-race',
   'ball-bingo',
 ] as const;
 
@@ -161,6 +162,11 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
     'harbor-lord': { amounts: [300, 900, 1_500], feed: true },
     treasure: { amounts: times([10, 20, 50, 200], [1, 3, 5]), feed: false },
   }),
+  // Mini Turf Racing: one win ticket and one quinella come in on a race, each at most 99 medals, a win at odds of up to
+  // 99 and a quinella up to 999: 99 × (99 + 999) = 108,702. Taken: every one of the 21 tickets at its most, 2,079. A
+  // race every twenty seconds or so at the quickest (tickets, START, skip).
+  // Best return: 90%, the most any ticket on any race brings back (odds first, every chance R ÷ the odds).
+  'horse-race': rule(108_702, 6_000, 300, 2_079, 0.9),
   // A full card pays 500 a medal bet, on a bet of up to 3: 1,500. Taken: three medals a game. A game can be played in a
   // couple of seconds with SKIP: about 180 games a minute at the very quickest.
   // Best return: 89.974% (worked out by dynamic programming over every state a card can be in), on any bet.

@@ -166,7 +166,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Ball Bingo.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -234,6 +234,7 @@ describe('the floor jackpot', () => {
       craps: ['Craps/Craps.tsx', 'OddsTab'],
       'three-card-poker': ['ThreeCardPoker/ThreeCardPoker.tsx', 'OddsTab'],
       fishing: ['Fishing/Fishing.tsx', 'OddsTab'],
+      'horse-race': ['HorseRace/HorseRace.tsx', 'OddsTab'],
       'ball-bingo': ['BallBingo/BallBingo.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());

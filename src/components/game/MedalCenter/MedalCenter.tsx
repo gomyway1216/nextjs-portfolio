@@ -35,6 +35,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'craps', path: '/games/craps' },
   { id: 'three-card-poker', path: '/games/three-card-poker' },
   { id: 'fishing', path: '/games/fishing' },
+  { id: 'horse-race', path: '/games/horse-race' },
   { id: 'ball-bingo', path: '/games/ball-bingo' },
 ];
 

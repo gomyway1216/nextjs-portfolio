@@ -444,6 +444,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'horse-race',
+    title: 'Mini Turf Racing',
+    description: 'A horse-racing medal machine on a miniature track: six horses, win and quinella tickets bought with your medals, a race run to a result drawn at the off — and the exact odds of every ticket, all of them bringing back 89.5% to 90%.',
+    thumbnail: '🏇',
+    path: '/games/horse-race',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'ball-bingo',
     title: 'Ball Bingo',
     description: 'A ball-drop bingo of the Medal Center: shoot balls through the pins into numbered pockets, line up a 3×3 card, catch FREE and CHANCE for more balls — and see the exact odds of every line, and why about 90 of every 100 medals come back.',

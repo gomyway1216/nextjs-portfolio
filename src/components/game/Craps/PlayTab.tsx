@@ -9,6 +9,7 @@ import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint } from '../MedalCenter/KeysHint';
 import { useMachineSound, type MachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
@@ -540,9 +541,7 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
               {t.quickRoll}
             </button>
           </div>
-          <p className={styles.keysHint} data-testid="craps-keys">
-            {t.keysHint}
-          </p>
+          <KeysHint text={t.keysHint} className={styles.keysHint} testId="craps-keys" />
         </div>
 
         {/* The medals are in a machine in another tab: this table waits, with its bets on it, until it is played here again. */}

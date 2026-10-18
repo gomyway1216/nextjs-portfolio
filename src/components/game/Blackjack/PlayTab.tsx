@@ -25,6 +25,7 @@ import {
 } from './engine';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint } from '../MedalCenter/KeysHint';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { HoleCard, PlayingCard } from './Cards';
@@ -823,9 +824,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
             <p className={`${styles.message} ${message?.error ? styles.messageError : ''}`} role="status" data-testid="bj-message">
               {message?.text ?? ''}
             </p>
-            <p className={styles.keysHint} data-testid="bj-keys">
-              {t.keysHint}
-            </p>
+            <KeysHint text={t.keysHint} className={styles.keysHint} testId="bj-keys" />
           </div>
 
           <div className={`${styles.frontPart} ${styles.morePart}`}>

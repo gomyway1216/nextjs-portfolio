@@ -20,6 +20,9 @@ import { createI18nInstance } from '@/lib/i18n';
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
 
+/** The words of the keys line the markup shows, its parts' tags taken out. */
+const keysLine = (markup: string, testId: string) => markup.match(new RegExp(`data-testid="${testId}">(.*?)</p>`))?.[1].replace(/<[^>]+>/g, '');
+
 describe('cards and scoreboards', () => {
   it('labels a card by rank and suit, writing tens as 10', () => {
     const markup = renderToStaticMarkup(<PlayingCard card={{ rank: 'T', suit: '♥' }} sideways />);
@@ -96,12 +99,8 @@ describe('PlayTab', () => {
   });
 
   it('names its keys for a desk, in both languages', () => {
-    expect(render(<PlayTab />)).toContain(
-      'data-testid="baccarat-keys">Keys: Space or Enter deals · P Player · B Banker · T Tie · R rebet · U undo<',
-    );
-    expect(render(<PlayTab />, 'ja')).toContain(
-      'data-testid="baccarat-keys">キー：Space か Enter でディール・P でプレイヤー・B でバンカー・T でタイ・R で同じベット・U で取り消し<',
-    );
+    expect(keysLine(render(<PlayTab />), 'baccarat-keys')).toBe('Keys: Space or Enter deals · P Player · B Banker · T Tie · R rebet · U undo');
+    expect(keysLine(render(<PlayTab />, 'ja'), 'baccarat-keys')).toBe('キー：Space か Enter でディール・P でプレイヤー・B でバンカー・T でタイ・R で同じベット・U で取り消し');
   });
 
   it('writes nothing a player sees that could be taken for real money, in either language', () => {

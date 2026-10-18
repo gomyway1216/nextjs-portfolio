@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { POCKETS, pocketOfNumber, randomsFor } from '../../src/components/game/BallBingo/engine';
-import { ROUND_KEY, parseRound } from '../../src/components/game/BallBingo/medals';
+import { ROUND_KEY, SPEED_KEY, parseRound } from '../../src/components/game/BallBingo/medals';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
@@ -168,6 +168,22 @@ test.describe('with less motion', () => {
             }),
           );
         const button = () => page.locator('[data-testid="bingo-start"], [data-testid="bingo-launch"]').evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY));
+        // The row of SKIP, AUTO, 2× and the sound says every word in full, with AUTO and 2× on as with them off.
+        const clipped = () =>
+          page.evaluate(() =>
+            ['bingo-skip', 'bingo-auto', 'bingo-speed', 'bingo-sound'].filter((id) => {
+              const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement;
+              return el.scrollWidth > el.clientWidth + 1;
+            }),
+          );
+        expect(await clipped(), where).toEqual([]);
+        await pressUntil(page.getByTestId('bingo-auto'), async () => (await page.getByTestId('bingo-auto').getAttribute('aria-pressed')) === 'true');
+        await page.getByTestId('bingo-speed').click();
+        await expect(page.getByTestId('bingo-speed')).toHaveAttribute('aria-pressed', 'true');
+        expect(await clipped(), `${where} AUTO and 2× on`).toEqual([]);
+        await page.getByTestId('bingo-auto').click();
+        await page.getByTestId('bingo-speed').click();
+        await expect(page.getByTestId('bingo-speed')).toHaveAttribute('aria-pressed', 'false');
         const idle = await places();
         const idleButton = await button();
         await start(page, ONE_LINE, 1);
@@ -240,4 +256,61 @@ test('a ball is shot up the lane, falls through the pins and drops into the pock
   await expect(page.getByTestId('bingo-result')).toHaveText('No line this game.');
   expect(await bankBalance(page)).toBe(WELCOME - 1);
   expect(await led(page, 'bingo-medals-led')).toBe(WELCOME - 1);
+});
+
+/** Watches the field: for every ball that flies, how long its flight is at its own pace, and how long it took to show. */
+async function timeFlights(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __flights: { ms: number; took: number }[] };
+    w.__flights = [];
+    const board = document.querySelector('[data-testid="bingo-board"]')!;
+    let since = 0;
+    let ms = 0;
+    new MutationObserver(() => {
+      if (board.getAttribute('data-flying') === 'true' && since === 0) {
+        since = performance.now();
+        ms = Number(board.getAttribute('data-flight-ms'));
+      } else if (board.getAttribute('data-flying') === 'false' && since !== 0) {
+        w.__flights.push({ ms, took: performance.now() - since });
+        since = 0;
+      }
+    }).observe(board, { attributes: true, attributeFilter: ['data-flying'] });
+  });
+}
+const flights = (page: Page) => page.evaluate(() => (window as unknown as { __flights: { ms: number; took: number }[] }).__flights);
+
+test('2× shows the same flights twice as fast, is kept on this device, and F switches it back', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openBingo(page);
+  const speed = page.getByTestId('bingo-speed');
+  await expect(speed).toHaveAttribute('aria-pressed', 'false');
+  await pressUntil(speed, async () => (await speed.getAttribute('aria-pressed')) === 'true');
+  await expect(page.getByTestId('bingo-board')).toHaveAttribute('data-speed', '2');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SPEED_KEY)).toBe('2');
+
+  // A ball at 2×: its flight shown in about half its own time.
+  await timeFlights(page);
+  await start(page, LOSS, 1);
+  await expect.poll(async () => (await flights(page)).length, { timeout: 10_000 }).toBe(1);
+  const [fast] = await flights(page);
+  expect(fast.ms).toBeGreaterThan(1_000);
+  expect(fast.took).toBeLessThan(fast.ms * 0.75);
+  expect(fast.took).toBeGreaterThan(fast.ms * 0.35);
+  await page.getByTestId('bingo-skip').click();
+  await expect(cabinet(page)).toHaveAttribute('data-phase', 'over');
+
+  // Kept through a reload; F puts it back to the field's own pace.
+  await page.reload();
+  await arrived(page);
+  await expect(cabinet(page)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+  await expect(page.getByTestId('bingo-speed')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('body').click({ position: { x: 2, y: 2 } });
+  await page.keyboard.press('f');
+  await expect(page.getByTestId('bingo-speed')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('bingo-board')).toHaveAttribute('data-speed', '1');
+  await timeFlights(page);
+  await start(page, LOSS, 1);
+  await expect.poll(async () => (await flights(page)).length, { timeout: 15_000 }).toBe(1);
+  const [own] = await flights(page);
+  expect(own.took).toBeGreaterThan(own.ms * 0.8);
 });

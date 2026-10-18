@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useEffect, useRef } from 'react';
-import { FPS, poseAt, type Flight } from './ballPath';
+import { FPS, flightMs, poseAt, type Flight } from './ballPath';
 import { ARCH, BALL_R, CUPS, FIELD, FLAP, FOOT_POCKETS, FOOT_ROW, LANE, PINS, PIN_R, POSTS, VIEW, lidOf } from './field';
 import { FREE_MOST, POCKETS } from './engine';
 import styles from './BallBingo.module.css';
@@ -14,6 +14,8 @@ export interface BoardProps {
   /** Whether a ball waits at the plunger, to be shot, and whether the plunger is drawn back to shoot it. */
   waiting: boolean;
   pulling: boolean;
+  /** How many times the flight's own pace it is shown at (2 for the quick mode). It may change while a ball flies. */
+  speed: number;
   /** The ball in the air, and a key that is new for every ball shot. */
   flight: Flight | null;
   flightKey: number;
@@ -27,6 +29,9 @@ export interface BoardProps {
 }
 
 const PLUNGER = { x: LANE.x, y: LANE.bottom + BALL_R } as const;
+
+/** How many of a flight's frames go by between two moments (in ms) when it is shown at `speed` times its own pace. */
+export const framesBetween = (from: number, to: number, speed: number): number => (Math.max(0, to - from) / 1000) * FPS * speed;
 /** How far the plunger is drawn back before it is let go, in the drawing's units. */
 const PULL_DEPTH = 4;
 
@@ -102,11 +107,11 @@ const Field = memo(function Field() {
  * air is moved straight on the drawing, a frame at a time, from its flight's
  * frames; nothing else is drawn again while it flies.
  */
-export const Board = memo(function Board({ marks, frees, chance, waiting, pulling, flight, flightKey, onDrop, onLanded, flash, label }: BoardProps) {
+export const Board = memo(function Board({ marks, frees, chance, waiting, pulling, speed, flight, flightKey, onDrop, onLanded, flash, label }: BoardProps) {
   const ball = useRef<SVGGElement | null>(null);
-  const handlers = useRef({ onDrop, onLanded });
+  const handlers = useRef({ onDrop, onLanded, speed });
   useEffect(() => {
-    handlers.current = { onDrop, onLanded };
+    handlers.current = { onDrop, onLanded, speed };
   });
 
   // The ball in the air: moved every frame from its flight, until it has come to rest.
@@ -115,7 +120,8 @@ export const Board = memo(function Board({ marks, frees, chance, waiting, pullin
     if (!flight || !element) return;
     const count = flight.frames.length / 2;
     let frame = 0;
-    let start: number | null = null;
+    let last: number | null = null;
+    let at = 0;
     let dropped = false;
     const place = (at: number) => {
       const { x, y } = poseAt(flight, at);
@@ -124,8 +130,9 @@ export const Board = memo(function Board({ marks, frees, chance, waiting, pullin
     place(0);
     element.setAttribute('data-flying', 'true');
     const tick = (now: number) => {
-      start ??= now;
-      const at = ((now - start) / 1000) * FPS;
+      // The flight's frames are gone through at its own pace, times the speed it is shown at (which may change mid-flight).
+      at += framesBetween(last ?? now, now, handlers.current.speed);
+      last = now;
       place(at);
       if (!dropped && at >= flight.land) {
         dropped = true;
@@ -151,7 +158,7 @@ export const Board = memo(function Board({ marks, frees, chance, waiting, pullin
   const chanceRest = CUPS.find((cup) => POCKETS[cup.pocket].kind === 'chance')!;
 
   return (
-    <svg className={styles.board} viewBox={`0 0 ${VIEW.width} ${VIEW.height}`} role="img" aria-label={label} data-testid="bingo-board" data-flying={flight ? 'true' : 'false'}>
+    <svg className={styles.board} viewBox={`0 0 ${VIEW.width} ${VIEW.height}`} role="img" aria-label={label} data-testid="bingo-board" data-flying={flight ? 'true' : 'false'} data-speed={speed} data-flight-ms={flight ? Math.round(flightMs(flight)) : undefined}>
       <Field />
       {/* The cups among the pins, lit while they are open; a shut one has its dome. */}
       {CUPS.map((cup) => {

@@ -7,8 +7,8 @@ import type { AccountStore, Player } from '../MedalPusher/account';
 import { bank as medalBank } from '../MedalCenter/bank';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import floorTabs from '../MedalCenter/tabs.module.css';
-import { analyzeMachine } from './engine';
 import { getStrings } from './i18n';
+import { PUBLISHED_ODDS } from './odds';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import styles from './BallBingo.module.css';
@@ -16,7 +16,7 @@ import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/Fl
 
 type Tab = 'machine' | 'odds';
 
-const RTP_LABEL = `${(analyzeMachine().rtp * 100).toFixed(2)}%`;
+const RTP_LABEL = `${(PUBLISHED_ODDS.rtp * 100).toFixed(2)}%`;
 
 export interface BallBingoProps {
   /** Who is playing. Without one the medals are this device's guest's. */

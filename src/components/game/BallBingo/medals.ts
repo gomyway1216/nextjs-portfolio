@@ -59,6 +59,8 @@ export const ROUND_KEY = 'ball-bingo-round';
 export const roundKey = (owner: string | null): string => (owner === null ? ROUND_KEY : `${ROUND_KEY}:${owner}`);
 /** Where a tab keeps its own name, which lasts through its reloads (sessionStorage). */
 export const TAB_KEY = 'ball-bingo-tab';
+/** Where this device keeps the speed the balls are shown flying at (PlayTab.tsx): nothing to do with the medals. */
+export const SPEED_KEY = 'ball-bingo-speed';
 
 export const ROUND_VERSION = 1;
 

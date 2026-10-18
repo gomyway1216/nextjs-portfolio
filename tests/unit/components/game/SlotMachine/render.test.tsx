@@ -166,11 +166,12 @@ describe('SlotMachine', () => {
     expect(getStrings('ja').infoBody(rtp).join(' ')).toContain(`ベットしたメダルの ${rtp} を返します`);
   });
 
-  it('links to the medal center above its title, and keeps the one-time note for the browser, which knows whether it was read', () => {
+  it('links to the medal center above its title, and draws the one-time note with its gate, which hides it before the first paint where it was read', () => {
     const markup = render(<SlotMachine />);
     expect(markup).toMatch(new RegExp(`<a[^>]*href="${MEDAL_CENTER_PATH}"[^>]*data-testid="slot-center"`));
     expect(markup).toContain('Medal Game Center');
-    expect(markup).not.toContain('slot-notice');
+    // The note is in the server's drawing, so the machine never moves for it (MedalCenter/onceNote.tsx).
+    expect(markup).toMatch(/<script>[^<]*slot-machine-medals-notice[^<]*<\/script><section[^>]*data-testid="slot-notice"[^>]*data-once-note="slot-machine"/);
   });
 
   it('simulates sessions in medals, starting from the medal center’s free cupful, with the machine’s own bets', () => {

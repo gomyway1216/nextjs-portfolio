@@ -683,21 +683,3 @@ export function createMedalPlay(env: MedalPlayEnv) {
 }
 
 export type MedalPlay = ReturnType<typeof createMedalPlay>;
-
-/** Whether the player has been told that the machine plays with their medals now. Storage that cannot be read tells them again. */
-export function noticeSeen(store: HandStore): boolean {
-  try {
-    return store.read(NOTICE_KEY) !== null;
-  } catch {
-    return false;
-  }
-}
-
-/** Notes that the player has been told. */
-export function markNoticeSeen(store: HandStore): void {
-  try {
-    store.write(NOTICE_KEY, '1');
-  } catch {
-    // They are told again next time.
-  }
-}

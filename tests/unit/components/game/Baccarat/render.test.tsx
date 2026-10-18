@@ -107,11 +107,13 @@ describe('PlayTab', () => {
   it('writes nothing a player sees that could be taken for real money, in either language', () => {
     for (const lang of ['en', 'ja'] as const) {
       const markup = render(<Baccarat />, lang);
-      // The one sentence that says medals are not money names money in order to say so; nothing else may.
+      // The one sentence that says medals are not money names money in order to say so, and the one-time note (in the
+      // server's drawing, MedalCenter/onceNote.tsx) names the old practice chips to say they are gone; nothing else may.
       const text = markup
         .replace(/<[^>]+>/g, ' ')
         .replace('Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.', '')
-        .replace('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。', '');
+        .replace('メダルはこのサイトのゲームで遊ぶためだけのものです。お金ではなく、購入・換金・景品との交換はできません。', '')
+        .replace(getStrings(lang).noticeBody, '');
       expect(text, lang).not.toMatch(/bankroll|\bbank\b|deposit|withdraw|cash|money|dollar|balance|credit|\$|預け|預かり|引き出し|入金|出金|残高|お金|円|ドル|換金|所持金|収支|チップ/i);
       const attributes = [...markup.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1]).join(' ');
       expect(attributes, lang).not.toMatch(/bankroll|\bbank\b|money|balance|credit|chip|所持金|チップ/i);

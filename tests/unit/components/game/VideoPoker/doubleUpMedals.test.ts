@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BANK_KEY } from '@/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, parseLedger, receiptsOf } from '@/components/game/MedalCenter/ledger';
 import { DOUBLE_MAX } from '@/components/game/VideoPoker/doubleUp';
 import {
+  FLOOR_DOUBLE,
   GAME,
   canDouble,
   createMedalPlay,
@@ -14,7 +15,20 @@ import {
   serializeHand,
   type SavedHand,
 } from '@/components/game/VideoPoker/medals';
+import { FLOOR_RULES, labelPays } from '@/lib/medalFloor/games';
 import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
+
+// What the machine tells the medal floor, heard here instead of sent.
+const reports = vi.hoisted(() => [] as unknown[][]);
+vi.mock('@/components/game/MedalCenter/floor/reporter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/game/MedalCenter/floor/reporter')>()),
+  floorReport: (...args: unknown[]) => {
+    reports.push(args);
+  },
+}));
+beforeEach(() => {
+  reports.length = 0;
+});
 
 // The double-up at the medal center (medals.ts, doubleUp.ts): a win put on a double-up goes out of the player's
 // medals as the dealer's card is turned, and comes back twice over, once over, or not at all as a card is picked,
@@ -206,6 +220,50 @@ describe('a win put on a double-up', () => {
     // A hand dealt and not drawn can have no double-ups.
     expect(parseHand(JSON.stringify({ ...JSON.parse(text), drawn: false, doubles: [{ dealer: 0 }] }))).toBeNull();
     expect(play.read()).toEqual({ ok: true, hand });
+  });
+});
+
+describe('what the medal floor hears of a double-up', () => {
+  it('a double won: what it made, the stake again, and what it brought back as a double-up won', async () => {
+    const { play, id } = await won(double('2♠', 'A♥'), double('3♠', 'K♥'));
+    // The hand's own win, as it went in.
+    expect(reports).toEqual([[GAME, { won: WON, prize: { medals: WON, label: undefined } }]]);
+    play.doubleUp(id);
+    expect(reports).toHaveLength(1);
+    play.pick(id, 0);
+    play.doubleUp(id);
+    play.pick(id, 0);
+    expect(reports.slice(1)).toEqual([
+      [GAME, { won: WON, prize: { medals: 2 * WON, label: FLOOR_DOUBLE } }],
+      [GAME, { won: 2 * WON, prize: { medals: 4 * WON, label: FLOOR_DOUBLE } }],
+    ]);
+    // Every one of them a win the floor believes.
+    for (const [, win] of reports.slice(1) as [string, { prize: { medals: number; label: string } }][]) {
+      expect(labelPays('video-poker', win.prize.label, win.prize.medals)).toBe(true);
+      expect(win.prize.medals).toBeLessThanOrEqual(FLOOR_RULES['video-poker'].most);
+    }
+  });
+
+  it('a push or a loss: nothing, since nothing was made', async () => {
+    const { play, id } = await won(double('J♠', 'J♥'), double('A♠', '3♣'));
+    play.doubleUp(id);
+    expect(play.pick(id, 0)).toMatchObject({ outcome: 'push' });
+    play.doubleUp(id);
+    expect(play.pick(id, 0)).toMatchObject({ outcome: 'lose' });
+    expect(reports).toHaveLength(1);
+  });
+
+  it('a double picked after a reload is heard of once', async () => {
+    const { browser, page, play, id } = await won(double('9♣', 'K♦'));
+    play.doubleUp(id);
+    page.close();
+    const second = browser.open();
+    const again = machine(second, [firstNumber('9♣', 'K♦')]);
+    await quiet(browser);
+    again.play.read();
+    again.play.pick(id, 0);
+    again.play.pick(id, 0);
+    expect(reports.slice(1)).toEqual([[GAME, { won: WON, prize: { medals: 2 * WON, label: FLOOR_DOUBLE } }]]);
   });
 });
 

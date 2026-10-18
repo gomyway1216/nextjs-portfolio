@@ -16,7 +16,8 @@ import { PAY_RULES } from '@/components/game/SlotMachine/engine';
 import { BET_OPTIONS } from '@/components/game/SlotMachine/medals';
 import { ANTE_BONUS_PAYS, PAIR_PLUS_PAYS } from '@/components/game/ThreeCardPoker/engine';
 import { SPOT_MAX as TCP_SPOT_MAX } from '@/components/game/ThreeCardPoker/medalTable';
-import { MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, ROYAL_SHORT_PAY, payout } from '@/components/game/VideoPoker/engine';
+import { DOUBLE_MAX, DOUBLE_RETURN } from '@/components/game/VideoPoker/doubleUp';
+import { HANDS, MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, ROYAL_SHORT_PAY, payout, type HandRank } from '@/components/game/VideoPoker/engine';
 import { games } from '@/components/game/constants/games';
 import { FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
@@ -59,10 +60,19 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES.janken.labels['double-up'].amounts).toEqual(sorted(doubled));
   });
 
-  it('video poker: a royal flush on five coins, and what each named hand pays on every pay table', () => {
-    expect(FLOOR_RULES['video-poker'].most).toBe(Math.max(...PAY_TABLE_IDS.map((id) => payout(9, PAY_TABLES[id], MAX_COINS))));
+  it('video poker: a royal flush on five coins doubled up every time it can be, and what each named win pays on every pay table', () => {
     const coins = Array.from({ length: MAX_COINS }, (_, index) => index + 1);
+    const ranks = HANDS.map((_, rank) => rank as HandRank);
+    // Every win a hand pays, on every table and bet; and those wins doubled up once to as many times as the machine allows.
+    const wins = sorted(PAY_TABLE_IDS.flatMap((id) => ranks.flatMap((rank) => coins.map((n) => payout(rank, PAY_TABLES[id], n)))).filter((won) => won > 0));
+    const doubled = Array.from({ length: DOUBLE_MAX }, (_, index) => DOUBLE_RETURN.win ** (index + 1));
+    expect(doubled).toEqual([2, 4, 8, 16]);
+    const royal = Math.max(...PAY_TABLE_IDS.map((id) => payout(9, PAY_TABLES[id], MAX_COINS)));
+    expect(FLOOR_RULES['video-poker'].most).toBe(royal * DOUBLE_RETURN.win ** DOUBLE_MAX);
+    expect(FLOOR_RULES['video-poker'].most).toBe(64_000);
     const labels = FLOOR_RULES['video-poker'].labels;
+    expect(labels['double-up'].amounts).toEqual(sorted(wins.flatMap((won) => doubled.map((by) => won * by))));
+    expect(labels['double-up'].feed).toBe(false);
     expect(labels.royal.amounts).toEqual(sorted(PAY_TABLE_IDS.flatMap((id) => coins.map((n) => payout(9, PAY_TABLES[id], n)))));
     expect(labels['straight-flush'].amounts).toEqual(sorted(PAY_TABLE_IDS.flatMap((id) => coins.map((n) => payout(8, PAY_TABLES[id], n)))));
     expect(labels['four-kind'].amounts).toEqual(sorted(PAY_TABLE_IDS.flatMap((id) => coins.map((n) => payout(7, PAY_TABLES[id], n)))));
@@ -123,6 +133,9 @@ describe('named wins and the feed', () => {
     expect(labelPays('janken', 'double-up', 160)).toBe(true);
     expect(labelPays('janken', 'double-up', 10)).toBe(true);
     expect(labelPays('janken', 'double-up', 7)).toBe(false);
+    expect(labelPays('video-poker', 'double-up', 64_000)).toBe(true);
+    expect(labelPays('video-poker', 'double-up', 90)).toBe(true);
+    expect(labelPays('video-poker', 'double-up', 45)).toBe(false);
     expect(labelPays('slot-machine', 'constructor', 1)).toBe(false);
     expect(labelPays('roulette', 'seven3', 1_000)).toBe(false);
   });

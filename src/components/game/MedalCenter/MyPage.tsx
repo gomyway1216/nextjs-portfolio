@@ -9,9 +9,10 @@ import { ACHIEVEMENT_IDS, lifetimeReturn, viewOf } from '../MedalPusher/records'
 import { useRecords, type RecordsState } from '../MedalPusher/recordsStore';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useBank, useMedalHistory, type BankState } from './bank';
-import { CENTER, FLOOR_JACKPOT, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
+import { CENTER, FLOOR_JACKPOT, HISTORY_LIMITS, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
 import type { HistoryState } from './historyStore';
 import { COUNTER_PLACES, FLOOR, MedalStack } from './MedalCenter';
+import { DottedParts } from './KeysHint';
 import { getMyPageStrings, type MyPageStrings } from './myPageStrings';
 import { MEDAL_CENTER_PATH, MEDAL_PUSHER_PATH } from './paths';
 import styles from './MyPage.module.css';
@@ -475,7 +476,11 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
   }
   // The days the entries no longer reach, by their totals.
   const oldest = entries.length > 0 ? localDayOf(entries[entries.length - 1].t) : null;
-  const older = doc ? dayTotals(doc).filter((total) => oldest !== null && total.day < oldest) : [];
+  const totals = doc ? dayTotals(doc) : [];
+  const older = totals.filter((total) => oldest !== null && total.day < oldest);
+  // Once entries have been let go (only the latest are kept), the oldest day the list reaches may have lost its
+  // earlier things: what it lists of that day is only the rest. So the whole day's totals are said under it.
+  const cut = oldest !== null && (entries.length >= HISTORY_LIMITS.entries || older.length > 0) ? (totals.find((total) => total.day === oldest) ?? null) : null;
 
   return (
     <section id="mypage-history" className={styles.history} aria-labelledby="mypage-history-title" data-testid="mypage-history" data-loaded={doc !== null} data-entries={entries.length}>
@@ -511,6 +516,14 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
               </li>
             ))}
           </ol>
+          {cut && group.day === cut.day && listed.length === entries.length && (
+            <p className={styles.dayCut} data-testid="mypage-day-cut">
+              <span>{t.dayCut}</span>{' '}
+              <span>
+                <DottedParts text={t.dayLine(f.n(cut.bet), f.n(cut.won), f.n(cut.free), f.n(cut.rounds))} />
+              </span>
+            </p>
+          )}
         </div>
       ))}
       {entries.length > count && (
@@ -524,12 +537,14 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
       {older.length > 0 && (
         <div className={styles.older} data-testid="mypage-older">
           <h3 className={styles.cardTitle}>{t.olderTitle}</h3>
-          <p className={styles.sectionLead}>{t.olderLead}</p>
+          <p className={styles.sectionLead}>{t.olderLead(HISTORY_LIMITS.days)}</p>
           <ul className={styles.olderList}>
             {older.map((total) => (
               <li key={total.day} className={styles.olderDay}>
                 <strong>{f.day(noonOf(total.day))}</strong>
-                <span>{t.dayLine(f.n(total.bet), f.n(total.won), f.n(total.free), f.n(total.rounds))}</span>
+                <span>
+                  <DottedParts text={t.dayLine(f.n(total.bet), f.n(total.won), f.n(total.free), f.n(total.rounds))} />
+                </span>
                 {total.left !== null && <span className={styles.entryLeft}>{t.dayLeft(f.n(total.left))}</span>}
               </li>
             ))}

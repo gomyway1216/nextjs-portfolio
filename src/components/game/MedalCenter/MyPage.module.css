@@ -578,6 +578,17 @@
   font-weight: 800;
   cursor: pointer;
 }
+/* Under the oldest day the list reaches, once its earlier things may have been let go: the whole day's totals. */
+.dayCut {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.4em;
+  margin: 0;
+  padding: 0 0.2rem;
+  color: var(--mc-lead);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
 .older {
   display: flex;
   flex-direction: column;

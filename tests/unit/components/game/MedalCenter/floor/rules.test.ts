@@ -45,6 +45,8 @@ import { RACE_STAKE_MOST as HORSE_STAKE_MOST, TICKET_MAX as HORSE_TICKET_MAX } f
 import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
 import { BET_OPTIONS as FISHING_BETS, CHEST as FISHING_CHEST, FISH, MOST_MEDALS as FISHING_MOST, analyzeMachine as fishingOdds, valueOf as fishingValue } from '@/components/game/Fishing/engine';
 import { BET_OPTIONS as BINGO_BETS, FULL_CARD_LINES, MOST_WIN as BINGO_MOST, analyzeMachine as bingoOdds, paysFor as bingoPays } from '@/components/game/BallBingo/engine';
+import { LAMPS as WHEEL_LAMPS, SPOTS as WHEEL_SPOTS, TOP_MULTIPLE as WHEEL_TOP, analyzeWheel, valueOf as wheelValue } from '@/components/game/BigWheel/engine';
+import { SPIN_STAKE_MOST as WHEEL_STAKE_MOST, SPOT_MAX as WHEEL_SPOT_MAX } from '@/components/game/BigWheel/medalTable';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -135,6 +137,9 @@ describe('the most each machine can take from the player at once, for the medals
     expect(HORSE_STAKE_MOST).toBe(HORSE_TICKETS.length * HORSE_TICKET_MAX);
     // Ball Bingo: a game's bet at its biggest.
     expect(FLOOR_RULES['ball-bingo'].stakeMost).toBe(Math.max(...BINGO_BETS));
+    // The big wheel: every number of the board at its most.
+    expect(FLOOR_RULES['big-wheel'].stakeMost).toBe(WHEEL_STAKE_MOST);
+    expect(WHEEL_STAKE_MOST).toBe(WHEEL_SPOTS.length * WHEEL_SPOT_MAX);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -176,6 +181,8 @@ describe('which machines are linked to the floor jackpot', () => {
       'horse-race': toNumber(HORSE_RETURN_MOST),
       // The same on every bet: worked out over every state a game can be in.
       'ball-bingo': bingoOdds().rtp,
+      // The same on every number, exactly (engine.test.ts adds up all 43,200 ways a spin can be drawn).
+      'big-wheel': wheelValue(analyzeWheel().rtp),
     };
   };
 
@@ -191,7 +198,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -337,6 +344,18 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(FLOOR_RULES['ball-bingo'].labels['full-card'].feed).toBe(true);
   });
 
+  it('Star Festival Big Wheel: a second chance’s ×10 on the ×40 with every medal a number holds, and every second-chance win there is', () => {
+    const medals = Array.from({ length: WHEEL_SPOT_MAX }, (_, i) => i + 1);
+    const lamps = sorted(WHEEL_LAMPS);
+    expect(WHEEL_TOP).toBe(Math.max(...WHEEL_SPOTS) * Math.max(...lamps));
+    expect(FLOOR_RULES['big-wheel'].most).toBe(WHEEL_TOP * WHEEL_SPOT_MAX);
+    expect(FLOOR_RULES['big-wheel'].most).toBe(39_600);
+    expect(FLOOR_RULES['big-wheel'].labels['wheel-400'].amounts).toEqual(medals.map((n) => WHEEL_TOP * n));
+    expect(FLOOR_RULES['big-wheel'].labels['wheel-400'].feed).toBe(true);
+    expect(FLOOR_RULES['big-wheel'].labels['wheel-bonus'].amounts).toEqual(sorted(WHEEL_SPOTS.flatMap((spot) => lamps.flatMap((lamp) => medals.map((n) => spot * lamp * n)))));
+    expect(FLOOR_RULES['big-wheel'].bestReturn).toBe(0.9);
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -365,6 +384,11 @@ describe('named wins and the feed', () => {
     expect(labelPays('fishing', 'treasure', 400)).toBe(false);
     expect(labelPays('ball-bingo', 'full-card', 1_500)).toBe(true);
     expect(labelPays('ball-bingo', 'full-card', 1_499)).toBe(false);
+    expect(labelPays('big-wheel', 'wheel-400', 39_600)).toBe(true);
+    expect(labelPays('big-wheel', 'wheel-400', 4_000)).toBe(true);
+    expect(labelPays('big-wheel', 'wheel-400', 401)).toBe(false);
+    expect(labelPays('big-wheel', 'wheel-bonus', 4 * 3 * 7)).toBe(true);
+    expect(labelPays('big-wheel', 'wheel-bonus', 7)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -381,5 +405,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('fishing', 150)).toBe(true);
     expect(feedWorthy('ball-bingo', 500, 'full-card')).toBe(true);
     expect(feedWorthy('ball-bingo', 100)).toBe(false);
+    expect(feedWorthy('big-wheel', 400, 'wheel-400')).toBe(true);
+    expect(feedWorthy('big-wheel', 30, 'wheel-bonus')).toBe(false);
+    expect(feedWorthy('big-wheel', 400)).toBe(true);
   });
 });

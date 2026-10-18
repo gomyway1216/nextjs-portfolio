@@ -179,8 +179,9 @@ describe('the words', () => {
     const markup = render(<ThreeCardPoker />);
     expect(markup).toMatch(new RegExp(`<a[^>]*href="${MEDAL_CENTER_PATH}"[^>]*data-testid="tcp-center"[^>]*>`));
     expect(markup).toContain('data-testid="tcp-not-money"');
-    // The notice that the table plays with medals now is shown in the browser, once it is known that it has not been read.
-    expect(markup).not.toContain('tcp-medals-notice');
+    // The notice that the table plays with medals now is in the server's drawing, with its gate, which hides it before
+    // the first paint where it has been read: the table never moves for it (MedalCenter/onceNote.tsx).
+    expect(markup).toMatch(/<script>[^<]*three-card-poker-medals-notice[^<]*<\/script><section[^>]*data-testid="tcp-medals-notice"[^>]*data-once-note="three-card-poker"/);
     const ja = render(<ThreeCardPoker />, 'ja');
     expect(ja).toContain('メダルゲームセンター');
     for (const language of ['en', 'ja'] as const) {

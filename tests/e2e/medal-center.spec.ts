@@ -71,7 +71,7 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   // The bank is written down at once, as a new member's.
   await expect.poll(() => bankBalance(page)).toBe(WELCOME);
   // The floor: the Medal Pusher and the casino games already on the medals open and linked, the ones still to come shown
-  // as not open yet; all nine machines are on it, one way or the other.
+  // as not open yet; all ten machines are on it, one way or the other.
   await expect(page.getByTestId('center-play-medal-pusher')).toHaveAttribute('href', '/games/medal-pusher');
   await expect(page.getByTestId('center-play-slot-machine')).toHaveAttribute('href', '/games/slot-machine');
   await expect(page.getByTestId('center-play-janken')).toHaveAttribute('href', '/games/janken');
@@ -81,11 +81,12 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-baccarat')).toHaveAttribute('href', '/games/baccarat');
   await expect(page.getByTestId('center-play-craps')).toHaveAttribute('href', '/games/craps');
   await expect(page.getByTestId('center-play-three-card-poker')).toHaveAttribute('href', '/games/three-card-poker');
-  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']) {
+  await expect(page.getByTestId('center-play-horse-race')).toHaveAttribute('href', '/games/horse-race');
+  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'horse-race']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
-  // Nine machines on the floor: those open, and the rest shown as coming.
-  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(9);
+  // Ten machines on the floor: those open, and the rest shown as coming.
+  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(10);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('center-reset')).toBeEnabled();

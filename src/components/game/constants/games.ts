@@ -434,4 +434,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'horse-race',
+    title: 'Mini Turf Racing',
+    description: 'A horse-racing medal machine on a miniature track: six horses, win and quinella tickets bought with your medals, a race run to a result drawn at the off — and the exact odds of every ticket, all of them bringing back 89.5% to 90%.',
+    thumbnail: '🏇',
+    path: '/games/horse-race',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

@@ -34,6 +34,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'baccarat', path: '/games/baccarat' },
   { id: 'craps', path: '/games/craps' },
   { id: 'three-card-poker', path: '/games/three-card-poker' },
+  { id: 'horse-race', path: '/games/horse-race' },
 ];
 
 /** A stack of medals, in the same silver as the medals on the machines. */

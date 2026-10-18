@@ -11,7 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * buffer for the Web Audio API. Nothing is downloaded or recorded.
  *
  * What a medal machine is heard to do: a medal going in, the lever, each reel
- * stopping, a card dealt, the ball launched and dropping into its pocket, and
+ * stopping, a card dealt, the ball launched and dropping into its pocket, the
+ * horse race's bell before betting closes, its fanfare, gate and hoof beats, and
  * above all a win counted into the player's medals a medal at a time, each
  * with its chirp (`tick`), with a jingle over it, a fanfare for a big one. A
  * loss is silent, as on the machines.
@@ -20,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'fanfare', 'gate', 'hooves', 'bell'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -224,6 +225,52 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     knock(t, 0.19, 1100, 0.2, 0.008);
     return t;
   },
+  // The horse-racing machine's fanfare before the off: the machine's own call of a few rising notes on its speaker,
+  // a held top note, and an answer up to the octave.
+  fanfare: (rate) => {
+    const t = take(1.85, rate);
+    const call: [string, number, number][] = [
+      ['G4', 0.0, 0.09],
+      ['C5', 0.12, 0.09],
+      ['E5', 0.24, 0.09],
+      ['G5', 0.36, 0.3],
+      ['E5', 0.72, 0.09],
+      ['G5', 0.84, 0.09],
+      ['C6', 0.96, 0.62],
+    ];
+    for (const [name, at, length] of call) {
+      note(t, 0.01 + at, pitch(name), length, 0.32, length > 0.2 ? 0.006 : 0);
+      note(t, 0.01 + at, pitch(name) * 2, length, 0.08);
+    }
+    ping(t, 0.97, pitch('C7'), 0.12, 0.12);
+    return t;
+  },
+  // The starting gate flying open: a clank of steel, the rattle of the doors, a thump.
+  gate: (rate) => {
+    const t = take(0.4, rate);
+    knock(t, 0.002, 160, 0.9, 0.03);
+    ping(t, 0.004, 1250, 0.35, 0.05);
+    ping(t, 0.01, 1780, 0.25, 0.04);
+    hiss(t, 0.0, 0.18, 0.7, 2400, 91);
+    knock(t, 0.09, 120, 0.5, 0.025);
+    return t;
+  },
+  // A stride of the field at the gallop: four hoof beats close together, over the dust.
+  hooves: (rate) => {
+    const t = take(0.5, rate);
+    [0.0, 0.07, 0.13, 0.25].forEach((at, i) => {
+      knock(t, 0.004 + at, 95 + i * 12, 0.85 - i * 0.08, 0.018);
+      hiss(t, 0.004 + at, 0.04, 0.35, 700, 101 + i);
+    });
+    return t;
+  },
+  // The bell that says betting is about to close: a small electric bell, ringing.
+  bell: (rate) => {
+    const t = take(0.95, rate);
+    for (let i = 0; i < 20; i++) ping(t, 0.004 + i * 0.04, 2100, 0.3 * (1 - i / 26), 0.05);
+    ping(t, 0.81, 2100, 0.3, 0.12);
+    return t;
+  },
 };
 
 /** A sound as samples at `rate` per second: worked out, brought to `PEAK` at its loudest, and faded in and out over a few ms. */
@@ -247,7 +294,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55 };
 
 export interface Speaker {
   on: () => boolean;

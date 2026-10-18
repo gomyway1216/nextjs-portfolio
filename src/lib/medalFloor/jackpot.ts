@@ -18,10 +18,10 @@
  *   floor jackpot's long-run value added, still brings back at most 100% of
  *   the medals played (`linked`, from each machine's `bestReturn` in games.ts,
  *   pinned against the games' own exact odds). The pusher, the slot machine,
- *   Calico Janken, roulette and Three Card Poker are; blackjack, video poker,
- *   baccarat and craps, whose best play already brings back 99% to 100%, are
- *   not. As on a real floor, not every cabinet is on the progressive: play at
- *   those tables neither feeds it nor draws for it.
+ *   Calico Janken, roulette, Three Card Poker and Mini Turf Racing are;
+ *   blackjack, video poker, baccarat and craps, whose best play already
+ *   brings back 99% to 100%, are not. As on a real floor, not every cabinet is
+ *   on the progressive: play at those tables neither feeds it nor draws for it.
  * - **Limits.** The medals played that take part are checked like the medals
  *   won: no faster than each machine can be played (games.ts), and at most
  *   `DAILY_PLAYED_MOST` (20,000) of one player's a floor day. One jackpot per

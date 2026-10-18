@@ -179,13 +179,17 @@ test('the Medal Pusher plays from the bank: a medal fed comes out of it, a medal
   const bank = await bankBalance(page);
   await page.reload();
   await settled(page);
-  await expect.poll(() => counter(page, 'credits'), { timeout: 15_000 }).toBe(await bankBalance(page));
+  // The field is still settling and may bring a medal back at any moment, so the machine and the bank are compared
+  // afresh each time, never against a number read once.
+  await expect.poll(async () => (await counter(page, 'credits')) - (await bankBalance(page)), { timeout: 15_000 }).toBe(0);
   const afterReload = await counter(page, 'credits');
   // A medal or two may have been won while the field settled; none was lost or made.
   expect(afterReload).toBeGreaterThanOrEqual(bank);
   await openCenter(page);
-  await expect.poll(() => shownAtCenter(page)).toBe(await bankBalance(page));
-  expect(await shownAtCenter(page)).toBe(afterReload);
+  // At the medal center no machine is playing, so the bank holds still: the counter shows it, and it holds every medal
+  // the machine showed, and any it won after that.
+  await expect.poll(async () => (await shownAtCenter(page)) - (await bankBalance(page))).toBe(0);
+  expect(await shownAtCenter(page)).toBeGreaterThanOrEqual(afterReload);
 });
 
 test('the reset asks first, then empties the bank to a new member’s medals and starts the machine over; the bonus card is kept', async ({ page }) => {

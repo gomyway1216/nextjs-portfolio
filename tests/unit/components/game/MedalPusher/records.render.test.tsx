@@ -617,7 +617,7 @@ describe('the words', () => {
     }
     // Change a number and the words follow.
     expect(getRecordStrings('en').achievement({ ...ACHIEVEMENT_NUMBERS, run: 6 }).fullRun.how).toBe('Hit 6 numbers in a row on the roulette.');
-    expect(getRecordStrings('ja').achievement({ ...ACHIEVEMENT_NUMBERS, days: 10 }).week.how).toBe('10日続けて遊ぶ。');
+    expect(getRecordStrings('ja').achievement({ ...ACHIEVEMENT_NUMBERS, days: 10 }).week.how).toBe('この台で10日続けて遊ぶ。');
   });
 
   it('have a name for every row and every heading of the board, in both languages', () => {

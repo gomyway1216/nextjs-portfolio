@@ -132,7 +132,8 @@ export const Board = memo(function Board({ marks, frees, chance, waiting, pullin
         handlers.current.onDrop?.();
       }
       if (at >= count - 1) {
-        element.setAttribute('data-flying', 'false');
+        // At rest: the ball stays drawn where it is until the page draws it standing in its pocket (this effect's
+        // cleanup, which runs once that is on the screen, puts the flying one away), so that it never blinks out.
         handlers.current.onLanded?.();
         return;
       }

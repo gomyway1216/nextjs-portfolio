@@ -11,6 +11,7 @@ import { NAME_MAX } from '../../src/lib/medalFloor/names';
 import type { FloorFeedEntry } from '../../src/lib/medalFloor/types';
 import { emptyFloor, holdFloor } from './layoutShift';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Japanese on a phone is never broken inside a word: a machine's name (「スロットマシ｜ン」, 「スリーカードポー｜カー」),
@@ -308,6 +309,82 @@ for (const width of WIDTHS) {
       width);
       expect(spills, `${path} at ${width} px`).toEqual([]);
     }
+    await context.close();
+  });
+}
+
+// ── The High & Low Ladder and Moonlit Sic Bo ────────────────────────────────
+
+/** The words of `words` that `lines` break inside, as 「…｜…」. */
+const wordsBroken = (lines: readonly string[], words: readonly string[]): string[] => {
+  const joined = lines.join('｜');
+  return words.filter((word) => Array.from({ length: word.length - 1 }, (_, i) => `${word.slice(0, i + 1)}｜${word.slice(i + 1)}`).some((cut) => joined.includes(cut)));
+};
+
+/** Each of `target`'s elements read line by line, with the words of `words` any of them breaks inside. */
+async function brokenIn(target: Locator, words: readonly string[]): Promise<string[]> {
+  const found: string[] = [];
+  for (const element of await target.all()) {
+    const lines = await linesOf(element);
+    if (wordsBroken(lines, words).length > 0) found.push(`「${lines.join('｜')}」`);
+  }
+  return found;
+}
+
+const HL_WORDS = ['段目', 'テイク', '予想', '引き分け', 'ハズレ', 'ラダー', 'ここまで', '最善手', '戻り', '当たり', 'カード', '有利'];
+const SB_WORDS = ['いちばん', '戻る', 'エリア', '少ない', '合計', 'ゾロ目', '選ぶ', '通り', '倍率', '取り分'];
+const hlCard = (rank: number, suit = 1) => (rank * 4 + suit + 0.5) / 52;
+
+for (const width of WIDTHS) {
+  test(`the High & Low Ladder's lines and its Odds tab's tables break between phrases in Japanese at ${width} px`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/high-low');
+    await arrived(page);
+    await expect(page.getByTestId('hl-machine')).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    const status = page.getByTestId('hl-status');
+    const said: string[] = [];
+    // A 7, then a King (HIGH), then a 3 (LOW): the rungs' offers; then TAKE, and an 8 tied.
+    await rigPresses(page, [hlCard(5)]);
+    await pressUntil(page.getByTestId('hl-start'), async () => (await page.getByTestId('hl-machine').getAttribute('data-state')) === 'play');
+    for (const [side, next, rung] of [
+      ['high', hlCard(11), '1'],
+      ['low', hlCard(1, 2), '2'],
+    ] as const) {
+      await rigPresses(page, [next]);
+      await page.getByTestId(`hl-${side}`).click();
+      await expect(page.getByTestId('hl-ladder')).toHaveAttribute('data-lit', rung);
+      await expect(status).toContainText('予想');
+      said.push(...(await brokenIn(status, HL_WORDS)));
+    }
+    await page.getByTestId('hl-take').click();
+    await expect(page.getByTestId('hl-start')).toBeEnabled();
+    await rigPresses(page, [hlCard(6, 0)]);
+    await page.getByTestId('hl-start').click();
+    await expect(page.getByTestId('hl-high')).toBeEnabled();
+    await rigPresses(page, [hlCard(6, 3)]);
+    await page.getByTestId('hl-high').click();
+    await expect(status).toContainText('ここまで');
+    said.push(...(await brokenIn(status, HL_WORDS)));
+    said.push(...(await brokenIn(page.locator('#hl-session-title ~ dl dt'), HL_WORDS)));
+    await page.getByRole('tab', { name: '確率' }).click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.locator('table').first()).toBeVisible();
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), HL_WORDS)));
+    expect(said, `at ${width} px`).toEqual([]);
+    await context.close();
+  });
+
+  test(`Moonlit Sic Bo's figures and its Odds tab's tables break between phrases in Japanese at ${width} px`, async ({ browser }) => {
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/sic-bo');
+    await arrived(page);
+    const said = await brokenIn(page.locator('#sb-stats-title ~ dl dt'), SB_WORDS);
+    await page.locator('#sb-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('sb-odds-table')).toBeVisible();
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"]'), SB_WORDS)));
+    expect(said, `at ${width} px`).toEqual([]);
     await context.close();
   });
 }

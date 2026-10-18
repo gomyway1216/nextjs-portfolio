@@ -9,10 +9,11 @@ import styles from './InstructionPlate.module.css';
 
 /**
  * How the compact plate asks for the full one: whoever owns the full plate
- * provides this, and it is called with `true` to open it. With nobody to ask,
- * the compact plate is a sticker and nothing more.
+ * provides this, and it is called with `true` to open it, and the element
+ * that opened it, which has the focus back when it closes. With nobody to
+ * ask, the compact plate is a sticker and nothing more.
  */
-export const PlateSwitch = createContext<((open: boolean) => void) | null>(null);
+export const PlateSwitch = createContext<((open: boolean, opener?: HTMLElement | null) => void) | null>(null);
 
 /**
  * The compact plate: a sticker on the front of the cabinet, under the control
@@ -59,7 +60,7 @@ export const PlateSticker = memo(function PlateSticker() {
     );
   }
   return (
-    <button type="button" className={styles.sticker} data-plate-lang={language} data-testid="pusher-plate-strip" aria-label={t.open} aria-describedby={sayId} aria-haspopup="dialog" onClick={() => open(true)}>
+    <button type="button" className={styles.sticker} data-plate-lang={language} data-testid="pusher-plate-strip" aria-label={t.open} aria-describedby={sayId} aria-haspopup="dialog" onClick={(event) => open(true, event.currentTarget)}>
       {print}
       <span className={styles.stickerMore} aria-hidden>
         <svg viewBox="0 0 24 24" focusable="false">

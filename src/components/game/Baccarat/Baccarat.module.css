@@ -528,6 +528,75 @@
   font-size: calc(var(--cw) * 0.52);
 }
 
+/* The squeeze (絞り): the hand's last card slides out face down, then its face is peeled up from the right-hand long
+   edge, the corner pips first, a little, then a little more, then all of it (PlayTab: SQUEEZE_MS). A tap on the hand
+   turns it at once. */
+.cardSqueeze,
+.cardSqueezed {
+  transform-style: flat;
+}
+.cardSqueeze {
+  animation: bcSlideDown 0.34s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.cardSqueeze .cardBack,
+.cardSqueezed .cardBack {
+  transform: none;
+}
+.cardSqueeze .cardFace {
+  z-index: 1;
+  animation: bcPeel 0.9s ease-in-out 0.34s both;
+}
+.cardSqueezed {
+  animation: none;
+}
+.cardSqueezed .cardFace {
+  z-index: 1;
+}
+@keyframes bcSlideDown {
+  0% {
+    opacity: 0;
+    transform: translate(120px, -90px) rotate(-14deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bcPeel {
+  0% {
+    clip-path: inset(0 0 0 100%);
+  }
+  35% {
+    clip-path: inset(0 0 0 76%);
+  }
+  65% {
+    clip-path: inset(0 0 0 64%);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+/* The whole hand is the button that turns the squeezed card. */
+.squeezeTurn {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.squeezeTurn:focus-visible {
+  outline: 2px solid var(--bc-gold);
+  outline-offset: 2px;
+}
+/* The squeezed card's total appears as soon as its face is all up. */
+.totalNow {
+  animation: bcTotalIn 0.18s ease-out both;
+}
+
 .callout {
   margin-top: 0.8rem;
   min-height: 1.8rem;

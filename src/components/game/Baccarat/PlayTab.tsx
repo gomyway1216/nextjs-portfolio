@@ -74,6 +74,18 @@ const THIRD_CARD_PAUSE_MS = 360;
 const SETTLE_MS = 680;
 
 /**
+ * The squeeze (絞り), as at the tables of Macau and on the electronic baccarat machines that copy them: the hand's last
+ * card slides out face down, and its face is peeled up from one long edge, the corner pips first, before it is turned.
+ * Only the last card, and only for a little over a second; a tap on it (or Space) turns it at once. The hand, and the
+ * medals it moves, were drawn and written down at the deal: the squeeze only shows a card that is already there.
+ */
+const SQUEEZE_SLIDE_MS = 340;
+const SQUEEZE_PEEL_MS = 900;
+export const SQUEEZE_MS = SQUEEZE_SLIDE_MS + SQUEEZE_PEEL_MS;
+/** From the squeezed card's face being all up to the result: its total pops in (0.18 s), and a beat. */
+export const SQUEEZE_SETTLE_MS = 260;
+
+/**
  * How long the table waits for the card before it says that it is in another tab, in seconds. The card is away for
  * a moment whenever another page takes the day's bonus or the like; nothing is said of that. (As the Medal Pusher.)
  */
@@ -82,6 +94,16 @@ export const CARD_WAIT = 1.5;
 export function revealSchedule(cards: number): { reveal: number[]; settle: number } {
   const reveal = Array.from({ length: cards }, (_, k) => k * CARD_MS + Math.max(0, k - 3) * THIRD_CARD_PAUSE_MS);
   return { reveal, settle: reveal[cards - 1] + SETTLE_MS };
+}
+
+/**
+ * The deal with the last card squeezed: the cards before it as `revealSchedule`, the last one put down face down at its
+ * time and its face all up `SQUEEZE_MS` later (`unveil`), and the result called `SQUEEZE_SETTLE_MS` after that.
+ */
+export function squeezeSchedule(cards: number): { reveal: number[]; unveil: number; settle: number } {
+  const { reveal } = revealSchedule(cards);
+  const unveil = reveal[cards - 1] + SQUEEZE_MS;
+  return { reveal, unveil, settle: unveil + SQUEEZE_SETTLE_MS };
 }
 
 const prefersReducedMotion = () =>
@@ -105,6 +127,10 @@ interface Round {
   hand: Hand;
   /** Cards turned over so far, in dealing order. */
   shown: number;
+  /** The hand's last card is on the table face down, being squeezed: it is not counted yet. */
+  squeezing?: boolean;
+  /** The last card was squeezed and is now face up. */
+  squeezed?: boolean;
   settled: boolean;
   results: BetResult[];
   mode: Mode;
@@ -200,6 +226,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   });
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  /** Turns the squeezed card at once, while it is being squeezed (a tap on it, or Space); null otherwise. */
+  const turnNow = useRef<(() => void) | null>(null);
 
   const commitBets = (next: Bets) => {
     betsRef.current = next;
@@ -225,6 +253,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const stopReveal = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    turnNow.current = null;
     dealingRef.current = false;
     setDealing(false);
   };
@@ -480,14 +509,41 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     };
 
     const count = cardsInHand(hand);
-    const { reveal, settle } = prefersReducedMotion() ? { reveal: new Array<number>(count).fill(0), settle: 0 } : revealSchedule(count);
-    // Each card slides out of the shoe as it is turned over, a third card a beat later.
-    reveal.forEach((ms) => play('card', ms / 1000));
     timers.current.forEach(clearTimeout);
+    turnNow.current = null;
+    const showUpTo = (k: number) => setRound((r) => (r && r.id === id ? { ...r, shown: Math.max(r.shown, k + 1) } : r));
+    if (prefersReducedMotion()) {
+      // Every card at once, and no squeeze.
+      for (let k = 0; k < count; k++) play('card');
+      timers.current = [setTimeout(() => showUpTo(count - 1), 0), setTimeout(finish, 0)];
+      return;
+    }
+    // Each card slides out of the shoe as it is turned over, a third card a beat later; the last one is squeezed.
+    const { reveal, unveil, settle } = squeezeSchedule(count);
+    reveal.forEach((ms) => play('card', ms / 1000));
+    const last = count - 1;
+    let unveiled = false;
+    const turn = () => {
+      if (unveiled) return;
+      unveiled = true;
+      turnNow.current = null;
+      play('card');
+      setRound((r) => (r && r.id === id ? { ...r, shown: count, squeezing: false, squeezed: true } : r));
+    };
     timers.current = reveal.map((ms, k) =>
-      setTimeout(() => setRound((r) => (r && r.id === id ? { ...r, shown: Math.max(r.shown, k + 1) } : r)), ms),
+      k < last
+        ? setTimeout(() => showUpTo(k), ms)
+        : setTimeout(() => {
+            setRound((r) => (r && r.id === id ? { ...r, shown: last, squeezing: true } : r));
+            // A tap turns the card at once, and the result is called a beat later.
+            turnNow.current = () => {
+              timers.current.forEach(clearTimeout);
+              turn();
+              timers.current = [setTimeout(finish, SQUEEZE_SETTLE_MS)];
+            };
+          }, ms),
     );
-    timers.current.push(setTimeout(finish, settle));
+    timers.current.push(setTimeout(turn, unveil), setTimeout(finish, settle));
   };
 
   const nextOdds = useMemo(() => exactOdds(unseen), [unseen]);
@@ -514,7 +570,12 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const handView = (side: Side) => {
     const cards = round ? round.hand[side] : [];
     const order = round ? dealOrder(round.hand)[side] : [];
-    const visible = cards.filter((_, i) => order[i] < (round?.shown ?? 0));
+    const shown = round?.shown ?? 0;
+    const lastOrder = round ? cardsInHand(round.hand) - 1 : -1;
+    // The cards that count, and the one being squeezed (face down until it is turned), which does not count yet.
+    const visible = cards.filter((_, i) => order[i] < shown);
+    const onTable = cards.filter((_, i) => order[i] < shown || (round?.squeezing === true && order[i] === shown));
+    const squeezeHere = round !== null && order.includes(lastOrder) && (round.squeezing === true || round.squeezed === true);
     const total = visible.length > 0 ? handTotal(visible) : null;
     const wonSide = settledHand?.winner === side;
     const natural = settledHand?.natural === true && visible.length === 2 && total !== null && total >= 8;
@@ -529,15 +590,23 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         <div className={styles.handHead}>
           <span className={styles.handName}>{t.side[side]}</span>
           {/* The total changes as the card it counts shows its face, not as the card leaves the shoe. */}
-          <span key={`${round?.id ?? 0}-${visible.length}`} className={`${styles.handTotal} ${visible.length > 0 ? styles.totalLate : ''}`} data-testid={`${side}-total`}>
+          <span
+            key={`${round?.id ?? 0}-${visible.length}`}
+            className={`${styles.handTotal} ${visible.length > 0 ? (squeezeHere && round?.squeezed && order.indexOf(lastOrder) < visible.length ? styles.totalNow : styles.totalLate) : ''}`}
+            data-testid={`${side}-total`}
+          >
             {total ?? '–'}
           </span>
         </div>
         <div className={styles.handCards}>
-          {visible.map((card, i) => (
-            <PlayingCard key={`${round!.id}-${i}`} card={card} sideways={i === 2} />
-          ))}
+          {onTable.map((card, i) => {
+            const squeeze = squeezeHere && order[i] === lastOrder ? (round!.squeezing ? 'peel' : 'done') : undefined;
+            return <PlayingCard key={`${round!.id}-${i}`} card={card} sideways={i === 2} squeeze={squeeze} />;
+          })}
         </div>
+        {round?.squeezing && squeezeHere && (
+          <button type="button" className={styles.squeezeTurn} onClick={() => turnNow.current?.()} aria-label={t.squeezeTurn} data-testid="baccarat-squeeze" />
+        )}
         {natural && <span className={styles.naturalTag}>{t.natural}</span>}
       </div>
     );
@@ -585,6 +654,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   };
 
   const calloutText = () => {
+    if (round?.squeezing) return t.squeezing;
     if (dealing || !round) return dealing ? t.dealing : t.placeBets;
     const h = round.hand;
     const extra = isDragon7(h) ? ` · ${t.dragon7Hit}` : isPanda8(h) ? ` · ${t.panda8Hit}` : '';
@@ -613,7 +683,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   // last hand's bets back and U takes the last one off. Each does just what its button does, and nothing while a hand
   // is being dealt.
   useMachineKeys(active, (key) => {
-    if (key === ' ' || key === 'Enter') deal();
+    if ((key === ' ' || key === 'Enter') && turnNow.current) turnNow.current();
+    else if (key === ' ' || key === 'Enter') deal();
     else if (key === 'p') place('player');
     else if (key === 'b') place('banker');
     else if (key === 't') place('tie');

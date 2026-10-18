@@ -112,6 +112,26 @@ const CounterMedal = () => (
 );
 
 /**
+ * A message with each 「quoted」 word kept on one line, with the stop after it. Under keep-all Safari broke
+ * 「ドロー」。 at its edges (「ドロー」 then 。 alone at the start of the next line, or 「 alone at the end of one), and
+ * neither a word joiner nor a break offered before 「 changed where; a run that does not wrap does, in every browser.
+ * The text is the message's own, character for character.
+ */
+const Unbroken = ({ text }: { text: string }) => (
+  <>
+    {text.split(/(「[^」]*」[。、]?)/).map((part, i) =>
+      i % 2 === 1 ? (
+        <span key={i} className={styles.unbroken}>
+          {part}
+        </span>
+      ) : (
+        part
+      ),
+    )}
+  </>
+);
+
+/**
  * The machine. It plays with the player's medals from the medal center
  * (medals.ts says how a bet is taken and a win put back, once each), while
  * this page holds the member's card.
@@ -694,7 +714,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
           )}
 
           <p className={styles.message} role="status" data-tone={message.tone} data-testid="vp-message">
-            {message.text}
+            <Unbroken text={message.text} />
           </p>
 
           {/* The member's card is in a machine in another tab: this one waits until it is played here again. */}

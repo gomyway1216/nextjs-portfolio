@@ -89,6 +89,7 @@ test('the Play link on the floor walks straight to the table, which plays with t
   await openCenter(page);
   await page.getByTestId('center-play-baccarat').click();
   await expect(page).toHaveURL(/\/games\/baccarat$/);
+  await arrived(page);
   await expect(page.getByTestId('baccarat-counter')).toHaveAttribute('data-loaded', 'true');
   await expect.poll(() => medalsShown(page)).toBe(WELCOME);
   await firstBet(page, /^Banker \(1:1/);

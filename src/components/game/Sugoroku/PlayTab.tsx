@@ -173,6 +173,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const glance = useRef<Glance | null>(null);
   const timers = useRef<number[]>([]);
+  // While ROLL writes its roll down and takes the bet: the medals moving then are this press's own, not a roll to take up.
+  const staking = useRef(false);
   const live = useRef({ t, player, calm });
   useEffect(() => {
     live.current = { t, player, calm };
@@ -267,7 +269,13 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const roll = (from?: HTMLElement | null) => {
     if (runningRef.current || !canRollRef.current) return;
     const drawn = drawPlay(Math.random);
-    const outcomeOfStake = table.current?.stake(betRef.current, drawn) ?? { kind: 'away' as const };
+    staking.current = true;
+    let outcomeOfStake: ReturnType<Table['stake']>;
+    try {
+      outcomeOfStake = table.current?.stake(betRef.current, drawn) ?? { kind: 'away' };
+    } finally {
+      staking.current = false;
+    }
     if (outcomeOfStake.kind !== 'staked') {
       const words = live.current.t;
       if (outcomeOfStake.kind === 'short') setMessage(words.notEnough);
@@ -350,7 +358,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           const state = purse.getState();
           if (!tab || !placed.holding() || !state.loaded || !who.settled || state.owner !== who.uid) break;
           if (purse.restartDue(SUGOROKU_GAME)) startOver(false);
-          if (runningRef.current) break;
+          if (runningRef.current || staking.current) break;
           const left = tab.leftover();
           if (left) {
             setAnnouncement(live.current.t.sayResumed);

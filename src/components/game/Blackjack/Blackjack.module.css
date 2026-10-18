@@ -412,18 +412,24 @@
   height: 28px;
   padding: 3px 6px;
 }
+/* What the medals are, said after the buttons on the page's own panel (no longer on the cabinet's dark): as baccarat
+   says it, a note with the table's gold at its edge. */
 .notMoney {
-  margin: 0;
-  font-size: 0.78rem;
+  margin: 0 0 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border-left: 3px solid var(--bj-gold);
+  border-radius: 4px;
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-size: 0.82rem;
   line-height: 1.5;
-  color: #ddd6ff;
 }
 .notKept {
-  margin: 0;
+  margin: 0 0 0.35rem;
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.5;
-  color: #ffd65c;
+  color: var(--games-route-fg);
 }
 .refill {
   appearance: none;
@@ -1662,4 +1668,68 @@
 .soundToggle,
 .hintToggle {
   min-height: 44px;
+}
+
+/*
+ * On a phone (one column) the counter is the machine's credit meter on its panel, right under the table and over the
+ * buttons, as at the other machines of the floor: one row of windows, the medals, the bet and the win, each with its
+ * name over it. The medals written in type stay for a screen reader; the note that medals are not money follows the
+ * buttons. A row of a set height, so nothing under it moves as the medals are read.
+ */
+@media (max-width: 900px) {
+  .buttonsPart > .cabinet {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.5rem;
+    row-gap: 0.15rem;
+    position: relative;
+    margin: 0 0 0.55rem;
+    padding: 0.3rem 0.55rem 0.35rem;
+  }
+  .buttonsPart > .cabinet .cabinetHead {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .buttonsPart > .cabinet .cabinetLabel,
+  .buttonsPart > .cabinet .smallLedLabel {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .buttonsPart > .cabinet .cabinetCount {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .buttonsPart > .cabinet .cabinetBody {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .buttonsPart > .cabinet .cabinetStack {
+    display: none;
+  }
+  .buttonsPart > .cabinet .cabinetLed > span {
+    max-width: none;
+    height: 26px;
+    padding: 3px 6px;
+  }
+  .buttonsPart > .cabinet .smallLeds {
+    display: contents;
+  }
+  .buttonsPart > .cabinet .smallLed {
+    grid-row: 1 / span 2;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.15rem;
+  }
+  .buttonsPart > .cabinet .smallLed > span:last-child {
+    height: 26px;
+    padding: 3px 5px;
+  }
 }

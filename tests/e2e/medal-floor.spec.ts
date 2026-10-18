@@ -4,6 +4,7 @@ import { getFloorStrings } from '../../src/components/game/MedalCenter/floor/str
 import { periodAt } from '../../src/lib/medalFloor/periods';
 import type { FloorFeedEntry, FloorRow, FloorSummary } from '../../src/lib/medalFloor/types';
 import { openCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
 
 // The medal floor played together: the big wins of everyone playing, live, and the day's and week's rankings, on the
@@ -79,7 +80,7 @@ const together = (page: Page) => page.getByTestId('floor-together');
 test('the medal center’s front shows the big wins on the floor by the door and today’s rankings under the machines, at a phone’s width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await fakeFloor(page, () => floor(FEED));
   await openCenter(page);
   // By the door, right after the medals and the daily bonus: over the machines, which are over the rankings.
@@ -203,7 +204,7 @@ test('a floor that cannot be reached says so, and the medal center works as befo
 test('the rankings page has every machine’s board, today and this week, and the moments on show, at a phone’s width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   const asked = await fakeFloor(page, () => floor(FEED));
   await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/medal-center/rankings');

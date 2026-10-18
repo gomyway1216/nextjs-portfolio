@@ -31,7 +31,7 @@ import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { HoleCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
-import { MedalCounter, MedalStack } from './MedalCounter';
+import { MedalCounter, MedalNotes, MedalStack } from './MedalCounter';
 import { DEFAULT_BET, GAME, MAX_BET, MIN_BET, NOTICE_KEY, createMedalTable, freshTable, unsettled, type MedalTable, type Shelf, type Step, type TableSave } from './medalTable';
 import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
@@ -732,28 +732,22 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
         </div>
 
         {/*
-          The machine's front: the medal counter, the buttons, then the rest. On a desk it is one panel beside the
-          table. On a phone the buttons come straight under the table, as a machine's buttons sit under its screen, so
-          the cards and the buttons that play them are on the screen together; the counter follows them.
+          The machine's front: the medal counter over the buttons, then what the medals are, then the rest. On a desk it
+          is one panel beside the table. On a phone the counter and the buttons come straight under the table, as a
+          machine's credit meter and buttons sit under its screen, so the cards, the medals and the buttons that play
+          them are on the screen together.
         */}
         <div className={styles.front}>
-          <div className={`${styles.frontPart} ${styles.counterPart}`}>
+          <div className={`${styles.frontPart} ${styles.buttonsPart}`} data-testid="bj-buttons">
             <MedalCounter
               t={t}
               loaded={open}
-              kept={bankState.kept}
               medals={medals}
               onTable={open ? onTable : null}
               won={won}
               format={fmt}
               ledMedals={medalMeter.shown}
             />
-            <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
-              {t.noticeLink}
-            </Link>
-          </div>
-
-          <div className={`${styles.frontPart} ${styles.buttonsPart}`} data-testid="bj-buttons">
             {/* Out of medals: the medal center's free refill, right by the buttons it lets the player press again. */}
             {open && holdingCard && medals === 0 && !inRound && (
               <button type="button" className={styles.refill} data-testid="bj-refill" onClick={() => medalBank().refill()}>
@@ -846,6 +840,13 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
               {message?.text ?? ''}
             </p>
             <KeysHint text={t.keysHint} className={styles.keysHint} testId="bj-keys" />
+          </div>
+
+          <div className={`${styles.frontPart} ${styles.counterPart}`}>
+            <MedalNotes t={t} loaded={open} kept={bankState.kept} />
+            <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
+              {t.noticeLink}
+            </Link>
           </div>
 
           <div className={`${styles.frontPart} ${styles.morePart}`}>

@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { handValue, hiLo, type Card } from '../../src/components/game/Blackjack/engine';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, playByHint, shownNet } from './blackjackPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
 import { bankBalance } from './medalCenterPage';
@@ -208,7 +209,7 @@ test('on a phone the cards and the buttons that play them are on the screen toge
 test('a win is paid beside the stake and counted up on the counter, with the sound on', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
   // medal-machine-sound.spec.ts).
   await page.addInitScript(() => {

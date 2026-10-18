@@ -6,6 +6,7 @@ import { getStrings } from '../../src/components/game/HorseRace/i18n';
 import { RACE_KEY, parseRace, type RaceRecord } from '../../src/components/game/HorseRace/medalTable';
 import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { bankBalance, openCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
@@ -45,7 +46,7 @@ const sideways = (page: Page) => page.evaluate(() => document.documentElement.sc
 test('tickets are bought at the off, the race is run to the drawn result, and the winning tickets pay once', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openRace(page);
   await expect(page.getByTestId('hr-not-money')).toHaveText(NOT_MONEY.en);
   await expect(page.getByTestId('hr-center')).toHaveAttribute('href', '/games/medal-center');

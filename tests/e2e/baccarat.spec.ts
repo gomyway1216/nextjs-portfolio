@@ -6,6 +6,7 @@ import { medalsBack } from '../../src/components/game/Baccarat/medals';
 import { getStrings } from '../../src/components/game/Baccarat/i18n';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, cardsOf, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, replay, spot } from './baccaratPage';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
 import { pressUntil } from './pressUntil';
 import { bankBalance } from './medalCenterPage';
@@ -206,7 +207,7 @@ test('on a phone the cards, the felt and DEAL are on the screen together', async
 test('the last coup stays on the felt, the win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
   // medal-machine-sound.spec.ts).
   await page.addInitScript(() => {

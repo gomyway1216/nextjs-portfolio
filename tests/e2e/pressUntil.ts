@@ -19,7 +19,7 @@ export async function pressUntil(
   while (Date.now() < until) {
     if (await landed()) return;
     // Not there yet, or covered for a moment: the next round presses again.
-    await target.click({ timeout: 1_000 }).catch(() => undefined);
+    await pressOnce(target).catch(() => undefined);
     const shown = Math.min(until, Date.now() + settle);
     while (Date.now() < shown) {
       if (await landed()) return;
@@ -27,4 +27,19 @@ export async function pressUntil(
     }
   }
   throw new Error(`pressUntil: ${target} was pressed for ${timeout} ms and never took effect`);
+}
+
+/**
+ * One press: a click, or a finger's tap in Playwright's Firefox on a page that has a touch screen. There Playwright
+ * sends a click as mouse events with no pointer events, the way a page hears the mouse events a browser makes up after
+ * a touch, so a control that acts on pointerdown (a Medal Pusher's feed buttons) never hears it. A tap sends the
+ * pointer events a finger makes, as a phone does. Everywhere else the press is the click it always was.
+ */
+async function pressOnce(target: Locator): Promise<void> {
+  const page = target.page();
+  if (page.context().browser()?.browserType().name() === 'firefox' && (await page.evaluate(() => 'ontouchstart' in window))) {
+    await target.tap({ timeout: 1_000 });
+    return;
+  }
+  await target.click({ timeout: 1_000 });
 }

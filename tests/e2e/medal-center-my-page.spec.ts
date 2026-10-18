@@ -7,6 +7,7 @@ import { WELCOME, createLedger, give, serializeLedger } from '../../src/componen
 import { MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
@@ -93,7 +94,7 @@ test('lists what happened to a guest’s medals at two machines, keeps it throug
   test.setTimeout(90_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await spinSevens(page);
   await fullHouse(page);
   const medals = WELCOME - 1 + 1000 - 5 + 45;
@@ -155,7 +156,7 @@ test('fits a phone’s width in both languages, says the medals are not money, a
   await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await fullHouse(page);
   await openMyPage(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('My Page');

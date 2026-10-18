@@ -8,6 +8,7 @@ import { START_CREDITS, createSession } from '../../src/components/game/MedalPus
 import { STORAGE_KEY, restore, serialize } from '../../src/components/game/MedalPusher/storage';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 
 // The medal center's front and its one medal bank, which the Medal Pusher plays from. The machine itself is covered in
@@ -60,7 +61,7 @@ const sideways = (page: Page) => page.evaluate(() => document.documentElement.sc
 test('shows a new member’s medals on a big counter, the floor and the one reset, at a phone’s width, in both languages', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCenter(page);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('MEDAL GAME CENTER');
   await expect(page.getByTestId('center-balance')).toHaveText(String(WELCOME));

@@ -5,6 +5,7 @@ import { ROUND_KEY } from '../../src/components/game/Janken/round';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
@@ -281,7 +282,7 @@ test('a reset in the middle of a win leaves nothing of that win behind: the next
 test('fits a phone’s width in both languages, with the odds on their own tab', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openJanken(page);
   expect(await sideways(page)).toBeLessThanOrEqual(375);
   await page.getByRole('tab', { name: 'Odds' }).click();

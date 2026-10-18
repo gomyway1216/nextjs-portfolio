@@ -7,6 +7,7 @@ import { getStrings } from '../../src/components/game/Roulette/i18n';
 import { ROULETTE_RESULTS_STORAGE_KEY } from '../../src/components/game/Roulette/resultsStore';
 import { NOTICE_KEY, ROULETTE_GAME, SPIN_KEY, parseSpin, winningsOf, type SpinRecord } from '../../src/components/game/Roulette/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { boardNumbers, openRoulette, placeFirstBet, settledResult, shownBet, shownMedals, spinButton } from './roulettePage';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
@@ -384,7 +385,7 @@ test('the medal center’s reset starts the table over; the winning numbers, whi
 
 test('old saved state: the board is kept, the chips are retired, and the note that says so is shown once', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // What a player of the chip-era table has on this device: the results board (the chips were never saved), and,
   // where the table now writes its spin, text it cannot read.
   await page.addInitScript(

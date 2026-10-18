@@ -8,6 +8,7 @@ import { handOdds } from '../../src/components/game/ThreeCardPoker/analysis';
 import { decide, evaluate, settle, type Bets, type Card, type Decision, type Rank, type Suit } from '../../src/components/game/ThreeCardPoker/engine';
 import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand, tableKey } from '../../src/components/game/ThreeCardPoker/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
@@ -502,7 +503,7 @@ test('after the Medal Game Center’s reset the table starts over: a hand from b
 
 test('old saved state crashes nothing, an old Medal Pusher purse is the medals, and the notice is shown once', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // What the table might find: nothing it ever wrote (it kept its chips in memory), so a text it cannot read under
   // its own name; and a Medal Pusher saved before the medal center, with 1,234 medals in its own purse.
   const session = createSession(5, { balls: 0 });
@@ -542,7 +543,7 @@ test('old saved state crashes nothing, an old Medal Pusher purse is the medals, 
 test('the medal counter, its note and the table fit a phone in both languages, light and dark', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openGame(page);
   await expect(page.getByTestId('tcp-not-money')).toHaveText(
     'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
@@ -635,7 +636,7 @@ test('on a phone the cards and PLAY / FOLD are on the screen together when the p
 test('the last hand stays on the felt, a win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
   // medal-machine-sound.spec.ts).
   await page.addInitScript(() => {

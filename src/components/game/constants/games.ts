@@ -461,4 +461,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'big-wheel',
+    title: 'Star Festival Big Wheel',
+    description: 'A big upright prize wheel at the Medal Center: put your medals on its numbers, watch the 54-segment wheel clack to a stop under the flapper, and chase the Milky Way Chance’s second spin up to ×400 — every number bringing back exactly 90%.',
+    thumbnail: '🎡',
+    path: '/games/big-wheel',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

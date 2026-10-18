@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -295,6 +295,24 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     const t = take(0.95, rate);
     for (let i = 0; i < 20; i++) ping(t, 0.004 + i * 0.04, 2100, 0.3 * (1 - i / 26), 0.05);
     ping(t, 0.81, 2100, 0.3, 0.12);
+    return t;
+  },
+  // The big wheel's flapper slapping over a peg (Star Festival Big Wheel): a dry knock of leather on wood, and the peg's tick.
+  flap: (rate) => {
+    const t = take(0.07, rate);
+    knock(t, 0.001, 520, 0.8, 0.007);
+    hiss(t, 0.001, 0.018, 0.9, 1700, 121);
+    ping(t, 0.002, 2300, 0.18, 0.006);
+    return t;
+  },
+  // The big wheel stopping on BONUS: a run of star chimes up two octaves, ringing on.
+  bonus: (rate) => {
+    const t = take(1.3, rate);
+    ['E5', 'G#5', 'B5', 'E6', 'G#6', 'B6', 'E7'].forEach((name, i) => {
+      note(t, 0.01 + i * 0.06, pitch(name), 0.05, 0.24);
+      ping(t, 0.01 + i * 0.06, pitch(name) * 2, 0.16, 0.12);
+    });
+    for (const name of ['E6', 'G#6', 'B6']) note(t, 0.45, pitch(name), 0.5, 0.14, 0.01);
     return t;
   },
 };

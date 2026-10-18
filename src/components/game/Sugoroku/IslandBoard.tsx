@@ -289,7 +289,7 @@ export function IslandBoard({ scene, bet, t, attract, calm, hop, warp, label, on
 
       {/* The boat: moved from cell to cell by transform alone, each hop played again by its key. */}
       <span className={styles.boat} data-warp={warp ? 'true' : 'false'} style={{ '--bx': (boatAt.x - 0.5).toFixed(4), '--by': (boatAt.y - 0.5).toFixed(4) } as CSSProperties} data-testid="sg-boat" aria-hidden="true">
-        <span key={hop} className={styles.boatHop} data-hop={hop > 0 && !calm ? 'true' : 'false'}>
+        <span key={hop} className={styles.boatHop} data-hop={hop > 0 && !calm && !warp ? 'true' : 'false'}>
           <Boat />
         </span>
       </span>

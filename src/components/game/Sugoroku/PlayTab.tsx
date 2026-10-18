@@ -238,7 +238,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setOutcome(null);
       setBet(staked.record.roll.bet);
       clearTimers();
-      setScene({ ...restingScene(played.from, sceneRef.current.face), phase: 'roll' });
+      // Put down where the roll starts at once (a roll found unfinished after a reload starts where it was rolled from).
+      setScene({ ...restingScene(played.from, sceneRef.current.face), phase: 'roll', warp: true });
       if (!again) {
         glance.current?.drop();
         glance.current = lookUp(boardRef.current, from ?? null);
@@ -305,7 +306,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setStats(EMPTY_STATS);
       setMessage('');
       setResumed(false);
-      setScene(restingScene(START));
+      setScene({ ...restingScene(START), warp: true });
       medalBank().restarted(SUGOROKU_GAME);
       if (said) setAnnouncement(live.current.t.sayRestart);
     },
@@ -365,12 +366,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             setOutcome(ended);
             setBet(record.roll.bet);
             setHistory((before) => (before.some((entry) => entry.id === ended.id) ? before : [ended, ...before].slice(0, HISTORY_LIMIT)));
-            setScene({ ...finalScene(played), banner: { kind: 'none' }, phase: 'idle', lit: [], laneLit: [] });
+            setScene({ ...finalScene(played), banner: { kind: 'none' }, phase: 'idle', lit: [], laneLit: [], warp: true });
           } else {
             const at = standingOf(record);
             const now = sceneRef.current;
             // The roll this page has just shown stays up (its total, its path lit) until the next; anything else is put at rest.
-            if (now.boat.on !== 'board' || now.boat.square !== at || (now.phase !== 'idle' && now.phase !== 'done')) setScene({ ...restingScene(at, now.face), lamps: now.lamps });
+            if (now.boat.on !== 'board' || now.boat.square !== at || (now.phase !== 'idle' && now.phase !== 'done')) setScene({ ...restingScene(at, now.face), lamps: now.lamps, warp: true });
           }
         } while (again);
       } finally {

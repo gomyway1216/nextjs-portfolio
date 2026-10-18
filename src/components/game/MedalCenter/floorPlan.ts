@@ -62,13 +62,15 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   fishing: 'kids',
   'horse-race': 'big',
   'ball-bingo': 'big',
+  // An upright prize wheel stands among the big machines a floor is built round, as the casino's Big Six stands on its floor.
+  'big-wheel': 'big',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -84,6 +86,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   fishing: { en: 'Cast for 1, 3 or 5 and reel in the harbor lord.', ja: '1・3・5枚でキャスト。港のヌシを釣り上げろ。' },
   'horse-race': { en: 'Six horses on a mini track: win or quinella.', ja: 'ミニコースを6頭が走る。単勝か連複を買おう。' },
   'ball-bingo': { en: 'Drop balls through the pins; line up a 3×3 card.', ja: '釘を抜けるボールで3×3のビンゴをそろえよう。' },
+  'big-wheel': { en: 'A 54-segment wheel; its bonus reaches ×400.', ja: '54マスの大車輪。ボーナスで最大×400' },
 };
 
 /** The corner a machine stands in: its own, or the new machines' when it has none yet. */

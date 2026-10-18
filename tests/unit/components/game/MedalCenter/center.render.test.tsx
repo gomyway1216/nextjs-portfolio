@@ -121,10 +121,11 @@ describe('the medal center’s front, as the server sends it', () => {
       const link = html.match(new RegExp(`<h4[^>]*><a[^>]*data-testid="center-play-${id}"[^>]*>${name}</a></h4>`))?.[0] ?? '';
       expect(link, id).toContain(`href="${path}"`);
     }
-    // The pusher, the horse race and the ball-drop bingo are big cabinets; the others are not.
+    // The pusher, the horse race, the ball-drop bingo and the big wheel are big cabinets; the others are not.
     expect(html).toMatch(/data-machine="medal-pusher" data-zone="pusher" data-wide="true"/);
     expect(html).toMatch(/data-machine="horse-race" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="ball-bingo" data-zone="big" data-wide="true"/);
+    expect(html).toMatch(/data-machine="big-wheel" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="slot-machine" data-zone="video" data-wide="false"/);
     // No plate says the same as every other one.
     expect(html).not.toContain('Plays with your medals.');

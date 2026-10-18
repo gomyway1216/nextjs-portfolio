@@ -33,9 +33,12 @@
  *   rows of pins, and goes left or right at each (one time in two), into one
  *   of five pockets (`POCKETS`): the middle one WIN (2 medals), the two at the
  *   very ends BIG WIN (5), the two between OUT.
- * - **Skip, or a page that goes away, finishes the play:** the levers already
- *   flicked keep their timing, and every lever still to come is flicked blind,
- *   at a window drawn with the rest of the play (`blinds`).
+ * - **Skip only fast-forwards:** it can be pressed once the last lever has
+ *   been flicked, and cuts the medal's way to its pocket short.
+ * - **A page that goes away mid-play** (hidden, left, reloaded, or another tab
+ *   taking the medals) **finishes the play:** the levers already flicked keep
+ *   their timing, and every lever still to come is flicked blind, at a window
+ *   drawn with the rest of the play (`blinds`).
  *
  * ## Skill, and why it never beats the machine
  *
@@ -142,7 +145,7 @@ export interface Draw {
   phases: number[];
   /** Whether a graze at each gate gets through. */
   wobbles: boolean[];
-  /** The window a blind flick at each gate lands in, 0 to 7: used for a skip, or a page that goes away. */
+  /** The window a blind flick at each gate lands in, 0 to 7: used for a play whose page went away mid-play. */
   blinds: number[];
   /** At each row of pins, whether the medal goes right. */
   pins: boolean[];
@@ -206,7 +209,7 @@ export interface StagePlay {
   /** Where the gate stood then (null for a flick that never came). */
   slot: Slot | null;
   end: StageEnd;
-  /** Whether it was flicked blind (a skip, or a page that went away), not by the player. */
+  /** Whether it was flicked blind (its page went away mid-play), not by the player. */
   blind: boolean;
 }
 
@@ -397,7 +400,7 @@ export interface MazeOdds {
   perfect: ModelOdds;
   typical: ModelOdds;
   blind: ModelOdds;
-  /** What a play brings back with perfect timing at the gates before `s` and blind flicks from gate `s` on (a skip there): `skipAt[STAGES]` is perfect play. */
+  /** What a play brings back with perfect timing at the gates before `s` and blind flicks from gate `s` on (the page left there): `skipAt[STAGES]` is perfect play. */
   skipAt: Fraction[];
 }
 

@@ -96,6 +96,8 @@ test('a play takes one medal, the lever flicks it through the four gates, the pi
     await atGate(page, stage);
     await expect(page.getByTestId('cm-lever')).toHaveAttribute('data-ready', 'true');
     await expect(page.getByTestId('cm-status')).toHaveText(`Gate ${stage + 1} of 4: flick when it opens!`);
+    // Skip never flicks a lever for the player: it waits for the last one.
+    await expect(page.getByTestId('cm-skip')).toBeDisabled();
     const window = await flickWhen(page, 'open');
     // Written down before the medal is seen to fly.
     await expect.poll(async () => (await record(page))?.flicks[stage]).toBe(window);
@@ -118,7 +120,7 @@ test('a play takes one medal, the lever flicks it through the four gates, the pi
   await expect(page.getByTestId('mypage-coin-maze-won')).toHaveText('5');
 });
 
-test('the timing is the player’s: a flick into a shut gate drops OUT, Space held and let go flicks, and Skip finishes the rest blind', async ({ page }) => {
+test('the timing is the player’s: a flick into a shut gate drops OUT, Space held and let go flicks, and Skip waits for the last lever and then fast-forwards', async ({ page }) => {
   test.setTimeout(90_000);
   await openMaze(page);
   // Space and Enter press a focused button as anywhere: the keys are the machine's once nothing is focused.
@@ -129,6 +131,14 @@ test('the timing is the player’s: a flick into a shut gate drops OUT, Space he
   await rigPresses(page, numbersFor(play()));
   await page.keyboard.press('Enter');
   await atGate(page, 0);
+  // Skip waits for the last lever, and says so; S does nothing yet.
+  const skip = page.getByTestId('cm-skip');
+  await expect(skip).toBeDisabled();
+  await expect(skip).toHaveAccessibleDescription('after the last lever');
+  await page.keyboard.press('s');
+  await page.waitForTimeout(300);
+  await expect(machine(page)).toHaveAttribute('data-phase', 'wait');
+  expect((await record(page))?.flicks).toEqual([]);
   // Space held and let go: the lever pulled back on its spring, then the flick.
   await flickWhen(page, 'open', 'space');
   await atGate(page, 1);
@@ -139,14 +149,21 @@ test('the timing is the player’s: a flick into a shut gate drops OUT, Space he
   expect(await bankBalance(page)).toBe(WELCOME - 1);
   expect((await record(page))?.flicks).toHaveLength(2);
 
-  // Skip at the first gate: every gate flicked blind, at the windows drawn (open), and the pins: right, right, left, left.
+  // Four flicks, and then Skip: the medal's way through the pins (right, right, left, left) is cut short, and it lands
+  // where it was going. No lever was flicked for the player: the four windows are the ones flicked.
   await drop(page, play({ pins: [true, true, false, false] }));
-  await atGate(page, 0);
+  const flicked: number[] = [];
+  for (let stage = 0; stage < 4; stage++) {
+    await atGate(page, stage);
+    flicked.push(await flickWhen(page, 'open'));
+  }
+  await expect(skip).toBeEnabled();
   await page.keyboard.press('s');
   await ended(page);
   await expect(machine(page)).toHaveAttribute('data-result', 'win');
-  expect(await record(page)).toMatchObject({ flicks: [1, 1, 1, 1], paid: true });
+  expect(await record(page)).toMatchObject({ flicks: flicked, paid: true });
   await expect.poll(() => bankBalance(page)).toBe(WELCOME - 2 + 2);
+  await expect(skip).toBeDisabled();
 });
 
 test('a reload in the middle of a play finds the same play, finishes it with the flicks made and the rest blind, and pays it once', async ({ page }) => {
@@ -169,9 +186,9 @@ test('a reload in the middle of a play finds the same play, finishes it with the
   await page.waitForTimeout(1_000);
   expect(await bankBalance(page)).toBe(WELCOME - 1 + 5);
   // And the next play goes on as ever.
-  await drop(page, play({ blinds: [7, 1, 1, 1] }));
+  await drop(page, play());
   await atGate(page, 0);
-  await page.getByTestId('cm-skip').click();
+  await flickWhen(page, 'shut');
   await ended(page);
   await expect(machine(page)).toHaveAttribute('data-result', 'out-1');
   expect(await bankBalance(page)).toBe(WELCOME - 2 + 5);
@@ -260,8 +277,8 @@ test('fits 375 and 320 px phones in English and Japanese: the case and the lever
 test.describe('with less motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-  test('the medal is simply put in place, and a medal left in its cup too long drops OUT', async ({ page }) => {
-    test.setTimeout(60_000);
+  test('the medal is simply put in place; the machine waits while its Odds tab is open; and a medal left in its cup too long drops OUT', async ({ page }) => {
+    test.setTimeout(75_000);
     await openMaze(page);
     const started = Date.now();
     await drop(page, play());
@@ -270,6 +287,16 @@ test.describe('with less motion', () => {
     expect(Date.now() - started).toBeLessThan(5_000);
     await flickWhen(page, 'open');
     await atGate(page, 1);
+    // A look at the odds, longer than the time limit: the machine waits, its lamps as they were, and goes on after.
+    const lamps = page.getByTestId('cm-board').locator('g[data-stage="1"] g[data-lit]');
+    const lit = await lamps.getAttribute('data-lit');
+    await page.locator('#cm-tab-odds').click();
+    await page.waitForTimeout(8_000);
+    await page.locator('#cm-tab-machine').click();
+    await expect(machine(page)).toHaveAttribute('data-phase', 'wait');
+    await expect(machine(page)).toHaveAttribute('data-stage', '1');
+    expect(await lamps.getAttribute('data-lit')).toBe(lit);
+    expect((await record(page))?.flicks).toHaveLength(1);
     // Three turns of its gate, 7.2 s, and it drops through the cup into the OUT hole.
     await expect(machine(page)).toHaveAttribute('data-result', 'out-2', { timeout: 12_000 });
     await expect(page.getByTestId('cm-status')).toHaveText('OUT at gate 2: time ran out');

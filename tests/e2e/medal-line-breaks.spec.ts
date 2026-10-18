@@ -473,13 +473,26 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     const status = page.getByTestId('cm-status');
     const said = await brokenIn(status, CM_WORDS);
-    // A medal at the first gate (the line that asks for the flick), then skipped: the second gate's blind flick hits it shut.
-    await rigPresses(page, mazeNumbers({ gates: [0, 0, 0, 0], phases: [0, 0, 0, 0], wobbles: [true, true, true, true], blinds: [1, 7, 1, 1], pins: [true, true, false, false] }));
+    // A medal at the first gate (the line that asks for the flick), then flicked into it shut: the line that says so.
+    await rigPresses(page, mazeNumbers({ gates: [0, 0, 0, 0], phases: [0, 0, 0, 0], wobbles: [true, true, true, true], blinds: [1, 1, 1, 1], pins: [true, true, false, false] }));
     await pressUntil(page.getByTestId('cm-drop'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
     await expect(machine).toHaveAttribute('data-phase', 'wait', { timeout: 10_000 });
     said.push(...(await brokenIn(status, CM_WORDS)));
-    await page.getByTestId('cm-skip').click();
-    await expect(machine).toHaveAttribute('data-result', 'out-2');
+    // The lever, the moment the gate stands shut (the case says how it stands in the window a flick would meet).
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const box = document.querySelector('[data-testid="cm-board"]')!;
+          const observer = new MutationObserver(() => {
+            if (box.getAttribute('data-slot') !== 'shut') return;
+            observer.disconnect();
+            document.querySelector<HTMLButtonElement>('[data-testid="cm-lever"]')!.click();
+            resolve();
+          });
+          observer.observe(box, { attributes: true, attributeFilter: ['data-window'] });
+        }),
+    );
+    await expect(machine).toHaveAttribute('data-result', 'out-1', { timeout: 10_000 });
     await expect(status).toContainText('アウト');
     expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(status, CM_WORDS)));

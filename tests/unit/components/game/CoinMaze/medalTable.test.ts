@@ -151,7 +151,7 @@ describe('a play, once', () => {
     expect(stored(browser)).toBe(WELCOME - 2);
   });
 
-  it('finishes a skipped play with the flicks made and the rest blind, at the windows drawn with it', async () => {
+  it('finishes a play left mid-way with the flicks made and the rest blind, at the windows drawn with it', async () => {
     const browser = new FakeBrowser();
     const machine = machineOn(browser.open());
     await quiet(browser);

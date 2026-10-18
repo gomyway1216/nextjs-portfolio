@@ -11,11 +11,11 @@
  * known once it has ended, and it goes into the medals once, whichever comes
  * first:
  *
- * - the medal falls OUT or into a pocket on this page (or the player skips:
- *   every lever still to come is flicked blind, at the window drawn for it);
+ * - the medal falls OUT or into a pocket on this page (Skip, once the last
+ *   lever has been flicked, only cuts its way there short);
  * - the page gives up the card (it is hidden, left or reloaded, or another
- *   tab needs the medals): the play is finished then, in the same way, before
- *   the card goes;
+ *   tab needs the medals): the play is finished then, before the card goes:
+ *   every lever still to come is flicked blind, at the window drawn for it;
  * - the page was killed before it could do either: the next page that holds
  *   the card for the same player finds the play on record, unfinished, and
  *   finishes it the same way. Its flicks are the ones written down, and the

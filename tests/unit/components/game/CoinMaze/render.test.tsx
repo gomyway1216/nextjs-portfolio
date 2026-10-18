@@ -9,7 +9,7 @@ import { GATE_KINDS, GATE_PATTERNS, OPENING, PIN_ROWS, POCKETS, STAGES, TIMEOUT,
 import { getStrings, type CoinMazeStrings } from '@/components/game/CoinMaze/i18n';
 import { OddsTab } from '@/components/game/CoinMaze/OddsTab';
 import { MEDAL_PLACES, PlayTab, WIN_PLACES, phrasesOf } from '@/components/game/CoinMaze/PlayTab';
-import { BOARD_H, BOARD_W, CUPS, CUP_LIP, FUNNEL, GATE_X, HOLES, POCKET_REST_Y, POCKET_X, R, SHELVES, cuesOf, dropTrack, flickTrack, gateLook, pinsTrack, poseAt, type Track } from '@/components/game/CoinMaze/scene';
+import { BOARD_H, BOARD_W, CUPS, CUP_LIP, FUNNEL, GATE_X, HOLES, POCKET_REST_Y, POCKET_X, R, SHELVES, createMachineClock, cuesOf, dropTrack, flickTrack, gateLook, pinsTrack, poseAt, type Track } from '@/components/game/CoinMaze/scene';
 import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
@@ -29,6 +29,12 @@ describe('the machine', () => {
     // The lever and Skip are there from the start, so that nothing moves when a play begins; they do nothing until then.
     expect(markup).toMatch(/<button[^>]*data-testid="cm-lever"[^>]*aria-disabled="true"/);
     expect(markup).toMatch(/<button[^>]*data-testid="cm-skip"[^>]*disabled=""/);
+    // Skip only fast-forwards, once the last lever has been flicked, and says so.
+    const skipButton = markup.match(/<button[^>]*data-testid="cm-skip"[^>]*>/)?.[0] ?? '';
+    expect(skipButton).toContain('aria-describedby="cm-skip-why"');
+    expect(skipButton).toContain('title="after the last lever"');
+    expect(markup).toMatch(/<span id="cm-skip-why"[^>]*>after the last lever<\/span>/);
+    expect(render(<PlayTab />, 'ja')).toMatch(/<span id="cm-skip-why"[^>]*>レバーを全部はじいてから<\/span>/);
     expect(markup.match(/<polygon/g)).toHaveLength((MEDAL_PLACES + WIN_PLACES) * 7);
     expect(markup.match(/data-gate="/g)).toHaveLength(STAGES);
     expect(markup.match(/data-pocket="/g)).toHaveLength(POCKETS.length);
@@ -140,6 +146,28 @@ describe('the medal’s way', () => {
     expect(POCKET_REST_Y + R).toBeLessThanOrEqual(BOARD_H);
     expect(POCKET_X[0] - 20).toBeGreaterThanOrEqual(0);
     expect(POCKET_X.at(-1)! + 20).toBeLessThanOrEqual(BOARD_W);
+  });
+
+  it('runs on a clock that stops while the machine is not on show, and goes on from the same point', () => {
+    let real = 1_000;
+    const clock = createMachineClock(() => real);
+    expect(clock.now()).toBe(1_000);
+    real = 1_500;
+    clock.pause();
+    real = 9_000;
+    // The Odds tab is open: the gates' turns and the time limit wait.
+    expect(clock.now()).toBe(1_500);
+    expect(clock.paused()).toBe(true);
+    clock.pause();
+    real = 9_500;
+    expect(clock.now()).toBe(1_500);
+    clock.resume();
+    expect(clock.now()).toBe(1_500);
+    real = 9_600;
+    expect(clock.now()).toBe(1_600);
+    clock.resume();
+    expect(clock.now()).toBe(1_600);
+    expect(clock.paused()).toBe(false);
   });
 
   it('with less motion, puts the medal where each piece ends, at once', () => {

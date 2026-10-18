@@ -380,3 +380,30 @@ export function gateLook(levels: readonly number[], phase: number, elapsed: numb
 
 /** The angle a gate's flap is swung down to for how open it looks: from standing up (0) to lying flat toward the middle of the case. */
 export const gateAngle = (s: number, look: number): number => (SIDES[s] === 'right' ? -1 : 1) * 90 * look;
+
+// ── The machine's clock ─────────────────────────────────────────────────────
+
+/**
+ * The clock a play runs on: the gates' turns, the cup's time limit and the medal's way. It stops while the machine is
+ * not on show (its Odds tab is open, or its help is), and goes on from where it stopped, so that a look at the odds
+ * never costs a medal its time and never gives it any: the gate is still moving when the player comes back. A page
+ * that is hidden or left is not paused: it gives up the medals, and the play is finished (medalTable.ts).
+ */
+export function createMachineClock(real: () => number) {
+  let away = 0;
+  let pausedAt: number | null = null;
+  return {
+    /** The machine's time, in ms: the real time less every pause so far. */
+    now: (): number => (pausedAt ?? real()) - away,
+    pause: (): void => {
+      if (pausedAt === null) pausedAt = real();
+    },
+    resume: (): void => {
+      if (pausedAt === null) return;
+      away += real() - pausedAt;
+      pausedAt = null;
+    },
+    paused: (): boolean => pausedAt !== null,
+  };
+}
+export type MachineClock = ReturnType<typeof createMachineClock>;

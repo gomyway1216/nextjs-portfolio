@@ -14,11 +14,11 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { GATE_PATTERNS, LIMIT_WINDOWS, OPENING, STAGES, STAKE, TIMEOUT, WINDOWS, WINDOW_MS, analyze, drawPlay, endOf, gateOf, passed, slotOf, valueOf, windowAt, type GateKind, type Play, type StageEnd } from './engine';
+import { GATE_PATTERNS, LIMIT_WINDOWS, OPENING, STAGES, STAKE, TIMEOUT, WINDOWS, WINDOW_MS, analyze, drawPlay, endOf, gateOf, passed, playOf, slotOf, valueOf, windowAt, type GateKind, type Play, type StageEnd } from './engine';
 import { getStrings } from './i18n';
 import { Maze, type MazeParts } from './Maze';
 import { COIN_MAZE_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
-import { CONTACT_MS, CUPS, GATE_FOOT, GATE_X, cuesOf, cupPose, dropTrack, flickTrack, gateAngle, gateLook, pinsTrack, poseAt, restingPose, type Cue, type CueSound, type Pose, type Track } from './scene';
+import { CONTACT_MS, CUPS, GATE_FOOT, GATE_X, createMachineClock, cuesOf, cupPose, dropTrack, flickTrack, gateAngle, gateLook, pinsTrack, poseAt, restingPose, type Cue, type CueSound, type Pose, type Track } from './scene';
 import styles from './CoinMaze.module.css';
 
 /** How many digits each LED counter has: the medals up to 9,999,999 (the medal center's own), and a win (5). */
@@ -130,8 +130,10 @@ const levelsOf = (kind: GateKind): number[] => GATE_PATTERNS[kind].map((slot) =>
 /** The gates' turns while no medal is in the case: each swinging as an even gate does, a little apart. */
 const RESTING_LEVELS = levelsOf('mid');
 
-/** The window a flick now would meet the gate the medal waits at in. */
-const windowNow = (flight: Flight): number => windowAt(flight.staked.record.draw.phases[flight.stage], performance.now() - flight.dropAt + CONTACT_MS);
+/** The window a flick at machine time `at` would meet the gate the medal waits at in. */
+const windowNow = (flight: Flight, at: number): number => windowAt(flight.staked.record.draw.phases[flight.stage], at - flight.dropAt + CONTACT_MS);
+/** Whether every lever of a play has been flicked (or the medal is OUT already): nothing is left to the player's timing. */
+const leversDone = (flight: Flight): boolean => flight.staked.record.flicks.length >= STAGES || playOf(flight.staked.record.draw, flight.staked.record.flicks).complete;
 
 const SOUND_OF: Record<CueSound, MachineSound> = { spring: 'spring', roll: 'roll', clack: 'clack', pin: 'pin', pocket: 'pocket', drop: 'drop' };
 
@@ -173,6 +175,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [resumed, setResumed] = useState(false);
   const [attract, setAttract] = useState(false);
   const [touched, setTouched] = useState(0);
+  // Skip only fast-forwards: it can be pressed once no lever is left to flick.
+  const [skippable, setSkippable] = useState(false);
+  // The clock a play runs on, stopped while the machine is not on show (scene.ts).
+  const [clock] = useState(() => createMachineClock(() => performance.now()));
 
   const flightRef = useRef<Flight | null>(null);
   const seat = useRef<Seat | null>(null);
@@ -224,6 +230,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       pulledRef.current = false;
       keyPulled.current = false;
       setPulled(false);
+      setSkippable(false);
       const { staked } = flight;
       // Known as shown before it is settled: the medals moving as it is paid wake the machine's look at the play.
       shownLast.current = staked.record.id;
@@ -267,22 +274,22 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   /** Sets the medal moving along `way`, and what to do once it gets to the end. */
   const go = useCallback((flight: Flight, way: Track, then: () => void) => {
     flight.way = way;
-    flight.wayAt = performance.now();
+    flight.wayAt = clock.now();
     flight.cues = cuesOf(way);
     flight.then = then;
-  }, []);
+  }, [clock]);
 
   /** The medal has come to rest in cup `s`: the gate there is the player's to time. */
   const ready = useCallback((flight: Flight, s: number) => {
     flight.stage = s;
     flight.phase = 'wait';
     flight.way = null;
-    flight.readyAt = performance.now();
+    flight.readyAt = clock.now();
     setStage(s);
     setPhase('wait');
     setEndShown(null);
     setAnnouncement(live.current.t.sayGate(s));
-  }, []);
+  }, [clock]);
 
   /** A flick at the gate the medal waits at, in `window` (or the time running out): written down first, then flown. */
   const commit = useCallback(
@@ -305,6 +312,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       }
       lastFlickAt.current = performance.now();
       const { end } = endOf(flight.staked.record.draw, s, window);
+      setSkippable(leversDone(flight));
       flight.phase = 'fly';
       setPhase('fly');
       setEndShown(end);
@@ -328,19 +336,19 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
   const flickNow = useCallback(() => {
     const flight = flightRef.current;
-    if (!flight || flight.phase !== 'wait') return;
-    commit(windowNow(flight));
-  }, [commit]);
+    if (!flight || flight.phase !== 'wait' || clock.paused()) return;
+    commit(windowNow(flight, clock.now()));
+  }, [clock, commit]);
 
   /** The lever pulled back (held): the striker draws back on its spring. */
   const pull = useCallback(() => {
     const flight = flightRef.current;
-    if (!flight || flight.phase !== 'wait' || pulledRef.current) return false;
+    if (!flight || flight.phase !== 'wait' || pulledRef.current || clock.paused()) return false;
     pulledRef.current = true;
     setPulled(true);
     play('lever');
     return true;
-  }, [play]);
+  }, [clock, play]);
 
   /** The lever let go: the striker snaps forward, and the medal is flicked. */
   const release = useCallback(() => {
@@ -376,8 +384,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setAttract(false);
     setOutcome(null);
     restRef.current = null;
-    const now = performance.now();
+    const now = clock.now();
     const flight: Flight = { staked: staked.staked, stage: 0, phase: 'drop', dropAt: now, readyAt: now, way: null, wayAt: now, cues: [], then: null };
+    setSkippable(false);
     flightRef.current = flight;
     setRoundId(staked.staked.record.id);
     setStage(0);
@@ -390,10 +399,13 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     go(flight, dropTrack(live.current.calm), () => ready(flight, 0));
   };
 
-  /** Skip: the play ends at once, every lever still to come flicked blind. */
+  /**
+   * Skip: once the last lever has been flicked, the medal's way to its pocket (or the hole) is cut short, and the play
+   * ends as it would have. Before that it does nothing: it never flicks a lever for the player.
+   */
   const skip = useCallback(() => {
     const flight = flightRef.current;
-    if (flight) finish(flight, 'skipped');
+    if (flight && leversDone(flight)) finish(flight, 'skipped');
   }, [finish]);
 
   /** The medals have been reset at the medal center: the machine starts over. */
@@ -525,6 +537,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const step = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      // The machine's time: stopped while the machine is not on show. A lever held as it was hidden is let go, unflicked.
+      const at = clock.now();
+      if (clock.paused() && pulledRef.current) {
+        pulledRef.current = false;
+        keyPulled.current = false;
+        pointerDown.current = null;
+        setPulled(false);
+      }
       const flight = flightRef.current;
       const calmNow = live.current.calm;
       // The gates.
@@ -532,10 +552,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         let look: number;
         if (flight) {
           const kind = gateOf(s, flight.staked.record.draw.gates[s]);
-          look = gateLook(levelsOf(kind), flight.staked.record.draw.phases[s], now - flight.dropAt, WINDOW_MS, calmNow);
+          look = gateLook(levelsOf(kind), flight.staked.record.draw.phases[s], at - flight.dropAt, WINDOW_MS, calmNow);
         } else {
           const pace = attractRef.current ? 0.6 : 1;
-          look = calmNow ? 0 : gateLook(RESTING_LEVELS, s * 3, now / pace, WINDOW_MS * 2, false);
+          look = calmNow ? 0 : gateLook(RESTING_LEVELS, s * 3, at / pace, WINDOW_MS * 2, false);
         }
         const angle = gateAngle(s, look);
         if (Math.abs(angle - shown.angles[s]) > 0.15 || Number.isNaN(shown.angles[s])) {
@@ -553,7 +573,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         // The time lamps of the gate the medal waits at.
         let lit = 0;
         if (flight && flight.phase === 'wait' && flight.stage === s) {
-          const left = LIMIT_WINDOWS * WINDOW_MS - (now - flight.readyAt);
+          const left = LIMIT_WINDOWS * WINDOW_MS - (at - flight.readyAt);
           lit = Math.max(0, Math.min(3, Math.ceil(left / (WINDOWS * WINDOW_MS))));
         }
         if (lit !== shown.lit[s]) {
@@ -565,7 +585,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       let pose: Pose | null = restRef.current;
       if (flight) {
         if (flight.way) {
-          const t = (now - flight.wayAt) / 1000;
+          const t = (at - flight.wayAt) / 1000;
           pose = poseAt(flight.way, t);
           while (flight.cues.length > 0 && flight.cues[0].at <= t) {
             const cue = flight.cues.shift()!;
@@ -597,10 +617,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (box) {
         let windowText = '';
         if (flight && flight.phase === 'wait') {
-          const w = windowNow(flight);
+          const w = windowNow(flight, at);
           windowText = `${w} ${slotOf(gateOf(flight.stage, flight.staked.record.draw.gates[flight.stage]), w)}`;
           // The medal has waited too long: it drops through its cup.
-          if (now - flight.readyAt >= LIMIT_WINDOWS * WINDOW_MS) {
+          if (at - flight.readyAt >= LIMIT_WINDOWS * WINDOW_MS) {
             pulledRef.current = false;
             setPulled(false);
             commit(TIMEOUT);
@@ -617,7 +637,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     };
     frame = window.requestAnimationFrame(step);
     return () => window.cancelAnimationFrame(frame);
-  }, [commit, parts, play]);
+  }, [clock, commit, parts, play]);
 
   // While the medals are in another tab's game, the machine says so, a moment after.
   const [longWait, setLongWait] = useState(false);
@@ -633,7 +653,16 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const outOfMedals = mine && here && phase === 'idle' && bankState.balance === 0;
   const refillDue = outOfMedals && bankState.out.length === 0;
 
-  // On a desktop: Space or Enter drops a medal; at a gate, Space held and let go flicks (Enter flicks at once); S skips.
+  // While the machine is not on show (its Odds tab, or its help, is in front of it), its clock stops: the gates' turns,
+  // the cup's time limit and the medal's way all wait, and go on from the same point when it is shown again. (A lever
+  // held as it went is let go without a flick, by the frame loop.)
+  useEffect(() => {
+    if (active) clock.resume();
+    else clock.pause();
+  }, [active, clock]);
+
+  // On a desktop: Space or Enter drops a medal; at a gate, Space held and let go flicks (Enter flicks at once); S skips
+  // the medal's way once the last lever has been flicked.
   useMachineKeys(active, (key) => {
     const flight = flightRef.current;
     if (key === ' ' || key === 'Enter') {
@@ -823,9 +852,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               </span>
               <span className={styles.leverWords}>{t.lever}</span>
             </button>
-            <button type="button" className={styles.skipButton} data-testid="cm-skip" onClick={skip} disabled={!running}>
+            {/* Skip only fast-forwards: it is there from the start, so that nothing moves, and can be pressed once the
+                last lever has been flicked. It says why it waits. */}
+            <button type="button" className={styles.skipButton} data-testid="cm-skip" onClick={skip} disabled={!skippable} aria-describedby="cm-skip-why" title={skippable ? undefined : t.skipWhy}>
               {t.skip}
             </button>
+            <span id="cm-skip-why" className={styles.srOnly}>
+              {t.skipWhy}
+            </span>
           </div>
         </div>
 

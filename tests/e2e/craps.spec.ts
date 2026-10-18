@@ -423,21 +423,60 @@ test('the layout is played with the keyboard too', async ({ page }) => {
   await expect(field).toHaveAccessibleName(/10 medals on it/);
 });
 
-test('the throw is heard with the sound switched on, and the switch is kept', async ({ page }) => {
+test('the sound switch is the floor’s: off on every visit, the throw heard once it is on, and Quick roll still kept', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  // A device where the old switch was left on, and every sound the page starts counted, with its length (a headless
+  // browser has nothing to listen with). The throw's knocks and clicks are cut from one second of noise.
+  await page.addInitScript((key) => {
+    if (window.sessionStorage.getItem('seeded') === null) {
+      window.localStorage.setItem(key, JSON.stringify({ sound: true, quick: false }));
+      window.sessionStorage.setItem('seeded', '1');
+    }
+    const w = window as unknown as { __sounds: number[] };
+    w.__sounds = [];
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds.push(this.buffer?.duration ?? 0);
+      return start.apply(this, args);
+    };
+  }, 'craps-throw'); // PlayTab's THROW_KEY
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number[] }).__sounds);
   await openCraps(page);
+  const toggle = page.getByTestId('craps-sound');
+  await expect(toggle).toHaveAccessibleName('Sound off');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveText('🔈 Sound off');
   await firstBet(page);
-  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'false');
-  await page.getByTestId('craps-sound').click();
-  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('craps-sound')).toHaveText('Sound: on');
-  await forceNextRoll(page, [6, 5]);
-  expect(await rollAndSettle(page)).toEqual([6, 5]);
+  // A throw with the sound off is not heard.
+  await forceNextRoll(page, [2, 4]);
+  await rollAndSettle(page);
+  expect(await heard()).toEqual([]);
+
+  await toggle.click();
+  await expect(toggle).toHaveAccessibleName('Sound on');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await forceNextRoll(page, [5, 5]);
+  await rollAndSettle(page);
+  await expect.poll(async () => (await heard()).filter((d) => d === 1).length).toBeGreaterThan(0);
+
+  // Quick roll is still the device's: kept over a reload. The sound is off again.
+  await page.getByTestId('craps-quick').click();
+  await expect(page.getByTestId('craps-quick')).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
   await arrived(page);
-  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('craps-counter')).toHaveAttribute('data-loaded', 'true');
+  await expect(page.getByTestId('craps-quick')).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveAccessibleName('Sound off');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   expect(errors).toEqual([]);
+});
+
+test('in Japanese the switch says 音なし, as everywhere on the floor', async ({ page }) => {
+  await openCraps(page, 'ja');
+  await expect(page.getByTestId('craps-sound')).toHaveText('🔈 音なし');
+  await page.getByTestId('craps-sound').click();
+  await expect(page.getByTestId('craps-sound')).toHaveText('🔊 音あり');
 });
 
 test('with the sound on a medal is heard going down, the dice land on a win to a fanfare, and the counter counts the medals in', async ({ page }) => {

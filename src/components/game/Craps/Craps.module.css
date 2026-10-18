@@ -328,6 +328,10 @@
   border-radius: 14px;
   z-index: 5;
 }
+/* On the half table the dice lie between rolls on the near rail, half over its edge towards the stickman's box. */
+.tableView[data-table-kind='half'] .diceLayer {
+  overflow: visible;
+}
 .tableDie,
 .tableDieShadow {
   position: absolute;

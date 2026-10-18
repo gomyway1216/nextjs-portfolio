@@ -47,6 +47,7 @@
 }
 .centerLink {
   display: inline-flex;
+  gap: 0.3em;
   align-items: center;
   min-height: 44px;
   color: var(--games-route-fg);

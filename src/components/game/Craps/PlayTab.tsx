@@ -472,6 +472,7 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
           shown={onFelt}
           onSettled={settle}
           sound={sound.on}
+          holding={medalMeter.counting}
         />
         <p className={styles.printedNote}>{t.printedNote}</p>
 

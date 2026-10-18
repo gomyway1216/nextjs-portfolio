@@ -73,6 +73,19 @@ export interface TableLayout extends Felt {
   throw: ThrowGeometry;
   /** The stickman's box, drawn as a felt of its own under the tub, when the middle is not part of it. */
   center: Felt | null;
+  /**
+   * Where the dice lie between rolls, off every bet: the stickman pulls them back there once a roll has been called
+   * and paid, and the shooter throws them from there. On the full table, at the shooter's end, which is the other
+   * players' (not played) end; on the half table, on the near rail at the shooter's end, over the stickman's box.
+   */
+  park: readonly [ParkedDie, ParkedDie];
+}
+
+/** A die where it lies between rolls: its middle, and how it is turned on the felt in degrees. */
+export interface ParkedDie {
+  x: number;
+  y: number;
+  angle: number;
 }
 
 const PLACE_IDS = ['place4', 'place5', 'place6', 'place8', 'place9', 'place10'] as const;
@@ -130,6 +143,12 @@ function half(): TableLayout {
     puck: 22,
     type: { number: 24, label: 13, small: 9 },
     throw: { felt: { left: rail + 8, right: width - rail, top: rail, bottom: height - rail }, die: 26, hand: { x: 306, y: 206 } },
+    // On the near rail at the shooter's end, half over the edge towards the stickman's box: clear of the Pass Line and
+    // its odds (whose boxes end at y 258) and of the stickman's box's bets (18 in from its edge).
+    park: [
+      { x: 302, y: 274, angle: -4 },
+      { x: 334, y: 274, angle: 5 },
+    ],
     center: {
       width,
       height: 186,
@@ -170,6 +189,11 @@ function full(): TableLayout {
     puck: 34,
     type: { number: 40, label: 18, small: 12 },
     throw: { felt: { left: rail + 10, right: width - rail - 10, top: rail, bottom: height - rail }, die: 30, hand: { x: 912, y: 370 } },
+    // In front of the shooter, at the right-hand end (the other players' end, which is not played).
+    park: [
+      { x: 912 - 0.35 * 30, y: 370 - 0.75 * 30, angle: -12 },
+      { x: 912 + 0.35 * 30, y: 370 + 0.75 * 30, angle: 9 },
+    ],
     center: null,
   };
 }

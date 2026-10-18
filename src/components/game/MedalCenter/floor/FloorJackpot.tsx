@@ -21,7 +21,7 @@ import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { useBank } from '../bank';
 import { MEDAL_CENTER_PATH } from '../paths';
 import { FLOOR_PLACE_ANCHOR } from './paths';
-import { shownName, useServerNow } from './FloorParts';
+import { Counted, shownName, useServerNow } from './FloorParts';
 import { useJackpotPayer } from './pagePayer';
 import { lastKnownPlace, onFloorPlace } from './reporter';
 import { getFloorStrings, type FloorStrings } from './strings';
@@ -109,7 +109,7 @@ function LastWin({ last, t, fmt, now }: { last: JackpotWinShown | undefined; t: 
   if (!last) return <p className={styles.last} data-testid="jackpot-last">{t.jackpotNever}</p>;
   return (
     <p className={styles.last} data-testid="jackpot-last">
-      {t.jackpotLast(shownName(t, last), fmt(last.medals), t.ago(Math.max(0, Math.round((now - last.at) / 1000))))}
+      <Counted say={(count) => t.jackpotLast(shownName(t, last), count, t.ago(Math.max(0, Math.round((now - last.at) / 1000))))} count={fmt(last.medals)} />
     </p>
   );
 }
@@ -271,7 +271,7 @@ export function JackpotWins({
       {wins.map((win, index) => (
         <li key={win.id ?? `${win.at}-${index}`} className={styles.win} data-testid="jackpot-win" data-state={win.state}>
           <span className={styles.winText}>
-            <bdi>{shownName(t, win)}</bdi> {t.moment('floor-jackpot', fmt(win.medals))}
+            <bdi>{shownName(t, win)}</bdi> <Counted say={(count) => t.moment('floor-jackpot', count)} count={fmt(win.medals)} />
           </span>
           <span className={styles.winWhere}>
             {gameName(win.game)} · <time dateTime={new Date(win.at).toISOString()}>{t.ago(Math.max(0, Math.round((now - win.at) / 1000)))}</time>

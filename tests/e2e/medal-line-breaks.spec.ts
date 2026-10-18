@@ -6,6 +6,8 @@ import { nameWords } from '../../src/components/game/MedalCenter/floorPlan';
 import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
+import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
+import { NAME_MAX } from '../../src/lib/medalFloor/names';
 import type { FloorFeedEntry } from '../../src/lib/medalFloor/types';
 import { emptyFloor, holdFloor } from './layoutShift';
 import { pressUntil } from './pressUntil';
@@ -246,6 +248,65 @@ for (const width of WIDTHS) {
     for (const text of await moments.locator('[class*="momentText"]').all()) {
       const lines = await linesOf(text);
       expect(brokenInside(lines, ['ジャックポット', 'そろって', '当たり']), `「${lines.join('｜')}」 at ${width} px`).toEqual([]);
+    }
+    await context.close();
+  });
+}
+
+/** The longest name a player can choose, in Japanese with no space to break at. */
+const LONGEST_NAME = Array.from('ながれぼしのおおあたりやさんです').slice(0, NAME_MAX).join('');
+
+/** Every moment the floor can show, each won by the longest name, for a six-figure count. */
+const LONGEST_MOMENTS: [FloorFeedEntry['game'], string | null][] = [
+  ['big-wheel', 'wheel-bonus'],
+  ['ball-bingo', 'full-card'],
+  ['video-poker', 'straight-flush'],
+  ['video-poker', 'royal'],
+  ['fishing', 'harbor-lord'],
+  ['fishing', 'treasure'],
+  ['big-wheel', 'wheel-400'],
+  ['slot-machine', 'bar3'],
+  ['medal-pusher', 'floor-jackpot'],
+  ['roulette', null],
+];
+
+for (const width of WIDTHS) {
+  test(`the floor's longest moments and jackpot wins, by the longest name, stay inside their boxes in Japanese at ${width} px`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
+    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    const page = await context.newPage();
+    const now = Date.now();
+    const feed: FloorFeedEntry[] = LONGEST_MOMENTS.map(([game, label], i) => ({ id: 100 - i, name: LONGEST_NAME, tag: '0001', game, label, medals: 123_456, at: now - (i + 1) * 60_000 }));
+    (await holdFloor(page, () => ({ ...emptyFloor(), feed }))).release();
+    // Registered last, so it answers before holdFloor's: the pool's last wins, all by the longest name.
+    await page.route(/\/api\/game\/medal-floor\/jackpot(\?|$)/, (route) => {
+      const wins = Array.from({ length: JACKPOT_WINS_SHOWN }, (_, i) => ({ name: LONGEST_NAME, tag: '0001', game: 'medal-pusher' as const, medals: 123_456, at: now - (i + 1) * 86_400_000 }));
+      const view: FloorJackpotView = { now, available: true, amount: 1_234_567, seq: 9, v: 9, wins };
+      return route.fulfill({ json: view });
+    });
+    for (const path of ['/games/medal-center/rankings', '/games/medal-center']) {
+      await page.goto(path);
+      await arrived(page);
+      await expect(page.getByTestId('floor-moment').first()).toContainText(LONGEST_NAME);
+      if (path.endsWith('rankings')) await expect(page.getByTestId('jackpot-win')).toHaveCount(JACKPOT_WINS_SHOWN);
+      else await expect(page.getByTestId('jackpot-last').first()).toContainText(LONGEST_NAME);
+      // Nothing scrolls sideways, and no line of a moment or a win runs out of its box, or its box out of the page.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${path} at ${width} px`).toBe(0);
+      const spills = await page.locator('[data-testid="floor-moment"], [data-testid="jackpot-win"], [data-testid="jackpot-last"]').evaluateAll((boxes, viewport) =>
+        boxes.flatMap((box) => {
+          const outer = box.getBoundingClientRect();
+          const parts = [box, ...box.querySelectorAll<HTMLElement>('span, bdi, time')];
+          return parts
+            .filter((part) => {
+              // An inline box has no width of its own to scroll (Firefox gives it a scrollWidth all the same): only its edges count.
+              const scrolls = getComputedStyle(part).display !== 'inline' && part.scrollWidth > part.clientWidth + 1;
+              const r = part.getBoundingClientRect();
+              return scrolls || r.right > outer.right + 0.5 || r.left < outer.left - 0.5 || outer.right > viewport + 0.5;
+            })
+            .map((part) => `${part.className || part.tagName}: 「${part.textContent}」`);
+        }),
+      width);
+      expect(spills, `${path} at ${width} px`).toEqual([]);
     }
     await context.close();
   });

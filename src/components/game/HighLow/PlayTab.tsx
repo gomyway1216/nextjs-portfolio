@@ -461,6 +461,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (mine && here) syncNow.current?.();
   }, [mine, here]);
 
+  // A card that has landed: whatever the medals heard of while it turned (another tab, a reset) is looked at now.
+  useEffect(() => {
+    if (show === 'rest' && mine && here) syncNow.current?.();
+  }, [show, mine, here]);
+
   // A game that has ended no longer needs the view held up at the cards.
   useEffect(() => {
     if (record && overOf(record) && show === 'rest') glance.current?.drop();

@@ -18,6 +18,8 @@ test('the way back to the medal center reads the same on every machine: the arro
   for (const path of [...FLOOR_GAMES.map((game) => `/games/${game}`), '/games/medal-center', '/games/medal-center/records', '/games/medal-center/rankings']) {
     await page.goto(path);
     await arrived(page);
+    // The page's way back is there (a page still streaming in under load may not have drawn it yet).
+    await expect(page.locator('main a[href="/games/medal-center"], main a[href="/games"]').first()).toBeVisible({ timeout: 20_000 });
     // The first link on the page whose arrow is drawn apart from its words.
     const gap = await page.evaluate(() => {
       const link = [...document.querySelectorAll('main a')].find((a) => a.firstElementChild?.getAttribute('aria-hidden') !== null && a.firstElementChild?.textContent?.trim() === '←');
@@ -128,3 +130,60 @@ for (const [where, width, height, phone] of [
     await context.close();
   });
 }
+
+for (const [game, counter, top, buttons] of [
+  ['blackjack', 'bj-counter', '[data-testid="bj-table"]', '[data-testid="bj-buttons"]'],
+  ['baccarat', 'baccarat-counter', '[data-hand="player"]', '[data-testid="baccarat-buttons"]'],
+  ['three-card-poker', 'tcp-counter', '[data-hand="dealer"]', '[data-testid="tcp-buttons"]'],
+] as const) {
+  test(`${game} on a phone: the medals are on the machine's panel, under the table and over its buttons`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    const page = await context.newPage();
+    const floor = await holdFloor(page);
+    floor.release();
+    await page.goto(`/games/${game}`);
+    await arrived(page);
+    const meter = page.getByTestId(counter);
+    await expect(meter).toHaveAttribute('data-loaded', 'true', { timeout: 20_000 });
+    const box = (target: ReturnType<Page['locator']>) =>
+      target.first().evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top + window.scrollY, bottom: r.bottom + window.scrollY };
+      });
+    const table = await box(page.locator(top));
+    const panel = await box(page.locator(buttons));
+    const medals = await box(meter);
+    // Under the cards, at the top of the panel the buttons are on, as one row of windows.
+    expect(medals.top).toBeGreaterThan(table.bottom);
+    expect(medals.top).toBeGreaterThanOrEqual(panel.top);
+    expect(medals.bottom - medals.top).toBeLessThan(64);
+    const firstButton = await box(page.locator(buttons).getByRole('button').first());
+    expect(firstButton.top).toBeGreaterThanOrEqual(medals.bottom);
+    // That medals are not money is said after the buttons.
+    expect((await box(page.locator('[data-testid$="not-money"]'))).top).toBeGreaterThan(panel.bottom);
+    await context.close();
+  });
+}
+
+test('My Page: each machine not played yet says its name, then its arrow, apart', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+  const page = await context.newPage();
+  const floor = await holdFloor(page);
+  floor.release();
+  await page.goto('/games/medal-center/records');
+  await arrived(page);
+  const pills = page.locator('[data-played="false"] a');
+  await expect(pills.first()).toBeVisible({ timeout: 20_000 });
+  for (const pill of await pills.all()) {
+    const gap = await pill.evaluate((a) => {
+      const arrow = [...a.querySelectorAll('span')].find((s) => s.textContent?.trim() === '→')!.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(a.firstChild!);
+      return arrow.left - range.getBoundingClientRect().right;
+    });
+    expect(gap, (await pill.textContent()) ?? '').toBeGreaterThanOrEqual(3);
+  }
+  await context.close();
+});

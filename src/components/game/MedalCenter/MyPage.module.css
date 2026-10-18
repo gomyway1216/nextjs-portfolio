@@ -386,6 +386,8 @@
 .unplayedLink {
   display: inline-flex;
   align-items: center;
+  /* The name and its arrow apart (a flex item's leading space is dropped: 「みけじゃんけん→」). */
+  gap: 0.3em;
   min-height: 40px;
   padding: 0.3rem 0.85rem;
   border-radius: 999px;

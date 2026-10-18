@@ -1517,3 +1517,93 @@
 .hintToggle {
   min-height: 44px;
 }
+
+/*
+ * On a phone (one column) the counter is the machine's credit meter on its panel, right under the table and over the
+ * buttons, as at the other machines of the floor: one row of windows, the medals, the bet and the win, each with its
+ * name over it. The medals written in type stay for a screen reader; the note that medals are not money follows the
+ * buttons. A row of a set height, so nothing under it moves as the medals are read.
+ */
+@media (max-width: 900px) {
+  .buttonsPart > .counter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.5rem;
+    row-gap: 0.15rem;
+    position: relative;
+    margin: 0 0 0.55rem;
+    padding: 0.3rem 0.55rem 0.35rem;
+  }
+  .buttonsPart > .counter .counterHead {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .buttonsPart > .counter .counterLabel,
+  .buttonsPart > .counter .ledLabel {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .buttonsPart > .counter .counterMedal {
+    display: none;
+  }
+  .buttonsPart > .counter .counterCount {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .buttonsPart > .counter .counterLed {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .buttonsPart > .counter .counterLed > span {
+    max-width: none;
+    height: 26px;
+    padding: 3px 6px;
+  }
+  .buttonsPart > .counter .counterSmall {
+    display: contents;
+  }
+  .buttonsPart > .counter .ledPair {
+    grid-row: 1 / span 2;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+  }
+  .buttonsPart > .counter .ledSmall > span {
+    height: 26px;
+    padding: 3px 5px;
+  }
+}
+/* Room for it on a phone, so that the dealer's cards, the player's and PLAY / FOLD are still on the screen at once: the
+   felt, its spots and the two buttons a little closer together. PLAY and FOLD stay 44 px and more. */
+@media (max-width: 520px) {
+  .felt {
+    padding: 0.55rem 0.6rem;
+  }
+  .chipRow {
+    margin-bottom: 0.45rem;
+  }
+  .actionRow {
+    margin-top: 0.45rem;
+  }
+  .actionBtn {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+  .area {
+    gap: 0.35rem;
+    padding: 0.4rem 0.45rem 0.45rem;
+  }
+  .areaHead {
+    min-height: 1.4rem;
+  }
+  .callout {
+    margin-top: 0.55rem;
+  }
+}

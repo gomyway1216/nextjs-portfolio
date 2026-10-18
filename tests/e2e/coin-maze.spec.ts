@@ -123,7 +123,9 @@ test('the timing is the player’s: a flick into a shut gate drops OUT, Space he
   await openMaze(page);
   // Space and Enter press a focused button as anywhere: the keys are the machine's once nothing is focused.
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await expect(page.getByTestId('cm-keys')).toBeVisible();
+  // The line of keys is shown where there are keys: not on a touch screen (an iPhone in WebKit).
+  if (await page.evaluate(() => window.matchMedia('(hover: none)').matches)) await expect(page.getByTestId('cm-keys')).toBeHidden();
+  else await expect(page.getByTestId('cm-keys')).toBeVisible();
   await rigPresses(page, numbersFor(play()));
   await page.keyboard.press('Enter');
   await atGate(page, 0);

@@ -985,8 +985,18 @@ test.describe('in the hand, on a phone', () => {
       expect(control.wide, `${control.id} is ${control.wide} px wide`).toBeGreaterThanOrEqual(44);
     }
     // Nothing in the cabinet is text to select, and a double tap on it does not zoom the page.
-    // (WebKit knows the property only by its prefixed name, which the stylesheet gives it too.)
-    await expect(machine(page).getByTestId('pusher-credits')).toHaveCSS(browserName === 'webkit' ? '-webkit-user-select' : 'user-select', 'none');
+    // WebKit knows the property only by its prefixed name, which the stylesheet gives it too. Firefox reports what is
+    // set on an element, auto here, whose value in use is then that of the nearest element above it that is not auto:
+    // the cabinet's none.
+    const credits = machine(page).getByTestId('pusher-credits');
+    if (browserName === 'firefox') {
+      const inUse = await credits.evaluate((element) => {
+        let at: Element | null = element;
+        while (at && getComputedStyle(at).userSelect === 'auto') at = at.parentElement;
+        return at ? getComputedStyle(at).userSelect : 'auto';
+      });
+      expect(inUse).toBe('none');
+    } else await expect(credits).toHaveCSS(browserName === 'webkit' ? '-webkit-user-select' : 'user-select', 'none');
     await expect(feelSwitch(page, 'sweep')).toHaveCSS('touch-action', 'manipulation');
     await expect(aimSlider(page, 'left')).toHaveCSS('touch-action', 'pan-y');
 

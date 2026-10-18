@@ -13,5 +13,10 @@ export const metadata: Metadata = {
 };
 
 export default function MedalCenterMyPage() {
-  return <MyPageForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <MyPageForPlayer />
+    </main>
+  );
 }

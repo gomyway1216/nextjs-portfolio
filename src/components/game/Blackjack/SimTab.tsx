@@ -82,9 +82,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="bj-sim-title">
-        <h3 id="bj-sim-title" className={styles.blockTitle}>
+        <h2 id="bj-sim-title" className={styles.blockTitle}>
           {t.simTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
@@ -153,9 +153,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-count-title">
-        <h3 id="bj-count-title" className={styles.blockTitle}>
+        <h2 id="bj-count-title" className={styles.blockTitle}>
           {t.countingTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.countingIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>

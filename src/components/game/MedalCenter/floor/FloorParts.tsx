@@ -77,14 +77,17 @@ export interface BoardProps extends FloorWords {
   title: string;
   rows: FloorRow[];
   testId: string;
+  /** The board's heading level: an h4 under the hub's RANKINGS (an h3); on the rankings page, an h2 standing alone, or an h3 under a panel's h2. */
+  level?: 2 | 3 | 4;
   /** The owner's controls on each line. */
   owner?: { hide: (row: FloorRow, hidden: boolean) => void; block: (row: FloorRow, blocked: boolean) => void };
 }
 
-export function Board({ title, rows, testId, owner, t, fmt }: BoardProps) {
+export function Board({ title, rows, testId, owner, level = 4, t, fmt }: BoardProps) {
+  const Title = level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4';
   return (
     <div className={styles.board} data-testid={testId}>
-      <h4 className={styles.boardTitle}>{title}</h4>
+      <Title className={styles.boardTitle}>{title}</Title>
       {rows.length === 0 ? (
         <p className={styles.empty}>{t.boardEmpty}</p>
       ) : (

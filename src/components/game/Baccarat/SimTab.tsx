@@ -108,9 +108,9 @@ export const SimTab = () => {
   return (
     <div className={styles.oddsLayout}>
       <section className={styles.panel} aria-labelledby="baccarat-sim-lines-title">
-        <h3 id="baccarat-sim-lines-title" className={styles.blockTitle}>
+        <h2 id="baccarat-sim-lines-title" className={styles.blockTitle}>
           {t.linesTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.linesIntro}</p>
         <div className={styles.formRow}>
           {select(hands, HAND_OPTIONS, setHands, linesProgress !== null, t.handsLabel)}
@@ -158,9 +158,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-sim-patterns-title">
-        <h3 id="baccarat-sim-patterns-title" className={styles.blockTitle}>
+        <h2 id="baccarat-sim-patterns-title" className={styles.blockTitle}>
           {t.patternsTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.patternsIntro}</p>
         <div className={styles.formRow}>
           {select(patternHands, PATTERN_HAND_OPTIONS, setPatternHands, patternsProgress !== null, t.handsLabel)}
@@ -200,7 +200,7 @@ export const SimTab = () => {
             <p className={styles.note}>{t.patternsNote}</p>
             {streaks.length > 0 && (
               <>
-                <h4 className={styles.subTitle}>{t.streakTitle}</h4>
+                <h3 className={styles.subTitle}>{t.streakTitle}</h3>
                 <CountBars values={streaks} xLabel={t.streakAxis} />
                 <p className={styles.note} data-testid="baccarat-sim-streaks">
                   {t.streakNote(fmt(streaks.length), meanStreak.toFixed(2), pct(eightPlus, 1))}
@@ -212,9 +212,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="baccarat-sim-counting-title">
-        <h3 id="baccarat-sim-counting-title" className={styles.blockTitle}>
+        <h2 id="baccarat-sim-counting-title" className={styles.blockTitle}>
           {t.countingTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.countingIntro}</p>
         <div className={styles.formRow}>
           {select(shoes, SHOE_OPTIONS, setShoes, countingProgress !== null, t.shoesLabel)}
@@ -252,7 +252,7 @@ export const SimTab = () => {
               </table>
             </div>
             <p className={styles.note}>{t.countingNote(fmt(counting.shoes), fmt(counting.hands))}</p>
-            <h4 className={styles.subTitle}>{t.sampleShoeTitle}</h4>
+            <h3 className={styles.subTitle}>{t.sampleShoeTitle}</h3>
             <ShoeChart
               xLabel={t.sampleShoeAxis}
               series={SIM_BETS.filter((id) => id !== 'bankerEz').map((id) => ({

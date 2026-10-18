@@ -84,9 +84,9 @@ export const OddsTab = () => {
       </div>
 
       <section aria-labelledby="bw-draws-title">
-        <h3 id="bw-draws-title" className={styles.blockTitle}>
+        <h2 id="bw-draws-title" className={styles.blockTitle}>
           {t.drawsTitle}
-        </h3>
+        </h2>
         <ol className={styles.drawList}>
           {t.draws.map((p, i) => (
             <li key={i}>{p}</li>
@@ -95,9 +95,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="bw-numbers-title">
-        <h3 id="bw-numbers-title" className={styles.blockTitle}>
+        <h2 id="bw-numbers-title" className={styles.blockTitle}>
           {t.numbersTitle}
-        </h3>
+        </h2>
         <div className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bw-numbers-table">
             <thead>
@@ -138,9 +138,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="bw-lamps-title">
-        <h3 id="bw-lamps-title" className={styles.blockTitle}>
+        <h2 id="bw-lamps-title" className={styles.blockTitle}>
           {t.lampsTitle}
-        </h3>
+        </h2>
         <div className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bw-lamps-table">
             <thead>
@@ -165,9 +165,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="bw-pays-title">
-        <h3 id="bw-pays-title" className={styles.blockTitle}>
+        <h2 id="bw-pays-title" className={styles.blockTitle}>
           {t.paysTitle}
-        </h3>
+        </h2>
         <div className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bw-pays-table">
             <thead>
@@ -189,9 +189,9 @@ export const OddsTab = () => {
       </section>
 
       <section aria-labelledby="bw-compare-title">
-        <h3 id="bw-compare-title" className={styles.blockTitle}>
+        <h2 id="bw-compare-title" className={styles.blockTitle}>
           {t.compareTitle}
-        </h3>
+        </h2>
         {t.compare.map((p, i) => (
           <p key={i} className={styles.note}>
             {p}
@@ -200,9 +200,9 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.check} aria-labelledby="bw-check-title">
-        <h3 id="bw-check-title" className={styles.blockTitle}>
+        <h2 id="bw-check-title" className={styles.blockTitle}>
           {t.checkTitle}
-        </h3>
+        </h2>
         <button type="button" className={styles.checkButton} data-testid="bw-check" onClick={runCheck} disabled={running}>
           {running ? t.checkRunning : t.checkButton}
         </button>

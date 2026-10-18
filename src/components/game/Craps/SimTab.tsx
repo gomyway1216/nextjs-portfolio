@@ -109,9 +109,9 @@ export const SimTab = () => {
         {t.simOwnMedals}
       </p>
       <section className={styles.panel} aria-labelledby="craps-sim-edge-title">
-        <h3 id="craps-sim-edge-title" className={styles.blockTitle}>
+        <h2 id="craps-sim-edge-title" className={styles.blockTitle}>
           {t.simEdgeTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simEdgeIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
@@ -165,9 +165,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-sim-session-title">
-        <h3 id="craps-sim-session-title" className={styles.blockTitle}>
+        <h2 id="craps-sim-session-title" className={styles.blockTitle}>
           {t.sessionTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.sessionIntro}</p>
         <div className={styles.formGrid}>
           <label className={styles.field}>
@@ -250,18 +250,18 @@ export const SimTab = () => {
                 <span className={styles.statNote}>{t.expectedFinalNote}</span>
               </div>
             </div>
-            <h4 className={styles.subTitle}>{t.finalDist}</h4>
+            <h3 className={styles.subTitle}>{t.finalDist}</h3>
             <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.simMedalsAxis} />
-            <h4 className={styles.subTitle}>{t.sampleSession}</h4>
+            <h3 className={styles.subTitle}>{t.sampleSession}</h3>
             <TrajectoryChart trajectory={summary.sampleTrajectory} start={summaryConfig.bankroll} xLabel={t.survivalAxis} />
           </div>
         )}
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-sim-hands-title">
-        <h3 id="craps-sim-hands-title" className={styles.blockTitle}>
+        <h2 id="craps-sim-hands-title" className={styles.blockTitle}>
           {t.handsTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.handsIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>

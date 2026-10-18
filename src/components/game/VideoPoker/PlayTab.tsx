@@ -803,9 +803,9 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
 
       <div className={styles.panel}>
         <div className={styles.toggleRow}>
-          <h3 className={styles.blockTitle} style={{ margin: 0 }}>
+          <h2 className={styles.blockTitle} style={{ margin: 0 }}>
             {t.bestTitle}
-          </h3>
+          </h2>
           <label className={styles.toggle}>
             <input type="checkbox" checked={showBest} onChange={(e) => setShowBest(e.target.checked)} />
             {t.bestToggle}

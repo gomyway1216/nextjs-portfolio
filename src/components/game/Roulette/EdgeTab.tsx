@@ -51,7 +51,7 @@ export const EdgeTab = () => {
 
   return (
     <div>
-      <h3 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.edgeTitle}</h3>
+      <h2 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.edgeTitle}</h2>
 
       <div className={styles.formGrid} style={{ marginBottom: '1rem' }}>
         <label className={styles.field}>
@@ -97,7 +97,7 @@ export const EdgeTab = () => {
           </div>
 
           <div>
-            <h4 className={styles.subTitle}>{t.edgeChartTitle}</h4>
+            <h3 className={styles.subTitle}>{t.edgeChartTitle}</h3>
             <EdgeChart
               points={result.points}
               theoretical={-HOUSE_EDGE}

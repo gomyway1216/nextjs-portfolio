@@ -10,6 +10,10 @@ import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
+import { quietFloor } from './quietFloor';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // The medal center's "my page" for a guest: the history of what happened to the medals after playing two machines,
 // which a reload keeps and the medal center's reset shows in, and the page at a phone's width in both languages.

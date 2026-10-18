@@ -137,6 +137,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `won on the big wheel’s second chance: ${medals} medals`;
     case 'ladder-top':
       return `climbed the High & Low ladder to the top: ${medals} medals`;
+    case 'sugoroku-jp':
+      return `hit the jackpot at the whale’s blowhole: ${medals} medals`;
+    case 'whale-ride':
+      return `rode the whale on Whale Isle: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -174,6 +178,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `ビッグホイールのセカンドチャンスで${medals}枚`;
     case 'ladder-top':
       return `ハイ＆ローのラダーをトップまで上って${medals}枚`;
+    case 'sugoroku-jp':
+      return `くじら島すごろくでジャックポット！${medals}枚`;
+    case 'whale-ride':
+      return `くじら島すごろくのくじらライドで${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

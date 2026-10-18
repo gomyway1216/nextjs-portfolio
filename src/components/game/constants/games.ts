@@ -479,4 +479,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'sugoroku',
+    title: 'Whale Isle Sugoroku',
+    description: 'The board-game machine of the Medal Center: roll the die in its dome, sail the boat round thirty squares of Whale Isle, and ride the whale to the blowhole for the jackpot — with every square’s next roll worked out exactly, so that no square is one to bet big on.',
+    thumbnail: '🐋',
+    path: '/games/sugoroku',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

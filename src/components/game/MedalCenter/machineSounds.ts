@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'dice', 'hop'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -322,6 +322,22 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     ping(t, 0.1, pitch('G6'), 0.24, 0.09);
     return t;
   },
+  // The die tumbling in Whale Isle Sugoroku's dome: a hard little die knocking about inside clear plastic, slowing down.
+  dice: (rate) => {
+    const t = take(0.75, rate);
+    [0, 0.07, 0.15, 0.24, 0.35, 0.47, 0.6].forEach((at, i) => {
+      knock(t, 0.003 + at, 1300 + (i % 3) * 260, 0.55 - i * 0.05, 0.006);
+      hiss(t, 0.003 + at, 0.025, 0.5 - i * 0.04, 5200, 131 + i);
+    });
+    return t;
+  },
+  // The sugoroku boat hopping one square on: a soft wooden pok, a little higher than the last.
+  hop: (rate) => {
+    const t = take(0.12, rate);
+    knock(t, 0.002, 620, 0.7, 0.012);
+    note(t, 0.004, pitch('A5'), 0.025, 0.12);
+    return t;
+  },
 };
 
 /** A bubble rising through water: a sine that sweeps up in pitch, swelling and dying away. */
@@ -357,7 +373,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, hop: 0.5 };
 
 export interface Speaker {
   on: () => boolean;

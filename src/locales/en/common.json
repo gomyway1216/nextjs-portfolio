@@ -1390,6 +1390,10 @@
     "high-low": {
       "title": "High & Low Ladder",
       "description": "The card machine of the Medal Center: guess whether the next card is higher or lower, climb a twelve-rung ladder and TAKE your medals before a miss — with the best play for every card on every rung, worked out exactly: 89.96% back."
+    },
+    "sugoroku": {
+      "title": "Whale Isle Sugoroku",
+      "description": "The board-game machine of the Medal Center: roll the die in its dome, sail the boat round thirty squares of Whale Isle, and ride the whale to the blowhole for the jackpot — with every square’s next roll worked out exactly, so that no square is one to bet big on."
     }
   },
   "home": {

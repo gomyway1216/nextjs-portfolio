@@ -212,7 +212,7 @@ test('the rankings page has every machine’s board, today and this week, and th
   await arrived(page);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('RANKINGS');
   await expect(page.getByTestId('rankings-won').getByTestId('floor-row')).toHaveCount(3);
-  for (const game of ['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low']) {
+  for (const game of ['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sugoroku']) {
     await expect(page.getByTestId(`rankings-best-${game}`)).toBeVisible();
   }
   await expect(page.getByTestId('rankings-best-slot-machine').getByTestId('floor-row')).toContainText('Player 1234');

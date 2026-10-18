@@ -18,6 +18,7 @@ const MACHINES = [
   { game: 'janken', tabs: 2, buttons: { en: [], ja: [] } },
   { game: 'roulette', tabs: 3, buttons: { en: [], ja: [] } },
   { game: 'high-low', tabs: 2, buttons: { en: ['START'], ja: ['スタート'] } },
+  { game: 'sugoroku', tabs: 2, buttons: { en: ['ROLL', 'Skip'], ja: ['サイコロをふる', 'スキップ'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

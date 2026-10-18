@@ -19,6 +19,7 @@ import {
   type StrategyId,
 } from './sim';
 import styles from './Craps.module.css';
+import selectStyles from '../common/select.module.css';
 
 export const ROLL_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const HAND_OPTIONS = [1_000, 10_000, 100_000] as const;
@@ -116,7 +117,7 @@ export const SimTab = () => {
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.rollsLabel}</span>
-            <select className={styles.input} value={rolls} onChange={(e) => setRolls(Number(e.target.value))} disabled={edgesProgress !== null}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={rolls} onChange={(e) => setRolls(Number(e.target.value))} disabled={edgesProgress !== null}>
               {ROLL_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -173,7 +174,7 @@ export const SimTab = () => {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.strategyLabel}</span>
             <select
-              className={styles.input}
+              className={`${styles.input} ${selectStyles.select}`}
               value={session.strategy}
               onChange={(e) => setSession({ ...session, strategy: e.target.value as StrategyId })}
               disabled={sessionProgress !== null}
@@ -266,7 +267,7 @@ export const SimTab = () => {
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.handsLabel}</span>
-            <select className={styles.input} value={hands} onChange={(e) => setHands(Number(e.target.value))} disabled={handsProgress !== null}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={hands} onChange={(e) => setHands(Number(e.target.value))} disabled={handsProgress !== null}>
               {HAND_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}

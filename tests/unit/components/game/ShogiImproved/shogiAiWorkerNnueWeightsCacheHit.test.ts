@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { NNUE_WEIGHTS_SHA256 } from '@/components/game/ShogiImproved/weightsAsset';
 
 const WEIGHTS_URL = '/shogi-halfkp81-production-weights.bin';
 
@@ -41,9 +42,8 @@ beforeAll(async () => {
   const weights = readFileSync(join(process.cwd(), 'public', WEIGHTS_URL.slice(1)));
   const body = weights.buffer.slice(weights.byteOffset, weights.byteOffset + weights.byteLength);
   // Pre-populate the cache exactly as a previous worker instance would have,
-  // under the same build tag this build uses.
-  const build = process.env.NEXT_PUBLIC_APP_BUILD_SHA || 'dev';
-  entries.set(`${WEIGHTS_URL}?build=${encodeURIComponent(build)}`, {
+  // under the weights' own SHA-256, which is what the worker keys them by.
+  entries.set(`${WEIGHTS_URL}?weights=${encodeURIComponent(NNUE_WEIGHTS_SHA256)}`, {
     arrayBuffer: async () => body,
   });
 

@@ -150,6 +150,11 @@ test('the board stays as it was left: a reload in the middle of a whale ride pay
   expect((await board(page))?.at).toBe(12);
   await landed(page);
   await expect(machine(page)).toHaveAttribute('data-at', '14');
+  // A roll that simply ended, found again on the next visit: the last roll, shown again; nothing was resumed.
+  await page.reload();
+  await arrived(page);
+  await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+  await expect(page.getByTestId('sg-resumed')).toHaveText('Last roll');
 });
 
 test('the keys play it, S skips, and the whirlpool sends the boat back to START with no lap bonus', async ({ page }) => {

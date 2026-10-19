@@ -528,7 +528,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           <IslandBoard scene={scene} bet={shownBet} t={t} attract={attract && !running} calm={calm} hop={hop} warp={scene.warp} label={t.boardLabel(where)} onTap={skip} />
           {(resumed || (outcome?.earlier && !running)) && (
             <span className={styles.resumedBadge} data-testid="sg-resumed">
-              {t.resumed}
+              {resumed ? t.resumed : t.lastRoll}
             </span>
           )}
         </div>

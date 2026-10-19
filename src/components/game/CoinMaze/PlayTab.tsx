@@ -790,7 +790,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             <Maze t={t} label={t.boardLabel(where)} parts={parts} active={phase === 'wait' ? stage : null} hit={!running && outcome ? outcome.play.bin : null} />
             {(resumed || (outcome?.earlier && !running)) && (
               <span className={styles.resumedBadge} data-testid="cm-resumed">
-                {t.resumed}
+                {resumed ? t.resumed : t.lastPlay}
               </span>
             )}
             <span className={styles.perPlay} aria-hidden="true">

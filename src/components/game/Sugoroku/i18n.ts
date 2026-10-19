@@ -215,6 +215,8 @@ const en = {
   historyEmpty: 'No rolls yet.',
   historyEntry: (face: number, won: number): string => (won > 0 ? `${face}: +${won.toLocaleString('en-US')}` : `${face}: —`),
   historyJackpot: 'JP',
+  /** The badge over a roll from before this page that simply ended, shown again (`resumed` is a roll this page played out). */
+  lastRoll: 'Last roll',
   sessionTitle: 'This visit',
   rolls: 'Rolls',
   played: 'Medals played',
@@ -448,6 +450,7 @@ const ja: SugorokuStrings = {
   historyEmpty: 'まだふっていません。',
   historyEntry: (face, won) => (won > 0 ? `${face}：+${won.toLocaleString('ja-JP')}` : `${face}：—`),
   historyJackpot: 'JP',
+  lastRoll: '前回のサイコロ',
   sessionTitle: '今回の記録',
   // The figures' labels carry their phrase breaks (U+200B, a zero-width space): Safari and Firefox have no
   // `word-break: auto-phrase`, and under keep-all a label breaks only where its words say (「長い目の｜還元率」).

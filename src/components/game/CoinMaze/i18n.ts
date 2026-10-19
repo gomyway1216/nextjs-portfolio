@@ -79,6 +79,8 @@ const en = {
   sign: 'MEDAL MAZE',
   signSub: 'CANDY SHOP',
   perPlay: '1 MEDAL A PLAY',
+  /** The badge over a play from before this page that simply ended, shown again (`resumed` is a play this page finished). */
+  lastPlay: 'Last play',
   medals: 'MEDALS',
   win: 'WIN',
   drop: 'DROP',
@@ -216,6 +218,7 @@ const ja: CoinMazeStrings = {
   sign: 'MEDAL MAZE',
   signSub: 'だがしや',
   perPlay: '1回1枚',
+  lastPlay: '前回のプレイ',
   medals: '持ちメダル',
   win: '当たり',
   drop: 'メダルを入れる',

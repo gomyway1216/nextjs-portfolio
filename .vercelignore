@@ -7,3 +7,7 @@ native/
 wasm-spike/
 tests/
 scripts/
+# The shogi AI's 94.7MB weights: every deployment kept its own copy, and they filled the free plan's 10 GB of
+# deployment storage. A build on Vercel fetches them from the public asset bucket instead
+# (src/components/game/ShogiImproved/weightsAsset.ts); local builds and CI still read them from public/.
+public/shogi-halfkp81-production-weights.bin

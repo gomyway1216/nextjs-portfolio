@@ -93,7 +93,7 @@ describe('shogi-ai.worker NNUE weights Cache Storage (store)', () => {
     // build — so a deploy shipping different weights can never be served the
     // stale body, and at most one 94.7MB entry is ever retained.
     expect(putCalls).toHaveLength(1);
-    expect(putCalls[0].startsWith(`${WEIGHTS_URL}?build=`)).toBe(true);
+    expect(putCalls[0].startsWith(`${WEIGHTS_URL}?weights=`)).toBe(true);
     expect(entries.size).toBe(1);
   });
 });

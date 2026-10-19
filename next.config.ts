@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_APP_BUILD_SHA: readGitSha(),
+    // A build on Vercel ships without the shogi AI's 94.7MB weights (.vercelignore), and its worker fetches them from
+    // the public asset bucket instead; anywhere else they are in public/ as before. See ShogiImproved/weightsAsset.ts.
+    NEXT_PUBLIC_SHOGI_WEIGHTS_REMOTE: process.env.VERCEL === "1" ? "1" : "",
   },
 
   // Disable React StrictMode to suppress warnings from third-party packages

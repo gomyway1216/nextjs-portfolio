@@ -163,6 +163,43 @@ test('the keys play it, S skips, and the whirlpool sends the boat back to START 
   expect(await bankBalance(page)).toBe(before - 2);
 });
 
+test('a bet the medals cannot cover says why ROLL is off, and so does a last medal no bet can take', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openBoard(page);
+  const message = page.getByTestId('sg-message');
+  /** A roll on a bet of 10 from the palm tree at 3: the storm at 9 takes the boat back to 3, and pays nothing. */
+  const storm = async () => {
+    await roll(page, { roll: 6 });
+    await landed(page);
+  };
+  await page.getByTestId('sg-bet-10').click();
+  // 100 → a shell at 1 (95, an odd number: a bet of 10 pays a shell 5) → the palm tree at 3 (85) → eight storms (5).
+  await roll(page, { roll: 1 });
+  await landed(page);
+  await roll(page, { roll: 2 });
+  await landed(page);
+  for (let i = 0; i < 7; i++) await storm();
+  // 15 medals cover the bet: nothing is said.
+  await expect(message).toHaveText('');
+  await storm();
+  expect(await bankBalance(page)).toBe(5);
+  // 5 medals and a bet of 10: ROLL is off, and the machine says why.
+  await expect(page.getByTestId('sg-roll')).toBeDisabled();
+  await expect(message).toHaveText('Not enough medals for that bet.');
+  // A bet they cover: ROLL is on again, and nothing is said.
+  await page.getByTestId('sg-bet-4').click();
+  await expect(page.getByTestId('sg-roll')).toBeEnabled();
+  await expect(message).toHaveText('');
+  await roll(page, { roll: 6 });
+  await landed(page);
+  // One medal left: no bet takes it, and it is not none, so there is no refill either. The machine says where it can go.
+  expect(await bankBalance(page)).toBe(1);
+  await page.getByTestId('sg-bet-2').click();
+  await expect(page.getByTestId('sg-roll')).toBeDisabled();
+  await expect(page.getByTestId('sg-refill')).toHaveCount(0);
+  await expect(message).toHaveText('A roll takes at least 2 medals: play your last one on another machine.');
+});
+
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });

@@ -437,6 +437,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const cardAway = mine && (bankState.card === 'away' || (bankState.card === 'asking' && longWait));
   const outOfMedals = mine && here && !running && bankState.balance === 0;
   const refillDue = outOfMedals && bankState.out.length === 0;
+  // Medals that cannot cover the bet chosen: ROLL is off, and the machine says why. A last medal that no bet can take is
+  // not none, so no refill is given for it either: it is for another machine.
+  const shortOf = mine && here && !running && bankState.balance > 0 && bankState.balance < bet;
+  const shortNote = !shortOf ? '' : bankState.balance < BETS[0] ? t.tooFew(bankState.balance, BETS[0]) : t.notEnough;
 
   const cycleBet = () => {
     if (runningRef.current) return;
@@ -601,7 +605,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         </div>
 
         <p className={styles.message} role="status" data-testid="sg-message">
-          {message}
+          <Phrases text={message || shortNote} />
         </p>
 
         {/* What each square does, by its picture: the board prints only what a square pays or how far it moves, large

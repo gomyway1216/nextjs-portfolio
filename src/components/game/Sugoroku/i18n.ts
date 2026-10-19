@@ -199,6 +199,8 @@ const en = {
   outcome: enOutcome,
   outOfMedals: 'No medals left.',
   notEnough: 'Not enough medals for that bet.',
+  /** A last medal or two that no bet can take: there is no refill while there are any, so they are for another machine. */
+  tooFew: (medals: number, least: number) => `A roll takes at least ${least} medals: play your last ${medals === 1 ? 'one' : medals} on another machine.`,
   unsaved: 'This browser’s storage is full: the roll could not be written down, so it was not played. Try again.',
   unfinished: 'Finishing the last roll first.',
   refill: (medals: number) => `Out of medals — take ${medals} more`,
@@ -430,6 +432,7 @@ const ja: SugorokuStrings = {
   outcome: jaOutcome,
   outOfMedals: '持ちメダルがありません。',
   notEnough: 'そのベットには持ちメダルが足りません。',
+  tooFew: (medals, least) => `サイコロは${least}枚から。のこりの${medals}枚はほかのマシンで遊べます。`,
   unsaved: 'このブラウザの保存領域がいっぱいで、サイコロの結果を記録できませんでした。サイコロはふっていません。もう一度どうぞ。',
   unfinished: '前のサイコロの続きを先に進めます。',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,

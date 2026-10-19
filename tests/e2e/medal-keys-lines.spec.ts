@@ -4,7 +4,9 @@ import { arrived } from './streamedPage';
 
 // The card tables', craps', video poker's, the horse race's, the big wheel's, Calico Janken's, the High & Low Ladder's, Sic Bo's, Whale Isle Sugoroku's and the Candy Shop Medal Maze's line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it
 // wraps between its parts and never inside one, so a key is never left at the end of a line with what it does on the
-// next ("R で" / 「同じベット」). On a touch screen, which has no keys, it is not shown.
+// next ("R で" / 「同じベット」), and no part is wider than the column, which would stick out of the cabinet and push the
+// page sideways (Sugoroku's 「キー：Space か Enter でサイコロ（演出中はスキップ）・」 in a 320 px window). On a touch screen, which
+// has no keys, it is not shown.
 
 const TABLES = [
   ['blackjack', 'bj-keys'],
@@ -20,6 +22,9 @@ const TABLES = [
   ['sugoroku', 'sg-keys'],
   ['coin-maze', 'cm-keys'],
 ] as const;
+
+/** How far the keys line's widest part sticks out of its column, in px: 0 or less when every part fits. */
+const sticksOut = (page: import('@playwright/test').Page, testId: string) => page.getByTestId(testId).evaluate((line) => line.scrollWidth - line.clientWidth);
 
 /** The parts of the keys line that break inside themselves, as they are laid out now. */
 const splitParts = (page: import('@playwright/test').Page, testId: string) =>
@@ -65,6 +70,9 @@ for (const [game, testId] of TABLES) {
         await expect(page.getByTestId(testId)).toBeVisible();
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         expect(await splitParts(page, testId), `${game} ${language} ${width}`).toEqual([]);
+        // A few px into the cabinet's padding is a part that just fits, as an engine rounds it (Safari draws Baccarat's and the
+        // ladder's 3 px wider than their 320 / 375 px columns); a part that does not fit sticks out by a word or more.
+        expect(await sticksOut(page, testId), `${game} ${language} ${width}: a part wider than the column`).toBeLessThanOrEqual(4);
         await context.close();
       }
     }

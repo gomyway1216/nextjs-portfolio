@@ -57,6 +57,9 @@ describe('the floor’s moments', () => {
     expect(html).toContain('3 h ago');
     expect(html.match(/data-testid="floor-moment"/g)).toHaveLength(3);
     expect(html).not.toContain('floor-hide-moment');
+    // Whale Isle Sugoroku's jackpot comes from the JP Chance square on the board a little more often than from the whale's
+    // blowhole: the line names the machine, not the blowhole.
+    expect(getFloorStrings('en').moment('sugoroku-jp', '1,000')).toBe('hit the jackpot on Whale Isle Sugoroku: 1,000 medals');
   });
 
   it('and in Japanese', () => {

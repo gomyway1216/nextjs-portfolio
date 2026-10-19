@@ -436,7 +436,8 @@ const ja: SugorokuStrings = {
   cardAway: '持ちメダルは別のタブのマシンで遊ばれています。',
   playHere: 'ここで遊ぶ',
   resumed: '続きから再開',
-  keysHint: 'キー：Space か Enter でサイコロ（演出中はスキップ）・S でスキップ・B でベット変更',
+  // Each part fits the narrowest column (a 320 px window): 「サイコロ／スキップ」, as the fishing pier's 「キャスト／巻く」.
+  keysHint: 'キー：Space か Enter でサイコロ／スキップ・S でスキップ・B でベット変更',
   notMoney: NOT_MONEY.ja,
   centerNote: '持ちメダルはメダルゲームセンターのもので、どのマシンでも共通です。',
   centerNoteLink: 'デイリーボーナスと補充は入口で',

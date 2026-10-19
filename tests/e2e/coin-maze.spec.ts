@@ -182,6 +182,13 @@ test('a reload in the middle of a play finds the same play, finishes it with the
   await expect.poll(() => bankBalance(page)).toBe(WELCOME - 1 + 5);
   expect(await record(page)).toMatchObject({ id, flicks: [first, 1, 1, 1], paid: true });
   await expect(page.getByTestId('cm-resumed')).toBeVisible();
+  // The badge is not laid over the plate that says what a play takes (both sat at the top of the case).
+  const overlap = await page.evaluate(() => {
+    const badge = document.querySelector('[data-testid="cm-resumed"]')!.getBoundingClientRect();
+    const plate = document.querySelector('[data-testid="cm-board"] [class*="perPlay"]')!.getBoundingClientRect();
+    return badge.left < plate.right && plate.left < badge.right && badge.top < plate.bottom && plate.top < badge.bottom;
+  });
+  expect(overlap).toBe(false);
   await expect(machine(page)).toHaveAttribute('data-result', 'big');
   await page.waitForTimeout(1_000);
   expect(await bankBalance(page)).toBe(WELCOME - 1 + 5);
@@ -251,13 +258,18 @@ test('fits 375 and 320 px phones in English and Japanese: the case and the lever
     seen.add(JSON.stringify(await boxes()));
     expect([...seen], where).toEqual([JSON.stringify(before)]);
     await expect(machine(page)).toHaveAttribute('data-result', 'win');
-    // Everything the case prints (the pockets, OUT, the gates' numbers) is at least 11 px: readable on the narrowest phone.
-    const small = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-testid="cm-board"] text')].flatMap((el) => {
+    // Everything the case prints (the pockets, OUT, the gates' numbers, the plate that says what a play takes) is at
+    // least 11 px: readable on the narrowest phone.
+    const small = await page.evaluate(() => [
+      ...[...document.querySelectorAll('[data-testid="cm-board"] text')].flatMap((el) => {
         const size = el.getBoundingClientRect().height;
         return size > 0 && size < 10.5 ? [`${el.textContent} ${size.toFixed(1)}px`] : [];
       }),
-    );
+      ...[...document.querySelectorAll<HTMLElement>('[data-testid="cm-board"] span')].flatMap((el) => {
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        return el.textContent?.trim() && size < 10.95 ? [`${el.textContent} ${size.toFixed(1)}px`] : [];
+      }),
+    ]);
     expect(small, `${where}: text under 11 px`).toEqual([]);
     // The tap targets: DROP, the lever and Skip at least 44 px.
     for (const id of ['cm-drop', 'cm-lever', 'cm-skip']) {

@@ -314,11 +314,11 @@
 .striker {
   will-change: transform;
 }
+/* Under the plate that says what a play takes, at the left: in the middle of the top it lay over the plate and the slot. */
 .resumedBadge {
   position: absolute;
-  top: 9px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 34px;
+  left: 10px;
   z-index: 3;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
@@ -337,7 +337,7 @@
   padding: 0.05rem 0.4rem;
   border-radius: 6px;
   background: rgba(214, 53, 47, 0.92);
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-weight: 900;
   letter-spacing: 0.04em;
   color: #fff;

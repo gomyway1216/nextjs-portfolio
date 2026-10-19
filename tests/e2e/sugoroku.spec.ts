@@ -114,7 +114,8 @@ test('the die is seen tumbling before its face is told: the status line never sh
     new MutationObserver(note).observe(die, { attributes: true, attributeFilter: ['data-rolling'] });
   });
   await roll(page, { roll: 5 });
-  await landed(page);
+  // Watched to its end, not skipped: a skip goes straight to the result, past the moment the die lands.
+  await expect(machine(page)).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
   const said = await page.evaluate(() => (window as unknown as { __said: string[] }).__said);
   // The first thing said is that the die is rolling; "A 5!" comes only once it has stopped tumbling.
   expect(said[0]).toBe('Rolling the die…|true');

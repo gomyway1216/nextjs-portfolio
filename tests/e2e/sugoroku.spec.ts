@@ -163,6 +163,28 @@ test('the keys play it, S skips, and the whirlpool sends the boat back to START 
   expect(await bankBalance(page)).toBe(before - 2);
 });
 
+test('the die is seen tumbling before its face is told: the status line never shows the roll before the die lands', async ({ page }) => {
+  await openBoard(page);
+  // Every text the status line takes from the press on, and every face the die shows, in order.
+  await page.evaluate(() => {
+    const w = window as unknown as { __said: string[] };
+    w.__said = [];
+    const status = document.querySelector('[data-testid="sg-status"]')!;
+    const die = document.querySelector('[data-testid="sg-die"]')!;
+    const note = () => w.__said.push(`${status.textContent}|${die.getAttribute('data-rolling')}`);
+    new MutationObserver(note).observe(status, { subtree: true, childList: true, characterData: true });
+    new MutationObserver(note).observe(die, { attributes: true, attributeFilter: ['data-rolling'] });
+  });
+  await roll(page, { roll: 5 });
+  await landed(page);
+  const said = await page.evaluate(() => (window as unknown as { __said: string[] }).__said);
+  // The first thing said is that the die is rolling; "A 5!" comes only once it has stopped tumbling.
+  expect(said[0]).toBe('Rolling the die…|true');
+  const told = said.findIndex((line) => line.startsWith('A 5!'));
+  expect(told).toBeGreaterThan(0);
+  expect(said.slice(0, told).every((line) => line.startsWith('Rolling the die…'))).toBe(true);
+});
+
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });

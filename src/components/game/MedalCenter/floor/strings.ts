@@ -142,7 +142,8 @@ const enMoment = (label: string | null, medals: string): string => {
     case 'sicbo-any-triple':
       return `won Any Triple at Sic Bo: ${medals} medals`;
     case 'sugoroku-jp':
-      return `hit the jackpot at the whale’s blowhole: ${medals} medals`;
+      // From the JP Chance square on the board, or at the whale's blowhole after a ride.
+      return `hit the jackpot on Whale Isle Sugoroku: ${medals} medals`;
     case 'whale-ride':
       return `rode the whale on Whale Isle: ${medals} medals`;
     case 'maze-big':

@@ -108,6 +108,8 @@ const en = {
     dropping: 'In it goes…',
     wait: (stage: number) => `Gate ${stage + 1} of ${STAGES}: flick when it opens!`,
     end: (end: StageEnd) => enEnd[end],
+    /** A graze while the medal wobbles on the gate's edge: which way it goes is said once it has gone. */
+    wobble: 'Clack… it wobbles…',
     pins: 'Down through the pins…',
   },
   outcome: enOutcome,
@@ -241,6 +243,7 @@ const ja: CoinMazeStrings = {
     dropping: `メダルが${B}転がっていく…`,
     wait: (stage: number) => `ゲート${stage + 1}／${STAGES}：${B}開いたら${B}はじこう！`,
     end: (end: StageEnd) => jaEnd[end],
+    wobble: `カチン、${B}ぐらぐら…`,
     pins: `釘を${B}落ちていく…`,
   },
   outcome: jaOutcome,

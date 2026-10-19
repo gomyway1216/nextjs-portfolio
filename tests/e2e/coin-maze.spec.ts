@@ -181,6 +181,39 @@ test('the timing is the player’s: a flick into a shut gate drops OUT, Space he
   await expect(skip).toBeDisabled();
 });
 
+test('a graze keeps its secret while the medal wobbles: the status line says through or OUT only once it has gone one way', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMaze(page);
+  // Every text the status line takes, with when, from the press on.
+  const watch = () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __said: { text: string; at: number }[] };
+      w.__said = [];
+      const status = document.querySelector('[data-testid="cm-status"]')!;
+      new MutationObserver(() => w.__said.push({ text: status.textContent ?? '', at: performance.now() })).observe(status, { subtree: true, childList: true, characterData: true });
+    });
+  const said = () => page.evaluate(() => (window as unknown as { __said: { text: string; at: number }[] }).__said);
+  // A graze that gets through, at gate 1; then one that drops OUT, at gate 2.
+  await drop(page, play({ wobbles: [true, false, true, true] }));
+  for (const [stage, through] of [
+    [0, true],
+    [1, false],
+  ] as const) {
+    await atGate(page, stage);
+    await watch();
+    await flickWhen(page, 'half');
+    const ending = through ? 'Clack… it wobbles… through!' : 'Clack… it wobbles… OUT.';
+    await expect.poll(async () => (await said()).some((line) => line.text === ending)).toBe(true);
+    const lines = await said();
+    // First the wobble, with no ending; the ending only after it, once the medal has gone through or dropped.
+    expect(lines[0].text).toBe('Clack… it wobbles…');
+    const told = lines.find((line) => line.text === ending)!;
+    expect(told.at - lines[0].at).toBeGreaterThan(250);
+  }
+  await ended(page);
+  await expect(machine(page)).toHaveAttribute('data-result', 'out-2');
+});
+
 test('a reload in the middle of a play finds the same play, finishes it with the flicks made and the rest blind, and pays it once', async ({ page }) => {
   test.setTimeout(60_000);
   await openMaze(page);

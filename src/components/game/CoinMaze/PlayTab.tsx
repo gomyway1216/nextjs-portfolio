@@ -165,6 +165,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [stage, setStage] = useState(0);
   const [roundId, setRoundId] = useState<string | null>(null);
   const [endShown, setEndShown] = useState<StageEnd | null>(null);
+  // A graze whose medal is still wobbling on the gate's edge: the status line keeps through or OUT to itself until then.
+  const [wobbling, setWobbling] = useState(false);
   const [pulled, setPulled] = useState(false);
   const [known, setKnown] = useState(false);
   const [outcome, setOutcome] = useState<Ended | null>(null);
@@ -231,6 +233,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       keyPulled.current = false;
       setPulled(false);
       setSkippable(false);
+      setWobbling(false);
       const { staked } = flight;
       // Known as shown before it is settled: the medals moving as it is paid wake the machine's look at the play.
       shownLast.current = staked.record.id;
@@ -292,6 +295,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setStage(s);
     setPhase('wait');
     setEndShown(null);
+    setWobbling(false);
     setAnnouncement(live.current.t.sayGate(s));
   }, [clock]);
 
@@ -321,6 +325,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setPhase('fly');
       setEndShown(end);
       const calmNow = live.current.calm;
+      // With less motion there is no wobble to watch: the ending is said at once.
+      setWobbling(!calmNow && (end === 'graze-through' || end === 'graze-out'));
       go(flight, flickTrack(s, end, calmNow), () => {
         if (!passed(end)) {
           finish(flight, 'played');
@@ -594,6 +600,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           while (flight.cues.length > 0 && flight.cues[0].at <= t) {
             const cue = flight.cues.shift()!;
             if (cue.sound) play(SOUND_OF[cue.sound]);
+            // The medal has gone through the gate or dropped OUT: a graze's ending can be said now.
+            if (cue.cue === 'through' || cue.cue === 'out') setWobbling(false);
           }
           if (t >= flight.way.length && flight.then) {
             const then = flight.then;
@@ -748,7 +756,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (running) {
       if (phase === 'drop') return t.status.dropping;
       if (phase === 'pins') return t.status.pins;
-      if (phase === 'fly' && endShown) return t.status.end(endShown);
+      if (phase === 'fly' && endShown) return wobbling ? t.status.wobble : t.status.end(endShown);
       return t.status.wait(stage);
     }
     if (outcome) return t.outcome(outcome.play).status;

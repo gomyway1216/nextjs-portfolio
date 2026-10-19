@@ -119,6 +119,8 @@ const en = {
   refill: (medals: number) => `Out of medals — Get ${medals} medals`,
   outOfMedals: 'Out of medals.',
   resumed: 'Finished from before',
+  /** A play this page finished as it gave up the medals (hidden, left, or another tab playing them): not the player's flicks. */
+  finishedAway: 'The play was finished while you were away: the levers left were flicked blind.',
   sayDrop: 'A medal dropped in.',
   sayResumed: 'A play left unfinished was finished: the levers not flicked were flicked blind.',
   sayRestart: 'The medals were reset at the medal center.',
@@ -252,6 +254,7 @@ const ja: CoinMazeStrings = {
   refill: (medals: number) => `メダルがなくなりました — ${medals}枚もらう`,
   outOfMedals: 'メダルがなくなりました。',
   resumed: '前のプレイの続き',
+  finishedAway: `離れている間に${B}プレイを終えました。${B}残りのレバーは${B}目をつぶって${B}はじきました。`,
   sayDrop: 'メダルを1枚入れました。',
   sayResumed: '途中だったプレイを終わらせました。まだのレバーは目をつぶってはじきました。',
   sayRestart: 'メダルゲームセンターでメダルがリセットされました。',

@@ -235,6 +235,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       // Known as shown before it is settled: the medals moving as it is paid wake the machine's look at the play.
       shownLast.current = staked.record.id;
       const before = staked.paid;
+      // Levers still to come as it is finished here (the page is going, or another tab is playing the medals): they are
+      // flicked blind, and the player is told so, since the flicks that ended it were not theirs.
+      const blind = !playOf(staked.record.draw, staked.record.flicks).complete;
       const settled = staked.paid ? 'already' : (table.current?.settle(staked) ?? 'later');
       if (settled === 'later') {
         // Not this page's to finish now (the medals are elsewhere): it stays on record, and the page that next holds the
@@ -264,6 +267,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       }
       if (ended.won > 0) play(ended.pocket === 'big' ? 'big' : 'win');
       setResumed(how === 'resumed');
+      if (blind) setMessage(live.current.t.finishedAway);
       setEndShown(null);
       setPhase('idle');
       setAnnouncement(live.current.t.outcome(ended).say);

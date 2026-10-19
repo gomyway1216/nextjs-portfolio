@@ -240,8 +240,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setOutcome(null);
       setBet(staked.record.roll.bet);
       clearTimers();
-      // Put down where the roll starts at once (a roll found unfinished after a reload starts where it was rolled from).
-      setScene({ ...restingScene(played.from, sceneRef.current.face), phase: 'roll', warp: true });
+      // Put down where the roll starts at once (a roll found unfinished after a reload starts where it was rolled from),
+      // the die already tumbling if the show starts with it: the status line says the face only once it has landed, never
+      // for the moment before the first beat.
+      setScene({ ...restingScene(played.from, sceneRef.current.face), phase: 'roll', rolling: beats[0]?.scene.rolling ?? false, warp: true });
       if (!again) {
         glance.current?.drop();
         glance.current = lookUp(boardRef.current, from ?? null);

@@ -101,6 +101,29 @@ test('a roll takes the bet once, the lamp chance and the whale ride to the jackp
   await expect(page.getByTestId('mypage-sugoroku-won')).toHaveText('1,060');
 });
 
+test('the die is seen tumbling before its face is told: the status line never shows the roll before the die lands', async ({ page }) => {
+  await openBoard(page);
+  // Every text the status line takes from the press on, and every face the die shows, in order.
+  await page.evaluate(() => {
+    const w = window as unknown as { __said: string[] };
+    w.__said = [];
+    const status = document.querySelector('[data-testid="sg-status"]')!;
+    const die = document.querySelector('[data-testid="sg-die"]')!;
+    const note = () => w.__said.push(`${status.textContent}|${die.getAttribute('data-rolling')}`);
+    new MutationObserver(note).observe(status, { subtree: true, childList: true, characterData: true });
+    new MutationObserver(note).observe(die, { attributes: true, attributeFilter: ['data-rolling'] });
+  });
+  await roll(page, { roll: 5 });
+  // Watched to its end, not skipped: a skip goes straight to the result, past the moment the die lands.
+  await expect(machine(page)).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
+  const said = await page.evaluate(() => (window as unknown as { __said: string[] }).__said);
+  // The first thing said is that the die is rolling; "A 5!" comes only once it has stopped tumbling.
+  expect(said[0]).toBe('Rolling the die…|true');
+  const told = said.findIndex((line) => line.startsWith('A 5!'));
+  expect(told).toBeGreaterThan(0);
+  expect(said.slice(0, told).every((line) => line.startsWith('Rolling the die…'))).toBe(true);
+});
+
 test('the board stays as it was left: a reload in the middle of a whale ride pays it once and finds the boat at the gate', async ({ page }) => {
   test.setTimeout(60_000);
   await openBoard(page);

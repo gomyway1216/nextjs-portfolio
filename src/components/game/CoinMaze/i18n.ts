@@ -114,6 +114,8 @@ const en = {
   notEnough: 'No medal to play. A refill is waiting at the medal center when you run out.',
   unsaved: 'This browser’s storage is full: the play cannot be kept, so no medal was taken.',
   unfinished: 'A play from before is being finished first.',
+  /** A play this page finished as it gave up the medals (hidden, left, or another tab playing them): not the player's flicks. */
+  finishedAway: 'The play was finished while you were away: the levers left were flicked blind.',
   cardAway: 'Your medals are playing in another tab.',
   playHere: 'Play here',
   refill: (medals: number) => `Out of medals — Get ${medals} medals`,
@@ -247,6 +249,7 @@ const ja: CoinMazeStrings = {
   notEnough: `遊べるメダルがありません。${B}なくなったら${B}メダルゲームセンターで${B}補充を受け取れます。`,
   unsaved: `このブラウザの保存領域が${B}いっぱいのため、${B}記録できません。${B}メダルは使っていません。`,
   unfinished: `前のプレイを${B}先に終わらせています。`,
+  finishedAway: `離れている間に${B}プレイを終えました。${B}残りのレバーは${B}目をつぶって${B}はじきました。`,
   cardAway: `持ちメダルは${B}別のタブで${B}遊んでいます。`,
   playHere: 'ここで遊ぶ',
   refill: (medals: number) => `メダルがなくなりました — ${medals}枚もらう`,

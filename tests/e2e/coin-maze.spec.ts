@@ -194,6 +194,35 @@ test('a reload in the middle of a play finds the same play, finishes it with the
   expect(await bankBalance(page)).toBe(WELCOME - 2 + 5);
 });
 
+test('a play finished while the player was away says so when they come back: the levers left were flicked blind', async ({ context, page }) => {
+  test.setTimeout(60_000);
+  await openMaze(page);
+  // Every blind flick drawn into a shut window: the play goes OUT at the first gate the player did not flick.
+  await drop(page, play({ blinds: [7, 7, 7, 7] }));
+  await atGate(page, 0);
+  await flickWhen(page, 'open');
+  await atGate(page, 1);
+  await expect(page.getByTestId('cm-message')).toHaveText('');
+  // The medals are played in another tab: this page gives them up, and finishes its play first.
+  const other = await context.newPage();
+  await other.goto('/games/coin-maze');
+  await arrived(other);
+  await expect(other.getByTestId('cm-machine')).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+  await expect.poll(async () => (await record(other))?.paid).toBe(true);
+  expect((await record(other))?.flicks.slice(1)).toEqual([7]);
+  await other.close();
+  // Back at this machine: the play ended at gate 2, and the machine says it was not the player's flick there.
+  await page.bringToFront();
+  await page.getByTestId('cm-play-here').click();
+  await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+  await expect(machine(page)).toHaveAttribute('data-result', 'out-2');
+  await expect(page.getByTestId('cm-message')).toHaveText('The play was finished while you were away: the levers left were flicked blind.');
+  expect(await bankBalance(page)).toBe(WELCOME - 1);
+  // The next play clears it.
+  await drop(page, play());
+  await expect(page.getByTestId('cm-message')).toHaveText('');
+});
+
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });

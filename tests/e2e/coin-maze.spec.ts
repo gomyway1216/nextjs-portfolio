@@ -293,6 +293,14 @@ test('fits 375 and 320 px phones in English and Japanese: the case and the lever
       const size = await page.getByTestId(id).evaluate((el) => el.getBoundingClientRect());
       expect(Math.min(size.width, size.height), `${where}: ${id}`).toBeGreaterThanOrEqual(44);
     }
+    // DROP's words sit inside its border, with room to spare: 「メダルを入れる」 ran into it, and over it, at 375 and 320 px.
+    const clear = await page.getByTestId('cm-drop').evaluate((button) => {
+      const words = button.querySelector('[class*="dropWords"]')!.getBoundingClientRect();
+      const box = button.getBoundingClientRect();
+      const border = parseFloat(getComputedStyle(button).borderLeftWidth);
+      return Math.min(words.left - box.left - border, box.right - border - words.right);
+    });
+    expect(clear, `${where}: DROP's words inside its border`).toBeGreaterThanOrEqual(3);
     // The Odds tab fits too.
     await page.locator('#cm-tab-odds').click();
     await expect(page.getByTestId('cm-perfect')).toHaveText('92.53%');

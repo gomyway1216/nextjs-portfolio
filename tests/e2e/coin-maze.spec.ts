@@ -120,6 +120,21 @@ test('a play takes one medal, the lever flicks it through the four gates, the pi
   await expect(page.getByTestId('mypage-coin-maze-won')).toHaveText('5');
 });
 
+test('a play that simply ended, found again on the next visit, is shown as the last play: nothing was finished from before', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMaze(page);
+  await drop(page, play());
+  await atGate(page, 0);
+  await flickWhen(page, 'shut');
+  await ended(page);
+  await expect(page.getByTestId('cm-resumed')).toHaveCount(0);
+  await page.reload();
+  await arrived(page);
+  await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+  await expect(machine(page)).toHaveAttribute('data-result', 'out-1');
+  await expect(page.getByTestId('cm-resumed')).toHaveText('Last play');
+});
+
 test('the timing is the player’s: a flick into a shut gate drops OUT, Space held and let go flicks, and Skip waits for the last lever and then fast-forwards', async ({ page }) => {
   test.setTimeout(90_000);
   await openMaze(page);

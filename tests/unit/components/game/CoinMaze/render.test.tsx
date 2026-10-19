@@ -307,6 +307,25 @@ describe('the words', () => {
     }
   });
 
+  it('say what the rest of the floor says, in the same words', () => {
+    const plain = (text: string) => text.replace(/\u200b/g, '');
+    const en = getStrings('en');
+    const ja = getStrings('ja');
+    // The refill's words, as every other machine's.
+    expect(en.refill(100)).toBe('Out of medals — take 100 more');
+    expect(ja.refill(100)).toBe('メダルがなくなりました — 100枚もらう');
+    // The medals in another tab's machine.
+    expect(en.cardAway).toBe('Your medals are in a machine in another tab.');
+    expect(plain(ja.cardAway)).toBe('持ちメダルは別のタブのマシンで使われています。');
+    // No medal to drop in: the refill is this machine's own button, not something to fetch from the medal center.
+    expect(en.notEnough).not.toMatch(/medal center/i);
+    expect(plain(ja.notEnough)).not.toContain('メダルゲームセンター');
+    // The panels beside the machine: this visit's figures, and the last plays.
+    const markup = render(<PlayTab />, 'ja');
+    expect(markup).toContain('>今回のプレイ<');
+    expect(markup).toContain('>最近のプレイ<');
+  });
+
   it('tells how a play ended in a few words, and in a sentence for a screen reader', () => {
     const en = getStrings('en');
     expect(en.outcome(playOf(draw(), [1, 1, 1, 1]))).toEqual({ status: 'WIN! +2', say: 'Through all four gates and into the WIN pocket: 2 medals won.' });

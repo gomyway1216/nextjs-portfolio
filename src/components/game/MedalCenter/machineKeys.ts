@@ -49,7 +49,10 @@ export function forTheMachine(press: MachineKey): boolean {
 /**
  * Listens for the machine's keys while `active`. `onKey` is told the key's
  * name and says whether it was the machine's; a key that was is kept from the
- * page (Space does not scroll it).
+ * page (Space does not scroll it), and so are its repeats for as long as it is
+ * held down: the machine does nothing more with them, but a held Space would
+ * otherwise scroll the page a screen at every repeat (the Smart Ball's plunger
+ * is drawn by holding Space).
  */
 export function useMachineKeys(active: boolean, onKey: (key: string) => boolean): void {
   const handler = useRef(onKey);
@@ -58,12 +61,30 @@ export function useMachineKeys(active: boolean, onKey: (key: string) => boolean)
   });
   useEffect(() => {
     if (!active) return;
+    /** The key the machine took as it went down, while it is still held. */
+    let held: string | null = null;
     const listen = (event: KeyboardEvent) => {
+      const key = keyName(event.key);
+      if (event.repeat) {
+        if (key === held) event.preventDefault();
+        return;
+      }
+      held = null;
       if (event.defaultPrevented || !forTheMachine(event)) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"]')) return;
-      if (handler.current(keyName(event.key))) event.preventDefault();
+      if (handler.current(key)) {
+        event.preventDefault();
+        held = key;
+      }
+    };
+    const up = (event: KeyboardEvent) => {
+      if (keyName(event.key) === held) held = null;
     };
     window.addEventListener('keydown', listen);
-    return () => window.removeEventListener('keydown', listen);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', listen);
+      window.removeEventListener('keyup', up);
+    };
   }, [active]);
 }

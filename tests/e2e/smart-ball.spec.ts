@@ -177,6 +177,32 @@ test('smart-ball: the pull is the player’s: too soft rolls back unshot, Space 
   await expect(skip).toBeDisabled();
 });
 
+test('smart-ball: Space held down to draw the plunger keeps the page where it is, its repeats and all', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openTable(page);
+  // The keys are the machine's once nothing is focused.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await rigPresses(page, numbersFor(play([at(0, 0)])));
+  await page.keyboard.press('Enter');
+  await onPlunger(page, 0);
+  // START has brought the board into view; the page goes on below it.
+  await page.waitForTimeout(300);
+  const before = await page.evaluate(() => window.scrollY);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY)).toBeGreaterThan(200);
+  await page.keyboard.down(' ');
+  await expect(page.getByTestId('smb-plunger')).toHaveAttribute('data-pulled', 'true');
+  // A key held down repeats, a keydown each time (Playwright sends a repeat for a key already down). Each one used to
+  // scroll the page a screen down, the board with it, while the player held the plunger.
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.down(' ');
+    await page.waitForTimeout(30);
+  }
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+  await page.keyboard.up(' ');
+  await expect.poll(async () => (await record(page))?.shots.length).toBe(1);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+});
+
 test('smart-ball: a reload in the middle of a play finds the same play, finishes it with the shots made and the rest blind, and pays it once', async ({ page }) => {
   test.setTimeout(60_000);
   await openTable(page);

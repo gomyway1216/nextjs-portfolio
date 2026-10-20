@@ -1402,6 +1402,10 @@
     "coin-maze": {
       "title": "Candy Shop Medal Maze",
       "description": "The candy shop corner’s flick-a-medal maze: drop one medal into the glass case, flick it with the levers through four moving gates and down the pins into WIN — with perfect timing, an everyday hand and blind presses each worked out exactly, so that no timing beats the machine."
+    },
+    "keno": {
+      "title": "Video Keno",
+      "description": "The video & slots corner’s keno cabinet: mark 1 to 10 of the 80 numbers, bet, and watch 20 balls drawn one by one — a paytable for every number of spots, a catch on the last ball paying ×5, and every ticket’s return worked out exactly from the hypergeometric odds, at about 90% for each."
     }
   },
   "home": {

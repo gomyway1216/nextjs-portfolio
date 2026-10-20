@@ -7,6 +7,7 @@ import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../
 import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
 import { numberForFace, numberForLamp } from '../../src/components/game/Sugoroku/engine';
 import { numbersFor as mazeNumbers } from '../../src/components/game/CoinMaze/engine';
+import { numbersFor as kenoNumbers } from '../../src/components/game/Keno/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -503,6 +504,47 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), CM_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+// ── Video Keno ──────────────────────────────────────────────────────────────
+
+const KN_WORDS = ['数字', 'えらぶ', 'えらんで', 'えらんだ', 'クイックピック', 'ドロー', 'ベット', '当たり', '最後', '自分', 'もらえる', 'メダル', '持ちメダル', '戻り', '割合', '回数', '差し引き', 'いちばん', '確率', '抽選', 'スキップ', 'うちわけ'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Video Keno's status line, paytable, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/keno');
+    await arrived(page);
+    const machine = page.getByTestId('kn-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('kn-status');
+    const paytable = page.getByTestId('kn-paytable');
+    const said = [...(await brokenIn(status, KN_WORDS)), ...(await brokenIn(paytable.locator('p'), KN_WORDS))];
+    // A quick pick of five, then a draw that catches three of them, the last on the last ball: the longest result line.
+    await rigPresses(page, kenoNumbers([3, 12, 33, 41, 70]));
+    await pressUntil(page.getByTestId('kn-quick'), async () => (await page.getByTestId('kn-cell-3').getAttribute('aria-pressed')) === 'true');
+    said.push(...(await brokenIn(status, KN_WORDS)));
+    await rigPresses(page, kenoNumbers([3, 12, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 70]));
+    await pressUntil(page.getByTestId('kn-draw'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    await page.getByTestId('kn-skip').click();
+    await expect(machine).toHaveAttribute('data-phase', 'done', { timeout: 10_000 });
+    await expect(status).toContainText('最後の球で×5');
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(status, KN_WORDS)));
+    said.push(...(await brokenIn(paytable.locator('th, td, p, h2'), KN_WORDS)));
+    said.push(...(await brokenIn(page.locator('#kn-session-title ~ dl dt'), KN_WORDS)));
+    await page.locator('#kn-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('kn-tickets-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"], [class*="note"], [class*="intro"] p, li'), KN_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

@@ -23,6 +23,8 @@ const MACHINES = [
   { game: 'sugoroku', tabs: 2, buttons: { en: ['ROLL', 'Skip'], ja: ['サイコロをふる', 'スキップ'] } },
   // DROP and the lever are named for a screen reader by what they do (their names begin with the words on them).
   { game: 'coin-maze', tabs: 2, buttons: { en: ['Drop a medal in', 'Skip'], ja: ['メダルを入れる（1枚）', 'スキップ'] } },
+  // The board's halves are chosen with radio buttons, not tabs. Quick pick is named for a screen reader by what it does.
+  { game: 'keno', tabs: 2, buttons: { en: ['Quick pick: 5 numbers at random', 'Erase', 'Same spots', 'Skip'], ja: ['クイックピック：数字を5個ランダムにえらぶ', '消す', '同じ数字', 'スキップ'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

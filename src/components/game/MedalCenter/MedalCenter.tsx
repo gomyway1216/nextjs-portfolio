@@ -13,6 +13,8 @@ import { WELCOME } from './ledger';
 import { bank as medalBank, useBank } from './bank';
 import { MachineFloor, type OpenMachine } from './MachineFloor';
 import { MedalsOut } from './MedalsOut';
+import { formatCount } from './numberFormat';
+import { markAway } from './offscreen';
 import { MEDAL_PUSHER_PATH, MY_PAGE_PATH } from './paths';
 import { getCenterStrings } from './strings';
 import styles from './MedalCenter.module.css';
@@ -66,6 +68,12 @@ export const MedalStack = ({ count }: { count: number }) => (
   </svg>
 );
 
+/**
+ * The machines open on the floor, picked out once: the same list every time the front is drawn, so that the floor of
+ * machines (which is drawn again only when what it is given changes) stands still as the medals and the floor change.
+ */
+const OPEN_MACHINES: readonly OpenMachine[] = FLOOR.filter((machine): machine is OpenMachine => machine.path !== null);
+
 export interface MedalCenterProps {
   /** Where a guest goes to sign in, so that the bank is kept on an account. */
   signInHref?: string;
@@ -92,7 +100,7 @@ export const MedalCenter = ({ signInHref, presumedMember = false, now, together 
   const { t: translate } = useTranslation();
   const t = getCenterStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
-  const fmt = (n: number) => n.toLocaleString(locale);
+  const fmt = (n: number) => formatCount(n, locale);
   const state = useBank();
   const [announcement, setAnnouncement] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -165,7 +173,7 @@ export const MedalCenter = ({ signInHref, presumedMember = false, now, together 
         </Link>
 
         {/* The sign over the counter. */}
-        <header className={styles.sign}>
+        <header className={styles.sign} ref={markAway}>
           <span className={styles.bulbs} aria-hidden />
           <h1 className={styles.signTitle}>
             <span className={styles.signMain} lang="en">
@@ -241,7 +249,7 @@ export const MedalCenter = ({ signInHref, presumedMember = false, now, together 
             </Link>
 
             {/* The daily bonus is the bank's, for every machine: the same stamp card the machines show. */}
-            <div className={styles.bonus} data-testid="center-bonus">
+            <div className={styles.bonus} data-testid="center-bonus" ref={markAway}>
               <BonusStrip />
             </div>
           </div>
@@ -255,7 +263,7 @@ export const MedalCenter = ({ signInHref, presumedMember = false, now, together 
             {t.floorTitle}
           </h2>
           <p className={styles.sectionLead}>{t.floorLead}</p>
-          <MachineFloor machines={FLOOR.filter((machine): machine is OpenMachine => machine.path !== null)} language={language} t={t} />
+          <MachineFloor machines={OPEN_MACHINES} language={language} t={t} />
           {/* The machines still to come onto the floor, shown honestly as not open yet; none, once every one is open. */}
           {FLOOR.some(({ path }) => path === null) && (
             <>

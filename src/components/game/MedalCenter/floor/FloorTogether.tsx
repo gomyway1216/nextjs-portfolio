@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FloorGame } from '@/lib/medalFloor/games';
 import type { FloorBoards } from '@/lib/medalFloor/types';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
+import { markAway } from '../offscreen';
 import { FLOOR_PLACE_ANCHOR, MEDAL_RANKINGS_PATH } from './paths';
 import { FloorJackpotPanel, type JackpotStanding } from './FloorJackpot';
 import { BestAtEach, Board, FeedList, PeriodTabs, PlaceCard, placeKey, useServerNow, type FloorWords, type PeriodChoice, type PlaceState } from './FloorParts';
@@ -38,29 +39,53 @@ export interface FloorHubParts {
 
 type Place = ReturnType<typeof useFloorPlace>;
 
+/** The floor as FloorHub has it, for the two parts of the front that show it. */
+interface HubFloor {
+  words: FloorWords;
+  floor: FloorView;
+  now: number;
+  place: Place;
+  signInHref?: string;
+}
+
+const HubFloorContext = createContext<HubFloor | null>(null);
+
+/** The board by the door, as the front is handed it: it reads the floor where FloorHub puts it. */
+function HubNow() {
+  const hub = useContext(HubFloorContext);
+  return hub && <FloorNow words={hub.words} floor={hub.floor} now={hub.now} place={hub.place} signInHref={hub.signInHref} />;
+}
+
+/** The rankings and the place card, as the front is handed them. */
+function HubTogether() {
+  const hub = useContext(HubFloorContext);
+  return hub && <FloorTogether words={hub.words} floor={hub.floor} place={hub.place} signInHref={hub.signInHref} />;
+}
+
+/** The same two parts every time: the front they are put in is not drawn again because the floor has news. */
+const HUB_PARTS: FloorHubParts = { now: <HubNow />, together: <HubTogether /> };
+
 /**
  * The medal center's front, played together. The floor and the player's place
  * on it are asked for once, here, and shown in two places: the floor jackpot
  * and the latest big wins by the door, where every player sees them as they
  * come in, and the rankings and the place card further in, under the machines.
+ *
+ * The front itself is drawn from `children` once, and again only when they
+ * change: what the floor hears, and its clock ticking for "2 min ago", reach
+ * only the two parts that show them, never the counter or the machines.
  */
 export function FloorHub({ member, settled, signInHref, children }: FloorTogetherProps & { children: (parts: FloorHubParts) => ReactNode }) {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getFloorStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
-  const words: FloorWords = { t, fmt: (n: number) => n.toLocaleString(locale), gameName: (game: FloorGame) => translate(`games.${game}.title`) };
+  const words = useMemo<FloorWords>(() => ({ t, fmt: (n: number) => n.toLocaleString(locale), gameName: (game: FloorGame) => translate(`games.${game}.title`) }), [t, locale, translate]);
   const floor = useFloor('hub', null, HUB_MOMENTS_SHOWN);
   const now = useServerNow(floor.skew);
   const place = useFloorPlace(member, settled, t);
-  return (
-    <>
-      {children({
-        now: <FloorNow words={words} floor={floor} now={now} place={place} signInHref={signInHref} />,
-        together: <FloorTogether words={words} floor={floor} place={place} signInHref={signInHref} />,
-      })}
-    </>
-  );
+  const front = useMemo(() => children(HUB_PARTS), [children]);
+  return <HubFloorContext.Provider value={{ words, floor, now, place, signInHref }}>{front}</HubFloorContext.Provider>;
 }
 
 interface PartProps {
@@ -77,7 +102,7 @@ interface PartProps {
 export function FloorNow({ words, floor, now, place, signInHref }: PartProps & { now: number }) {
   const { t } = words;
   return (
-    <section className={styles.now} aria-labelledby="floor-now-title" data-testid="floor-now">
+    <section className={styles.now} aria-labelledby="floor-now-title" data-testid="floor-now" ref={markAway}>
       <h2 id="floor-now-title" className={styles.title}>
         {t.nowTitle}
       </h2>

@@ -82,6 +82,10 @@
     opacity: 1;
   }
 }
+/* Off screen, the bulbs rest (offscreen.ts); so does today's lamp on the bonus card under them (Records.module.css). */
+.sign[data-away='true'] .bulbs {
+  animation-play-state: paused;
+}
 .signTitle {
   margin: 0;
   display: flex;

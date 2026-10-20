@@ -105,8 +105,11 @@
 .pips {
   display: inline-flex;
   gap: 4px;
+  /* Today's glow (below) is drawn under the lamps' rings, and over the plate. */
+  isolation: isolate;
 }
 .pip {
+  position: relative;
   box-sizing: border-box;
   width: 10px;
   height: 10px;
@@ -117,15 +120,50 @@
   border-color: #ffb3bd;
   background: #ff5a6e;
 }
+/*
+ * Today's lamp breathes: its glow goes from bright to soft and back. The two glows are drawn once each, round the lamp,
+ * and only their opacity changes, which the compositor runs on its own: a pulsing box-shadow was drawn afresh every
+ * frame and kept a phone's main thread a quarter busy for as long as the bonus waited.
+ */
 .pip[data-today='true'] {
   border-color: #ffe98a;
-  box-shadow: 0 0 6px 1px rgba(255, 214, 92, 0.9);
-  animation: mp-pip 1.4s ease-in-out infinite;
 }
-@keyframes mp-pip {
+.pip[data-today='true']::before,
+.pip[data-today='true']::after {
+  content: '';
+  position: absolute;
+  /*
+   * Inside the ring, and under it, so that where each glow starts is hidden under the ring: the glows are cast from
+   * the lamp's inner edge, each spread 1.5 px further, the width of the ring, so they reach as far as they did.
+   */
+  inset: 0;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pip[data-today='true']::before {
+  box-shadow: 0 0 6px 2.5px rgba(255, 214, 92, 0.9);
+  animation: mp-pip-bright 1.4s ease-in-out infinite;
+}
+.pip[data-today='true']::after {
+  box-shadow: 0 0 2px 1.5px rgba(255, 214, 92, 0.5);
+  opacity: 0;
+  animation: mp-pip-soft 1.4s ease-in-out infinite;
+}
+@keyframes mp-pip-bright {
   50% {
-    box-shadow: 0 0 2px 0 rgba(255, 214, 92, 0.5);
+    opacity: 0;
   }
+}
+@keyframes mp-pip-soft {
+  50% {
+    opacity: 1;
+  }
+}
+/* Where the page has marked the card out of view (MedalCenter/offscreen.ts), today's lamp rests until it is back. */
+[data-away='true'] .pip[data-today='true']::before,
+[data-away='true'] .pip[data-today='true']::after {
+  animation-play-state: paused;
 }
 .stripStatus {
   margin: 0;
@@ -757,7 +795,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stamp[data-fresh='true'],
-  .pip[data-today='true'],
+  .pip[data-today='true']::before,
+  .pip[data-today='true']::after,
   .square[data-today='true'] {
     animation: none;
   }

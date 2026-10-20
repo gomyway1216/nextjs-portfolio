@@ -56,6 +56,27 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-require-imports": "off",
     },
   },
+  {
+    // Every e2e spec takes `test` from tests/e2e/fixtures.ts, which fakes the medal floor's API for every browser
+    // context; Playwright's own lets the floor's requests reach a server that cannot answer them on CI. The two shogi
+    // Worker specs deliberately fake nothing (and open no page that asks the floor).
+    files: ["tests/e2e/**/*.spec.ts"],
+    ignores: ["tests/e2e/shogi-engine-worker-parity.spec.ts", "tests/e2e/shogi-worker-boot-resilience.spec.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              importNames: ["test"],
+              message: "Import `test` from './fixtures': it fakes the medal floor's API for every context (fixtures.ts).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

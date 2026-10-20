@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 import { handValue, hiLo, type Card } from '../../src/components/game/Blackjack/engine';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';

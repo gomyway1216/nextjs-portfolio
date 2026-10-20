@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Regression guards for engine-route observability. Book replies must remain
 // distinguishable from search, while a Hard bishop-handicap opening guarantees

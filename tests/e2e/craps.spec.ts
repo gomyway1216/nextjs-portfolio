@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { resolveRoll, totalOnTable, type Dice } from '../../src/components/game/Craps/engine';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';

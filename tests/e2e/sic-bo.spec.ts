@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
@@ -7,17 +7,15 @@ import { TABLE_KEY, parseTable } from '../../src/components/game/SicBo/medalTabl
 import { AXES, LABELS } from '../../src/components/game/SicBo/physics';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 import { instantScroll } from './instantScroll';
 
 // Moonlit Sic Bo plays with the medal center's medals. A roll is three numbers drawn from Math.random as SHAKE is
 // pressed (engine.ts), one for each die: a test that needs a particular roll queues them for the press (rigPresses.ts),
-// so nothing else on the page can take them first. The floor's API is faked (quietFloor.ts).
+// so nothing else on the page can take them first. The floor's API is faked (fixtures.ts).
 
 test.beforeEach(async ({ context }) => {
-  await quietFloor(context);
   // The page scrolls at once, not smoothly, so that a press lands where it was aimed (instantScroll.ts).
   await instantScroll(context);
 });
@@ -228,7 +226,6 @@ test('fits 375 and 320 px phones in English and Japanese, nothing moves through 
     [375, 'ja'],
   ] as const) {
     const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
-    await quietFloor(context);
     const page = await context.newPage();
     await openTable(page, language);
     const where = `${width} ${language}`;

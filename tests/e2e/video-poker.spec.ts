@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
@@ -9,11 +9,7 @@ import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { onPageError } from './pageErrors';
 import { rigPresses } from './rigPresses';
-import { quietFloor } from './quietFloor';
 import { arrived } from './streamedPage';
-
-// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI held up the hub's navigation to the machine.
-test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Hands are random: the tests read the cards off the screen, recompute the
 // exact best play and the payout with the engine, and compare. Where a test

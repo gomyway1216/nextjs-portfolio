@@ -5,7 +5,8 @@ import { emptyFloor } from './layoutShift';
 
 /**
  * The floor's API answered at once, for every page of `context`: a quiet floor and its jackpot, with the live database
- * and the sign-in cut off. Nothing reaches a real server.
+ * and the sign-in cut off. Nothing reaches a real server. The suite's `test` (fixtures.ts) does this for every context
+ * a test opens; a spec need not call it.
  *
  * Why a spec that is not about the floor needs it: every machine page and the medal center ask the floor's API, and
  * where the store cannot be reached (CI's server has no Google credentials) each of those requests waits out the

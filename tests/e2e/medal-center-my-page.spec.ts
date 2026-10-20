@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { createHistory, mergeHistories, parseHistory, record, recordsOf, serializeHistory, totalsOf, type History, type Observation } from '../../src/components/game/MedalCenter/history';
@@ -11,10 +11,6 @@ import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
-import { quietFloor } from './quietFloor';
-
-// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
-test.beforeEach(async ({ context }) => quietFloor(context));
 
 // The medal center's "my page" for a guest: the history of what happened to the medals after playing two machines,
 // which a reload keeps and the medal center's reset shows in, and the page at a phone's width in both languages.
@@ -321,7 +317,6 @@ test('a player who came back every evening for a month: the oldest day the list 
   }
   expect(history.entries).toHaveLength(300);
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, timezoneId: 'Asia/Tokyo' });
-  await quietFloor(context);
   const page = await context.newPage();
   await page.addInitScript(
     ([bankKey, bank, historyKey, text]) => {

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { getFloorStrings } from '../../src/components/game/MedalCenter/floor/strings';
 import { getStrings as getSlotStrings } from '../../src/components/game/SlotMachine/i18n';

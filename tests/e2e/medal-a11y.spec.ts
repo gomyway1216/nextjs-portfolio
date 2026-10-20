@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 import axe from 'axe-core';
 
 import { MEDAL_RANKINGS_PATH } from '../../src/components/game/MedalCenter/floor/paths';

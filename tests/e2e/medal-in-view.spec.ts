@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Locator, type Page } from './fixtures';
 
 import { dealButton, openBlackjack } from './blackjackPage';
 import { holdFloor } from './layoutShift';

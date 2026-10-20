@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './fixtures';
 
 import { numbersFor, type Draw } from '../../src/components/game/CoinMaze/engine';
 import { PLAY_KEY, parsePlay } from '../../src/components/game/CoinMaze/medalTable';
@@ -7,7 +7,6 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
@@ -15,10 +14,9 @@ import { arrived } from './streamedPage';
 // numbers of Math.random in the press of DROP (engine.ts `drawPlay`), so a test queues the numbers that draw the play it
 // needs (rigPresses.ts). A flick is timed: the case says which window a flick now would meet (`data-window`) and how
 // the gate stands in it (`data-slot`), and the test flicks the moment the gate stands as it wants. The floor's API
-// answers at once (quietFloor.ts); nothing reaches a real server.
+// answers at once (fixtures.ts); nothing reaches a real server.
 
 test.beforeEach(async ({ context }) => {
-  await quietFloor(context);
   // One button after another on a page taller than the window: the page scrolls at once, so no press lands elsewhere.
   await instantScroll(context);
 });
@@ -281,7 +279,6 @@ test('a play finished while the player was away says so when they come back: the
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });
-  await quietFloor(context);
   await instantScroll(context);
   const page = await context.newPage();
   await openMaze(page, language);

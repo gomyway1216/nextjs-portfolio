@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { BANKED_KEY, BANK_KEY, PUSHER } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
@@ -10,10 +10,6 @@ import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
-
-// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
-test.beforeEach(async ({ context }) => quietFloor(context));
 
 // The medal center's front and its one medal bank, which the Medal Pusher plays from. The machine itself is covered in
 // medal-pusher.spec.ts; these check the medals: where they are, that every machine and page sees the same ones, and

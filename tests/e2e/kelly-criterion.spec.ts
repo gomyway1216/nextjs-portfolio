@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { SCENARIOS, START_BANKROLL, fixedFractionPath, isFinished, kellyFraction } from '../../src/components/game/KellyCriterion/engine';
 import { exactFor } from '../../src/components/game/KellyCriterion/sim';

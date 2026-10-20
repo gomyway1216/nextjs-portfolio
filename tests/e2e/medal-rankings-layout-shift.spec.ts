@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 import { getFloorStrings } from '../../src/components/game/MedalCenter/floor/strings';
 import { HELD_JACKPOT, SHIFT_BUDGET, describeShifts, loadShifts, phone } from './layoutShift';

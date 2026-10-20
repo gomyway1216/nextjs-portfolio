@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './fixtures';
 
 import { MARBLES, numbersFor, slotFor, type Draw, type Entry } from '../../src/components/game/SmartBall/engine';
 import { PLAY_KEY, parsePlay } from '../../src/components/game/SmartBall/medalTable';
@@ -7,7 +7,6 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
@@ -15,10 +14,9 @@ import { arrived } from './streamedPage';
 // twenty numbers of Math.random in the press of START (engine.ts `drawPlay`), so a test queues the numbers that draw
 // the play it needs (rigPresses.ts). A shot is a hold of the plunger: the board says which strength a release now would
 // shoot at (`data-window`), and the test lets go the moment it is the one it wants. The floor's API answers at once
-// (quietFloor.ts); nothing reaches a real server.
+// (fixtures.ts); nothing reaches a real server.
 
 test.beforeEach(async ({ context }) => {
-  await quietFloor(context);
   // One button after another on a page taller than the window: the page scrolls at once, so no press lands elsewhere.
   await instantScroll(context);
 });
@@ -234,7 +232,6 @@ test('smart-ball: a play finished while the player was away says so when they co
 /** A phone, in a language, with the floor faked; with less motion asked for when `calm`. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja', calm: boolean) {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true, reducedMotion: calm ? 'reduce' : 'no-preference' });
-  await quietFloor(context);
   await instantScroll(context);
   const page = await context.newPage();
   await openTable(page, language);

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import {
   ACHIEVEMENT_IDS,
@@ -17,7 +17,6 @@ import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 import { onPageError } from './pageErrors';
-import { quietFloor } from './quietFloor';
 
 // The Medal Pusher's daily bonus and record book. The machine itself is covered in medal-pusher.spec.ts; these
 // check what is the player's own: the stamp card, the Records tab, and that neither gets in the machine's way.
@@ -417,7 +416,6 @@ test('two tabs of the game pay a day’s bonus once between them, and both end u
 
 test('bonuses taken at the medal center are stamped on the cabinet’s card, and its board says it counts only its own', async ({ page }) => {
   test.setTimeout(60_000);
-  await quietFloor(page.context());
   await page.setViewportSize({ width: 375, height: 812 });
   // Two evenings in Japan, the bonus taken at the medal center's counter each time, never at the cabinet.
   await page.clock.install({ time: new Date('2026-10-12T11:00:00Z') });

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { SLOT, slotSpot } from '../../src/components/game/MedalPusher/arms';
 import { mouthOnDrawing } from '../../src/components/game/MedalPusher/catcher';

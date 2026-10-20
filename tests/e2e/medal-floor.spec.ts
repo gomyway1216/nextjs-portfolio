@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Request } from '@playwright/test';
+import { test, expect, type Page, type Request } from './fixtures';
 
 import { getFloorStrings } from '../../src/components/game/MedalCenter/floor/strings';
 import { periodAt } from '../../src/lib/medalFloor/periods';

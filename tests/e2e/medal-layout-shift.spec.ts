@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { FLOOR_GAMES, type FloorGame } from '../../src/lib/medalFloor/games';
 import { HELD_JACKPOT, SHIFT_BUDGET, describeShifts, everythingLoaded, loadShifts, phone } from './layoutShift';

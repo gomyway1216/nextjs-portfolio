@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
@@ -11,10 +11,6 @@ import { onPageError } from './pageErrors';
 import { boardNumbers, openRoulette, placeFirstBet, settledResult, shownBet, shownMedals, spinButton } from './roulettePage';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
-import { quietFloor } from './quietFloor';
-
-// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
-test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Roulette on the medal center's floor: it plays with the player's medals, the ones every game there shares. A bet
 // is taken when the wheel spins and what it wins goes back when the ball stops, once each, through reloads, a page

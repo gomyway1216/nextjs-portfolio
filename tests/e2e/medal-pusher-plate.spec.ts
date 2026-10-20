@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { POUR } from '../../src/components/game/MedalPusher/hopper';
 import { getStrings } from '../../src/components/game/MedalPusher/i18n';

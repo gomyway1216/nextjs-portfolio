@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { LAMPS } from '../../src/components/game/Janken/engine';
 import { ROUND_KEY } from '../../src/components/game/Janken/round';

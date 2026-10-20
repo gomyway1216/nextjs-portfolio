@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Locator, type Page } from './fixtures';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { refillParts } from '../../src/components/game/MedalCenter/KeysHint';

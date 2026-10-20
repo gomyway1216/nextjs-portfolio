@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Data-independent smoke checks: these must pass with placeholder
 // Firebase credentials (CI), where every Firestore-backed section

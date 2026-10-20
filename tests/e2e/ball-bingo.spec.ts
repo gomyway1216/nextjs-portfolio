@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { POCKETS, pocketOfNumber, randomsFor } from '../../src/components/game/BallBingo/engine';
 import { ROUND_KEY, SPEED_KEY, parseRound } from '../../src/components/game/BallBingo/medals';

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Cross-origin isolation (COOP/COEP) is enabled on /games/shogi to unlock
 // SharedArrayBuffer + the multi-thread (Lazy SMP) engine search.

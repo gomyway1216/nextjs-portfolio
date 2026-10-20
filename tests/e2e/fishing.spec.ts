@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { BITE_CELLS, CHEST, CHEST_CELLS, FISH, type FishId } from '../../src/components/game/Fishing/engine';
 import { ROUND_KEY, parseRound } from '../../src/components/game/Fishing/medals';

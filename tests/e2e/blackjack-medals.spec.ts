@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { GAME, NOTICE_KEY, TABLE_KEY, parseTable } from '../../src/components/game/Blackjack/medalTable';
 import { PUSHER } from '../../src/components/game/MedalCenter/bank';

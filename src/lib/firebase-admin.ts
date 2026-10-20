@@ -13,6 +13,7 @@ import {
 import { getAuth as getAdminAuth, type Auth } from 'firebase-admin/auth';
 import { getStorage as getAdminStorage, type Storage } from 'firebase-admin/storage';
 import { getDatabase as getAdminDatabase, type Database } from 'firebase-admin/database';
+import { throwIfWithoutCredentials } from './adminCredentials';
 
 // Initialize Firebase Admin SDK
 let app: App;
@@ -127,6 +128,10 @@ export function getAdminSDK() {
 export function getFirestore() {
   assertRuntimePhase();
   const { db } = getAdminSDK();
+  // Where this server has been found to have no Google credentials at all (CI), every read could only fail, after the
+  // Firestore client's 7–13 s of retries: it fails here at once instead (adminCredentials.ts). Never with a service
+  // account, as production has.
+  throwIfWithoutCredentials();
   return db;
 }
 
@@ -145,6 +150,8 @@ export function getStorage() {
 export function getRealtimeDatabase() {
   assertRuntimePhase();
   const { realtimeDb } = getAdminSDK();
+  // As for Firestore (above): at once where the server has been found to have no credentials at all.
+  throwIfWithoutCredentials();
   return realtimeDb;
 }
 

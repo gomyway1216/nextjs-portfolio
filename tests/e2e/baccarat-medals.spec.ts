@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { TABLE_KEY, coupKey, medalsBack, serializeCoup } from '../../src/components/game/Baccarat/medals';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
@@ -8,10 +8,6 @@ import { betStep, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown,
 import { bankBalance, bankWritten, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
-import { quietFloor } from './quietFloor';
-
-// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
-test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Baccarat on the medal floor: it plays with the player's medals from the Medal Game Center. These check the medals
 // (a bet takes them at the deal, a win puts them back, once), the card that one tab at a time holds, the reset, a

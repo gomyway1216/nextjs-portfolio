@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clientIpFrom, isRateLimited } from '@/lib/rateLimit';
 import { getCloudFunctionUrl } from '../../constants';
+import { forwardsActivityLogs } from '../../_lib/activityLogForwarding';
 
 const MAX_BODY_BYTES = 32 * 1024;
 
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest) {
     if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) {
       return NextResponse.json({ success: false }, { status: 413 });
     }
+
+    // Off Vercel (CI, a developer's server) the entry is checked as above and dropped: see activityLogForwarding.ts.
+    if (!forwardsActivityLogs()) return NextResponse.json({ success: true, forwarded: false });
 
     const response = await fetch(getCloudFunctionUrl('logClientActivity'), {
       method: 'POST',

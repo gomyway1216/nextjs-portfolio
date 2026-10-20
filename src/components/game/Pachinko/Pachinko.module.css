@@ -1,0 +1,1054 @@
+/* Goldfish Lantern Pachinko. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette
+   of its own — a lacquer-red cabinet with a brass trim, the board under glass inside it (a canvas: draw.ts), a chrome
+   handle at the lower right — that reads on both. Nothing here uses 3D transforms (WebKit flattens them): depth is in
+   shadows. The balls are painted on the canvas, never elements; the screen's lanterns and the hold lamps are elements
+   that change only as the machine does. */
+
+.root {
+  --pk-red: #8f1d24;
+  --pk-red-dark: #4a0c12;
+  --pk-brass: #d6a646;
+  --pk-focus: #ffd34d;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --pk-accent-text: #a1261d;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --pk-accent-text: #ff9e8a;
+}
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.28rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleLantern {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: var(--pk-red);
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.7rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 440px);
+}
+@media (min-width: 900px) {
+  .machine {
+    grid-template-columns: minmax(0, 440px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+
+/* The cabinet: lacquered red with a brass trim, the board's window in it. */
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.8rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #b52a31 0%, var(--pk-red) 38%, var(--pk-red-dark) 100%);
+  border: 3px solid #2a0508;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 214, 140, 0.35),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.3),
+    0 14px 28px rgba(0, 0, 0, 0.3);
+}
+.sign {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.25rem 0.5rem 0.4rem;
+  color: #fff4d6;
+  text-align: center;
+}
+.signMain {
+  font-size: clamp(0.95rem, 4vw, 1.2rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd98a;
+  text-shadow:
+    0 0 6px rgba(255, 170, 60, 0.7),
+    0 1px 0 #3a0a0d;
+}
+.signSub {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffe9c4;
+}
+
+.playArea {
+  scroll-margin-top: 64px;
+}
+
+/* The board's window: the canvas, the screen, the hold lamps and the 右打ち sign over it. */
+.boardBox {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 300 / 360;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 3px solid var(--pk-brass);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+  background: #0a2740;
+  /* No double-tap zoom and no text selection on the glass: a finger on it is a finger on the machine. */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.screen {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #233b6e 0%, #0c1530 70%);
+  box-shadow: inset 0 0 0 2px #0a0a14;
+  color: #fff;
+  container-type: inline-size;
+}
+.screen[data-spin='sp'][data-phase='2'] {
+  background: radial-gradient(ellipse at 50% 60%, #2b7aa0 0%, #0b2a46 75%);
+}
+.screen[data-won='true'],
+.screen[data-stage='fanfare'] {
+  background: radial-gradient(ellipse at 50% 50%, #ffd34d 0%, #c2410c 70%);
+}
+.reels {
+  display: flex;
+  gap: 6%;
+  width: 92%;
+  justify-content: center;
+}
+/* A lantern: a red paper body with its number on it. */
+.reel {
+  flex: 1 1 0;
+  aspect-ratio: 3 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 40% 40% 36% 36%;
+  background: radial-gradient(ellipse at 40% 35%, #ff7a5c 0%, #d8352a 55%, #8f1d24 100%);
+  border: 2px solid #3a0a0d;
+  box-shadow: 0 0 10px rgba(255, 120, 60, 0.55);
+  overflow: hidden;
+}
+.reelFace {
+  font-size: clamp(1.1rem, 14cqw, 2.4rem);
+  font-weight: 900;
+  color: #fff8e1;
+  text-shadow:
+    0 2px 0 #3a0a0d,
+    0 0 6px rgba(255, 230, 160, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+.reel[data-spinning='true'] .reelFace {
+  animation: reelSpin 0.18s linear infinite;
+}
+@keyframes reelSpin {
+  0% {
+    transform: translateY(-60%);
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(60%);
+    opacity: 0.2;
+  }
+}
+.screen[data-spin='nr'] .reel[data-spinning='true'] .reelFace,
+.screen[data-spin='sp'] .reel[data-spinning='true'] .reelFace {
+  animation-duration: 0.5s;
+}
+.roundBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92%;
+  min-height: 46%;
+}
+.roundCount {
+  font-size: clamp(1.4rem, 18cqw, 2.6rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+.caption {
+  min-height: 1.3em;
+  font-size: clamp(0.62rem, 9cqw, 1rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #ffe066;
+  text-shadow: 0 1px 0 #000;
+  white-space: nowrap;
+}
+.modeLine {
+  min-height: 1.2em;
+  font-size: clamp(0.55rem, 8cqw, 0.85rem);
+  font-weight: 800;
+  color: #9ff3ff;
+  white-space: nowrap;
+}
+/* The SP reach's goldfish, swimming across the screen after the paper scoop. */
+.goldfish {
+  position: absolute;
+  top: 80%;
+  left: -20%;
+  width: 22%;
+  height: 12%;
+  border-radius: 50% 40% 40% 50%;
+  background: #ff6a3d;
+  animation: swim 2.4s ease-in-out infinite;
+}
+.goldfish::after {
+  content: '';
+  position: absolute;
+  right: -40%;
+  top: 10%;
+  width: 45%;
+  height: 80%;
+  background: #ff9a6b;
+  clip-path: polygon(0 50%, 100% 0, 100% 100%);
+}
+@keyframes swim {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(560%);
+  }
+}
+
+/* The hold lamps under the screen: the ヘソ's four, then the 電チュー's. */
+.lamps {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: clamp(3px, 1.4vw, 6px);
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.lamp {
+  width: clamp(7px, 2.4vw, 10px);
+  height: clamp(7px, 2.4vw, 10px);
+  border-radius: 50%;
+  background: #3a3f4a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+.lamp[data-lit='true'] {
+  background: #f8fbff;
+  box-shadow: 0 0 6px #bfe6ff;
+}
+.lampTulip[data-lit='true'] {
+  background: #ff8fa3;
+  box-shadow: 0 0 6px #ff8fa3;
+}
+.lampGap {
+  width: 4px;
+}
+.rightSign {
+  position: absolute;
+  right: 2.5%;
+  top: 2.5%;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 210, 63, 0.92);
+  color: #2a1000;
+  font-size: clamp(0.62rem, 2.8vw, 0.8rem);
+  font-weight: 900;
+  white-space: nowrap;
+  animation: blink 0.9s steps(2, start) infinite;
+}
+@keyframes blink {
+  to {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- The status line and the controls ---------- */
+.phrase {
+  white-space: nowrap;
+}
+.status {
+  margin: 0.4rem 0 0.35rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.status > span {
+  min-width: 0;
+}
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+}
+.handleBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+}
+.turnButton {
+  appearance: none;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid #ffd98a;
+  background: #3a0a0d;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.turnButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* The handle: a chrome dial with its grip, turned to the strength; held down, it fires. */
+.handle {
+  appearance: none;
+  position: relative;
+  width: 92px;
+  height: 92px;
+  flex: none;
+  border-radius: 50%;
+  border: 3px solid #1d1d22;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #c8ced6 30%, #7d8691 70%, #3b4048 100%);
+  box-shadow:
+    0 4px 0 #1d1d22,
+    0 6px 14px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.handle[data-held='true'] {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 #1d1d22,
+    0 0 0 4px rgba(255, 211, 77, 0.65);
+}
+.handleDial {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  transition: transform 0.12s ease-out;
+}
+.handleGrip {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 14px;
+  height: 30px;
+  margin-left: -7px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #2c2f36, #5c636d 50%, #2c2f36);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.handle[data-right='true'] .handleGrip {
+  background: linear-gradient(90deg, #7a4b00, #ffcf4d 50%, #7a4b00);
+}
+.handleWords {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #1d1d22;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.strength {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem 0.6rem;
+  color: #fff3d6;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.gauge {
+  display: inline-flex;
+  gap: 3px;
+}
+.gaugeStep {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  background: #3a0a0d;
+  box-shadow: inset 0 0 0 1px rgba(255, 217, 138, 0.5);
+}
+.gaugeStep[data-on='true'] {
+  background: #9ff3ff;
+}
+.gaugeStep[data-on='true'][data-right='true'] {
+  background: #ffd23f;
+}
+.strengthWords {
+  white-space: nowrap;
+}
+.buttons {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.4rem;
+}
+.lendButton,
+.countButton,
+.skipButton {
+  appearance: none;
+  min-height: 48px;
+  padding: 0.3rem 0.4rem;
+  border-radius: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.lendButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 2px solid #3a2500;
+  background: linear-gradient(180deg, #ffe08a, #e0a325);
+  color: #2a1600;
+  box-shadow: 0 3px 0 #6b4400;
+}
+.lendWords {
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+.lendSmall {
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.countButton {
+  border: 2px solid #ffd98a;
+  background: #3a0a0d;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.skipButton {
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 0.86rem;
+}
+.lendButton:disabled,
+.countButton:disabled,
+.skipButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.turnButton:focus-visible,
+.handle:focus-visible,
+.lendButton:focus-visible,
+.countButton:focus-visible,
+.skipButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--pk-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .handleBox {
+    gap: 0.6rem;
+  }
+  .handle {
+    width: 84px;
+    height: 84px;
+  }
+  .lendWords {
+    font-size: 0.85rem;
+  }
+}
+
+/* ---------- The counters and the notes under them ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem 0.35rem;
+  border-radius: 10px;
+  background: #1a0405;
+  border: 2px solid #6b1a1f;
+  min-width: 0;
+}
+.meterLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffe2b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(18px, 5.4vw, 24px);
+}
+.message {
+  margin: 0.4rem 0 0;
+  /* Two lines held, so that nothing under it moves when a message comes and goes. */
+  min-height: 2.8em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cabinet .btn {
+  background: #3a0a0d;
+  color: #fff;
+  border-color: #ffd98a;
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill,
+.cardAwayButton {
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.refill {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #3a0a0d;
+  color: #fff;
+  font-weight: 800;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #ffe1a1;
+  text-align: center;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #ffe9cc;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(255, 210, 122, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #fff3e0;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+.odds .link {
+  color: var(--pk-accent-text);
+}
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: rgba(30, 5, 8, 0.94);
+  text-align: center;
+  color: #fff;
+}
+.cardAwayButton {
+  min-height: 44px;
+  padding: 0.5rem 1.2rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #8f1d24;
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ---------- The panels beside the machine ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-fg);
+  white-space: nowrap;
+}
+.historyChip[data-rounds='10'] {
+  background: #f6c343;
+  color: #2a1600;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+  min-width: 0;
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.45rem;
+  font-weight: 850;
+  color: var(--pk-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.statFraction {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.fractionDetails summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 0.75rem;
+  color: var(--games-route-muted);
+  cursor: pointer;
+}
+.fractionDetails .statFraction {
+  display: block;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.ruleList,
+.sourceList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.sourceList a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.3rem 0;
+  overflow-wrap: anywhere;
+}
+.figureList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  margin: 0;
+}
+.figureList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.25rem;
+  min-width: 0;
+}
+.figureList dt {
+  color: var(--games-route-muted);
+  min-width: 0;
+}
+.figureList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 0.4rem;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable tbody th {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+}
+
+/* ---------- Less motion: the lanterns do not blur round, the goldfish stays, the sign does not blink ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .reel[data-spinning='true'] .reelFace,
+  .goldfish,
+  .rightSign {
+    animation: none !important;
+  }
+}
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the figures and the Odds tab's tables (as the other
+ * machines' do): where the browser can tell phrases apart, at them; elsewhere at the zero-width spaces, 、。： and
+ * spaces the words carry. A word longer than its line still breaks. The status line keeps its phrases whole itself
+ * (PlayTab.tsx).
+ */
+.statLabel,
+.statNote,
+.statList dt,
+.figureList dt,
+.ruleList li,
+.note,
+.intro p,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .figureList dt,
+  .ruleList li,
+  .note,
+  .intro p,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

@@ -298,7 +298,7 @@ describe('POST /api/game/medal-floor/report', () => {
   it('refuses what a machine cannot pay at all', async () => {
     await join('fake-token-ann');
     const refused = [
-      { game: 'pachinko', won: 5 },
+      { game: 'pachislot', won: 5 },
       { game: 'slot-machine', won: -1 },
       { game: 'slot-machine', won: 2.5 },
       { game: 'slot-machine', won: FLOOR_RULES['slot-machine'].burst + 1 },

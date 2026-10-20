@@ -27,6 +27,9 @@ const MACHINES = [
   { game: 'keno', tabs: 2, buttons: { en: ['Quick pick: 5 numbers at random', 'Erase', 'Same spots', 'Skip'], ja: ['クイックピック：数字を5個ランダムにえらぶ', '消す', '同じ数字', 'スキップ'] } },
   // START is named for a screen reader with what a play takes (its name begins with the word on it).
   { game: 'smart-ball', tabs: 2, buttons: { en: ['START: 5 medals for 10 marbles', 'Skip'], ja: ['スタート（5枚で玉10個）', 'スキップ'] } },
+  // COUNT is named for a screen reader with what it does (its name begins with the word on it). LEND is a coin plate
+  // of two lines on purpose, its word over what it lends.
+  { game: 'pachinko', tabs: 2, buttons: { en: ['Count the balls back into medals, 10 to a medal', 'Skip'], ja: ['計数（10玉でメダル1枚）', 'スキップ'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

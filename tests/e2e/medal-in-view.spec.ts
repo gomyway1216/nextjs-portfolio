@@ -136,6 +136,37 @@ for (const [width, height] of [
   [375, 812],
   [320, 640],
 ] as const) {
+  test(`the pachinko (pachinko) at ${width}×${height}: LEND brings the whole board, its screen and the handle on screen together, under the toolbar`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const page = await phone(browser, width, height);
+    await page.context().addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    await page.goto('/games/pachinko');
+    await arrived(page);
+    const machine = page.getByTestId('pk-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    const lend = page.getByTestId('pk-lend');
+    // Scrolled on past the board, LEND in the middle of the window: the top of the board is under the toolbar or off the screen.
+    await lend.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    const board = page.getByTestId('pk-board');
+    const covered = () =>
+      board.evaluate((el) => {
+        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        return el.getBoundingClientRect().top < bar - 1;
+      });
+    expect(await covered()).toBe(true);
+    await pressUntil(lend, async () => (await machine.getAttribute('data-tray')) !== '0');
+    await expect.poll(covered, { timeout: 4_000 }).toBe(false);
+    expect(await onScreen(board)).toBe(1);
+    expect(await onScreen(page.getByTestId('pk-lcd'))).toBe(1);
+    expect(await onScreen(page.getByTestId('pk-handle'))).toBe(1);
+    await page.context().close();
+  });
+}
+
+for (const [width, height] of [
+  [375, 812],
+  [320, 640],
+] as const) {
   test(`blackjack at ${width}×${height}: during a hand the moves are where DEAL was pressed, on screen`, async ({ browser }) => {
     test.setTimeout(60_000);
     const page = await phone(browser, width, height);

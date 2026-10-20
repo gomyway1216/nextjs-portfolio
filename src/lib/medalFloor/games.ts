@@ -51,6 +51,7 @@ export const FLOOR_GAMES = [
   'coin-maze',
   'keno',
   'smart-ball',
+  'pachinko',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -249,6 +250,20 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
     'smart-triple': { amounts: [100], feed: true },
     'smart-double': { amounts: [20], feed: false },
     'smart-line': { amounts: [7], feed: false },
+  }),
+  // Goldfish Lantern Pachinko: 5 medals lend 50 balls; the counter gives a medal for every 10 balls. A hit's rounds are
+  // worth 40 medals (4 rounds) or 100 (10 rounds) at the counter; a run of five hits or more is named to the floor with
+  // its rounds' worth, believed up to 10,000. The counter can turn a long session's tray into medals at once, so a win is
+  // a count, and the allowance is sized from the fastest balls come in: 100 balls a minute into the open attacker, ten
+  // back for each, 100 medals' worth a minute. Taken: one lend, 5.
+  // Best return: perfect play with 止め打ち (the best strength in each mode, firing only while fewer than four holds
+  // wait and never between rounds), as a Markov reward process worked out exactly: 93.46%, rounded up. An everyday hand
+  // brings back 78.24%, the handle left at its start 25.78%.
+  // Named: a run of five hits or more, shown to the floor; a hit of 10 rounds; a hit of 4.
+  pachinko: rule(10_000, 100, 10_000, 5, 0.9346, {
+    'pachinko-rush': { min: 200, max: 10_000, feed: true },
+    'pachinko-10r': { amounts: [100], feed: false },
+    'pachinko-4r': { amounts: [40], feed: false },
   }),
 };
 

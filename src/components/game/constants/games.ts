@@ -524,4 +524,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Arcade',
   },
+  {
+    id: 'pachinko',
+    title: 'Goldfish Lantern Pachinko',
+    description: 'The game center’s pachinko corner: a light-odds digital pachinko (1 in 99.9) whose balls are lent for medals. Turn the handle, shoot the balls through the nails into the start pocket, line up three lanterns for a big hit and ride ST — with perfect play (stopping while four holds wait), an everyday hand and an untouched handle each worked out exactly, so that no hand beats the machine.',
+    thumbnail: '🏮',
+    path: '/games/pachinko',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
 ];

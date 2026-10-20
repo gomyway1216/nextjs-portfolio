@@ -8,6 +8,7 @@ import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { SicBo } from '@/components/game/SicBo';
+import { CENTRE_Y, LAMPS, LAMP_COUNT, LAMP_SETS } from '@/components/game/SicBo/Dome';
 import { BET_IDS, MOST_BACK_PER_MEDAL, betInfo } from '@/components/game/SicBo/engine';
 import { getStrings, type SicBoStrings } from '@/components/game/SicBo/i18n';
 import { placeOf, sectionOf } from '@/components/game/SicBo/Layout';
@@ -76,6 +77,60 @@ describe('the table', () => {
     const parts = new Map<string, number>();
     for (const id of BET_IDS) parts.set(sectionOf(id), (parts.get(sectionOf(id)) ?? 0) + 1);
     expect(Object.fromEntries(parts)).toEqual({ bigSmall: 3, triples: 12, totals: 14, pairs: 15, singles: 6 });
+  });
+});
+
+describe('the ring of lamps round the base', () => {
+  const css = readFileSync(path.join(process.cwd(), 'src/components/game/SicBo/SicBo.module.css'), 'utf8');
+
+  it('is a row of separate lamps along the front of the base, evenly spaced and the same on both sides', () => {
+    expect(LAMPS).toHaveLength(LAMP_COUNT);
+    for (let k = 0; k < LAMP_COUNT; k++) {
+      const lamp = LAMPS[k];
+      const twin = LAMPS[LAMP_COUNT - 1 - k];
+      // Mirrored about the middle of the stage, and along the front of the base, under the platter's middle.
+      expect(lamp.x + twin.x).toBeCloseTo(100, 6);
+      expect(lamp.y).toBeCloseTo(twin.y, 6);
+      expect(lamp.y).toBeGreaterThan(CENTRE_Y);
+      if (k > 0) {
+        const gap = Math.hypot(lamp.x - LAMPS[k - 1].x, lamp.y - LAMPS[k - 1].y);
+        const first = Math.hypot(LAMPS[1].x - LAMPS[0].x, LAMPS[1].y - LAMPS[0].y);
+        // Evenly along the arc: the straight gaps differ only by the arc's bend.
+        expect(gap / first).toBeGreaterThan(0.93);
+        expect(gap / first).toBeLessThan(1.07);
+      }
+    }
+    // Left to right, the way the chase runs.
+    for (let k = 1; k < LAMP_COUNT; k++) expect(LAMPS[k].x).toBeGreaterThan(LAMPS[k - 1].x);
+  });
+
+  it('draws every lamp’s glass once and every lamp lit in exactly one of the three sets a chase steps through', () => {
+    const markup = render(<PlayTab />);
+    const ring = markup.slice(markup.indexOf('data-testid="sb-lamps"'), markup.indexOf('</span>', markup.indexOf('data-testid="sb-lamps"')));
+    const sets = [...ring.matchAll(/data-set="(\d)"[^>]*>(.*?)<\/svg>/g)].map((match) => (match[2].match(/<circle/g) ?? []).length);
+    expect(sets).toHaveLength(LAMP_SETS);
+    expect(sets.reduce((sum, n) => sum + n, 0)).toBe(LAMP_COUNT);
+    expect(Math.max(...sets) - Math.min(...sets)).toBeLessThanOrEqual(1);
+    expect((ring.match(/<circle/g) ?? []).length).toBe(2 * LAMP_COUNT);
+  });
+
+  it('moves by opacity alone, in steps, and keeps still for a player who asks for less motion', () => {
+    // Every light that runs for as long as the table stands animates opacity, which the compositor runs by itself; no
+    // dash runs along a line and no shadow swells, which were drawn afresh every frame.
+    const running = [...css.matchAll(/animation: ([a-z-]+) [^;]*infinite/g)].map((match) => match[1]);
+    expect(new Set(running)).toEqual(new Set(['moon-soft', 'moon-bright', 'chase']));
+    for (const name of running) {
+      const frames = new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? '';
+      const properties = [...frames.matchAll(/([a-z-]+):/g)].map((match) => match[1]);
+      expect(properties.length, name).toBeGreaterThan(0);
+      expect(new Set(properties), name).toEqual(new Set(['opacity']));
+    }
+    expect(css).not.toMatch(/stroke-dashoffset/);
+    // The chase steps, never fades: a lamp is on or off.
+    expect(css).toMatch(/animation: chase [^;]*step-end infinite/);
+    const calm = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    for (const selector of [".marquee[data-chase='true'] .marqueeMoon::before", ".marquee[data-chase='true'] .marqueeMoon::after", '.shaker[data-lights] .lamps', '.shaker[data-lights] .lampSet']) expect(calm).toContain(selector);
+    expect(calm).toMatch(/animation: none !important/);
   });
 });
 

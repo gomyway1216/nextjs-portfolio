@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { Face } from './engine';
 import { Pips } from './Dice';
 import { DIE_FACES, DOME, poseAtTime, rotate, type Pose, type ShakeEvent, type ShakePlan } from './physics';
@@ -93,13 +93,67 @@ export interface DomeProps {
 /** The face elements' own turns, putting each on its side of the cube. */
 const FACE_PLACES = ['rotateY(90deg)', 'rotateY(-90deg)', 'rotateX(-90deg)', 'rotateX(90deg)', 'rotateY(0deg)', 'rotateY(180deg)'];
 
-/** The base, the felt and the dome's glass, in the stage's own units (its width is 100). */
-const Base = () => {
+/** The base's size on the stage: its rim round the platter, and how deep its side is under the platter's front edge. */
+const BASE_RX = DOME_UNITS + 3.2;
+const BASE_RY = BASE_RX * Math.cos((TILT * Math.PI) / 180);
+const BASE_DEPTH = 7;
+
+/**
+ * The ring of lamps round the base, as a real electronic table has one: a row of separate lamps along the front of the
+ * base, lit and put out in steps, never a moving line of light. There are as many lamps as the ring used to have lit
+ * dashes (25 along the arc), and they are wired in three sets: a chase lights two sets and leaves the third dark, and
+ * steps the dark one along a lamp at a time.
+ */
+export const LAMP_COUNT = 25;
+export const LAMP_SETS = 3;
+/** A lamp's radius, in the stage's units: as much light as a dash of the old ring gave, its round ends and all. */
+const LAMP_R = 1.1;
+
+/** Where each lamp stands: evenly along the front half of the base's ring, the same on both sides. */
+export const LAMPS: readonly { x: number; y: number }[] = (() => {
+  const cx = 50;
+  const cy = CENTRE_Y + BASE_DEPTH * 0.55;
+  const a = BASE_RX - 0.6;
+  const b = BASE_RY;
+  // From the left end of the ring, round the front, to the right end: its length so far at each of many points.
+  const STEPS = 2_000;
+  const at = (i: number) => {
+    const angle = Math.PI * (1 - i / STEPS);
+    return { x: cx + a * Math.cos(angle), y: cy + b * Math.sin(angle) };
+  };
+  const along = [0];
+  for (let i = 1; i <= STEPS; i++) {
+    const p = at(i - 1);
+    const q = at(i);
+    along.push(along[i - 1] + Math.hypot(q.x - p.x, q.y - p.y));
+  }
+  const total = along[STEPS];
+  return Array.from({ length: LAMP_COUNT }, (_, k) => {
+    // One lamp in each 4 hundredths of the ring's length, as the old ring had a dash, in the middle of each.
+    const want = ((4 * k + 2) / 100) * total;
+    let i = 1;
+    while (i < STEPS && along[i] < want) i++;
+    const p = at(i - 1);
+    const q = at(i);
+    const f = (want - along[i - 1]) / (along[i] - along[i - 1]);
+    return { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f };
+  });
+})();
+
+/**
+ * How far ahead of the chase's own start each set begins, in steps: with these, the dark lamp walks from the left end
+ * round the front to the right, as the old ring's light ran. Set `s` is dark when the chase is at step `s + 1`, of 3.
+ */
+const LEADS = [1, 0, 2];
+
+const lamp = (n: number) => n.toFixed(3);
+
+/** The base's side, under the platter's front edge, in the stage's own units (its width is 100). */
+const BaseSide = () => {
   const cx = 50;
   const cy = CENTRE_Y;
-  const rx = DOME_UNITS + 3.2;
-  const ry = rx * Math.cos((TILT * Math.PI) / 180);
-  const depth = 7;
+  const rx = BASE_RX;
+  const ry = BASE_RY;
   return (
     <svg className={styles.base} viewBox={`0 0 100 ${STAGE_HEIGHT}`} aria-hidden="true" focusable="false">
       <defs>
@@ -109,15 +163,36 @@ const Base = () => {
           <stop offset="1" stopColor="#14112e" />
         </linearGradient>
       </defs>
-      {/* The base's side, under the platter's front edge. */}
-      <path d={`M${cx - rx} ${cy} A${rx} ${ry} 0 0 0 ${cx + rx} ${cy} L${cx + rx} ${cy + depth} A${rx} ${ry} 0 0 1 ${cx - rx} ${cy + depth} Z`} fill="url(#sb-base-side)" />
-      {/* The ring of lamps round the base. */}
-      <path className={styles.ledRing} d={`M${cx - rx + 0.6} ${cy + depth * 0.55} A${rx - 0.6} ${ry} 0 0 0 ${cx + rx - 0.6} ${cy + depth * 0.55}`} pathLength={100} />
-      {/* The platter's brass rim, round the felt. */}
-      <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="#2a2152" stroke="#d6b25e" strokeWidth={1.1} />
+      <path d={`M${cx - rx} ${cy} A${rx} ${ry} 0 0 0 ${cx + rx} ${cy} L${cx + rx} ${cy + BASE_DEPTH} A${rx} ${ry} 0 0 1 ${cx - rx} ${cy + BASE_DEPTH} Z`} fill="url(#sb-base-side)" />
     </svg>
   );
 };
+
+/**
+ * The ring of lamps: every lamp's glass, faint, and over it each set's lit lamps on a sheet of its own. A chase only
+ * shows and hides the sheets (their opacity, in steps), which the compositor does by itself: nothing is drawn again.
+ */
+const LampRing = () => (
+  <span className={styles.lamps} aria-hidden="true" data-testid="sb-lamps">
+    <svg className={styles.lampGlass} viewBox={`0 0 100 ${STAGE_HEIGHT}`} focusable="false">
+      {LAMPS.map(({ x, y }, k) => (
+        <circle key={k} cx={lamp(x)} cy={lamp(y)} r={LAMP_R} />
+      ))}
+    </svg>
+    {LEADS.map((lead, set) => (
+      <svg key={set} className={styles.lampSet} viewBox={`0 0 100 ${STAGE_HEIGHT}`} focusable="false" data-set={set} style={{ '--lead': lead } as CSSProperties}>
+        {LAMPS.map(({ x, y }, k) => (k % LAMP_SETS === set ? <circle key={k} cx={lamp(x)} cy={lamp(y)} r={LAMP_R} /> : null))}
+      </svg>
+    ))}
+  </span>
+);
+
+/** The platter's brass rim, round the felt: over the ends of the ring of lamps, as the base's top edge is. */
+const Rim = () => (
+  <svg className={styles.base} viewBox={`0 0 100 ${STAGE_HEIGHT}`} aria-hidden="true" focusable="false">
+    <ellipse cx={50} cy={CENTRE_Y} rx={BASE_RX} ry={BASE_RY} fill="#2a2152" stroke="#d6b25e" strokeWidth={1.1} />
+  </svg>
+);
 
 /** The dome's glass: a half ball over the platter, drawn in front of the dice, its shine and its rim. */
 const Glass = () => {
@@ -240,7 +315,9 @@ export const Dome = ({ run, rest, skipped, lights, label, banner, onSettle, onEv
   return (
     <div className={styles.shaker} ref={domeRef} data-testid="sb-dome" data-lights={lights} data-running={run ? 'true' : 'false'}>
       <div className={styles.stage} role="img" aria-label={label}>
-        <Base />
+        <BaseSide />
+        <LampRing />
+        <Rim />
         <div className={styles.rig} ref={rig}>
           <div className={styles.scene}>
             <div className={styles.platter}>

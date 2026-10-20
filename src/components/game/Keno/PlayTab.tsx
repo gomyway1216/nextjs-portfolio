@@ -15,9 +15,10 @@ import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { Board, type Half } from './Board';
-import { BETS, DRAWN, LAST_BALL_TIMES, SPOTS_MOST, analyze, drawBalls, gameOf, halfOf, isBet, payOf, quickPick, sameSpots, sortSpots, valueOf, type Bet } from './engine';
+import { BETS, DRAWN, LAST_BALL_TIMES, SPOTS_MOST, drawBalls, gameOf, halfOf, isBet, payOf, quickPick, sameSpots, sortSpots, valueOf, type Bet } from './engine';
 import { getStrings, type Result } from './i18n';
 import { KENO_GAME, TICKET_KEY, createTable, gameId, parseTicket, type GameRecord, type Staked, type Table } from './medalTable';
+import { PUBLISHED_KENO_ODDS } from './published';
 import styles from './Keno.module.css';
 
 /** How many digits each LED counter has: the medals up to 9,999,999 (the medal center's own), the bet (10) and a win (100,000). */
@@ -561,7 +562,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   });
 
   // ── What is on the screen ──
-  const odds = analyze();
+  const odds = PUBLISHED_KENO_ODDS;
   const ticket = running ? running.record.spots : marks;
   const ticketSet = useMemo(() => new Set(ticket), [ticket]);
   const balls = useMemo(() => (running ? running.record.balls.slice(0, shown) : outcome && !cleared ? outcome.balls : []), [running, shown, outcome, cleared]);

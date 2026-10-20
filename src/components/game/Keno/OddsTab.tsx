@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ScrollArea } from '../common/ScrollArea';
 import selectStyles from '../common/select.module.css';
-import { LAST_BALL_TIMES, SPOT_COUNTS, analyze, checkGames, payOf, seeded, valueOf, type Fraction } from './engine';
+import { LAST_BALL_TIMES, SPOT_COUNTS, checkGames, payOf, seeded, valueOf, type Fraction } from './engine';
 import { getStrings } from './i18n';
+import { PUBLISHED_KENO_ODDS } from './published';
 import styles from './Keno.module.css';
 
 /** How many games the check plays. */
@@ -26,7 +27,8 @@ export const OddsTab = () => {
     const n = 1 / valueOf(f);
     return t.oneIn(fmt(n, n < 100 ? 2 : 0));
   };
-  const odds = analyze();
+  // Written out in published.ts: nothing is worked out as the tab is drawn (it is drawn, hidden, as the page opens).
+  const odds = PUBLISHED_KENO_ODDS;
 
   const [spots, setSpots] = useState(FIRST_SHOWN);
   const ticket = odds.tickets[spots - 1];

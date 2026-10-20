@@ -6,10 +6,11 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import floorTabs from '../MedalCenter/tabs.module.css';
-import { analyze, valueOf } from './engine';
+import { valueOf } from './engine';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
+import { PUBLISHED_KENO_ODDS } from './published';
 import styles from './Keno.module.css';
 
 type Tab = 'machine' | 'odds';
@@ -39,7 +40,8 @@ export const Keno = ({ player }: KenoProps = {}) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const { language } = useGameLanguage();
   const t = getStrings(language);
-  const odds = analyze();
+  // Written out in published.ts: nothing is worked out as the page opens.
+  const odds = PUBLISHED_KENO_ODDS;
   const tabs: { id: Tab; label: string }[] = [
     { id: 'machine', label: t.tabMachine },
     { id: 'odds', label: t.tabOdds },

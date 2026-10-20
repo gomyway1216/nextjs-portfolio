@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
     // A build on Vercel ships without the shogi AI's 94.7MB weights (.vercelignore), and its worker fetches them from
     // the public asset bucket instead; anywhere else they are in public/ as before. See ShogiImproved/weightsAsset.ts.
     NEXT_PUBLIC_SHOGI_WEIGHTS_REMOTE: process.env.VERCEL === "1" ? "1" : "",
+    // Only a build on Vercel sends activity logs on to production's activity_logs; CI's e2e server and a developer's
+    // server drop them. See src/app/api/_lib/activityLogForwarding.ts.
+    ACTIVITY_LOG_BUILT_ON_VERCEL: process.env.VERCEL === "1" ? "1" : "",
   },
 
   // Disable React StrictMode to suppress warnings from third-party packages

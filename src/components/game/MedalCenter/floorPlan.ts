@@ -237,7 +237,9 @@ const rowsOf = (zone: ZoneId, width: number, span: number): number => {
 
 /**
  * How many of the floor's columns each corner takes on its widest layout, the corners laid in order as a row fills:
- * as many as its machines need, up to a whole row. A corner of small cabinets too wide for the columns left beside the
+ * as many as its machines need, up to a whole row; a corner of no more big cabinets than a squeezed corner has rows,
+ * with a corner of small ones after it that fits beside one big cabinet, stands its cabinets one above another in two
+ * columns (the two pushers), so that the two corners still stand side by side. A corner of small cabinets too wide for the columns left beside the
  * corner before it, but that fits in up to `SQUEEZED_ROWS` rows of them, takes those columns (`squeezed`), its cabinets
  * on two or three rows, so that the pair still stands side by side (the video machines and the pachinko beside the
  * pusher) rather than half a row being left empty. The corner beside it, on fewer rows, stands as tall (`tall`).

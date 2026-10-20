@@ -670,10 +670,11 @@
   .counterPlace {
     height: 30px;
   }
+  /* Three lines held in the narrow column, at whole pixels, so that nothing under it moves when the words change. */
   .status {
     grid-area: status;
     margin: 0.2rem 0;
-    min-height: 40px;
+    min-height: 60px;
     line-height: 20px;
   }
   .controls {

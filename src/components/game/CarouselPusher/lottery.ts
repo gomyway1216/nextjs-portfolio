@@ -26,15 +26,9 @@ export type OutcomeId = (typeof OUTCOME_IDS)[number];
 
 /** Out of `WEIGHT_TOTAL`, how often each outcome comes up. */
 export const WEIGHT_TOTAL = 65_536;
-export const WEIGHTS: Readonly<Record<OutcomeId, number>> = {
-  jackpot: 164,
-  triple: 1_966,
-  sevens: 4_588,
-  seven: 16_384,
-  miss: 0,
-};
-// The rest is a miss.
-(WEIGHTS as Record<OutcomeId, number>).miss = WEIGHT_TOTAL - WEIGHTS.jackpot - WEIGHTS.triple - WEIGHTS.sevens - WEIGHTS.seven;
+const WINS = { jackpot: 164, triple: 1_966, sevens: 4_588, seven: 16_384 } as const;
+/** The rest of the 65,536 is a miss. */
+export const WEIGHTS: Readonly<Record<OutcomeId, number>> = { ...WINS, miss: WEIGHT_TOTAL - WINS.jackpot - WINS.triple - WINS.sevens - WINS.seven };
 
 /** What each outcome but the jackpot pays into the tray. */
 export const PRIZES: Readonly<Record<Exclude<OutcomeId, 'jackpot'>, number>> = { triple: 20, sevens: 5, seven: 1, miss: 0 };

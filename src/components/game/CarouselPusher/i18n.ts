@@ -99,7 +99,7 @@ const en = {
   holdLamps: (holds: number) => `Spins waiting: ${holds} of ${HOLD_MAX}`,
   counterLabel: (digits: string) => `The counter shows ${digits}`,
   status: {
-    empty: `DROP puts ${LEND} of your medals into the slot (CREDIT) and drops them one at a time.`,
+    empty: `DROP puts ${LEND} of your medals in the slot and drops them one by one.`,
     ready: 'Drop a medal as a hole on the deck passes the ▼ mark.',
     spinning: 'The counter rolls…',
     reach: 'REACH! The first two digits match…',

@@ -32,6 +32,14 @@ const longSeed = (slots: number): number => {
   for (let seed = 1; ; seed++) if (Array.from({ length: slots }, (_, age) => spinUnit(seed, age + 1)).every((u) => u * 16 >= 1)) return seed;
 };
 
+/**
+ * A seed whose normal reach comes at the spin's first slot and stops within the two after it: by the time the screen,
+ * a ball's flight (two slots) behind the rules, shows the reach, the rules have stopped it and begun the hit's fanfare.
+ */
+const quickReach = (): number => {
+  for (let seed = 1; ; seed++) if (spinUnit(seed, 1) * 4 < 1 && [2, 3].some((age) => spinUnit(seed, age) * 8 < 1)) return seed;
+};
+
 async function openMachine(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
   expect((await page.goto('/games/pachinko'))?.status()).toBe(200);
@@ -173,6 +181,26 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   // This visit's hits: the one in ST (the first was on the page before the reload).
   await expect(page.getByTestId('pk-history').locator('li')).toHaveCount(1, { timeout: 5_000 });
   await expect(page.getByTestId('pk-history').locator('li').first()).toHaveAttribute('data-rounds', '10');
+});
+
+test('pachinko: Skip cuts short what the screen shows: a press on a reach the rules have already stopped leaves the hit’s fanfare to be seen', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  await lend(page, [{ ...HIT, seed: quickReach() }]);
+  await turnTo(page, BEST_LEFT);
+  await hold(page, 300);
+  await expect(machine(page)).toHaveAttribute('data-phase', '1', { timeout: 15_000 });
+  // The rules are two slots ahead of the screen: the reach shown has stopped there, and the fanfare begun.
+  expect((await session(page))!.machine.bonus?.stage).toBe('fanfare');
+  await page.getByTestId('pk-skip').click();
+  // The screen is brought up to the rules: the hit, and its fanfare shown, not cut short with the reach.
+  await expect(machine(page)).toHaveAttribute('data-stage', 'fanfare');
+  await expect(machine(page)).toHaveAttribute('data-won', '4-st');
+  await expect(page.getByTestId('pk-skip')).toBeEnabled();
+  // A second press cuts the fanfare short. Neither fired a ball.
+  await page.getByTestId('pk-skip').click();
+  await expect(machine(page)).toHaveAttribute('data-stage', 'open');
+  await expect(page.getByTestId('pk-stat-fired')).toHaveText('1');
 });
 
 test('pachinko: the clock stops while the Odds tab is open, and a held handle is let go there', async ({ page }) => {

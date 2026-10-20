@@ -2,7 +2,8 @@ import { test, expect, type Page } from './fixtures';
 
 import { BEST_LEFT, FATE_SLOTS, LEND_BALLS, LEND_MEDALS, numbersForBall, spinUnit, type BallDraw } from '../../src/components/game/Pachinko/engine';
 import { SESSION_KEY, parseSession } from '../../src/components/game/Pachinko/medalTable';
-import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
@@ -30,6 +31,14 @@ const OUT: BallDraw = { fate: FATE_SLOTS - 1, lot: 65_535, split: 99, show: 1_02
 /** A seed whose plain spin in normal play (a chance of 1 in 16 a slot to end) lasts at least `slots` slots. */
 const longSeed = (slots: number): number => {
   for (let seed = 1; ; seed++) if (Array.from({ length: slots }, (_, age) => spinUnit(seed, age + 1)).every((u) => u * 16 >= 1)) return seed;
+};
+
+/**
+ * A seed whose normal reach comes at the spin's first slot and stops within the two after it: by the time the screen,
+ * a ball's flight (two slots) behind the rules, shows the reach, the rules have stopped it and begun the hit's fanfare.
+ */
+const quickReach = (): number => {
+  for (let seed = 1; ; seed++) if (spinUnit(seed, 1) * 4 < 1 && [2, 3].some((age) => spinUnit(seed, age) * 8 < 1)) return seed;
 };
 
 async function openMachine(page: Page, language: 'en' | 'ja' = 'en') {
@@ -117,6 +126,22 @@ test('pachinko: four holds full, a fifth ball into the ヘソ starts nothing, an
   await page.evaluate(() => document.querySelector('[data-testid="pk-handle"]')!.dispatchEvent(new PointerEvent('pointerup', { pointerId: 22, isPrimary: true, button: 0, bubbles: true })));
 });
 
+test('pachinko: with fewer medals than a lend takes, LEND is off, the status says where the last ones can go, and a press says why', async ({ page }) => {
+  test.setTimeout(60_000);
+  const three = take(createLedger('testdevice01'), WELCOME - 3)!;
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [BANK_KEY, serializeLedger(three)],
+  );
+  await openMachine(page);
+  await expect(page.getByTestId('pk-lend')).toBeDisabled();
+  await expect(page.getByTestId('pk-status')).toHaveText(`A lend takes ${LEND_MEDALS} medals: play your last 3 on another machine.`);
+  await page.keyboard.press('l');
+  await expect(page.getByTestId('pk-message')).toHaveText(`Not enough medals: a lend takes ${LEND_MEDALS}.`);
+});
+
 test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右打ち, a round played at 6, the rest played out as the page is left, then ST and a hit in it', async ({ page }) => {
   test.setTimeout(120_000);
   await openMachine(page);
@@ -153,6 +178,8 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   await arrived(page);
   await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
   await expect(page.getByTestId('pk-message')).toContainText('rounds were played out at strength 6');
+  // It says what the tray gained, as the tray shows it: the balls paid less the balls fired into the attacker.
+  await expect(page.getByTestId('pk-message')).toContainText(`+${rest} balls into the tray`);
   await expect(machine(page)).toHaveAttribute('data-mode', 'st');
   await expect(machine(page)).toHaveAttribute('data-stage', '');
   const after = (await session(page))!;
@@ -175,6 +202,26 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   await expect(page.getByTestId('pk-history').locator('li').first()).toHaveAttribute('data-rounds', '10');
 });
 
+test('pachinko: Skip cuts short what the screen shows: a press on a reach the rules have already stopped leaves the hit’s fanfare to be seen', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  await lend(page, [{ ...HIT, seed: quickReach() }]);
+  await turnTo(page, BEST_LEFT);
+  await hold(page, 300);
+  await expect(machine(page)).toHaveAttribute('data-phase', '1', { timeout: 15_000 });
+  // The rules are two slots ahead of the screen: the reach shown has stopped there, and the fanfare begun.
+  expect((await session(page))!.machine.bonus?.stage).toBe('fanfare');
+  await page.getByTestId('pk-skip').click();
+  // The screen is brought up to the rules: the hit, and its fanfare shown, not cut short with the reach.
+  await expect(machine(page)).toHaveAttribute('data-stage', 'fanfare');
+  await expect(machine(page)).toHaveAttribute('data-won', '4-st');
+  await expect(page.getByTestId('pk-skip')).toBeEnabled();
+  // A second press cuts the fanfare short. Neither fired a ball.
+  await page.getByTestId('pk-skip').click();
+  await expect(machine(page)).toHaveAttribute('data-stage', 'open');
+  await expect(page.getByTestId('pk-stat-fired')).toHaveText('1');
+});
+
 test('pachinko: the clock stops while the Odds tab is open, and a held handle is let go there', async ({ page }) => {
   test.setTimeout(60_000);
   await openMachine(page);
@@ -191,9 +238,39 @@ test('pachinko: the clock stops while the Odds tab is open, and a held handle is
   await expect(page.getByTestId('pk-typical')).toHaveText('78.24%');
   await expect(page.getByTestId('pk-blind')).toHaveText('25.78%');
   await expect(page.getByTestId('pk-strengths-table').locator('tbody tr')).toHaveCount(7);
+  // 保留短縮 is a plain spin's in normal play only: a reach's phases keep their chances however many holds wait.
+  await expect(page.locator('#pk-panel-odds')).toContainText('in normal play, a plain spin runs faster the more holds wait');
   await expect(page.getByTestId('pk-sources').locator('a')).toHaveCount(8);
   await page.locator('#pk-tab-machine').click();
   await expect(machine(page)).toHaveAttribute('data-held', 'false');
+});
+
+test('pachinko: a handle held by Space or the mouse is let go as the window loses focus, and fires no ball more', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  await lend(page, Array.from({ length: 30 }, () => OUT));
+  const away = async () => {
+    // Another window brought in front: the key or the button comes up there, never on this page.
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(machine(page)).toHaveAttribute('data-held', 'false');
+    const tray = (await session(page))!.tray;
+    await page.waitForTimeout(1_500);
+    expect((await session(page))!.tray).toBe(tray);
+  };
+  // Space held on the handle.
+  await page.getByTestId('pk-handle').focus();
+  await page.keyboard.down(' ');
+  await expect(machine(page)).toHaveAttribute('data-held', 'true');
+  await expect.poll(async () => (await session(page))!.tray).toBeLessThan(LEND_BALLS);
+  await away();
+  await page.keyboard.up(' ');
+  // The mouse held on the handle.
+  const box = (await page.getByTestId('pk-handle').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(machine(page)).toHaveAttribute('data-held', 'true');
+  await away();
+  await page.mouse.up();
 });
 
 test('pachinko in Japanese at 320 px: the machine speaks Japanese and nothing pushes the page sideways', async ({ browser }) => {
@@ -222,4 +299,27 @@ test('pachinko in Japanese at 320 px: the machine speaks Japanese and nothing pu
   await expect(page.locator('#pk-strength-now')).toHaveText('強さ 6・右打ち');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await context.close();
+});
+
+test('pachinko: after a hit’s rounds, the status line says what comes next, ST and 右打ち, not the hit again', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  await lend(page, [HIT]);
+  await turnTo(page, BEST_LEFT);
+  await hold(page, 300);
+  await expect(machine(page)).toHaveAttribute('data-stage', 'fanfare', { timeout: 20_000 });
+  // The tab put away in the fanfare: the rounds are played out as the page gives up the card, and the player comes back to ST.
+  const hidden = (hide: boolean) =>
+    page.evaluate((hide) => {
+      if (hide) Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      else delete (document as unknown as { visibilityState?: string }).visibilityState;
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hide);
+  await hidden(true);
+  await expect.poll(async () => (await session(page))?.machine.mode).toBe('st');
+  await hidden(false);
+  await expect(page.getByTestId('pk-message')).toContainText('rounds were played out at strength 6');
+  // The hit's lanterns stay on the screen; the line under it says what to do now.
+  await expect(machine(page)).toHaveAttribute('data-won', '4-st');
+  await expect(page.getByTestId('pk-status')).toHaveText('ST: 30 spins left. Shoot right at the electric tulip.');
 });

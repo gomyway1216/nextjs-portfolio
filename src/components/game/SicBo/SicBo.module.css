@@ -206,21 +206,51 @@
   border-radius: 14px;
   background: linear-gradient(180deg, #2b3f86 0%, #1a2a63 60%, #0d1740 100%);
   border: 2px solid var(--sb-brass-light);
+  /* The moons' glows (below) are drawn over the sign's ground and under the moons and the words. */
+  isolation: isolate;
 }
 .marqueeMoon {
+  position: relative;
   width: 1.7rem;
   height: 1.7rem;
   border-radius: 50%;
   background: radial-gradient(circle at 38% 36%, #fffdf2 0 30%, #f1e6bd 60%, #c9b77d 100%);
-  box-shadow: 0 0 10px 2px rgba(255, 244, 200, 0.45);
   justify-self: center;
 }
-.marquee[data-chase='true'] .marqueeMoon {
-  animation: moon 0.8s ease-in-out infinite alternate;
+/* The moon's glow, soft and bright: two glows drawn once round it. While the table calls, the bright one swells in as
+   the soft one fades, and back, by their opacity alone: the compositor runs it, and nothing is drawn again. Each glow
+   is cast from a pixel inside the moon's edge, under the moon, and spread a pixel further, so that where it starts is
+   hidden and it reaches as far as the moon's own shadow did. */
+.marqueeMoon::before,
+.marqueeMoon::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
 }
-@keyframes moon {
+.marqueeMoon::before {
+  box-shadow: 0 0 10px 3px rgba(255, 244, 200, 0.45);
+}
+.marqueeMoon::after {
+  box-shadow: 0 0 18px 7px rgba(255, 244, 200, 0.8);
+  opacity: 0;
+}
+.marquee[data-chase='true'] .marqueeMoon::before {
+  animation: moon-soft 0.8s ease-in-out infinite alternate;
+}
+.marquee[data-chase='true'] .marqueeMoon::after {
+  animation: moon-bright 0.8s ease-in-out infinite alternate;
+}
+@keyframes moon-soft {
   to {
-    box-shadow: 0 0 18px 6px rgba(255, 244, 200, 0.8);
+    opacity: 0;
+  }
+}
+@keyframes moon-bright {
+  to {
+    opacity: 1;
   }
 }
 .marqueeText {
@@ -361,41 +391,67 @@
 .coreZ {
   transform: scale(0.94);
 }
-/* The ring of lamps round the base: what the table is doing, in light. */
-.ledRing {
-  fill: none;
-  stroke: #8fa6ff;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-dasharray: 1.6 2.4;
+/* The ring of lamps round the base: what the table is doing, in light. The lamps' colour is the table's state; each
+   lamp's glass shows faintly while it is out. A chase steps the dark lamp along the ring two steps to each of the old
+   line's cycles (2.4 s waiting for a player, 0.5 s while the dice shake), by showing and hiding each set of lamps:
+   opacity in steps, which the compositor runs on its own. */
+.lamps {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #8fa6ff;
   opacity: 0.75;
 }
-.shaker[data-lights='shake'] .ledRing,
-.shaker[data-lights='settle'] .ledRing {
-  stroke: #ffd56b;
+.lampGlass,
+.lampSet {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: currentColor;
+}
+.lampGlass {
+  opacity: 0.22;
+}
+.shaker[data-lights='shake'] .lamps,
+.shaker[data-lights='settle'] .lamps {
+  color: #ffd56b;
   opacity: 1;
-  animation: chase 0.5s linear infinite;
 }
-.shaker[data-lights='attract'] .ledRing {
-  stroke: #c8d4ff;
-  animation: chase 2.4s linear infinite;
+.shaker[data-lights='shake'] .lampSet,
+.shaker[data-lights='settle'] .lampSet {
+  animation: chase 0.75s step-end infinite;
+  animation-delay: calc(var(--lead) * -0.25s);
 }
-.shaker[data-lights='big'] .ledRing {
-  stroke: #ff6b7d;
+.shaker[data-lights='attract'] .lamps {
+  color: #c8d4ff;
+}
+.shaker[data-lights='attract'] .lampSet {
+  animation: chase 3.6s step-end infinite;
+  animation-delay: calc(var(--lead) * -1.2s);
+}
+.shaker[data-lights='big'] .lamps {
+  color: #ff6b7d;
   opacity: 1;
 }
-.shaker[data-lights='small'] .ledRing {
-  stroke: #6fb1ff;
+.shaker[data-lights='small'] .lamps {
+  color: #6fb1ff;
   opacity: 1;
 }
-.shaker[data-lights='triple'] .ledRing {
-  stroke: #ffe066;
+.shaker[data-lights='triple'] .lamps {
+  color: #ffe066;
   opacity: 1;
   animation: blink 0.5s steps(1) 8;
 }
+/* A set is lit for two steps of three and dark for the third. */
 @keyframes chase {
-  to {
-    stroke-dashoffset: -8;
+  0% {
+    opacity: 1;
+  }
+  66.6667%,
+  100% {
+    opacity: 0;
   }
 }
 @keyframes blink {
@@ -1452,8 +1508,10 @@
 
 /* ---------- Less motion: nothing chases, blinks, glows in time or shakes ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .marquee[data-chase='true'] .marqueeMoon,
-  .shaker[data-lights] .ledRing,
+  .marquee[data-chase='true'] .marqueeMoon::before,
+  .marquee[data-chase='true'] .marqueeMoon::after,
+  .shaker[data-lights] .lamps,
+  .shaker[data-lights] .lampSet,
   .area[data-win='true'],
   .domeBanner {
     animation: none !important;

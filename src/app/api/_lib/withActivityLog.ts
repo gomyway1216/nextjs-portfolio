@@ -19,6 +19,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../constants';
+import { forwardsActivityLogs } from './activityLogForwarding';
 import { APP_BUILD_SHA, APP_VERSION } from '@/lib/buildInfo';
 
 // Generic over context shape so dynamic route handlers (whose context is
@@ -42,6 +43,7 @@ function generateRequestId(): string {
 }
 
 function fireAndForgetLog(payload: Record<string, unknown>, authHeader?: string): void {
+  if (!forwardsActivityLogs()) return;
   void (async () => {
     try {
       await fetch(getCloudFunctionUrl('logClientActivity'), {

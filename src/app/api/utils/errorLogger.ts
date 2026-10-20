@@ -9,6 +9,7 @@
  */
 
 import { getCloudFunctionUrl } from '../constants';
+import { forwardsActivityLogs } from '../_lib/activityLogForwarding';
 import { ErrorSeverity, ErrorSource } from '@/types/errors';
 
 interface LogErrorParams {
@@ -46,6 +47,7 @@ function generateRequestId(): string {
  * Log an error from a Next.js API route. Fire-and-forget.
  */
 export async function logApiError(params: LogErrorParams): Promise<void> {
+  if (!forwardsActivityLogs()) return;
   try {
     const action = params.functionName
       ? `next_api.${params.functionName}`

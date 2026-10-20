@@ -9,6 +9,9 @@ on:
     # 18:00 UTC = 03:00 JST.
     - cron: "0 18 * * *"
   workflow_dispatch:
+  # TEMPORARY: one run on the PR branch before merge (workflow_dispatch needs the file on main). Removed again before review.
+  push:
+    branches: [claude/cross-browser-nightly]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

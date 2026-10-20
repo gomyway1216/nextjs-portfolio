@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 // Smoke tests against the production build: `npm run build` first, then
@@ -8,7 +9,8 @@ export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 30_000,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  // On CI, `list` as well: every test's time in the job's log.
+  reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -18,5 +20,7 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // TEMPORARY, measuring the job on CI: the server's state every 30 s (serverMonitor.js).
+    ...(process.env.CI ? { env: { NODE_OPTIONS: `--require ${path.resolve('tests/e2e/serverMonitor.js')}` } } : {}),
   },
 });

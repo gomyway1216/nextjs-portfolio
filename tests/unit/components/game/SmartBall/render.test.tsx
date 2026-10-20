@@ -80,6 +80,10 @@ describe('the machine', () => {
     expect(markup).not.toContain('smb-card-away');
   });
 
+  it('says plainly when a play takes more medals than there are', () => {
+    expect(getStrings('en').notEnough).toBe('Not enough medals: a play takes 5.');
+  });
+
   it('is in Japanese too, the table’s English only where a real one prints it', () => {
     const markup = render(<PlayTab />, 'ja');
     expect(markup).toContain('持ちメダル');

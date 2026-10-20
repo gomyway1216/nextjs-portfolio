@@ -170,8 +170,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
   const [running, setRunning] = useState<InFlight | null>(null);
   const runningRef = useRef<InFlight | null>(null);
-  const [shown, setShown] = useState(0);
+  // How many balls the draw has stepped out so far; with less motion, or skipped, all of them are out (`shown`).
+  const [stepped, setStepped] = useState(0);
   const [skipped, setSkipped] = useState(false);
+  const shown = running ? (calm || skipped ? DRAWN : stepped) : 0;
   const [outcome, setOutcome] = useState<Ended | null>(null);
   // Whether the last game's balls have been cleared off the board: the player has changed the ticket since.
   const [cleared, setCleared] = useState(false);
@@ -249,6 +251,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (!kept) return;
     marksRef.current = kept.spots;
     betRef.current = kept.bet;
+    // Storage is read only in the browser, after the first drawing matches the server's.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarksState(kept.spots);
     setBetState(kept.bet);
     if (kept.spots.length > 0) setHalf(halfOf(kept.spots[0]));
@@ -303,7 +307,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       const { record } = staked;
       runningRef.current = staked;
       setRunning(staked);
-      setShown(0);
+      setStepped(0);
       heard.current = 0;
       setSkipped(false);
       setOutcome(null);
@@ -365,7 +369,6 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const skip = () => {
     if (!runningRef.current) return;
     setSkipped(true);
-    setShown(DRAWN);
   };
 
   // The last ball is out on the screen: the game is settled, if it was not already, and shown.
@@ -402,11 +405,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       const timer = window.setTimeout(finished, calm || skipped ? 0 : END_BEAT_MS);
       return () => window.clearTimeout(timer);
     }
-    if (calm) {
-      setShown(DRAWN);
-      return;
-    }
-    const timer = window.setTimeout(() => setShown((s) => Math.min(DRAWN, s + 1)), shown === 0 ? FIRST_MS : shown === DRAWN - 1 ? LAST_PAUSE_MS : BALL_MS);
+    const timer = window.setTimeout(() => setStepped((s) => Math.min(DRAWN, s + 1)), shown === 0 ? FIRST_MS : shown === DRAWN - 1 ? LAST_PAUSE_MS : BALL_MS);
     return () => window.clearTimeout(timer);
   }, [running, shown, active, calm, skipped, finished]);
 

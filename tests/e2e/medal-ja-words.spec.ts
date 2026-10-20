@@ -33,6 +33,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'SIC BO': 'the Sic Bo table’s marquee, under 「月夜の大小」',
   'WHALE ISLE': 'Whale Isle Sugoroku’s marquee, over 「すごろく」',
   'MEDAL MAZE': 'the candy shop maze’s hand-painted sign, over 「だがしや」',
+  'VIDEO KENO': 'the video keno cabinet’s marquee, over 「ビデオキノ」',
   // Lamps, pockets and reel symbols on a playfield, as real medal machines print them.
   JACKPOT: 'the pusher’s jackpot lamp',
   START: 'the pusher’s START pockets and the START buttons of the cabinets',

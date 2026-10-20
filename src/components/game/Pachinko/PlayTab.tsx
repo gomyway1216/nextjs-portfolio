@@ -817,7 +817,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (b.stage === 'interval') return s.interval;
       return s.ending;
     }
-    if (shown.won) return s.hit(shown.won);
+    // A hit's rounds over, its lanterns stay on the screen until the next spin; the line says what comes now (ST or
+    // 時短, and 右打ち for it), not the hit again.
     if (shown.spin && shown.spin.kind === 'sp' && shown.spin.phase >= 2) return s.sp;
     if (shown.spin && shown.spin.kind !== 'plain' && shown.spin.phase >= 1) return s.reach;
     if (idleOut) return refillDue ? t.outOfMedals : t.outOfMedals;

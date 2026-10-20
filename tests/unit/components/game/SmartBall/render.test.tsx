@@ -233,6 +233,42 @@ describe('the marble’s way', () => {
   });
 });
 
+describe('the attract run', () => {
+  const css = readFileSync(path.join(process.cwd(), 'src/components/game/SmartBall/SmartBall.module.css'), 'utf8');
+
+  it('draws every lamp three times over the board, at rest, lit and dark, each in a picture the board’s size and place', () => {
+    const markup = render(<PlayTab />);
+    const pictures = [...markup.matchAll(/<svg[^>]*data-chase="(\d)" data-state="(rest|lit|dark)"[^>]*>/g)];
+    expect(pictures).toHaveLength(3 * WINDOWS);
+    for (let w = 0; w < WINDOWS; w++) for (const state of ['rest', 'lit', 'dark']) expect(pictures.filter((m) => m[1] === String(w) && m[2] === state)).toHaveLength(1);
+    // The board's viewBox: an SVG is drawn on whole pixels, and one of the board's size and place lands as the board does.
+    for (const [picture] of pictures) expect(picture).toContain('viewBox="0 0 300 470"');
+    // The pictures at rest are drawn first, under every picture the compositor runs.
+    expect(pictures.slice(0, WINDOWS).every((m) => m[2] === 'rest')).toBe(true);
+  });
+
+  it('runs by opacity alone, in ramps too short to see rather than steps, and keeps still for a player who asks for less motion', () => {
+    // The rail's lamps no longer change colour on the board (each step repainted it, and kept the main thread busy).
+    expect(css).not.toMatch(/animation: smb-chase /);
+    const running = [...css.matchAll(/animation: (smb-chase-[a-z]+) ([^;]*);/g)];
+    expect(new Set(running.map((m) => m[1]))).toEqual(new Set(['smb-chase-gone', 'smb-chase-lit', 'smb-chase-dark']));
+    for (const [, name, how] of running) {
+      // A steps() animation wakes the page's main thread at every step, compositor or not.
+      expect(how, name).not.toMatch(/steps|step-/);
+      const frames = new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? '';
+      expect(new Set([...frames.matchAll(/([a-z-]+):/g)].map((m) => m[1])), name).toEqual(new Set(['opacity']));
+    }
+    // Lit for 0.315 s of every 2.1 s, ten rounds to an animation of 21 s, each change a ramp of 21 µs.
+    expect(css).toMatch(/animation: smb-chase-lit 21s linear infinite/);
+    const lit = /@keyframes smb-chase-lit \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    expect(lit).toContain('1.4999%');
+    expect(lit).toContain('91.5%');
+    // Only with motion allowed: otherwise the board's own lamps stay, as they were.
+    const allowed = css.slice(css.indexOf('@media (prefers-reduced-motion: no-preference)'));
+    expect(allowed.slice(0, allowed.indexOf('\n}\n'))).toContain(".boardBox[data-attract='true'] [data-lamp]");
+  });
+});
+
 describe('the page', () => {
   it('has the machine and its Odds tab, the floor jackpot over it, and the way back to the medal center', () => {
     const markup = render(<SmartBall />);

@@ -40,6 +40,7 @@ import { getStrings } from './i18n';
 import { PACHINKO_GAME, QUEUE, createTable, roundId, skippable, type SessionRecord, type Slot, type Table } from './medalTable';
 import { PUBLISHED_PACHINKO_ODDS } from './published';
 import { BOARD_H, BOARD_W, FLIGHT_MS, ballAt, createMachineClock, reelFaces, wayOf, type Point, type Way } from './scene';
+import selectStyles from '../common/select.module.css';
 import styles from './Pachinko.module.css';
 
 /** How many digits each LED counter has: the medals up to 9,999,999 (the medal center's own), and the balls. */
@@ -550,9 +551,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     kick();
   };
 
-  const turn = (by: number) => {
+  const turn = (by: number) => setTo(strengthRef.current + by);
+  /** Turns the handle to strength `to` (kept within the gauge), and keeps it there for the next visit. */
+  const setTo = (to: number) => {
     setStrength((s) => {
-      const next = Math.min(STRENGTHS - 1, Math.max(0, s + by));
+      const next = Math.min(STRENGTHS - 1, Math.max(0, Number.isInteger(to) ? to : s));
       strengthRef.current = next;
       try {
         window.localStorage.setItem(STRENGTH_KEY, String(next));
@@ -873,7 +876,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
                 data-held={held ? 'true' : 'false'}
                 data-right={right ? 'true' : 'false'}
                 aria-label={t.handleAria}
-                aria-describedby="pk-strength"
+                aria-describedby="pk-strength-now"
                 onPointerDown={onHandleDown}
                 onPointerUp={onHandleUp}
                 onPointerCancel={onHandleCancel}
@@ -897,7 +900,17 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
                   <span key={s} className={styles.gaugeStep} data-on={s <= strength ? 'true' : 'false'} data-right={s >= FIRST_RIGHT ? 'true' : 'false'} />
                 ))}
               </span>
-              <span className={styles.strengthWords}>
+              <label className={styles.strengthWords}>
+                <span>{t.strength}</span>
+                <select className={`${styles.strengthSelect} ${selectStyles.select}`} value={strength} onChange={(event) => setTo(Number(event.target.value))} data-testid="pk-strength-select">
+                  {Array.from({ length: STRENGTHS }, (_, s) => (
+                    <option key={s} value={s}>
+                      {t.strengthWords(s, s >= FIRST_RIGHT)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span id="pk-strength-now" className={styles.srOnly}>
                 {t.strength} {t.strengthWords(strength, right)}
               </span>
             </p>

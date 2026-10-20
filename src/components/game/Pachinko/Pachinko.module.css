@@ -541,7 +541,24 @@
   background: #ffd23f;
 }
 .strengthWords {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   white-space: nowrap;
+}
+.strengthSelect {
+  min-width: 0;
+  padding: 0.3rem 2rem 0.3rem 0.6rem;
+  border-radius: 10px;
+  border: 2px solid #ffd98a;
+  background-color: #3a0a0d;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+.strengthSelect:focus-visible {
+  outline: 3px solid var(--pk-focus);
+  outline-offset: 2px;
 }
 .buttons {
   display: grid;

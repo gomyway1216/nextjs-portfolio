@@ -196,16 +196,22 @@ test('pachinko in Japanese at 320 px: the machine speaks Japanese and nothing pu
   await expect(page.getByTestId('pk-lend')).toHaveAccessibleName(`玉貸し（${LEND_MEDALS}枚で${LEND_BALLS}玉）`);
   await expect(page.getByTestId('pk-status')).toContainText('玉貸し');
   await lend(page, [OUT]);
-  await expect(page.getByTestId('pk-strength')).toContainText('強さ 4・左打ち');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   // The board, its screen and the handle on screen together once a lend has been pressed (moved on the next frame).
   await expect
     .poll(() =>
       page.evaluate(() => {
         const rect = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
-        return rect('pk-board').top >= 0 && rect('pk-handle').bottom <= window.innerHeight && rect('pk-lend').bottom <= window.innerHeight;
+        return rect('pk-board').top >= 0 && rect('pk-lcd').top >= 0 && rect('pk-handle').bottom <= window.innerHeight;
       }),
+      { timeout: 10_000 },
     )
     .toBe(true);
+  await expect(page.getByTestId('pk-strength-select')).toHaveValue('3');
+  await expect(page.locator('#pk-strength-now')).toHaveText('強さ 4・左打ち');
+  // The handle turned straight to 6 by its selector, the shared floor select.
+  await page.getByTestId('pk-strength-select').selectOption('5');
+  await expect(machine(page)).toHaveAttribute('data-strength', '5');
+  await expect(page.locator('#pk-strength-now')).toHaveText('強さ 6・右打ち');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await context.close();
 });

@@ -11,7 +11,9 @@ import { expect, type Page } from '@playwright/test';
  * being drawn, the copy is gone, and there is one of everything.
  */
 export async function settled(page: Page): Promise<void> {
-  await expect(page.locator('[data-testid="pusher-field"][data-renderer]')).toHaveCount(1);
+  // The field's first frame waits on its renderer, as long as 20 s on a slow machine (medal-layout-shift.spec.ts waits
+  // as long): on a slow macOS runner WebKit's took longer than the default 5 s.
+  await expect(page.locator('[data-testid="pusher-field"][data-renderer]')).toHaveCount(1, { timeout: 20_000 });
   await expect(page.locator('div[hidden][id^="S:"]')).toHaveCount(0);
   await expect(page.getByTestId('pusher-credits')).toHaveCount(1);
 }

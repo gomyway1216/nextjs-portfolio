@@ -164,6 +164,20 @@ const Phrases = ({ text }: { text: string }) => (
 );
 
 /**
+ * An element's box; where it has none of its own (held sideways, the play area gives way to its parts, which the
+ * cabinet lays out in two columns: Pachinko.module.css), the box round its parts.
+ */
+function boxOf(area: HTMLElement): { top: number; bottom: number; height: number } {
+  const own = area.getBoundingClientRect();
+  if (own.width > 0 || own.height > 0) return own;
+  const parts = [...area.children].map((part) => part.getBoundingClientRect()).filter((box) => box.width > 0 || box.height > 0);
+  if (parts.length === 0) return own;
+  const top = Math.min(...parts.map((box) => box.top));
+  const bottom = Math.max(...parts.map((box) => box.bottom));
+  return { top, bottom, height: bottom - top };
+}
+
+/**
  * Brings the board, the status line and the handle wholly on screen under the site's toolbar, on the next frame (a
  * smooth scroll begun in the press itself was dropped by the browser: MedalCenter/lookUp.ts). Where they are on screen
  * already, nothing moves.
@@ -172,7 +186,7 @@ function bringIntoView(area: HTMLElement | null): void {
   if (!area || typeof window === 'undefined') return;
   window.requestAnimationFrame(() => {
     if (!area.isConnected) return;
-    const rect = area.getBoundingClientRect();
+    const rect = boxOf(area);
     const toolbar = parseFloat(getComputedStyle(area).scrollMarginTop) || 0;
     const room = window.innerHeight - toolbar;
     if (rect.top >= toolbar - 1 && rect.bottom <= window.innerHeight + 1) return;

@@ -335,6 +335,8 @@ describe('reading a session back', () => {
     const good: SessionRecord = { v: 1, owner: null, ledger: 'device00001', era: 0, credit: 7, machine: freshMachine(3), pending: null, lent: 'abc' };
     const read = parseSession(serializeSession(good))!;
     expect(read.credit).toBe(7);
+    expect(read.still).toBe(false);
+    expect(parseSession(serializeSession({ ...good, still: true }))?.still).toBe(true);
     expect(read.machine.ids).toEqual(good.machine.ids);
     const machine = good.machine;
     const bad: unknown[] = [
@@ -343,6 +345,7 @@ describe('reading a session back', () => {
       JSON.stringify({ ...good, v: 2 }),
       JSON.stringify({ ...good, credit: -1 }),
       JSON.stringify({ ...good, credit: 1_000 }),
+      JSON.stringify({ ...good, still: 'yes' }),
       JSON.stringify({ ...good, ledger: 'Not A Ledger!' }),
       JSON.stringify({ ...good, pending: { kind: 'steal', id: 'x', medals: 1 } }),
       JSON.stringify({ ...good, machine: { ...machine, xy: machine.xy.slice(1) } }),

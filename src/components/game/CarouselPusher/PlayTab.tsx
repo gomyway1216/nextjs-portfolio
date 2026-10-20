@@ -372,11 +372,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           case 'stock':
             setStock(e.stock);
             break;
-          case 'won':
-          case 'lost':
-            saveNow = true;
-            break;
           default:
+            // Medals going over an edge are written down with the next save (at least once a second), and those into
+            // the tray with the handful that counts them in (`collect`): a jackpot's medals pour off for seconds, and a
+            // write each frame of it would be a lot of writing for nothing.
             break;
         }
       }
@@ -394,7 +393,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const goIdle = useCallback(
     (now: number) => {
       const m = session.current?.machine;
-      if (!m) return;
+      if (!m || !session.current) return;
+      // Written down standing still: a reload opens it so, and plays nothing on.
+      session.current = { ...session.current, still: true };
       save(now);
       stage.current?.field(m);
       const since = stage.current?.turnAlone(m.step) ?? null;
@@ -467,6 +468,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       const turned = stage.current?.stopTurning() ?? 0;
       idle(m, turned);
       stillFor.current = 0;
+      if (session.current?.still) session.current = { ...session.current, still: false };
       restingRef.current = false;
       setResting(false);
       lastTime.current = performance.now();
@@ -504,7 +506,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const m = session.current?.machine;
     if (m) {
       lastTime.current = performance.now();
-      if (atRest(m) && m.tray === 0) {
+      if ((session.current?.still || atRest(m)) && !busy(m) && m.tray === 0) {
         const since = stage.current?.turnAlone(m.step) ?? null;
         if (since !== null) setRestFrom({ step: m.step, since });
         restingRef.current = true;
@@ -689,7 +691,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (active) {
       const m = session.current?.machine;
       if (m && seat.current?.holding()) {
-        if (atRest(m) && m.tray === 0) {
+        if ((session.current?.still || atRest(m)) && !busy(m) && m.tray === 0) {
           const since = stage.current?.turnAlone(m.step) ?? null;
           if (since !== null) setRestFrom({ step: m.step, since });
           restingRef.current = true;

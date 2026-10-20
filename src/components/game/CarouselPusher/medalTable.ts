@@ -64,6 +64,11 @@ export interface SessionRecord {
   pending: Pending | null;
   /** The round of the last handful into the slot: its receipts say the session's medals are out. */
   lent: string | null;
+  /**
+   * Whether the machine was written down standing still (PlayTab.tsx `standsStill`): it opens turning on its own, as
+   * it was left, rather than being played on until it is still again. Left out, or false, for one written while it moved.
+   */
+  still?: boolean;
 }
 
 // ── Reading a session back ──────────────────────────────────────────────────
@@ -99,7 +104,8 @@ export function parseSession(text: unknown): SessionRecord | null {
   const pending = parsePending(data.pending);
   if (pending === undefined) return null;
   if (data.lent !== null && (typeof data.lent !== 'string' || !ID_SHAPE.test(data.lent))) return null;
-  return { v: 1, owner, ledger: data.ledger, era: data.era, credit: data.credit, machine, pending, lent: data.lent as string | null };
+  if (data.still !== undefined && typeof data.still !== 'boolean') return null;
+  return { v: 1, owner, ledger: data.ledger, era: data.era, credit: data.credit, machine, pending, lent: data.lent as string | null, still: data.still === true };
 }
 
 export const serializeSession = (record: SessionRecord): string => JSON.stringify({ ...record, machine: packMachine(record.machine) });

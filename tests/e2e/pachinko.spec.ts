@@ -196,6 +196,34 @@ test('pachinko: the clock stops while the Odds tab is open, and a held handle is
   await expect(machine(page)).toHaveAttribute('data-held', 'false');
 });
 
+test('pachinko: a handle held by Space or the mouse is let go as the window loses focus, and fires no ball more', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  await lend(page, Array.from({ length: 30 }, () => OUT));
+  const away = async () => {
+    // Another window brought in front: the key or the button comes up there, never on this page.
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(machine(page)).toHaveAttribute('data-held', 'false');
+    const tray = (await session(page))!.tray;
+    await page.waitForTimeout(1_500);
+    expect((await session(page))!.tray).toBe(tray);
+  };
+  // Space held on the handle.
+  await page.getByTestId('pk-handle').focus();
+  await page.keyboard.down(' ');
+  await expect(machine(page)).toHaveAttribute('data-held', 'true');
+  await expect.poll(async () => (await session(page))!.tray).toBeLessThan(LEND_BALLS);
+  await away();
+  await page.keyboard.up(' ');
+  // The mouse held on the handle.
+  const box = (await page.getByTestId('pk-handle').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(machine(page)).toHaveAttribute('data-held', 'true');
+  await away();
+  await page.mouse.up();
+});
+
 test('pachinko in Japanese at 320 px: the machine speaks Japanese and nothing pushes the page sideways', async ({ browser }) => {
   test.setTimeout(60_000);
   const context = await browser.newContext({ viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true });

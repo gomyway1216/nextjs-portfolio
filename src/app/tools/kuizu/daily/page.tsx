@@ -57,7 +57,8 @@ export default function KuizuDailyPage() {
       try {
         await submitDailyResult({
           challengeId: challenge.id, userId: currentUser.uid,
-          displayName: currentUser.displayName || 'Anonymous',
+          // Without a name (or one that cannot be shown) the server lists the player as "Player 1234".
+          displayName: currentUser.displayName ?? '',
           score, accuracy, timeTaken,
         });
         await refetch();

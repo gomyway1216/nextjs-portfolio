@@ -27,7 +27,9 @@ vi.mock('firebase-admin/database', () => ({ getDatabase: () => mocks.rtdb }));
 
 const NONE = 'Could not load the default credentials. Browse to https://cloud.google.com/docs/authentication/getting-started for more information.';
 
+/** The modules afresh, in a new server: the credentials lookup is kept on `globalThis` for the life of the server. */
 async function fresh() {
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for('meetyudai.adminCredentials')];
   vi.resetModules();
   return {
     admin: await import('@/lib/firebase-admin'),

@@ -13,8 +13,14 @@ vi.mock('firebase-admin/app', () => ({
 /** What google-auth-library says where there are no application-default credentials anywhere. */
 const NONE = 'Could not load the default credentials. Browse to https://cloud.google.com/docs/authentication/getting-started for more information.';
 
-/** The module afresh: its lookup is kept for the life of the server, so each test starts a new one. */
+/** The module afresh, in a new server: its lookup is kept on `globalThis` for the life of the server. */
 async function fresh() {
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for('meetyudai.adminCredentials')];
+  return another();
+}
+
+/** Another copy of the module in the same server, as Next bundles it once for pages and once for API routes. */
+async function another() {
   vi.resetModules();
   return import('@/lib/adminCredentials');
 }
@@ -95,6 +101,17 @@ describe('a server with no service account', () => {
     answer(new Error(NONE));
     await expect(requireAdminCredentials()).rejects.toThrow(NONE);
     expect(() => throwIfWithoutCredentials()).toThrow(NONE);
+    expect(mocks.getAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies of the module in one server share one lookup: a copy asked later knows at once what the first found', async () => {
+    mocks.getAccessToken.mockRejectedValue(new Error(NONE));
+    const pages = await fresh();
+    await expect(pages.requireAdminCredentials()).rejects.toThrow(NONE);
+    const routes = await another();
+    // Its first client is refused at once, not handed out to wait on the Firestore client's retries.
+    expect(() => routes.throwIfWithoutCredentials()).toThrow(NONE);
+    await expect(routes.requireAdminCredentials()).rejects.toThrow(NONE);
     expect(mocks.getAccessToken).toHaveBeenCalledTimes(1);
   });
 

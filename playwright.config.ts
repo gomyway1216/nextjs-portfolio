@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 // Smoke tests against the production build: `npm run build` first, then
@@ -20,7 +19,5 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // TEMPORARY, measuring the job on CI: the server's state every 30 s (serverMonitor.js).
-    ...(process.env.CI ? { env: { NODE_OPTIONS: `--require ${path.resolve('tests/e2e/serverMonitor.js')}` } } : {}),
   },
 });

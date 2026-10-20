@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { COUNTER_PLACES, FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MachineFloor } from '@/components/game/MedalCenter/MachineFloor';
-import { MACHINE_PITCHES, MACHINE_ZONES, PLATE_RETURNS, ZONES, ZONE_SIGNS, cornersOf, isNewMachine, plateReturn, spansOf, zoneOf, type ZoneId } from '@/components/game/MedalCenter/floorPlan';
+import { MACHINE_PITCHES, MACHINE_ZONES, PITCH_WORDS, PLATE_RETURNS, ZONES, ZONE_SIGNS, cornersOf, isNewMachine, pitchWords, plateReturn, spansOf, zoneOf, type ZoneId } from '@/components/game/MedalCenter/floorPlan';
 import { ODDS_OPTIONS, allBetOdds, combinedDontPassEdge, combinedPassEdge, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
 import { RETURN_LEAST as HORSE_RETURN_LEAST, RETURN_MOST as HORSE_RETURN_MOST } from '@/components/game/HorseRace/card';
 import { toNumber as horseNumber } from '@/components/game/HorseRace/fraction';
@@ -201,12 +201,33 @@ describe('the medal center’s front, as the server sends it', () => {
     const lines = Object.values(MACHINE_PITCHES).map((pitch) => pitch.en);
     expect(new Set(lines).size).toBe(lines.length);
     const html = render('ja');
-    expect(html).toContain(`data-testid="center-pitch-janken">${MACHINE_PITCHES.janken!.ja}</p>`);
+    expect(html).toContain(`data-testid="center-pitch-janken">${pitchWords('janken', MACHINE_PITCHES.janken!.ja).join('\u200B')}</p>`);
     for (const zone of ['pusher', 'video', 'table', 'kids'] as const) expect(html).toContain(`>${ZONE_SIGNS[zone].ja}</span>`);
     for (const words of [...Object.values(ZONE_SIGNS).flatMap((sign) => [sign.en, sign.ja])]) expect(words).not.toMatch(MONEY);
     const t = getCenterStrings('en');
     const ja = getCenterStrings('ja');
     for (const words of [t.legendJp, t.legendNew, t.legendReturn, t.jpSay, t.newSay, t.bestReturn('95.3%'), ja.legendJp, ja.legendNew, ja.legendReturn, ja.jpSay, ja.newSay, ja.bestReturn('95.3%')]) expect(words).not.toMatch(MONEY);
+  });
+
+  it('cuts every Japanese line on a plate into its phrases, each short enough for a narrow plate on the narrowest phone', () => {
+    // Safari and Firefox break a plate's Japanese only between these (MachineFloor.module.css `.pitch`), so each must
+    // make up its line exactly and fit a line of the narrowest plate: about nine and a half characters at 320 px.
+    const ems = (words: string) => [...words].reduce((n, character) => n + (/[\x20-\x7e]/.test(character) ? 0.5 : 1), 0);
+    for (const [id, pitch] of Object.entries(MACHINE_PITCHES)) {
+      expect(PITCH_WORDS[id], id).toBeDefined();
+      expect(pitchWords(id, pitch.ja), id).toEqual(PITCH_WORDS[id]);
+      expect(PITCH_WORDS[id].length, id).toBeGreaterThan(1);
+      for (const phrase of PITCH_WORDS[id]) expect(ems(phrase), `${id}: 「${phrase}」`).toBeLessThanOrEqual(9);
+      // English breaks at its spaces: its line is never cut.
+      expect(pitchWords(id, pitch.en), id).toEqual([pitch.en]);
+    }
+    // The phrases are set as one run of text, a zero-width space between them; a range is held together by word joiners,
+    // and a thousand kept on one line by an element of its own (Safari, keeping the Japanese words whole, broke 「1,000」
+    // after its comma). English is set as it is written.
+    const ja = render('ja');
+    expect(ja).toMatch(/data-testid="center-pitch-slot-machine">3リール。\u200B777なら\u200B1枚につき\u200B<span class="[^"]*number[^"]*">1,000<\/span>枚。<\/p>/);
+    expect(ja).toContain(`data-testid="center-pitch-keno">80の\u200B数字から\u200B1\u2060〜\u206010個。\u200B最後の\u200B球なら×5</p>`);
+    expect(render('en')).toContain(`data-testid="center-pitch-slot-machine">${MACHINE_PITCHES['slot-machine']!.en}</p>`);
   });
 
   it('marks the machines linked to the floor jackpot, and shows each one’s best return a player can actually get, never rounded up', () => {

@@ -223,3 +223,26 @@ test('pachinko in Japanese at 320 px: the machine speaks Japanese and nothing pu
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await context.close();
 });
+
+test('pachinko: after a hit’s rounds, the status line says what comes next, ST and 右打ち, not the hit again', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  await lend(page, [HIT]);
+  await turnTo(page, BEST_LEFT);
+  await hold(page, 300);
+  await expect(machine(page)).toHaveAttribute('data-stage', 'fanfare', { timeout: 20_000 });
+  // The tab put away in the fanfare: the rounds are played out as the page gives up the card, and the player comes back to ST.
+  const hidden = (hide: boolean) =>
+    page.evaluate((hide) => {
+      if (hide) Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      else delete (document as unknown as { visibilityState?: string }).visibilityState;
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hide);
+  await hidden(true);
+  await expect.poll(async () => (await session(page))?.machine.mode).toBe('st');
+  await hidden(false);
+  await expect(page.getByTestId('pk-message')).toContainText('rounds were played out at strength 6');
+  // The hit's lanterns stay on the screen; the line under it says what to do now.
+  await expect(machine(page)).toHaveAttribute('data-won', '4-st');
+  await expect(page.getByTestId('pk-status')).toHaveText('ST: 30 spins left. Shoot right at the electric tulip.');
+});

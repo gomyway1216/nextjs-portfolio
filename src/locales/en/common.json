@@ -1410,6 +1410,10 @@
     "smart-ball": {
       "title": "Hot Spring Smart Ball",
       "description": "The hot-spring town’s smart ball: pull the plunger, shoot ten glass marbles round the rail and down through the pins into sixteen numbered holes, and light four in a row for BINGO — with perfect play, an everyday hand and blind shots each worked out exactly, so that no pull beats the machine."
+    },
+    "pachinko": {
+      "title": "Goldfish Lantern Pachinko",
+      "description": "The game center’s pachinko corner: a light-odds digital pachinko (1 in 99.9) whose balls are lent for medals. Turn the handle, shoot the balls through the nails into the start pocket, line up three lanterns for a big hit and ride ST — with perfect play (stopping while four holds wait), an everyday hand and an untouched handle each worked out exactly, so that no hand beats the machine."
     }
   },
   "home": {

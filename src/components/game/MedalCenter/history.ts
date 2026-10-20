@@ -65,7 +65,8 @@ export const HISTORY_LIMITS = {
    * Games a history keeps records for: every machine on the floor and the floor jackpot, and room for a few more.
    * Nineteen with Video Keno; a twentieth machine was coming onto the floor beside it (a smart ball for the kids'
    * corner), which would have filled the 20 there were, and a history that kept no more would have let go of the
-   * records of the machine played least long ago. 24 leaves room for four more after those.
+   * records of the machine played least long ago. 24 left room for four more after those; Goldfish Lantern Pachinko
+   * is the first of them (twenty machines and the jackpot: 21), and three are left.
    */
   games: 24,
   /** Devices a game keeps the records of. Beyond that, the ones that played it least are left out. */

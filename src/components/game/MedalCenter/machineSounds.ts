@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole', 'pachi', 'chucker', 'reach', 'tulip', 'payout'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -449,6 +449,45 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     clink(t, 0.34, 0.25, 311);
     return t;
   },
+  // A pachinko ball off the launcher and onto the nails: the small steel click, and a tick or two down the pins.
+  pachi: (rate) => {
+    const t = take(0.16, rate);
+    ping(t, 0.001, 6800, 0.35, 0.006);
+    hiss(t, 0.001, 0.012, 0.35, 7400, 321);
+    ping(t, 0.05, 5900, 0.18, 0.005);
+    ping(t, 0.11, 6300, 0.12, 0.004);
+    return t;
+  },
+  // A ball into the start pocket: the チャッカー's bright chime, two notes up, as the hold lamp lights.
+  chucker: (rate) => {
+    const t = take(0.34, rate);
+    ping(t, 0.001, 5400, 0.25, 0.01);
+    note(t, 0.01, pitch('E6'), 0.08, 0.3);
+    note(t, 0.1, pitch('B6'), 0.14, 0.3);
+    return t;
+  },
+  // A reach: the cabinet's rising arpeggio and a held note with a wobble, as two reels stop on the same number.
+  reach: (rate) => {
+    const t = take(1.1, rate);
+    ['C5', 'E5', 'G5', 'C6', 'E6'].forEach((name, i) => note(t, i * 0.07, pitch(name), 0.06, 0.32));
+    note(t, 0.38, pitch('G6'), 0.55, 0.34, 0.012);
+    return t;
+  },
+  // The electric tulip's wings flapping open and shut: two quick plastic clicks.
+  tulip: (rate) => {
+    const t = take(0.14, rate);
+    knock(t, 0.001, 1500, 0.45, 0.006);
+    hiss(t, 0.001, 0.015, 0.3, 4200, 331);
+    knock(t, 0.07, 1300, 0.35, 0.006);
+    return t;
+  },
+  // Balls paid out into the tray: a run of steel balls rattling down the chute.
+  payout: (rate) => {
+    const t = take(0.42, rate);
+    for (let i = 0; i < 9; i++) ping(t, 0.004 + i * 0.038, 5200 + ((i * 397) % 900), 0.22, 0.008);
+    hiss(t, 0.002, 0.38, 0.4, 6200, 341, true);
+    return t;
+  },
 };
 
 /** A spring let go: a tone bent down from a wobble, dying away. */
@@ -497,7 +536,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7, pachi: 0.35, tulip: 0.6, payout: 0.55 };
 
 export interface Speaker {
   on: () => boolean;

@@ -145,7 +145,7 @@ describe('the floor reporter', () => {
     // More than the machine can pay at all is no prize.
     h.reporter.report('slot-machine', { won: 0, prize: { medals: 9_999 } });
     h.reporter.report('slot-machine', { won: -5 });
-    h.reporter.report('pachinko' as never, { won: 5 });
+    h.reporter.report('pachislot' as never, { won: 5 });
     await h.pass(FLUSH_MS);
     expect(h.reports().map((call) => call.body)).toEqual([{ game: 'slot-machine', won: 15, best: 15 }]);
     // Never more medals won in one report than the floor believes at once.

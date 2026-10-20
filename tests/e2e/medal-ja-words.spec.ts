@@ -35,6 +35,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'MEDAL MAZE': 'the candy shop maze’s hand-painted sign, over 「だがしや」',
   'VIDEO KENO': 'the video keno cabinet’s marquee, over 「ビデオキノ」',
   'SMART BALL': 'the smart ball table’s noren, over 「湯けむり」',
+  'GOLDFISH LANTERN': 'the pachinko cabinet’s marquee, beside 「パチンコ・1/99.9」',
   // Lamps, pockets and reel symbols on a playfield, as real medal machines print them.
   JACKPOT: 'the pusher’s jackpot lamp',
   START: 'the pusher’s START pockets and the START buttons of the cabinets',
@@ -66,6 +67,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   JP: 'JP対象 and the pusher’s JP lamp: a Japanese medal hall’s word for its jackpot',
   RTP: 'the slot machine’s return, 「還元率（RTP）」',
   EZ: 'the baccarat table’s name, 「ノーコミッション（EZ）」',
+  ST: 'a pachinko’s ST (スペシャルタイム), as Japanese machines print it: 「ST残り30回」',
 };
 
 const PAGES = [...FLOOR_GAMES.map((game) => `/games/${game}`), '/games/medal-center', '/games/medal-center/records', '/games/medal-center/rankings'];

@@ -182,7 +182,7 @@ describe('what the floor shows', () => {
     const feed = feedFrom({
       s01: { id: 1, tag: '0001', game: 'slot-machine', label: 'seven3', medals: 3_000, at: 5 },
       s02: { id: 2, tag: '0002', name: 'Lucky Cat', game: 'janken', medals: 40, at: 6 },
-      s03: { id: 3, tag: '0003', game: 'pachinko', medals: 40, at: 7 },
+      s03: { id: 3, tag: '0003', game: 'pachislot', medals: 40, at: 7 },
       s04: { id: 'x', tag: '0004', game: 'janken', medals: 40, at: 7 },
       s05: null,
     });

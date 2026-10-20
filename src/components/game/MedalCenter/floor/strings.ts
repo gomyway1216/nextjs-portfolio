@@ -158,6 +158,12 @@ const enMoment = (label: string | null, medals: string): string => {
       return `lit two BINGO lines at Hot Spring Smart Ball: ${medals} medals`;
     case 'smart-line':
       return `made a BINGO at Hot Spring Smart Ball: ${medals} medals`;
+    case 'pachinko-rush':
+      return `ran a string of big hits at Goldfish Lantern Pachinko: ${medals} medals’ worth`;
+    case 'pachinko-10r':
+      return `hit a 10-round big hit at Goldfish Lantern Pachinko: ${medals} medals’ worth`;
+    case 'pachinko-4r':
+      return `hit a big hit at Goldfish Lantern Pachinko: ${medals} medals’ worth`;
     default:
       return `won ${medals} medals`;
   }
@@ -216,6 +222,12 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `湯けむりスマートボールでビンゴ2列！${medals}枚`;
     case 'smart-line':
       return `湯けむりスマートボールでビンゴ！${medals}枚`;
+    case 'pachinko-rush':
+      return `金魚ちょうちんパチンコで連チャン！${medals}枚分`;
+    case 'pachinko-10r':
+      return `金魚ちょうちんパチンコで10R大当たり！${medals}枚分`;
+    case 'pachinko-4r':
+      return `金魚ちょうちんパチンコで大当たり！${medals}枚分`;
     default:
       return `${medals}枚の当たり`;
   }

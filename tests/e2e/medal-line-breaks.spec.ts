@@ -9,6 +9,7 @@ import { numberForFace, numberForLamp } from '../../src/components/game/Sugoroku
 import { numbersFor as mazeNumbers } from '../../src/components/game/CoinMaze/engine';
 import { numbersFor as kenoNumbers } from '../../src/components/game/Keno/engine';
 import { numbersFor as smbNumbers, slotFor as smbSlot } from '../../src/components/game/SmartBall/engine';
+import { numbersForBall as pkNumbers } from '../../src/components/game/Pachinko/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -601,6 +602,42 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), SMB_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+const PK_WORDS = ['玉貸し', 'メダル', 'ハンドル', '発射', '発射中', 'ヘソ', '液晶', '持ちメダル', '持ち玉', '回転数', '大当たり', '戻り', '割合', 'いちばん', '上手な', '打ち方', 'ふつう', '腕前', '止め打ち', '右打ち', '左打ち', '電チュー', 'アタッカー', '強さ', '保留', '時短', 'ラウンド', '引き戻し', 'ちょうちん', 'ねらおう', 'そろえよう'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Goldfish Lantern Pachinko's (pachinko) status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/pachinko');
+    await arrived(page);
+    const machine = page.getByTestId('pk-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('pk-status');
+    const said = await brokenIn(status, PK_WORDS);
+    // A lend whose first ball goes OUT: the line that asks for the handle, then the one said while it is held.
+    await rigPresses(page, pkNumbers({ fate: 127, lot: 65_535, split: 99, show: 1_023, seed: 1 }));
+    await pressUntil(page.getByTestId('pk-lend'), async () => (await machine.getAttribute('data-tray')) !== '0');
+    await expect(status).toContainText('ヘソ');
+    said.push(...(await brokenIn(status, PK_WORDS)));
+    await page.evaluate(() => document.querySelector('[data-testid="pk-handle"]')!.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 24, isPrimary: true, button: 0, bubbles: true })));
+    await expect(status).toContainText('発射中');
+    said.push(...(await brokenIn(status, PK_WORDS)));
+    await page.evaluate(() => document.querySelector('[data-testid="pk-handle"]')!.dispatchEvent(new PointerEvent('pointerup', { pointerId: 24, isPrimary: true, button: 0, bubbles: true })));
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(page.locator('#pk-session-title ~ dl dt'), PK_WORDS)));
+    await page.locator('#pk-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('pk-strengths-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"], dl dt'), PK_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

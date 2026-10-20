@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
@@ -198,8 +198,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   useEffect(() => () => clearTimers(), []);
 
   const canRoll = mine && here && running === null;
+  // Brought up to date as ROLL is drawn (a layout effect), not after the paint: the press reads it, and a press made
+  // the moment ROLL is drawn enabled was otherwise turned away by the old value.
   const canRollRef = useRef(canRoll);
-  useEffect(() => {
+  useLayoutEffect(() => {
     canRollRef.current = canRoll;
   }, [canRoll]);
 

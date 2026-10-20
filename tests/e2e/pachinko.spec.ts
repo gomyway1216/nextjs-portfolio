@@ -141,8 +141,13 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   await turnTo(page, 5);
   await hold(page, 6_500);
   await expect(machine(page)).not.toHaveAttribute('data-round', '1', { timeout: 8_000 });
-  const midway = await session(page);
-  expect(midway?.machine.bonus).toMatchObject({ round: 2 });
+  const midway = (await session(page))!;
+  const bonus = midway.machine.bonus!;
+  expect(bonus.round).toBeGreaterThanOrEqual(1);
+  // What the rest of the hit leaves in the tray, played out at 6: each ball still to go into this round and every later
+  // round fired and paid (ten back for one), nothing fired between rounds. A ball the hand fired between rounds is
+  // already out of the tray.
+  const rest = (10 - bonus.count) * 9 + (bonus.kind.rounds - bonus.round) * 90;
   // The page is left in the middle of the hit: its rounds are played out at 6, and the player is told on coming back.
   await page.reload();
   await arrived(page);
@@ -151,8 +156,11 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   await expect(machine(page)).toHaveAttribute('data-mode', 'st');
   await expect(machine(page)).toHaveAttribute('data-stage', '');
   const after = (await session(page))!;
-  // 50 lent, one ball into the ヘソ (3 back), four rounds of ten balls each paying ten.
-  expect(after.tray).toBe(LEND_BALLS - 1 + 3 + 4 * 90);
+  // 50 lent, one ball into the ヘソ (3 back), four rounds of ten balls each paying ten, less any ball the hand fired
+  // between rounds before the page was left.
+  expect(after.tray).toBe(midway.tray + rest);
+  expect(after.tray).toBeLessThanOrEqual(LEND_BALLS - 1 + 3 + 4 * 90);
+  expect(after.tray).toBeGreaterThanOrEqual(LEND_BALLS - 1 + 3 + 4 * 90 - 3);
   expect(after.machine).toMatchObject({ mode: 'st', left: 30, bonus: null, rush: { hits: 1 } });
 
   // In ST: a ball into the 電チュー whose hold is a hit starts the next hit: two in a row.

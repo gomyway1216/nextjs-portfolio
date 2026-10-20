@@ -1561,7 +1561,16 @@ test.describe('in the hand, on a phone', () => {
     // A machine this browser remembered with an empty purse, a hundred fewer than a new one's: nothing was acted out.
     expect(await acted()).toEqual([]);
 
-    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+    // Stopped a moment from now, and asked again if that moment went by while it was being asked: on CI's Firefox the
+    // ask took longer than the 100 ms it used to leave ("clock.pauseAt: Cannot fast-forward to the past").
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 300);
+        break;
+      } catch (error) {
+        if (attempt >= 4 || !String(error).includes('past')) throw error;
+      }
+    }
     const refill = machine(page).getByTestId('pusher-refill');
     await expect(async () => {
       await refill.tap({ timeout: 1_000 });

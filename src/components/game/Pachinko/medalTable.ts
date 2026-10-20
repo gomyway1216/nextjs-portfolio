@@ -549,6 +549,21 @@ function reportTicks(ticks: readonly Tick[]): void {
 /** Whether Skip has anything to cut short: a reach (from its reach on), or a hit's fanfare, interval or ending. */
 export const skippable = (m: Machine): boolean => (m.spin ? m.spin.kind !== 'plain' && m.spin.phase >= 1 : m.bonus !== null && m.bonus.stage !== 'open');
 
+/**
+ * Whether the rules (`rules`) are still at the point Skip would cut short on the screen (`shown`, a ball's flight
+ * behind them): the same spin's reach, or the same stage of the same round. Not where the rules have gone on past it:
+ * the reach shown has stopped, and the hit's fanfare has begun.
+ */
+export const sameSkip = (shown: Machine, rules: Machine): boolean => {
+  if (!skippable(shown) || !skippable(rules)) return false;
+  if (shown.spin) {
+    const a = shown.spin;
+    const b = rules.spin;
+    return b !== null && b.from === a.from && b.hold.lot === a.hold.lot && b.hold.split === a.hold.split && b.hold.show === a.hold.show && b.hold.seed === a.hold.seed;
+  }
+  return shown.bonus !== null && rules.bonus !== null && rules.bonus.stage === shown.bonus.stage && rules.bonus.round === shown.bonus.round;
+};
+
 /** The balls drawn ahead, topped up to `QUEUE` with `draws`. */
 const topped = (queue: readonly BallDraw[], draws: readonly BallDraw[]): BallDraw[] => [...queue, ...draws].slice(0, QUEUE).map((d) => ({ ...d }));
 

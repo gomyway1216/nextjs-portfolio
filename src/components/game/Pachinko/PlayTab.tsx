@@ -37,7 +37,7 @@ import {
   type Tick,
 } from './engine';
 import { getStrings } from './i18n';
-import { PACHINKO_GAME, QUEUE, createTable, roundId, skippable, type SessionRecord, type Slot, type Table } from './medalTable';
+import { PACHINKO_GAME, QUEUE, createTable, roundId, sameSkip, skippable, type SessionRecord, type Slot, type Table } from './medalTable';
 import { PUBLISHED_PACHINKO_ODDS } from './published';
 import { BOARD_H, BOARD_W, FLIGHT_MS, ballAt, createMachineClock, reelFaces, wayOf, type Point, type Way } from './scene';
 import selectStyles from '../common/select.module.css';
@@ -258,6 +258,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const still = useRef<{ canvas: HTMLCanvasElement; width: number } | null>(null);
   const playAreaRef = useRef<HTMLDivElement | null>(null);
   const shownRef = useRef<Shown>(EMPTY_SHOWN);
+  /** The rules' state the screen shows now (a ball's flight behind the rules): what Skip cuts short. */
+  const shownMachine = useRef<Machine | null>(null);
   const live = useRef({ t, player, calm });
   useEffect(() => {
     live.current = { t, player, calm };
@@ -293,6 +295,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const m = session.current?.machine;
     const next = m ? shownOf(m, facesRef.current, wonRef.current) : EMPTY_SHOWN;
     shownRef.current = next;
+    shownMachine.current = m ?? null;
     setShown(next);
     setCanSkip(m ? skippable(m) : false);
     showTray();
@@ -391,6 +394,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       wonRef.current = won;
       const next = shownOf(d.machine, facesRef.current, won);
       shownRef.current = next;
+      shownMachine.current = d.machine;
       setShown(next);
       setCanSkip(skippable(d.machine));
       showTray();
@@ -554,6 +558,16 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const tab = table.current;
     const s = session.current;
     if (!tab || !s) return;
+    const onScreen = shownMachine.current;
+    if (!onScreen || !skippable(onScreen)) return;
+    // What Skip cuts short is what the screen shows, a ball's flight behind the rules. Where the rules have already
+    // gone past it (the reach shown has stopped, the fanfare shown is over), the screen is brought up to them and
+    // nothing more is cut: a hit's fanfare is not cut short by a press on the reach before it.
+    if (!sameSkip(onScreen, s.machine)) {
+      for (const d of due.current) showDue(d);
+      due.current = [];
+      return;
+    }
     const done = tab.skip(s);
     if (!done) return;
     session.current = done.record;

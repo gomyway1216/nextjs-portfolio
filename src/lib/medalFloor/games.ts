@@ -50,6 +50,7 @@ export const FLOOR_GAMES = [
   'sugoroku',
   'coin-maze',
   'keno',
+  'smart-ball',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -235,6 +236,19 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   // Named: every spot caught on a ticket of five spots or more, its whole win on any bet, the last ball's ×5 or not.
   keno: rule(100_000, 6_000, 500, 10, 0.9, {
     'keno-all': { amounts: times(times([250, 400, 800, 1_000, 1_500, 2_000], [1, 5]), [1, 2, 3, 5, 10]), feed: true },
+  }),
+  // Hot Spring Smart Ball: a play takes 5 medals for 10 marbles; when the tenth has been shot, the lines of four lit holes
+  // pay, one line 7, two 20, three 100 (ten marbles light ten holes at most, and four lines need eleven: 100 is the
+  // most). A play takes some 5 seconds at the very quickest (START, ten shots each let go at the first strength, with
+  // less motion asked for, and the last one skipped): 12 a minute at 100 at most, 1,200. Taken: one play, 5.
+  // Best return: 19,416,340,307,406,796,973/20,776,019,874,734,407,680 (93.46%), perfect play (the best strength for
+  // every marble for the board as it stands: dynamic programming over every set of lit holes and marbles left, exact);
+  // an everyday hand brings back 77.80%, blind shots 32.62%. Rounded up.
+  // Named: three lines, shown to the floor; two lines; one line.
+  'smart-ball': rule(100, 1_200, 100, 5, 0.9346, {
+    'smart-triple': { amounts: [100], feed: true },
+    'smart-double': { amounts: [20], feed: false },
+    'smart-line': { amounts: [7], feed: false },
   }),
 };
 

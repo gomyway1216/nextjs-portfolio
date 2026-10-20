@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -417,6 +417,38 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     ping(t, 0.06, pitch('G6'), 0.22, 0.08);
     return t;
   },
+  // The smart ball's plunger taken hold of and drawn back: the coil stretching with a rising squeak, and the rod's knock.
+  plunger: (rate) => {
+    const t = take(0.3, rate);
+    knock(t, 0.002, 900, 0.35, 0.006);
+    bubble(t, 0.01, 260, 470, 0.22, 0.22);
+    hiss(t, 0.01, 0.2, 0.25, 2600, 281, true);
+    return t;
+  },
+  // A glass marble on a brass pin: a bright, glassy tick, higher than a medal's.
+  marble: (rate) => {
+    const t = take(0.12, rate);
+    ping(t, 0.001, 4300, 0.45, 0.014);
+    ping(t, 0.001, 6200, 0.25, 0.009);
+    hiss(t, 0.001, 0.01, 0.3, 6400, 291);
+    return t;
+  },
+  // A marble rattling over one already sitting in a hole: glass on glass, twice.
+  rattle: (rate) => {
+    const t = take(0.2, rate);
+    clink(t, 0.002, 0.55, 301);
+    ping(t, 0.003, 5200, 0.3, 0.012);
+    clink(t, 0.06, 0.35, 302);
+    return t;
+  },
+  // A glass marble dropping into a wooden hole: the hollow knock of the hole, the marble running round its rim, settling.
+  hole: (rate) => {
+    const t = take(0.5, rate);
+    knock(t, 0.002, 260, 0.85, 0.035);
+    for (let i = 0; i < 5; i++) ping(t, 0.04 + i * 0.06, 3900 - i * 180, 0.22 * (1 - i * 0.16), 0.01);
+    clink(t, 0.34, 0.25, 311);
+    return t;
+  },
 };
 
 /** A spring let go: a tone bent down from a wobble, dying away. */
@@ -465,7 +497,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7 };
 
 export interface Speaker {
   on: () => boolean;

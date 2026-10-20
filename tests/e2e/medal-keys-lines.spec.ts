@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 import { arrived } from './streamedPage';
 
-// The card tables', craps', video poker's, the horse race's, the big wheel's, Calico Janken's, the High & Low Ladder's, Sic Bo's, Whale Isle Sugoroku's, the Candy Shop Medal Maze's and Video Keno's line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it
+// The card tables', craps', video poker's, the horse race's, the big wheel's, Calico Janken's, the High & Low Ladder's, Sic Bo's, Whale Isle Sugoroku's, the Candy Shop Medal Maze's, Video Keno's and Hot Spring Smart Ball's line of keys (MedalCenter/KeysHint.tsx): however narrow its column, it
 // wraps between its parts and never inside one, so a key is never left at the end of a line with what it does on the
 // next ("R で" / 「同じベット」), and no part is wider than the column, which would stick out of the cabinet and push the
 // page sideways (Sugoroku's 「キー：Space か Enter でサイコロ（演出中はスキップ）・」 in a 320 px window). On a touch screen, which
@@ -22,6 +22,7 @@ const TABLES = [
   ['sugoroku', 'sg-keys'],
   ['coin-maze', 'cm-keys'],
   ['keno', 'kn-keys'],
+  ['smart-ball', 'smb-keys'],
 ] as const;
 
 /** How far the keys line's widest part sticks out of its column, in px: 0 or less when every part fits. */

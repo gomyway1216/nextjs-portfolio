@@ -53,6 +53,8 @@ import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } fro
 import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUGOROKU_SQUARES, analyzeBoard, labelOf as sugorokuLabel, medalsFor as sugorokuMedals, outcomesFrom as sugorokuOutcomes, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
 import { MOST_WIN as MAZE_MOST, PAYS as MAZE_PAYS, STAGES as MAZE_GATES, STAKE as MAZE_STAKE, analyze as mazeOdds, drawPlay as mazeDraw, labelOf as mazeLabel, playOf as mazePlay, seeded as mazeSeeded, valueOf as mazeValue } from '@/components/game/CoinMaze/engine';
 import { ALL_CAUGHT_FROM as KENO_ALL_FROM, BETS as KENO_BETS, BET_MOST as KENO_BET_MOST, LAST_BALL_TIMES as KENO_TIMES, MOST_WIN as KENO_MOST, PAYS as KENO_PAYS, SPOT_COUNTS as KENO_SPOTS, analyze as kenoOdds, drawBalls as kenoDraw, labelOf as kenoLabel, quickPick as kenoPick, seeded as kenoSeeded, valueOf as kenoValue, winOf as kenoWin } from '@/components/game/Keno/engine';
+import { MARBLES as SMART_MARBLES, MOST_WIN as SMART_MOST, PAYS as SMART_PAYS, STAKE as SMART_STAKE, drawPlay as smartDraw, labelOf as smartLabel, playOf as smartPlay, seeded as smartSeeded, valueOf as smartValue } from '@/components/game/SmartBall/engine';
+import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -162,6 +164,9 @@ describe('the most each machine can take from the player at once, for the medals
     // Video Keno: one game at its biggest bet.
     expect(FLOOR_RULES.keno.stakeMost).toBe(KENO_BET_MOST);
     expect(KENO_BET_MOST).toBe(Math.max(...KENO_BETS));
+    // Hot Spring Smart Ball: five medals a play, for its ten marbles.
+    expect(FLOOR_RULES['smart-ball'].stakeMost).toBe(SMART_STAKE);
+    expect(SMART_STAKE).toBe(5);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -219,6 +224,9 @@ describe('which machines are linked to the floor jackpot', () => {
       // The best ticket (one spot: 9/10 exactly), the hypergeometric chances of every catch and the last ball's ×5:
       // the player chooses the ticket, so the floor is told the best of the ten.
       keno: kenoValue(kenoOdds().best),
+      // Perfect play: the best strength for every marble for the board as it stands (dynamic programming over every set
+      // of lit holes and marbles left, exact): no way of pulling the plunger brings back more.
+      'smart-ball': smartValue(PUBLISHED_SMART_BALL_ODDS.perfect.back),
     };
   };
 
@@ -234,7 +242,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -499,6 +507,28 @@ describe('the most each machine can pay, from its own tables', () => {
     }
   });
 
+  it('Hot Spring Smart Ball: one, two and three lines, the most three, and perfect play as the best return', () => {
+    expect(FLOOR_RULES['smart-ball'].most).toBe(SMART_MOST);
+    expect(FLOOR_RULES['smart-ball'].most).toBe(100);
+    expect(FLOOR_RULES['smart-ball'].labels['smart-triple']).toEqual({ amounts: [SMART_PAYS[3]], feed: true });
+    expect(FLOOR_RULES['smart-ball'].labels['smart-double']).toEqual({ amounts: [SMART_PAYS[2]], feed: false });
+    expect(FLOOR_RULES['smart-ball'].labels['smart-line']).toEqual({ amounts: [SMART_PAYS[1]], feed: false });
+    // Every named win a play can make is one the floor believes, whatever strengths the marbles are shot at.
+    const random = smartSeeded(3);
+    for (let n = 0; n < 2_000; n++) {
+      const play = smartPlay(smartDraw(random), Array.from({ length: SMART_MARBLES }, (_, m) => (m + n) % 7));
+      const label = smartLabel(play);
+      if (label) expect(labelPays('smart-ball', label, play.won)).toBe(true);
+      expect(play.won).toBeLessThanOrEqual(FLOOR_RULES['smart-ball'].most);
+    }
+    // The rule is perfect play, 93.4555...%, rounded up; an everyday hand and blind shots bring back less.
+    const odds = PUBLISHED_SMART_BALL_ODDS;
+    expect(`${odds.perfect.back.num}/${odds.perfect.back.den}`).toBe('19416340307406796973/20776019874734407680');
+    expect(FLOOR_RULES['smart-ball'].bestReturn).toBe(0.9346);
+    expect(smartValue(odds.typical.back)).toBeLessThan(FLOOR_RULES['smart-ball'].bestReturn);
+    expect(smartValue(odds.blind.back)).toBeLessThan(smartValue(odds.typical.back));
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -551,6 +581,11 @@ describe('named wins and the feed', () => {
     expect(labelPays('keno', 'keno-all', 250)).toBe(true);
     expect(labelPays('keno', 'keno-all', 100_000)).toBe(true);
     expect(labelPays('keno', 'keno-all', 251)).toBe(false);
+    expect(labelPays('smart-ball', 'smart-triple', 100)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-double', 20)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-line', 7)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-line', 20)).toBe(false);
+    expect(labelPays('smart-ball', 'smart-triple', 7)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -584,5 +619,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('keno', 250, 'keno-all')).toBe(true);
     expect(feedWorthy('keno', 400)).toBe(false);
     expect(feedWorthy('keno', 590)).toBe(true);
+    expect(feedWorthy('smart-ball', 100, 'smart-triple')).toBe(true);
+    expect(feedWorthy('smart-ball', 20, 'smart-double')).toBe(false);
+    expect(feedWorthy('smart-ball', 7, 'smart-line')).toBe(false);
   });
 });

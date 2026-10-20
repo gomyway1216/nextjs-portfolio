@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 import { getFloorStrings } from '../../src/components/game/MedalCenter/floor/strings';
 import { MEDAL_CENTER_PATH, MY_PAGE_PATH } from '../../src/components/game/MedalCenter/paths';

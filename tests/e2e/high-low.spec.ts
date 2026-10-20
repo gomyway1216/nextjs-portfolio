@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './fixtures';
 
 import { DECK, TOP, payFor, type Card } from '../../src/components/game/HighLow/engine';
 import { ROUND_KEY, parseRound } from '../../src/components/game/HighLow/medalTable';
@@ -7,17 +7,15 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // The High & Low Ladder plays with the medal center's medals. Every card is drawn from a fresh 52-card deck with one
 // number from Math.random, in the press that turns it (START for the first card, HIGH or LOW for each next one), so a
 // test that needs a card queues its number for that press (rigPresses.ts). The floor's API answers at once
-// (quietFloor.ts); nothing reaches a real server.
+// (fixtures.ts); nothing reaches a real server.
 
 test.beforeEach(async ({ context }) => {
-  await quietFloor(context);
   // One button after another on a page taller than the window: the page scrolls at once, so no press lands elsewhere.
   await instantScroll(context);
 });
@@ -216,7 +214,6 @@ test('the keys play it, S skips a card turning, and twelve right guesses reach t
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });
-  await quietFloor(context);
   await instantScroll(context);
   const page = await context.newPage();
   await openLadder(page, language);

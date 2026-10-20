@@ -34,6 +34,7 @@
  */
 
 import { randomBytes, randomInt } from 'node:crypto';
+import { requireAdminCredentials } from '@/lib/adminCredentials';
 import { getFirestore, getRealtimeDatabase } from '@/lib/firebase-admin';
 import { drawName, drawUniform } from './draw';
 import { FLOOR_GAMES, feedWorthy, isFloorGame, type FloorGame } from './games';
@@ -427,10 +428,12 @@ async function readOwnedJackpot(now: number): Promise<NonNullable<FloorSummary['
 
 /** What the floor shows: the moments on show and today's and this week's boards. The owner also sees hidden lines, marked, and the floor jackpot's wins. */
 export async function readFloor(view: FloorView, now: number, admin = false): Promise<FloorSummary> {
-  // Firestore first, and once: where it is not set up, that fails here, once, and not in every query. The boards before
-  // the moments: where the store cannot be reached at all (no credentials), the read fails on them, and the Realtime
+  // Firestore first, and once: where it is not set up, that fails here, once, and not in every query; where the server
+  // has no credentials at all, that is known at once (adminCredentials.ts), not after the read's own retries. The
+  // boards before the moments: where the store cannot be reached at all, the read fails on them, and the Realtime
   // Database, whose client keeps dialling once it has been asked, is never asked.
   getFirestore();
+  await requireAdminCredentials();
   const [day, week] = await within(Promise.all([readBoards(periodAt('day', now), view, admin), readBoards(periodAt('week', now), view, admin)]), READ_TIMEOUT_MS, 'reading the boards');
   const feed = await within(readFeed(), READ_TIMEOUT_MS, 'reading the moments on show');
   const summary: FloorSummary = { now, available: true, feed: view === 'hub' ? feed.slice(0, 12) : feed, day, week };
@@ -689,6 +692,7 @@ export async function reportToFloor(uid: string, report: FloorReport, now: numbe
 /** The floor jackpot as everybody is shown it. */
 export async function readJackpot(now: number): Promise<FloorJackpotView> {
   getFirestore();
+  await requireAdminCredentials();
   const snapshot = await within(poolRef().get(), READ_TIMEOUT_MS, 'reading the floor jackpot');
   return poolView(readPool(snapshot.exists ? snapshot.data() : undefined, now), now);
 }

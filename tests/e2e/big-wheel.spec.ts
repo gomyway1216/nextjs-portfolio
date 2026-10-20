@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { LAMPS, LAMP_COUNT, NUMBER_SEGMENTS, NUMBER_SEGMENT_COUNT, SEGMENT_COUNT, WHEEL, type Spot } from '../../src/components/game/BigWheel/engine';
 import { SPIN_KEY, parseSpinRecord } from '../../src/components/game/BigWheel/medalTable';

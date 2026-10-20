@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 import { betOdds, exactOdds } from '../../src/components/game/Baccarat/analysis';
 import { RANKS, fullShoeCounts, type Rank } from '../../src/components/game/Baccarat/engine';

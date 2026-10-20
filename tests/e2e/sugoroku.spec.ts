@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './fixtures';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
@@ -7,17 +7,15 @@ import { BOARD_KEY, parseBoard } from '../../src/components/game/Sugoroku/medalT
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Whale Isle Sugoroku plays with the medal center's medals and keeps its board. A roll is drawn from six numbers of
 // Math.random in the press of ROLL (the die, the whale's three rolls, the lamp, the JP final), so a test that needs a
-// roll queues the numbers that draw it (rigPresses.ts). The floor's API answers at once (quietFloor.ts); nothing
+// roll queues the numbers that draw it (rigPresses.ts). The floor's API answers at once (fixtures.ts); nothing
 // reaches a real server.
 
 test.beforeEach(async ({ context }) => {
-  await quietFloor(context);
   // One button after another on a page taller than the window: the page scrolls at once, so no press lands elsewhere.
   await instantScroll(context);
 });
@@ -231,7 +229,6 @@ test('a bet the medals cannot cover says why ROLL is off, and so does a last med
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });
-  await quietFloor(context);
   await instantScroll(context);
   const page = await context.newPage();
   await openBoard(page, language);

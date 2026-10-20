@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from './fixtures';
 
 import { numbersFor } from '../../src/components/game/Keno/engine';
 import { GAME_KEY, TICKET_KEY, parseGame } from '../../src/components/game/Keno/medalTable';
@@ -7,17 +7,15 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
 import { pressUntil } from './pressUntil';
-import { quietFloor } from './quietFloor';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Video Keno plays with the medal center's medals. A game's twenty balls are drawn from twenty numbers of Math.random in
 // the press of DRAW (engine.ts `drawBalls`), and a quick pick's spots the same way in its press, so a test queues the
-// numbers that draw the balls or the spots it needs (rigPresses.ts). The floor's API answers at once (quietFloor.ts);
+// numbers that draw the balls or the spots it needs (rigPresses.ts). The floor's API answers at once (fixtures.ts);
 // nothing reaches a real server.
 
 test.beforeEach(async ({ context }) => {
-  await quietFloor(context);
   // One button after another on a page taller than the window: the page scrolls at once, so no press lands elsewhere.
   await instantScroll(context);
 });
@@ -217,7 +215,6 @@ test('on a desk the keys play it: B changes the bet, Q quick picks, Space draws 
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });
-  await quietFloor(context);
   await instantScroll(context);
   const page = await context.newPage();
   await openKeno(page, language);

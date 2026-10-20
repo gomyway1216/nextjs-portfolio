@@ -11,12 +11,18 @@ import { FakeFirestore, FakeRtdb, fakeAuth, type FakeToken } from './fakeFirebas
 // what feeds the pool, the draw (with the server's random number put in by the test), a win kept until the player's
 // browser says it is paid, two winners at once, and the owner's void. Nothing reaches a real server or account.
 
-const fakes = vi.hoisted(() => ({ db: null as unknown, rtdb: null as unknown, auth: null as unknown, draws: [] as number[], names: [] as string[] }));
+const fakes = vi.hoisted(() => ({ noCredentials: null as Error | null, db: null as unknown, rtdb: null as unknown, auth: null as unknown, draws: [] as number[], names: [] as string[] }));
 
 vi.mock('@/lib/firebase-admin', () => ({
   getFirestore: () => fakes.db,
   getRealtimeDatabase: () => fakes.rtdb,
   getAuth: () => fakes.auth,
+}));
+// Whether the server has credentials (adminCredentials.ts): yes, unless a test says it has none.
+vi.mock('@/lib/adminCredentials', () => ({
+  requireAdminCredentials: async () => {
+    if (fakes.noCredentials) throw fakes.noCredentials;
+  },
 }));
 vi.mock('@/app/api/_lib/withActivityLog', () => ({
   withActivityLog: (_action: string, handler: unknown) => handler,
@@ -91,6 +97,7 @@ const live = () => rtdb().at('medalFloor/jackpot') as { amount: number; seq: num
 
 beforeEach(() => {
   vi.resetModules();
+  fakes.noCredentials = null;
   fakes.db = new FakeFirestore();
   fakes.rtdb = new FakeRtdb();
   fakes.auth = fakeAuth();
@@ -425,5 +432,14 @@ describe('a store that is not set up', () => {
     expect(db().reads).toBe(reads);
     vi.setSystemTime(NOON + 30_000);
     expect(((await (await GET(request('/jackpot'), undefined as never))!.json()) as FloorJackpotView).available).toBe(true);
+  });
+
+  it('where the server has no credentials at all (CI): shows no pool at once, reads nothing, and says nothing in the log', async () => {
+    fakes.noCredentials = new Error('Could not load the default credentials. Browse to https://cloud.google.com/docs/authentication/getting-started for more information.');
+    const { status, body } = await jackpot();
+    expect(status).toBe(200);
+    expect(body.available).toBe(false);
+    expect(db().reads).toBe(0);
+    expect(console.error).not.toHaveBeenCalled();
   });
 });

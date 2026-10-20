@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 import { handTotal, type Rank, type Suit } from '../../src/components/game/Baccarat/engine';
 import { TABLE_KEY, medalsBack, parseTable } from '../../src/components/game/Baccarat/medals';

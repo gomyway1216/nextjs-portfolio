@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { WHEEL_GEOMETRY, pocketCenterDeg } from '../../src/components/game/Roulette/ballPhysics';

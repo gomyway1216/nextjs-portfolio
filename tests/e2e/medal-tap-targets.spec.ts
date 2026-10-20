@@ -21,7 +21,7 @@ import { arrived } from './streamedPage';
 //   cell is keyboard-reachable.
 //
 // The machines' first tabs are measured at both widths; every other tab (the odds, the simulations, the house edge) at
-// 375 px.
+// 375 px, on the same load of the page as its first tab.
 
 const MIN = 44;
 /** A pixel short is layout rounding (fonts differ by fractions between systems), not a small control. */
@@ -88,8 +88,11 @@ async function smallTargets(page: Page): Promise<string[]> {
 
 for (const width of [375, 320] as const) {
   for (const path of PAGES) {
-    test(`${path} at ${width} px: every control is at least ${MIN} px to hit`, async ({ browser }) => {
-      test.setTimeout(60_000);
+    // A machine at 375 px has its other tabs measured on the same load (one load of the page, not two).
+    const game = FLOOR_GAMES.find((g) => path === `/games/${g}`);
+    const otherTabs = width === 375 && game !== undefined;
+    test(`${path} at ${width} px: every control${otherTabs ? ', on every tab,' : ''} is at least ${MIN} px to hit`, async ({ browser }) => {
+      test.setTimeout(otherTabs ? 90_000 : 60_000);
       const context = await browser.newContext({ viewport: { width, height: 740 }, isMobile: true, hasTouch: true });
       await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
       const page = await context.newPage();
@@ -99,32 +102,21 @@ for (const width of [375, 320] as const) {
       await arrived(page);
       await expect(page.locator('[data-loaded="false"]')).toHaveCount(0, { timeout: 20_000 });
       expect(await smallTargets(page), `${path} at ${width} px`).toEqual([]);
+      if (otherTabs) {
+        // Back to the top, where a player who has just opened the page starts.
+        await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+        const tabs = page.locator('main [role="tablist"]').first().getByRole('tab');
+        await expect(tabs.nth(1), `${game} has a second tab`).toBeVisible();
+        const count = await tabs.count();
+        for (let i = 1; i < count; i++) {
+          const tab = tabs.nth(i);
+          const name = ((await tab.textContent()) ?? '').trim();
+          await tab.click();
+          await expect(tab).toHaveAttribute('aria-selected', 'true');
+          expect(await smallTargets(page), `/games/${game}, the ${name} tab, at 375 px`).toEqual([]);
+        }
+      }
       await context.close();
     });
   }
-}
-
-for (const game of FLOOR_GAMES) {
-  test(`/games/${game}'s other tabs at 375 px: every control is at least ${MIN} px to hit`, async ({ browser }) => {
-    test.setTimeout(60_000);
-    const context = await browser.newContext({ viewport: { width: 375, height: 740 }, isMobile: true, hasTouch: true });
-    await context.addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
-    const page = await context.newPage();
-    const floor = await holdFloor(page);
-    floor.release();
-    expect((await page.goto(`/games/${game}`))?.status()).toBe(200);
-    await arrived(page);
-    await expect(page.locator('[data-loaded="false"]')).toHaveCount(0, { timeout: 20_000 });
-    const tabs = page.locator('main [role="tablist"]').first().getByRole('tab');
-    await expect(tabs.nth(1), `${game} has a second tab`).toBeVisible();
-    const count = await tabs.count();
-    for (let i = 1; i < count; i++) {
-      const tab = tabs.nth(i);
-      const name = ((await tab.textContent()) ?? '').trim();
-      await tab.click();
-      await expect(tab).toHaveAttribute('aria-selected', 'true');
-      expect(await smallTargets(page), `/games/${game}, the ${name} tab, at 375 px`).toEqual([]);
-    }
-    await context.close();
-  });
 }

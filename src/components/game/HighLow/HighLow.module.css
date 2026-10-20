@@ -364,15 +364,30 @@
   animation: hl-attract 2.4s linear infinite;
   animation-delay: calc(var(--i) * 0.2s);
 }
+/*
+ * The lit rung's dark print runs on its two words alone, in step with the rung. Run on the rung, the colour would be
+ * inherited by everything in it and worked out afresh for all of it on every frame: a phone left on the machine spent
+ * 44% of its main thread on the lights, and 22% with the print here (what is seen is the same).
+ */
+.ladder[data-attract='true'] .rungNo,
+.ladder[data-attract='true'] .rungPays {
+  animation: hl-attract-print 2.4s linear infinite;
+  animation-delay: calc(var(--i) * 0.2s);
+}
 @keyframes hl-attract {
   0%,
   12% {
-    color: #2a1600;
     background: #f2c14e;
   }
   20%,
   100% {
     background: rgba(255, 255, 255, 0.02);
+  }
+}
+@keyframes hl-attract-print {
+  0%,
+  12% {
+    color: #2a1600;
   }
 }
 
@@ -1263,6 +1278,8 @@
   .flipper,
   .shadow,
   .rung,
+  .rungNo,
+  .rungPays,
   .marquee::before,
   .banner {
     animation: none !important;

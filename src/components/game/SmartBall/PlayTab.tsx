@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, createRef, useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment, createRef, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
@@ -761,7 +761,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   // ── What is on the screen ──
   const odds = publishedOdds();
   const running = phase !== 'idle';
-  const shownLines = linesOf(shownLit);
+  // The same list while the same holes are lit: the board is drawn again only when what it lights changes.
+  const shownLines = useMemo(() => linesOf(shownLit), [shownLit]);
   const statusText = (() => {
     if (running) {
       if (phase === 'load' && marble === 0) return t.status.loading;

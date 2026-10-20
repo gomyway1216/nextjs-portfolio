@@ -115,7 +115,7 @@ const en = {
   sayOut: 'OUT.',
   historyTitle: 'Last plays',
   historyEmpty: 'No plays yet.',
-  historyEntry: (play: Play) => (play.lines.length > 0 ? `${play.lines.length}L +${play.won}` : enHoles(play.marbles.filter((m) => m.hole !== null).length)),
+  historyEntry: (play: Play) => (play.lines.length > 0 ? `${enLines(play.lines.length)} +${play.won}` : enHoles(play.marbles.filter((m) => m.hole !== null).length)),
   historyEntryLabel: (play: Play) => (play.lines.length > 0 ? `${enLines(play.lines.length)}, ${enMedals(play.won)}` : `${enHoles(play.marbles.filter((m) => m.hole !== null).length)} lit, no line`),
   sessionTitle: 'This visit',
   plays: 'Plays',

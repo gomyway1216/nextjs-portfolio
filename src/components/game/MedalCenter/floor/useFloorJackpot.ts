@@ -29,6 +29,11 @@ import { fetchJackpot } from './api';
 export const JACKPOT_POLL_MS = 30_000;
 /** While it is, the route is still asked this often, in case the mirror has fallen behind. */
 export const JACKPOT_RECHECK_MS = 120_000;
+/**
+ * The server's clock is taken to have moved against this device's only when it has by this much: each answer measures
+ * it a few ms differently, and "2 min ago" does not change with that. (The floor's moments go by the same.)
+ */
+export const SKEW_SLACK_MS = 1_000;
 
 export interface FloorJackpotState {
   /** The medals in the pool, or null until it is known. */
@@ -95,6 +100,22 @@ export function nextJackpot(state: FloorJackpotState, heard: JackpotHeard): Floo
   }
 }
 
+/**
+ * Whether two states of the pool show the same: the same pool, its last wins and where they came from, and the server's
+ * clock within `SKEW_SLACK_MS` of where it was (each answer measures it a few ms differently).
+ */
+export function sameJackpot(a: FloorJackpotState, b: FloorJackpotState): boolean {
+  return (
+    a.amount === b.amount &&
+    a.seq === b.seq &&
+    a.v === b.v &&
+    a.live === b.live &&
+    a.unavailable === b.unavailable &&
+    Math.abs(a.skew - b.skew) < SKEW_SLACK_MS &&
+    (a.wins === b.wins || JSON.stringify(a.wins) === JSON.stringify(b.wins))
+  );
+}
+
 /** Listens to the pool live. Resolves to a way to stop; calls `lost` when the database refuses or drops the listener. */
 async function listenToJackpot(heard: (value: unknown) => void, lost: () => void): Promise<() => void> {
   try {
@@ -119,7 +140,15 @@ export function useFloorJackpot(): FloorJackpotState {
     stateRef.current = state;
   });
   const askedAt = useRef(0);
-  const hear = useCallback((heard: JackpotHeard) => setState((was) => nextJackpot(was, heard)), []);
+  /** The pool as last told to the page: everything the page hears comes through `hear`, which works from this. */
+  const told = useRef<FloorJackpotState>(JACKPOT_START);
+  const hear = useCallback((heard: JackpotHeard) => {
+    const next = nextJackpot(told.current, heard);
+    // Heard again as it was: the panel is not drawn again for it.
+    if (sameJackpot(told.current, next)) return;
+    told.current = next;
+    setState(next);
+  }, []);
 
   const ask = useCallback(() => {
     askedAt.current = Date.now();

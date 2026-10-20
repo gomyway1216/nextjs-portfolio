@@ -661,8 +661,9 @@ describe('the styles', () => {
 
   it('keep everything that moves still for a player who asks for less motion', () => {
     const calm = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-    const moving = [...css.matchAll(/^(\.[a-zA-Z]+(?:\[[^\]]+\])?) \{[^}]*animation: mp-/gm)].map((match) => match[1]);
-    expect(moving.sort()).toEqual([".pip[data-today='true']", ".square[data-today='true']", ".stamp[data-fresh='true']", '.toast']);
+    const moving = [...css.matchAll(/^(\.[a-zA-Z]+(?:\[[^\]]+\])?(?:::[a-z]+)?) \{[^}]*animation: mp-/gm)].map((match) => match[1]);
+    // Today's lamp breathes by the opacity of its two glows, not by its own shadow.
+    expect(moving.sort()).toEqual([".pip[data-today='true']::after", ".pip[data-today='true']::before", ".square[data-today='true']", ".stamp[data-fresh='true']", '.toast']);
     for (const selector of moving) expect(calm, selector).toContain(selector);
     expect(calm).toMatch(/animation: none/);
   });

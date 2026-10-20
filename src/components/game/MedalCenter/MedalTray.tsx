@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import styles from './MachineFloor.module.css';
 
 /**
@@ -46,7 +47,8 @@ const Medal = ({ x, y, tilt }: { x: number; y: number; tilt: number }) => (
   </g>
 );
 
-export function MedalTray() {
+/** A drawing that never changes: drawn once, however often the cabinet round it is. */
+export const MedalTray = memo(function MedalTray() {
   return (
     <div className={styles.tray} aria-hidden="true" data-testid="center-tray">
       <svg viewBox="0 0 480 200" preserveAspectRatio="xMidYMax slice" focusable="false">
@@ -90,4 +92,4 @@ export function MedalTray() {
       </svg>
     </div>
   );
-}
+});

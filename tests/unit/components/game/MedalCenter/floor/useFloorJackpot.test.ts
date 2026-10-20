@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { JACKPOT_START, nextJackpot, type FloorJackpotState, type JackpotHeard } from '@/components/game/MedalCenter/floor/useFloorJackpot';
+import { JACKPOT_START, SKEW_SLACK_MS, nextJackpot, sameJackpot, type FloorJackpotState, type JackpotHeard } from '@/components/game/MedalCenter/floor/useFloorJackpot';
 import type { FloorJackpotView, JackpotWinShown } from '@/lib/medalFloor/jackpot';
 
 // What a page shows of the floor jackpot as it hears of it from the route and from the live mirror, in any order: the
@@ -81,5 +81,20 @@ describe('the floor jackpot on a page', () => {
 
   it('works the server’s clock out from the route’s answer', () => {
     expect(hear(route(1_000, 0)).skew).toBe(250);
+  });
+
+  it('is kept as it is when it is heard again as it was, so that the panel is not drawn again for nothing', () => {
+    const last = win('1234', 900, NOW - 60_000);
+    const shown = hear(route(1_000, 3, [last]));
+    // The same pool from the route a poll later, its clock measured a few ms differently: nothing to draw.
+    const again = nextJackpot(shown, { ...route(1_000, 3, [last]), at: NOW - 240 } as JackpotHeard);
+    expect(again).not.toBe(shown);
+    expect(sameJackpot(shown, again)).toBe(true);
+    expect(sameJackpot(shown, nextJackpot(shown, { kind: 'failed' }))).toBe(true);
+    // Anything a player can see is a change: the pool, a new win, the mirror going live, the server's clock moving.
+    expect(sameJackpot(shown, nextJackpot(shown, route(1_001, 4, [last])))).toBe(false);
+    expect(sameJackpot(shown, nextJackpot(shown, route(1_000, 3, [win('5678', 4_000, NOW), last])))).toBe(false);
+    expect(sameJackpot(shown, nextJackpot(shown, mirror(1_000, 3)))).toBe(false);
+    expect(sameJackpot(shown, { ...shown, skew: shown.skew + SKEW_SLACK_MS })).toBe(false);
   });
 });

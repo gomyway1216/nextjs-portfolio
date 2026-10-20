@@ -47,13 +47,30 @@ export function Counted({ say, count }: { say: (count: string) => string; count:
   );
 }
 
+/**
+ * Every clock on the page ticks on one timer: the board by the door and the floor jackpot over it move on to "3 min
+ * ago" together, and the page is drawn again once for both of them, not once for each.
+ */
+const ticking = new Set<() => void>();
+let ticker: number | null = null;
+const onTick = (heard: () => void): (() => void) => {
+  ticking.add(heard);
+  ticker ??= window.setInterval(() => {
+    for (const tick of [...ticking]) tick();
+  }, 30_000);
+  return () => {
+    ticking.delete(heard);
+    if (ticking.size === 0 && ticker !== null) {
+      window.clearInterval(ticker);
+      ticker = null;
+    }
+  };
+};
+
 /** The time now, by the server's clock (`skew` is the server's less this device's), ticking every half minute so that "2 min ago" stays true. */
 export function useServerNow(skew: number): number {
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  useEffect(() => onTick(() => setNow(Date.now())), []);
   return now + skew;
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -8,8 +8,9 @@ import { isFloorGame } from '@/lib/medalFloor/games';
 import { linked } from '@/lib/medalFloor/jackpot';
 import { getGameCoverPath } from '../constants/games';
 import type { GameLanguage } from '../constants/gameTranslations';
-import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, spansOf, zoneOf } from './floorPlan';
+import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, spansOf, zoneOf, type ZoneId } from './floorPlan';
 import { MedalTray } from './MedalTray';
+import { percentToTenth } from './numberFormat';
 import type { CenterStrings } from './strings';
 import styles from './MachineFloor.module.css';
 
@@ -26,18 +27,98 @@ interface MachineFloorProps {
 
 const isLinked = (id: string): boolean => isFloorGame(id) && linked(id);
 
+interface CabinetProps {
+  id: string;
+  path: string;
+  zone: ZoneId;
+  /** As tall as a squeezed corner beside it: the cabinet shows its tray of medals under the screen. */
+  tall: boolean;
+  /** Its name and its plate's line, in the page's language. */
+  name: string;
+  pitch: string;
+  language: GameLanguage;
+  t: CenterStrings;
+}
+
+/**
+ * One cabinet on the floor: its lit name, its screen with the stickers that matter, and its plate. Drawn again only
+ * when what it shows changes (the page's language), not whenever the page round it is drawn: the medals counter, the
+ * floor's board and its clock all change while the floor of machines stands as it is.
+ */
+const Cabinet = memo(function Cabinet({ id, path, zone, tall, name, pitch, language, t }: CabinetProps) {
+  const locale = language === 'ja' ? 'ja-JP' : 'en-US';
+  const percent = (value: number) => percentToTenth(value, locale);
+  const fresh = isNewMachine(id);
+  const jp = isLinked(id);
+  const back = plateReturn(id);
+  const wide = WIDE_ZONES.has(zoneOf(id));
+  return (
+    <li className={styles.tile} data-open="true" data-machine={id} data-zone={zone} data-wide={wide} data-new={fresh} data-linked={jp}>
+      {/* The lit name over the cabinet. Its link covers the whole cabinet. */}
+      <h4 className={styles.name}>
+        <Link href={path} className={styles.link} data-testid={`center-play-${id}`}>
+          {nameWords(id, name).map((word, i) => (
+            <Fragment key={i}>
+              {i > 0 && <wbr />}
+              {word}
+            </Fragment>
+          ))}
+        </Link>
+      </h4>
+      <div className={styles.screen}>
+        <Image src={getGameCoverPath(id)} alt="" fill sizes={wide ? '(min-width: 1040px) 300px, (min-width: 680px) 30vw, 92vw' : '(min-width: 1040px) 250px, (min-width: 680px) 24vw, (min-width: 480px) 31vw, 46vw'} />
+        {(fresh || jp) && (
+          <span className={styles.stickers}>
+            {fresh && (
+              <span className={styles.new} data-testid={`center-new-${id}`}>
+                <span aria-hidden>{t.newBadge}</span>
+                <span className={styles.srOnly}>{t.newSay}</span>
+              </span>
+            )}
+            {jp && (
+              <span className={styles.jp} data-testid={`center-jp-${id}`}>
+                <span aria-hidden>{t.jpBadge}</span>
+                <span className={styles.srOnly}>{t.jpSay}</span>
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+      {/* A cabinet as tall as the corner beside it: the lower body of a medal machine, its tray of medals. */}
+      {tall && <MedalTray />}
+      <div className={styles.plate}>
+        <p className={styles.pitch} data-testid={`center-pitch-${id}`}>
+          {pitch}
+        </p>
+        <p className={styles.foot}>
+          {back && (
+            <span className={styles.best} data-testid={`center-best-${id}`}>
+              {back.least === null ? t.bestReturn(percent(back.most)) : t.returnRange(percent(back.least), percent(back.most))}
+            </span>
+          )}
+          <span className={styles.playMark} aria-hidden>
+            ▶<span className={styles.playWord}> {t.play}</span>
+          </span>
+        </p>
+      </div>
+    </li>
+  );
+});
+
 /**
  * The floor of machines, laid out as a real medal floor is: corner by corner,
  * each under its hanging sign, each machine a small cabinet with its name lit
  * over its screen, the stickers that matter (NEW, linked to the floor jackpot)
  * on the glass, and on its plate a line of what it is and its best return.
  * The whole cabinet is the way in.
+ *
+ * It is drawn again only when what it is given changes: the medal center's
+ * front is drawn again as the medals and the floor change, and the floor of
+ * machines does not change with them.
  */
-export function MachineFloor({ machines, language, t }: MachineFloorProps) {
+export const MachineFloor = memo(function MachineFloor({ machines, language, t }: MachineFloorProps) {
   const { t: translate } = useTranslation();
-  const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const other: GameLanguage = language === 'ja' ? 'en' : 'ja';
-  const percent = (value: number) => `${value.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   const corners = cornersOf(machines);
   const spans = spansOf(corners);
   const anyNew = machines.some(({ id }) => isNewMachine(id));
@@ -81,64 +162,9 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
                 <span className={styles.signCount}>{t.machineCount(here.length)}</span>
               </div>
               <ul className={styles.tiles} aria-labelledby={titleId}>
-                {here.map(({ id, path }) => {
-                  const name = translate(`games.${id}.title`);
-                  const fresh = isNewMachine(id);
-                  const jp = isLinked(id);
-                  const back = plateReturn(id);
-                  const wide = WIDE_ZONES.has(zoneOf(id));
-                  return (
-                    <li key={id} className={styles.tile} data-open="true" data-machine={id} data-zone={zone} data-wide={wide} data-new={fresh} data-linked={jp}>
-                      {/* The lit name over the cabinet. Its link covers the whole cabinet. */}
-                      <h4 className={styles.name}>
-                        <Link href={path} className={styles.link} data-testid={`center-play-${id}`}>
-                          {nameWords(id, name).map((word, i) => (
-                            <Fragment key={i}>
-                              {i > 0 && <wbr />}
-                              {word}
-                            </Fragment>
-                          ))}
-                        </Link>
-                      </h4>
-                      <div className={styles.screen}>
-                        <Image src={getGameCoverPath(id)} alt="" fill sizes={wide ? '(min-width: 1040px) 300px, (min-width: 680px) 30vw, 92vw' : '(min-width: 1040px) 250px, (min-width: 680px) 24vw, (min-width: 480px) 31vw, 46vw'} />
-                        {(fresh || jp) && (
-                          <span className={styles.stickers}>
-                            {fresh && (
-                              <span className={styles.new} data-testid={`center-new-${id}`}>
-                                <span aria-hidden>{t.newBadge}</span>
-                                <span className={styles.srOnly}>{t.newSay}</span>
-                              </span>
-                            )}
-                            {jp && (
-                              <span className={styles.jp} data-testid={`center-jp-${id}`}>
-                                <span aria-hidden>{t.jpBadge}</span>
-                                <span className={styles.srOnly}>{t.jpSay}</span>
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      {/* A cabinet as tall as the corner beside it: the lower body of a medal machine, its tray of medals. */}
-                      {tall && <MedalTray />}
-                      <div className={styles.plate}>
-                        <p className={styles.pitch} data-testid={`center-pitch-${id}`}>
-                          {pitchOf(id, language) ?? translate(`games.${id}.description`)}
-                        </p>
-                        <p className={styles.foot}>
-                          {back && (
-                            <span className={styles.best} data-testid={`center-best-${id}`}>
-                              {back.least === null ? t.bestReturn(percent(back.most)) : t.returnRange(percent(back.least), percent(back.most))}
-                            </span>
-                          )}
-                          <span className={styles.playMark} aria-hidden>
-                            ▶<span className={styles.playWord}> {t.play}</span>
-                          </span>
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
+                {here.map(({ id, path }) => (
+                  <Cabinet key={id} id={id} path={path} zone={zone} tall={tall} name={translate(`games.${id}.title`)} pitch={pitchOf(id, language) ?? translate(`games.${id}.description`)} language={language} t={t} />
+                ))}
               </ul>
             </div>
           );
@@ -146,6 +172,6 @@ export function MachineFloor({ machines, language, t }: MachineFloorProps) {
       </div>
     </>
   );
-}
+});
 
 export default MachineFloor;

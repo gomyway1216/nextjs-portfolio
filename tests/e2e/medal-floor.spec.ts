@@ -148,6 +148,35 @@ test('a new big win comes onto the board by the door without reloading the page,
   expect(asked.length).toBeGreaterThan(before);
 });
 
+test('the floor’s news reaches only the board by the door: the machines and their plates are not drawn again', async ({ page }) => {
+  await page.clock.install();
+  let feed = FEED;
+  await fakeFloor(page, () => floor(feed));
+  await openCenter(page);
+  await expect(board(page).getByTestId('floor-moment')).toHaveCount(3);
+  // What React last gave an element is a new object whenever the component that draws it is drawn again.
+  const LOOKED_AT = ['[data-testid="center-machines"]', '[data-testid="center-best-roulette"]', '[data-testid="floor-feed"]'];
+  const drawn = (selectors: string[]) =>
+    page.evaluate((selectors) => {
+      const seen = window as unknown as { drawnBefore?: unknown[] };
+      const props = selectors.map((selector) => {
+        const element = document.querySelector(selector) as (Element & Record<string, unknown>) | null;
+        const key = element ? Object.keys(element).find((name) => name.startsWith('__reactProps$')) : undefined;
+        return element && key ? element[key] : null;
+      });
+      const before = seen.drawnBefore;
+      seen.drawnBefore = props;
+      return { found: props.map((value) => value !== null), same: before ? props.map((value, i) => value === before[i]) : null };
+    }, selectors);
+  expect((await drawn(LOOKED_AT)).found).toEqual([true, true, true]);
+  // A new big win, and the floor's clock ticking: both reach the board by the door.
+  feed = [moment(4, 'video-poker', 4_000, 'royal', 'Night Owl', 0), ...FEED];
+  await page.clock.fastForward(31_000);
+  await expect(board(page).getByTestId('floor-moment').first()).toContainText('Night Owl drew a royal flush: 4,000 medals');
+  // The board was drawn again; the floor of machines and its plates were not.
+  expect((await drawn(LOOKED_AT)).same).toEqual([true, true, false]);
+});
+
 test('reads in Japanese', async ({ page }) => {
   const ja = getFloorStrings('ja');
   let feed = FEED;

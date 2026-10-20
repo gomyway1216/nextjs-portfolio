@@ -17,12 +17,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FLOOR_FEED_PATH, feedFrom } from '@/lib/medalFloor/feed';
 import type { FloorFeedEntry, FloorSummary } from '@/lib/medalFloor/types';
 import { fetchFloor, fetchOwnerFloor } from './api';
+import { SKEW_SLACK_MS } from './useFloorJackpot';
 
 export const POLL_MS = 30_000;
 export const BOARDS_MS = 120_000;
 /** After a new moment, the boards are asked for this much later. */
 const AFTER_MOMENT_MS = 8_000;
-
 export interface FloorView {
   summary: FloorSummary | null;
   feed: FloorFeedEntry[];
@@ -69,6 +69,8 @@ export function useFloor(view: 'hub' | 'full', owner: (() => Promise<string>) | 
     ownerRef.current = owner;
   });
   const afterMoment = useRef<number | null>(null);
+  /** The route's last answer as it was shown, less its clock, and the server's clock as it gave it. */
+  const lastAnswer = useRef<{ said: string; skew: number } | null>(null);
   const asOwner = owner !== null;
 
   const refresh = useCallback(() => {
@@ -77,11 +79,19 @@ export function useFloor(view: 'hub' | 'full', owner: (() => Promise<string>) | 
     void (async () => {
       try {
         const next = asking ? await fetchOwnerFloor(await asking()) : await fetchFloor(view);
+        const said = JSON.stringify({ ...next, now: 0 });
+        const skewNow = next.now - Date.now();
+        // The same answer as last time, the server's clock within a second of where it was: nothing to draw again.
+        const last = lastAnswer.current;
+        if (last && last.said === said && Math.abs(last.skew - skewNow) < SKEW_SLACK_MS) return;
+        lastAnswer.current = { said, skew: skewNow };
         setSummary(next);
-        setSkew(next.now - Date.now());
+        setSkew(skewNow);
         setUnavailable(!next.available);
         if (!liveRef.current) setFeed(next.feed.slice(0, limit));
       } catch {
+        // The answer after a failure is shown, even if it is the one before it again.
+        lastAnswer.current = null;
         setUnavailable(true);
       }
     })();
@@ -120,6 +130,8 @@ export function useFloor(view: 'hub' | 'full', owner: (() => Promise<string>) | 
       },
       () => {
         liveRef.current = false;
+        // The route's next answer is shown in full, its moments too, in place of the last ones heard live.
+        lastAnswer.current = null;
         setLive(false);
       },
     ).then((unsubscribe) => {

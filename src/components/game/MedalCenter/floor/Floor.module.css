@@ -174,6 +174,10 @@
     opacity: 0.35;
   }
 }
+/* Off screen, the live lamp rests (offscreen.ts). */
+.now[data-away='true'] .liveBadge::before {
+  animation-play-state: paused;
+}
 .empty {
   margin: 0;
   color: var(--fl-ink-soft);

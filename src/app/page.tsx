@@ -1,6 +1,9 @@
 // Home is the only route that uses [data-aos] elements, so AOS init +
 // stylesheet live here instead of the root layout. Every other route
-// (games, blog, tools, …) skips the AOS payload entirely.
+// (games, blog, tools, …) skips the AOS payload entirely. The same goes for
+// the home sections' own stylesheet (.home-modern), imported first so it
+// keeps its place ahead of AOS's rules.
+import '@/assets/scss/main/_home-modern.scss';
 import 'aos/dist/aos.css';
 import { cookies, headers } from 'next/headers';
 import { unstable_cache } from 'next/cache';

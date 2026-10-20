@@ -1,5 +1,7 @@
 'use client';
 
+// The hobbies pages' stylesheet: imported here rather than by the root layout, so no other page downloads it.
+import '@/assets/scss/main/_hobbies.scss';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'next/navigation';

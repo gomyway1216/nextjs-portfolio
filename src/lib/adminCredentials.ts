@@ -16,10 +16,21 @@ import { applicationDefault } from 'firebase-admin/app';
  * Credentials found later (a developer logging in with gcloud while the server runs) are seen after a restart.
  */
 
-/** The lookup, started once. It settles with its error where there are no credentials of any kind, null otherwise. */
-let lookup: Promise<Error | null> | null = null;
-/** Set once the lookup has found no credentials of any kind. */
-let missing: Error | null = null;
+/**
+ * What the lookup has found, kept on `globalThis`: Next bundles this module more than once in one server (pages, API
+ * routes), and a copy of its own would look again, and hand out its first client before its own lookup had answered.
+ */
+type Found = {
+  /** The lookup, started once. It settles with its error where there are no credentials of any kind, null otherwise. */
+  lookup: Promise<Error | null> | null;
+  /** Set once the lookup has found no credentials of any kind. */
+  missing: Error | null;
+};
+
+/** Where the server keeps it; the tests clear it to start a new server. */
+export const FOUND_KEY = Symbol.for('meetyudai.adminCredentials');
+
+const found = ((globalThis as { [FOUND_KEY]?: Found })[FOUND_KEY] ??= { lookup: null, missing: null });
 
 /** Whether the server was given a service account of its own, as production is (see `getAdminSDK`). */
 export function hasServiceAccount(env: Readonly<Record<string, string | undefined>> = process.env): boolean {
@@ -44,14 +55,14 @@ async function lookUp(): Promise<Error | null> {
 
 /** The lookup, started the first time it is asked for; it never rejects. */
 function lookUpOnce(): Promise<Error | null> {
-  lookup ??= lookUp().then((found) => {
-    missing = found;
-    return found;
+  found.lookup ??= lookUp().then((error) => {
+    found.missing = error;
+    return error;
   });
-  return lookup;
+  return found.lookup;
 }
 
-const noCredentials = (found: Error) => new Error(found.message, { cause: found });
+const noCredentials = (error: Error) => new Error(error.message, { cause: error });
 
 /**
  * Settles at once where the server has credentials (or may have), and rejects at once, with the lookup's own error
@@ -59,8 +70,8 @@ const noCredentials = (found: Error) => new Error(found.message, { cause: found 
  * Await it before a read that would otherwise wait on the Firestore client's retries to find that out.
  */
 export async function requireAdminCredentials(): Promise<void> {
-  const found = await lookUpOnce();
-  if (found) throw noCredentials(found);
+  const error = await lookUpOnce();
+  if (error) throw noCredentials(error);
 }
 
 /**
@@ -70,5 +81,5 @@ export async function requireAdminCredentials(): Promise<void> {
  */
 export function throwIfWithoutCredentials(): void {
   void lookUpOnce();
-  if (missing) throw noCredentials(missing);
+  if (found.missing) throw noCredentials(found.missing);
 }

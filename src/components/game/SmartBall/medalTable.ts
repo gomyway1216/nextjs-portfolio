@@ -75,6 +75,12 @@ export interface PlayRecord {
   shots: number[];
   /** Whether it has been settled: played to its end, and what it pays in (or there was nothing). */
   paid: boolean;
+  /**
+   * How many of its marbles the player shot, where the page finished it with the rest shot blind (it was hidden, left
+   * or reloaded mid-play, or another tab took the medals): the shots after these are the blind ones. Left out of a play
+   * the player shot to its end. The page that shows the play later says so (PlayTab.tsx).
+   */
+  own?: number;
 }
 
 /** A play as the page that holds it knows it. */
@@ -141,7 +147,12 @@ export function parsePlay(text: unknown): PlayRecord | null {
   if (!isDraw(data.draw) || !Array.isArray(data.shots) || !shotsFit(data.shots) || typeof data.paid !== 'boolean') return null;
   const shots = [...(data.shots as number[])];
   if (data.paid && shots.length !== MARBLES) return null;
-  return { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, draw: copyDraw(data.draw), shots, paid: data.paid };
+  const draw = copyDraw(data.draw);
+  const record: PlayRecord = { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, draw, shots, paid: data.paid };
+  if (data.own === undefined) return record;
+  // Finished blind after the player's own shots: only on a play paid, and every shot after them the blind one drawn.
+  if (!data.paid || !isWhole(data.own, 0, MARBLES - 1) || shots.some((shot, m) => m >= (data.own as number) && shot !== draw.blinds[m])) return null;
+  return { ...record, own: data.own };
 }
 
 export const serializePlay = (record: PlayRecord): string => JSON.stringify(record);
@@ -428,7 +439,10 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       // Played to its end and marked paid first, so that nothing that hears of the medals moving finds the play still
       // to finish; then its winnings go in under their receipt. A page that dies between the two leaves a play marked
       // paid whose winnings the next page that holds the card puts in, once (`square`).
-      const paid: PlayRecord = { ...record, shots: finishedShots(record.draw, record.shots), paid: true };
+      // A play finished with marbles still to come says how many were the player's, so that whichever page shows it
+      // next can say the rest were shot blind.
+      const own = record.shots.length < MARBLES ? { own: record.shots.length } : {};
+      const paid: PlayRecord = { ...record, shots: finishedShots(record.draw, record.shots), paid: true, ...own };
       if (staked.stored) write(key, serializePlay(paid));
       if (memory?.id === record.id) memory = paid;
       settledHere.add(record.id);

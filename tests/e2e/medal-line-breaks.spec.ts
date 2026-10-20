@@ -544,7 +544,7 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     await expect(odds.getByTestId('kn-tickets-table')).toBeVisible();
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
-    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), KN_WORDS)));
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"], [class*="note"], [class*="intro"] p, li'), KN_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

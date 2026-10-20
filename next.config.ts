@@ -28,6 +28,17 @@ const nextConfig: NextConfig = {
   // Disable React StrictMode to suppress warnings from third-party packages
   reactStrictMode: false,
 
+  experimental: {
+    // How Turbopack groups CSS modules into the stylesheets a route links. The default ("loose") merged the
+    // modules of unrelated routes into shared files: every medal machine linked Baccarat's, Blackjack's,
+    // Craps', Fishing's, Janken's, Mahjong's and the shogi pieces' styles (about 36 KB brotli of
+    // render-blocking CSS it never uses), and the home page and /blog the memory dashboard's, /projects',
+    // /growth's and /tools'. "graph" groups modules by the routes that import them together. On this app
+    // it links less CSS on every route (none more; 12 routes link one more, smaller file), and every route
+    // still renders with the same computed styles.
+    cssChunking: 'graph',
+  },
+
   // Enable SCSS support
   sassOptions: {
     includePaths: ['./src/assets/scss'],

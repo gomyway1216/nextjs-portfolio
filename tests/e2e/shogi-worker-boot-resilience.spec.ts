@@ -30,6 +30,10 @@ async function startHandicapGame(page: import("@playwright/test").Page) {
 
 async function waitForAiMove(page: import("@playwright/test").Page) {
   const status = page.getByTestId("shogi-engine-status");
+  // First, an answer: right after Start Game the page has not asked the AI yet ("idle", and not thinking, which
+  // passed for a finished move), and then the search is "worker-pending" until the engine answers. Read too early, a
+  // slow machine's first move was "worker-pending" (WebKit on the macOS runner).
+  await expect(status).not.toHaveAttribute("data-search-path", /^(idle|worker-pending)$/, { timeout: 90_000 });
   await expect(status).toHaveAttribute("data-thinking", "false", { timeout: 90_000 });
   return status;
 }

@@ -142,6 +142,18 @@
   color: #04140a;
   border-color: transparent;
 }
+/* "Running… 62%": the count over an unseen "Running… 100%" in the same cell, in digits of one width. */
+.runCount {
+  display: inline-grid;
+  justify-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.runCount > * {
+  grid-area: 1 / 1;
+}
+.runCountWidest {
+  visibility: hidden;
+}
 .btnRun:disabled {
   background: var(--games-route-surface-raised);
   color: var(--games-route-muted);

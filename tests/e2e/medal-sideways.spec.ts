@@ -81,7 +81,15 @@ async function smartPlay(page: Page, seen: () => Promise<void>) {
   await expect(machine).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
 }
 
-/** Medal Maze: every gate on its first setting, flicked as it opens; the pins as drawn. */
+/**
+ * Medal Maze: every gate on its first setting, flicked as it opens; the pins as drawn.
+ *
+ * A gate is flicked in its first open window that starts at least 650 ms after the last flick. With less motion the
+ * medal is in the next cup at once, and the next gate opens two windows (600 ms) after the flick: a click there is
+ * within the machine's 600 ms in which a click is taken for the press just made (SAME_PRESS_MS in PlayTab.tsx), and
+ * was dropped or not by a fraction of a millisecond (599 ms dropped, 601 ms not; Firefox 5 runs in 6, WebKit 1 in 6),
+ * and the medal then waited out its time and dropped OUT.
+ */
 async function mazePlay(page: Page, seen: () => Promise<void>) {
   const machine = page.getByTestId('cm-machine');
   const draw: MazeDraw = { gates: [0, 0, 0, 0], phases: [0, 0, 0, 0], wobbles: [true, true, true, true], blinds: [1, 1, 1, 1], pins: [true, true, true, true] };
@@ -101,10 +109,13 @@ async function mazePlay(page: Page, seen: () => Promise<void>) {
           const box = document.querySelector('[data-testid="cm-board"]')!;
           const lever = document.querySelector<HTMLButtonElement>('[data-testid="cm-lever"]')!;
           const timer = window.setTimeout(() => reject(new Error('no open window in 6 s')), 6_000);
+          const kept = window as unknown as { __lastFlick?: number };
           const observer = new MutationObserver(() => {
             if (box.getAttribute('data-slot') !== 'open') return;
+            if (performance.now() - (kept.__lastFlick ?? -Infinity) < 650) return;
             observer.disconnect();
             window.clearTimeout(timer);
+            kept.__lastFlick = performance.now();
             lever.click();
             resolve();
           });

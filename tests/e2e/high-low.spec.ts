@@ -114,6 +114,56 @@ test('a game takes the bet at START, climbs on right guesses and TAKE pays the r
   await expect(page.getByTestId('mypage-high-low-won')).toHaveText('16');
 });
 
+/**
+ * Presses `first` on the page, then presses `then` the instant it is drawn enabled again once `first`'s card has
+ * turned: from a MutationObserver on its `disabled`, before the page has run anything after drawing it, as a quick
+ * player's press can come. Resolves once both presses are made.
+ */
+const pressThenAsItLights = (page: Page, first: string, then: string) =>
+  page.evaluate(
+    ({ first, then }) =>
+      new Promise<void>((resolve, reject) => {
+        const button = (id: string) => document.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!;
+        const next = button(then);
+        if (button(first).disabled) return reject(new Error(`${first} cannot be pressed yet`));
+        let waited = false;
+        const timer = window.setTimeout(() => reject(new Error(`${then} never lit again`)), 10_000);
+        const observer = new MutationObserver(() => {
+          if (next.disabled) {
+            waited = true;
+            return;
+          }
+          if (!waited) return;
+          observer.disconnect();
+          window.clearTimeout(timer);
+          next.click();
+          resolve();
+        });
+        observer.observe(next, { attributes: true, attributeFilter: ['disabled'] });
+        button(first).click();
+      }),
+    { first, then },
+  );
+
+test('a press made the moment its button lights is taken: HIGH as the last card lands, and TAKE as the next one does', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openLadder(page);
+  await start(page, card(5));
+  await expect(machine(page)).toHaveAttribute('data-show', 'rest', { timeout: 5_000 });
+  // LOW (a 3), and HIGH pressed as it lights again (a King); then HIGH (an ace), and TAKE pressed as it lights again.
+  // The machine read "may press" from a copy that an effect after the paint brought up to date, and a press drawn
+  // enabled before then did nothing: TAKE was lost so on the macOS runner's WebKit.
+  await rigPresses(page, [drawing(card(1, 2)), drawing(card(11))]);
+  await pressThenAsItLights(page, 'hl-low', 'hl-high');
+  await expect.poll(async () => (await round(page))?.cards.length ?? 0, { timeout: 5_000 }).toBe(3);
+  await expect(machine(page)).toHaveAttribute('data-show', 'rest', { timeout: 5_000 });
+  await rigPresses(page, [drawing(card(12))]);
+  await pressThenAsItLights(page, 'hl-high', 'hl-take');
+  await expect.poll(async () => (await round(page))?.taken ?? false, { timeout: 5_000 }).toBe(true);
+  await expect(machine(page)).toHaveAttribute('data-state', 'taken');
+  await expect(page.getByTestId('hl-start')).toBeEnabled();
+});
+
 test('a tie loses, a loss is written down before its card shows, and a reload finds it lost: no free retry', async ({ page }) => {
   test.setTimeout(60_000);
   await openLadder(page);

@@ -185,8 +185,20 @@ test('smart-ball: Space held down to draw the plunger keeps the page where it is
   await rigPresses(page, numbersFor(play([at(0, 0)])));
   await page.keyboard.press('Enter');
   await onPlunger(page, 0);
-  // START has brought the board into view; the page goes on below it.
-  await page.waitForTimeout(300);
+  // START has brought the board into view, gliding (lookUp.ts); the page goes on below it. Read where the page is once
+  // the glide has come to rest: on CI's Firefox it was still a pixel short of it 300 ms after START.
+  let last = Number.NaN;
+  await expect
+    .poll(
+      async () => {
+        const now = await page.evaluate(() => window.scrollY);
+        const still = now === last;
+        last = now;
+        return still;
+      },
+      { intervals: [150] },
+    )
+    .toBe(true);
   const before = await page.evaluate(() => window.scrollY);
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY)).toBeGreaterThan(200);
   await page.keyboard.down(' ');

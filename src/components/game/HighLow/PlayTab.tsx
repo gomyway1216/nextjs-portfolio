@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
@@ -374,8 +374,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (showRef.current !== 'rest') finish();
   };
 
+  // Brought up to date as the buttons are drawn (a layout effect), not after the paint: the presses read it, and a
+  // press made the moment a button is drawn enabled (as a card lands) was otherwise turned away by the old value.
   const canPressRef = useRef(canPress);
-  useEffect(() => {
+  useLayoutEffect(() => {
     canPressRef.current = canPress;
   }, [canPress]);
 

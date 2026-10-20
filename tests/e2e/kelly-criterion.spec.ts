@@ -273,6 +273,47 @@ test('a long simulation can be cancelled, and the longest sessions allow fewer o
   await expect(sim(page).getByTestId('kelly-sim-result')).toHaveCount(0);
 });
 
+test('while a run counts up, Cancel stands still beside it, in either language', async ({ page }) => {
+  for (const language of ['en', 'ja'] as const) {
+    await openGame(page, language);
+    await page.locator('#kelly-tab-sim').click();
+    // The scenario, the flips per session and the sessions. 300 flips × 100,000 sessions: the longest run on offer, its
+    // count going up a percent at a time.
+    const fields = sim(page).locator('select');
+    await fields.nth(1).selectOption('300');
+    await fields.nth(2).selectOption('100000');
+    await sim(page).locator('button').first().click();
+    // Every frame for a second: the count, and where Cancel is. The count used to be as wide as its digits, and
+    // pushed Cancel along the row by up to 4 px at each step (46 places in 120 frames), so a press could not settle on it.
+    const frames = await page.evaluate(
+      () =>
+        new Promise<{ count: string; left: number; width: number }[]>((resolve) => {
+          const seen: { count: string; left: number; width: number }[] = [];
+          const start = performance.now();
+          const step = () => {
+            const buttons = document.querySelectorAll<HTMLButtonElement>('#kelly-panel-sim button');
+            const run = buttons[0];
+            const cancel = buttons[1];
+            if (run?.disabled && cancel) {
+              const box = cancel.getBoundingClientRect();
+              seen.push({ count: run.innerText, left: box.left, width: box.width });
+            }
+            if (performance.now() - start < 1_000 && (seen.length === 0 || run?.disabled)) requestAnimationFrame(step);
+            else resolve(seen);
+          };
+          requestAnimationFrame(step);
+        }),
+    );
+    expect(new Set(frames.map((f) => f.count)).size, `${language}: the count went up`).toBeGreaterThan(3);
+    const lefts = frames.map((f) => f.left);
+    expect(Math.max(...lefts) - Math.min(...lefts), `${language}: Cancel moved along the row`).toBeLessThan(0.5);
+    // Cancel, a still target, is pressed at once (unless the run has just ended).
+    const cancel = sim(page).getByRole('button', { name: language === 'en' ? 'Cancel' : '中止', exact: true });
+    if (await cancel.isVisible()) await cancel.click({ timeout: 2_000 });
+    await expect(sim(page).locator('button').first()).toBeEnabled();
+  }
+});
+
 test('chart lines keep their contrast on the light theme', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
   await openGame(page);

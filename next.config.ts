@@ -37,6 +37,11 @@ const nextConfig: NextConfig = {
     // it links less CSS on every route (none more; 12 routes link one more, smaller file), and every route
     // still renders with the same computed styles.
     cssChunking: 'graph',
+    // Don't reuse Turbopack's build cache (on by default since Next 16.3; Vercel restores `.next/cache` from the
+    // previous deployment). On Vercel it shipped src/app/globals.css one deployment late: the #996 build served
+    // the stylesheet as it was before #996, and the build that reverted #996 served #996's version. Every
+    // build now compiles from source.
+    turbopackFileSystemCacheForBuild: false,
   },
 
   // Enable SCSS support

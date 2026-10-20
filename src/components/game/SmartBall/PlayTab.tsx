@@ -791,6 +791,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const net = stats.won - stats.played;
   const won = !running && outcome !== null && !outcome.earlier && outcome.play.won > 0;
   const result = outcome ? `lines-${Math.min(3, outcome.play.lines.length)}` : '';
+  /** The badge over a play from before: one this page finished, or one simply shown again. */
+  const badge = resumed ? t.resumed : outcome?.earlier && !running ? t.lastPlay : null;
 
   return (
     <div
@@ -835,6 +837,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               </span>
             )}
           </div>
+
+          {/* On a phone held sideways the badge stands beside the board, over the status line, where it covers none of the
+              rail's lamps (SmartBall.module.css); its place is kept while there is none, so that nothing moves. */}
+          <span className={styles.sideBadge} data-testid="smb-resumed-side" data-shown={badge ? 'true' : 'false'}>
+            {badge ?? t.lastPlay}
+          </span>
 
           <p className={styles.status} data-testid="smb-status">
             <span>

@@ -29,17 +29,19 @@ permissions:
 
 jobs:
   e2e:
-    name: E2E (${{ matrix.browser }})
+    name: E2E (${{ matrix.browser }} ${{ matrix.part }}/${{ matrix.parts }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
+        # WebKit in two halves on two macOS runners, two workers each: a macOS runner has three cores, and with three
+        # workers and the server on them a slow runner (37 minutes for the suite one night, 17 another) starved the
+        # pages' frames and timers until the tests that time a count-up or a squeeze failed.
         include:
-          - browser: webkit
-            os: macos-latest
-          - browser: firefox
-            os: ubuntu-latest
+          - { browser: webkit, os: macos-latest, part: 1, parts: 2, workers: 2 }
+          - { browser: webkit, os: macos-latest, part: 2, parts: 2, workers: 2 }
+          - { browser: firefox, os: ubuntu-latest, part: 1, parts: 1, workers: 3 }
     env:
       NEXT_PUBLIC_API_KEY: ci-placeholder
       NEXT_PUBLIC_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
@@ -96,14 +98,14 @@ jobs:
       - name: Build production app
         run: npm run build
 
-      - name: Run E2E tests in ${{ matrix.browser }}
-        run: npx playwright test -c playwright.cross-browser.config.ts --project=${{ matrix.browser }}
+      - name: Run E2E tests in ${{ matrix.browser }} (part ${{ matrix.part }} of ${{ matrix.parts }})
+        run: npx playwright test -c playwright.cross-browser.config.ts --project=${{ matrix.browser }} --shard=${{ matrix.part }}/${{ matrix.parts }} --workers=${{ matrix.workers }}
 
       - name: Upload the report and traces
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: cross-browser-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: cross-browser-${{ matrix.browser }}-${{ matrix.part }}-of-${{ matrix.parts }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/

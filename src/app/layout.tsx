@@ -36,10 +36,15 @@ const geistSans = Geist({
   display: 'swap',
 });
 
+// Not preloaded: little text uses this face (the blog list's post numbers, `font-mono` on a few tools pages,
+// share dialogs and lobbies, the CS lab), yet the preload made every page download its 23 KB alongside the
+// render-blocking CSS. A page that uses it still loads it as soon as that text is laid out, and `swap` with the
+// size-adjusted fallback keeps the text visible and in place meanwhile.
 const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-geist-mono',
   display: 'swap',
+  preload: false,
 });
 
 const SITE_NAME = 'Yudai Yaguchi';

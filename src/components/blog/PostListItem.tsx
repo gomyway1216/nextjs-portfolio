@@ -22,6 +22,12 @@ interface PostListItemProps {
   image?: string;
   language?: string;
   index?: number;
+  /**
+   * Fetch the thumbnail at once, at high priority. For the card at the top of a list, whose thumbnail is the
+   * page's largest paint on a phone: a lazy image is only requested once the page is laid out, which waits for
+   * all the render-blocking CSS, so on a slow connection it came in about a second after everything else.
+   */
+  eagerImage?: boolean;
   handleClick: () => void;
 }
 
@@ -57,7 +63,7 @@ const markdownToPlainText = (value: string) => value
   .trim();
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, slug, title, summary, body = '', lastUpdated, category, tags = [], image, language, index, handleClick }, ref) => {
+  ({ id, slug, title, summary, body = '', lastUpdated, category, tags = [], image, language, index, eagerImage = false, handleClick }, ref) => {
     const { t } = useTranslation();
     const rawBodyText = summary || (HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body);
     const bodyText = summary || markdownToPlainText(rawBodyText);
@@ -118,7 +124,8 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
                 alt=""
                 width={768}
                 height={432}
-                loading="lazy"
+                loading={eagerImage ? 'eager' : 'lazy'}
+                fetchPriority={eagerImage ? 'high' : undefined}
                 sizes="(max-width: 640px) calc(100vw - 76px), (max-width: 960px) calc(50vw - 48px), 330px"
               />
             </span>

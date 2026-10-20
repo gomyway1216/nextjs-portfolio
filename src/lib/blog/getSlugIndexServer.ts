@@ -1,6 +1,7 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
+import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { postSlug } from '@/lib/blog/postSlug';
 import type { PostTranslations } from '@/lib/blog/postTranslations';
@@ -16,10 +17,15 @@ export interface SlugEntry {
 // across all public posts; on a title collision the affected posts fall
 // back to their id so two posts never share a URL.
 async function fetchSlugIndex(): Promise<SlugEntry[]> {
-  const snapshot = await getFirestore()
-    .collection(POSTS_COLLECTION)
-    .where('isPublic', '==', true)
-    .get();
+  // Rejects on failure or timeout and never returns a partial index, so a
+  // failed revalidation keeps the previous cached index.
+  const snapshot = await withReadDeadline(
+    getFirestore()
+      .collection(POSTS_COLLECTION)
+      .where('isPublic', '==', true)
+      .get(),
+    'blog slug index query',
+  );
 
   const raw = snapshot.docs.map((doc) => {
     const data = doc.data();
@@ -48,17 +54,34 @@ export const getSlugIndexCached = unstable_cache(fetchSlugIndex, ['blog-slug-ind
   tags: [BLOG_POST_LIST_CACHE_TAG],
 });
 
-// id -> canonical slug for link building. Returns an empty map on fetch
-// failure so listings degrade to id URLs (which 308-redirect once the
-// index is reachable again) instead of erroring.
-export async function getSlugMapSafe(): Promise<Map<string, string>> {
+export interface SlugMapResult {
+  /** id -> canonical slug. Empty when the index could not be read. */
+  slugById: Map<string, string>;
+  /** False when the index could not be read and links fall back to ids. */
+  complete: boolean;
+}
+
+// id -> canonical slug for link building. On failure the map is empty, so
+// links degrade to id URLs (which 308-redirect once the index is reachable
+// again) instead of erroring.
+//
+// That fallback is meant to last one request. Call this from request code
+// only, never from inside unstable_cache: there the empty map would be
+// cached along with the result. A nested unstable_cache call also skips its
+// own cache, so it would re-read the whole index on every recompute.
+export async function getSlugMapResult(): Promise<SlugMapResult> {
   try {
     const index = await getSlugIndexCached();
-    return new Map(index.map((entry) => [entry.id, entry.slug]));
+    return { slugById: new Map(index.map((entry) => [entry.id, entry.slug])), complete: true };
   } catch (error) {
     console.error('[blog] slug index fetch failed, falling back to id URLs:', error);
-    return new Map();
+    return { slugById: new Map(), complete: false };
   }
+}
+
+// Never-throwing id -> slug map. The rules of getSlugMapResult apply.
+export async function getSlugMapSafe(): Promise<Map<string, string>> {
+  return (await getSlugMapResult()).slugById;
 }
 
 // Resolve a URL param that may be a slug (new URLs) or a Firestore id

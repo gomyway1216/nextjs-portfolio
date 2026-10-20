@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getFirestore } from '@/lib/firebase-admin';
+import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { games } from '@/components/game/constants/games';
 import { buildProjectSlugMap, getProjectPath } from '@/lib/projectRoutes';
@@ -23,10 +24,13 @@ interface BlogEntry {
 
 async function getPublicPosts(): Promise<BlogEntry[]> {
   try {
-    const snapshot = await getFirestore()
-      .collection(POSTS_COLLECTION)
-      .where('isPublic', '==', true)
-      .get();
+    const snapshot = await withReadDeadline(
+      getFirestore()
+        .collection(POSTS_COLLECTION)
+        .where('isPublic', '==', true)
+        .get(),
+      'sitemap posts query',
+    );
 
     return snapshot.docs.map((doc) => {
       const data = doc.data();
@@ -51,7 +55,9 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
 
 async function getPublicProjects() {
   try {
-    return await getProjectsServer();
+    // Bounded like the posts query: without it one hung read held the
+    // whole sitemap for minutes.
+    return await withReadDeadline(getProjectsServer(), 'sitemap projects query');
   } catch (error) {
     console.error('[sitemap] Failed to load projects:', error);
     return [];

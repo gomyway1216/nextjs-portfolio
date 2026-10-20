@@ -468,6 +468,16 @@ const led = (page: Page, id: string) => page.getByTestId(id).evaluate((el) => Nu
 
 test('a win runs into the medals on the meters, the WIN meter counting up beside them, and the next spin ends the count', async ({ page }) => {
   await openSlots(page);
+  // What the LEDs show as the reels stop, kept on the page so that how long the test takes to ask does not change it
+  // (read from the test, a slow macOS runner's WebKit had counted the 1,000 medals all the way in before the read).
+  await page.evaluate(() => {
+    const reels = document.querySelector('[role="img"][data-spinning]')!;
+    const shown = (id: string) => Number(document.querySelector<HTMLElement>(`[data-testid="${id}"]`)!.dataset.shown);
+    const w = window as unknown as { __atStop?: { medals: number; win: number } };
+    new MutationObserver(() => {
+      if (reels.getAttribute('data-spinning') === 'false' && !w.__atStop) w.__atStop = { medals: shown('slot-medals-led'), win: shown('slot-win-led') };
+    }).observe(reels, { attributes: true, attributeFilter: ['data-spinning'] });
+  });
   // A jackpot at one medal: 1,000 medals.
   await force(page);
   await spin(page);
@@ -475,7 +485,7 @@ test('a win runs into the medals on the meters, the WIN meter counting up beside
   await settledLine(page);
   // The medals are the player's at once (and in type for a screen reader); the LEDs are still counting.
   await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + 1000));
-  const early = { medals: await led(page, 'slot-medals-led'), win: await led(page, 'slot-win-led') };
+  const early = (await page.evaluate(() => (window as unknown as { __atStop?: { medals: number; win: number } }).__atStop))!;
   expect(early.medals).toBeGreaterThanOrEqual(WELCOME - 1);
   expect(early.medals).toBeLessThan(WELCOME - 1 + 1000);
   expect(early.win).toBeLessThan(1000);

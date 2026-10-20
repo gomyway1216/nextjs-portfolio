@@ -153,6 +153,8 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   await arrived(page);
   await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
   await expect(page.getByTestId('pk-message')).toContainText('rounds were played out at strength 6');
+  // It says what the tray gained, as the tray shows it: the balls paid less the balls fired into the attacker.
+  await expect(page.getByTestId('pk-message')).toContainText(`+${rest} balls into the tray`);
   await expect(machine(page)).toHaveAttribute('data-mode', 'st');
   await expect(machine(page)).toHaveAttribute('data-stage', '');
   const after = (await session(page))!;

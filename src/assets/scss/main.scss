@@ -40,10 +40,10 @@ Primary use:  ib-themes
 @import "main/modal";
 // @import "main/rtl";
 @import "main/custom-theme-dark";
-@import "main/admin";
 @import "main/image-upload";
 @import "main/skills";
 @import "main/voice-task";
 @import "main/create-task-list";
-@import "main/hobbies";
-@import "main/home-modern";
+// Route-only partials are imported by their routes, not here, so other pages do not wait for them:
+// main/admin (src/page/admin/AdminPage.tsx), main/hobbies (src/app/hobbies/layout.tsx),
+// main/home-modern (src/app/page.tsx).

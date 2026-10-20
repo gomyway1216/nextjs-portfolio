@@ -363,13 +363,3 @@ export function checkGames(games: number, spots: number, random: () => number): 
   }
   return { games, back: back / games, hits, lastBalls };
 }
-
-/** A string's hash, for the look of a game shown again (the same look every time). */
-export function hashText(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h >>> 0;
-}

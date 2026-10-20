@@ -74,6 +74,8 @@ const en = {
   status: {
     empty: 'Mark 1 to 10 numbers, or press Quick pick.',
     ready: (spots: number, bet: number) => `${enSpots(spots)} on a bet of ${bet}: press DRAW.`,
+    /** DRAW is off: the medals left do not cover the bet chosen. */
+    short: (bet: number) => `Not enough medals for a bet of ${bet}: choose a smaller bet.`,
     drawing: (ball: number, caught: number) => `Ball ${ball} of ${DRAWN}: ${caught} caught`,
     lastBall: 'The last ball…',
   },
@@ -215,6 +217,7 @@ const ja: KenoStrings = {
   status: {
     empty: `数字を${B}1〜10個${B}えらぶか、${B}クイックピックを${B}押そう。`,
     ready: (spots, bet) => `${spots}個の数字・${B}${bet}枚ベット：${B}ドローを押そう。`,
+    short: (bet) => `${bet}枚ベットには${B}持ちメダルが${B}足りません。${B}ベットを${B}小さくしよう。`,
     drawing: (ball, caught) => `${ball}球目／${DRAWN}：${B}${caught}個当たり`,
     lastBall: `最後の球…`,
   },

@@ -586,7 +586,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     }
     if (outcome && !cleared) return t.result(outcome).status;
     if (outOfMedals) return t.outOfMedals;
-    return n === 0 ? t.status.empty : t.status.ready(n, bet);
+    if (n === 0) return t.status.empty;
+    return mine && bankState.balance < bet ? t.status.short(bet) : t.status.ready(n, bet);
   })();
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;
@@ -630,7 +631,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             <span className={styles.readoutCell}>
               <span className={styles.readoutLabel}>{t.caughtLabel}</span>
               <span className={styles.readoutValue} data-testid="kn-caught">
-                {balls.length > 0 ? `${caught}/${n}` : `–/${n}`}
+                {balls.length > 0 ? `${caught}/${n}` : n > 0 ? `–/${n}` : '–'}
               </span>
             </span>
             <span className={styles.lastLamp} data-testid="kn-last-lamp" data-lit={lastCaught && payNow > 0 ? 'true' : 'false'} data-wait={lastCalled && !skipped ? 'true' : 'false'} title={t.lastBallAria}>

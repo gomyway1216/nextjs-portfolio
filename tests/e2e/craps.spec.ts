@@ -431,14 +431,23 @@ test('the sound switch is the floor’s: off on every visit, the throw heard onc
   const errors: string[] = [];
   onPageError(page, (error) => errors.push(error.message));
   // A device where the old switch was left on, and every sound the page starts counted, with its length (a headless
-  // browser has nothing to listen with). The throw's knocks and clicks are cut from one second of noise.
+  // browser has nothing to listen with). The throw's knocks and clicks are cut from one second of noise. The page's
+  // sound systems are kept too, to see when they have started.
   await page.addInitScript((key) => {
     if (window.sessionStorage.getItem('seeded') === null) {
       window.localStorage.setItem(key, JSON.stringify({ sound: true, quick: false }));
       window.sessionStorage.setItem('seeded', '1');
     }
-    const w = window as unknown as { __sounds: number[] };
+    const w = window as unknown as { __sounds: number[]; __audio: AudioContext[] };
     w.__sounds = [];
+    w.__audio = [];
+    const Audio = window.AudioContext;
+    window.AudioContext = class extends Audio {
+      constructor(...args: ConstructorParameters<typeof AudioContext>) {
+        super(...args);
+        w.__audio.push(this);
+      }
+    };
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
       w.__sounds.push(this.buffer?.duration ?? 0);
@@ -460,6 +469,15 @@ test('the sound switch is the floor’s: off on every visit, the throw heard onc
   await toggle.click();
   await expect(toggle).toHaveAccessibleName('Sound on');
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  // The throw is played only once the sound has started (throwSounds.ts: nothing is queued on a sound system still
+  // starting). On a desk that takes a few hundredths of a second; on the Ubuntu runner's Firefox it took two seconds,
+  // longer than the throw, which then went unheard. Thrown once the switch's sound is up, as a player hears it.
+  const started = () =>
+    page.evaluate(() => {
+      const { __audio: audio } = window as unknown as { __audio: AudioContext[] };
+      return audio.length > 0 && audio.every((one) => one.state === 'running');
+    });
+  await expect.poll(started, { timeout: 10_000 }).toBe(true);
   await forceNextRoll(page, [5, 5]);
   await rollAndSettle(page);
   await expect.poll(async () => (await heard()).filter((d) => d === 1).length).toBeGreaterThan(0);

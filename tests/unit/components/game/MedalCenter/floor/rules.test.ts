@@ -52,6 +52,8 @@ import { BET_IDS as SIC_BO_AREAS, MOST_BACK_PER_MEDAL as SIC_BO_MOST_BACK, PAYTA
 import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } from '@/components/game/SicBo/medalTable';
 import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUGOROKU_SQUARES, analyzeBoard, labelOf as sugorokuLabel, medalsFor as sugorokuMedals, outcomesFrom as sugorokuOutcomes, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
 import { MOST_WIN as MAZE_MOST, PAYS as MAZE_PAYS, STAGES as MAZE_GATES, STAKE as MAZE_STAKE, analyze as mazeOdds, drawPlay as mazeDraw, labelOf as mazeLabel, playOf as mazePlay, seeded as mazeSeeded, valueOf as mazeValue } from '@/components/game/CoinMaze/engine';
+import { MARBLES as SMART_MARBLES, MOST_WIN as SMART_MOST, PAYS as SMART_PAYS, STAKE as SMART_STAKE, drawPlay as smartDraw, labelOf as smartLabel, playOf as smartPlay, seeded as smartSeeded, valueOf as smartValue } from '@/components/game/SmartBall/engine';
+import { publishedOdds as smartOdds } from '@/components/game/SmartBall/odds';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -158,6 +160,9 @@ describe('the most each machine can take from the player at once, for the medals
     // Candy Shop Medal Maze: one medal a play, the one that rolls.
     expect(FLOOR_RULES['coin-maze'].stakeMost).toBe(MAZE_STAKE);
     expect(MAZE_STAKE).toBe(1);
+    // Hot Spring Smart Ball: five medals a play, for its ten marbles.
+    expect(FLOOR_RULES['smart-ball'].stakeMost).toBe(SMART_STAKE);
+    expect(SMART_STAKE).toBe(5);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -212,6 +217,9 @@ describe('which machines are linked to the floor jackpot', () => {
       // Perfect timing at every gate (dynamic programming down the four gates and the pins, exact): no way of playing
       // brings back more.
       'coin-maze': mazeValue(mazeOdds().perfect.back),
+      // Perfect play: the best strength for every marble for the board as it stands (dynamic programming over every set
+      // of lit holes and marbles left, exact): no way of pulling the plunger brings back more.
+      'smart-ball': smartValue(smartOdds().perfect.back),
     };
   };
 
@@ -227,7 +235,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'smart-ball']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -461,6 +469,28 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(mazeValue(odds.blind.back)).toBeLessThan(mazeValue(odds.typical.back));
   });
 
+  it('Hot Spring Smart Ball: one, two and three lines, the most three, and perfect play as the best return', () => {
+    expect(FLOOR_RULES['smart-ball'].most).toBe(SMART_MOST);
+    expect(FLOOR_RULES['smart-ball'].most).toBe(100);
+    expect(FLOOR_RULES['smart-ball'].labels['smart-triple']).toEqual({ amounts: [SMART_PAYS[3]], feed: true });
+    expect(FLOOR_RULES['smart-ball'].labels['smart-double']).toEqual({ amounts: [SMART_PAYS[2]], feed: false });
+    expect(FLOOR_RULES['smart-ball'].labels['smart-line']).toEqual({ amounts: [SMART_PAYS[1]], feed: false });
+    // Every named win a play can make is one the floor believes, whatever strengths the marbles are shot at.
+    const random = smartSeeded(3);
+    for (let n = 0; n < 2_000; n++) {
+      const play = smartPlay(smartDraw(random), Array.from({ length: SMART_MARBLES }, (_, m) => (m + n) % 7));
+      const label = smartLabel(play);
+      if (label) expect(labelPays('smart-ball', label, play.won)).toBe(true);
+      expect(play.won).toBeLessThanOrEqual(FLOOR_RULES['smart-ball'].most);
+    }
+    // The rule is perfect play, 93.4555...%, rounded up; an everyday hand and blind shots bring back less.
+    const odds = smartOdds();
+    expect(`${odds.perfect.back.num}/${odds.perfect.back.den}`).toBe('19416340307406796973/20776019874734407680');
+    expect(FLOOR_RULES['smart-ball'].bestReturn).toBe(0.9346);
+    expect(smartValue(odds.typical.back)).toBeLessThan(FLOOR_RULES['smart-ball'].bestReturn);
+    expect(smartValue(odds.blind.back)).toBeLessThan(smartValue(odds.typical.back));
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -510,6 +540,11 @@ describe('named wins and the feed', () => {
     expect(labelPays('coin-maze', 'maze-big', 2)).toBe(false);
     expect(labelPays('coin-maze', 'maze-win', 2)).toBe(true);
     expect(labelPays('coin-maze', 'maze-win', 5)).toBe(false);
+    expect(labelPays('smart-ball', 'smart-triple', 100)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-double', 20)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-line', 7)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-line', 20)).toBe(false);
+    expect(labelPays('smart-ball', 'smart-triple', 7)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -540,5 +575,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('sugoroku', 300)).toBe(true);
     expect(feedWorthy('coin-maze', 5, 'maze-big')).toBe(true);
     expect(feedWorthy('coin-maze', 2, 'maze-win')).toBe(false);
+    expect(feedWorthy('smart-ball', 100, 'smart-triple')).toBe(true);
+    expect(feedWorthy('smart-ball', 20, 'smart-double')).toBe(false);
+    expect(feedWorthy('smart-ball', 7, 'smart-line')).toBe(false);
   });
 });

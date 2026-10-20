@@ -1402,6 +1402,10 @@
     "coin-maze": {
       "title": "Candy Shop Medal Maze",
       "description": "The candy shop corner’s flick-a-medal maze: drop one medal into the glass case, flick it with the levers through four moving gates and down the pins into WIN — with perfect timing, an everyday hand and blind presses each worked out exactly, so that no timing beats the machine."
+    },
+    "smart-ball": {
+      "title": "Hot Spring Smart Ball",
+      "description": "The hot-spring town’s smart ball: pull the plunger, shoot ten glass marbles round the rail and down through the pins into sixteen numbered holes, and light four in a row for BINGO — with perfect play, an everyday hand and blind shots each worked out exactly, so that no pull beats the machine."
     }
   },
   "home": {

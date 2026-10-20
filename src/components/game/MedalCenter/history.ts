@@ -62,10 +62,11 @@ export const HISTORY_LIMITS = {
   /** Devices a day keeps the totals of. Beyond that, the ones that did least that day are left out. */
   dayDevices: 3,
   /**
-   * Games a history keeps records for: every machine on the floor and the floor jackpot (eighteen with Whale Isle
-   * Sugoroku and the Candy Shop Medal Maze), and room for a few more.
+   * Games a history keeps records for: every machine on the floor and the floor jackpot, and room for a few more. With
+   * Hot Spring Smart Ball and Video Keno, added at the same time, the floor has nineteen machines: twenty with the
+   * jackpot, which a limit of 20 would only just hold, leaving none for the next machine. 24 leaves room for four more.
    */
-  games: 20,
+  games: 24,
   /** Devices a game keeps the records of. Beyond that, the ones that played it least are left out. */
   gameDevices: 4,
   /** Any count of medals. Nobody plays near it. */

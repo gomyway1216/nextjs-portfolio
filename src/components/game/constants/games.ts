@@ -506,4 +506,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Arcade',
   },
+  {
+    id: 'smart-ball',
+    title: 'Hot Spring Smart Ball',
+    description: 'The hot-spring town’s smart ball: pull the plunger, shoot ten glass marbles round the rail and down through the pins into sixteen numbered holes, and light four in a row for BINGO — with perfect play, an everyday hand and blind shots each worked out exactly, so that no pull beats the machine.',
+    thumbnail: '♨️',
+    path: '/games/smart-ball',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
 ];

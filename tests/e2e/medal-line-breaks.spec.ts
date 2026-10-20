@@ -7,6 +7,7 @@ import { WELCOME, claimBonus, createLedger, serializeLedger, take } from '../../
 import { dayFrom, type Day } from '../../src/components/game/MedalPusher/records';
 import { numberForFace, numberForLamp } from '../../src/components/game/Sugoroku/engine';
 import { numbersFor as mazeNumbers } from '../../src/components/game/CoinMaze/engine';
+import { numbersFor as smbNumbers, slotFor as smbSlot } from '../../src/components/game/SmartBall/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -503,6 +504,61 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), CM_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+// ── Hot Spring Smart Ball ───────────────────────────────────────────────────
+
+const SMB_WORDS = ['スタート', 'メダル', '引いて', '離して', '打とう', '入った', 'ビンゴ', '弱すぎて', '戻ってきた', 'もう一度', '持ちメダル', '当たり', '回数', '差し引き', '光った', '割合', 'いちばん', '上手な', '打ち方', '戻り', 'ふつう', '腕前', '目をつぶって', '強さ', 'そろった', '確率', '左はし', '左より', '右より', '右はし'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Hot Spring Smart Ball's (smart-ball) status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/smart-ball');
+    await arrived(page);
+    const machine = page.getByTestId('smb-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('smb-status');
+    const said = await brokenIn(status, SMB_WORDS);
+    // A play whose first marble, shot at the middle strength, drops into hole 1: the line that asks for the pull, then the
+    // one that says where it went and asks for the next.
+    const drops = [smbSlot(3, { row: 0, col: 0 }), ...Array.from({ length: 9 }, () => smbSlot(3, null))];
+    await rigPresses(page, smbNumbers({ drops, blinds: Array.from({ length: 10 }, () => 3) }));
+    await pressUntil(page.getByTestId('smb-start'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    await expect(machine).toHaveAttribute('data-phase', 'aim', { timeout: 10_000 });
+    said.push(...(await brokenIn(status, SMB_WORDS)));
+    // The plunger held, and let go the moment the board says the middle strength.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const box = document.querySelector('[data-testid="smb-board"]')!;
+          const plunger = document.querySelector('[data-testid="smb-plunger"]')!;
+          const observer = new MutationObserver(() => {
+            if (box.getAttribute('data-window') !== '3') return;
+            observer.disconnect();
+            plunger.dispatchEvent(new PointerEvent('pointerup', { pointerId: 21, isPrimary: true, button: 0, bubbles: true }));
+            resolve();
+          });
+          observer.observe(box, { attributes: true, attributeFilter: ['data-window'] });
+          plunger.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 21, isPrimary: true, button: 0, bubbles: true }));
+        }),
+    );
+    await expect(machine).toHaveAttribute('data-marble', '1', { timeout: 10_000 });
+    await expect(status).toContainText('入った');
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(status, SMB_WORDS)));
+    said.push(...(await brokenIn(page.locator('#smb-session-title ~ dl dt'), SMB_WORDS)));
+    await page.locator('#smb-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('smb-windows-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), SMB_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

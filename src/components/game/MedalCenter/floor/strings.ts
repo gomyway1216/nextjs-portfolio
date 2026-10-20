@@ -150,6 +150,12 @@ const enMoment = (label: string | null, medals: string): string => {
       return `flicked a medal into BIG WIN in the candy shop maze: ${medals} medals`;
     case 'maze-win':
       return `flicked a medal into WIN in the candy shop maze: ${medals} medals`;
+    case 'smart-triple':
+      return `lit three BINGO lines at Hot Spring Smart Ball: ${medals} medals`;
+    case 'smart-double':
+      return `lit two BINGO lines at Hot Spring Smart Ball: ${medals} medals`;
+    case 'smart-line':
+      return `made a BINGO at Hot Spring Smart Ball: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -200,6 +206,12 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `駄菓子屋メダルめいろで大当たり！${medals}枚`;
     case 'maze-win':
       return `駄菓子屋メダルめいろで当たり！${medals}枚`;
+    case 'smart-triple':
+      return `湯けむりスマートボールでビンゴ3列！${medals}枚`;
+    case 'smart-double':
+      return `湯けむりスマートボールでビンゴ2列！${medals}枚`;
+    case 'smart-line':
+      return `湯けむりスマートボールでビンゴ！${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

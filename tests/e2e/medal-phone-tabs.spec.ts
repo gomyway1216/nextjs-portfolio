@@ -23,6 +23,8 @@ const MACHINES = [
   { game: 'sugoroku', tabs: 2, buttons: { en: ['ROLL', 'Skip'], ja: ['サイコロをふる', 'スキップ'] } },
   // DROP and the lever are named for a screen reader by what they do (their names begin with the words on them).
   { game: 'coin-maze', tabs: 2, buttons: { en: ['Drop a medal in', 'Skip'], ja: ['メダルを入れる（1枚）', 'スキップ'] } },
+  // START is named for a screen reader with what a play takes (its name begins with the word on it).
+  { game: 'smart-ball', tabs: 2, buttons: { en: ['START: 5 medals for 10 marbles', 'Skip'], ja: ['スタート（5枚で玉10個）', 'スキップ'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

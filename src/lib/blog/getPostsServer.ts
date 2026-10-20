@@ -1,6 +1,7 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
+import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import {
   availableLanguages,
@@ -35,11 +36,22 @@ export interface PostsPage {
   hasMore: boolean;
 }
 
+// What the posts cache stores: everything but the slug. Slugs come from
+// the slug index on every request (see getInitialPostsCached), so a slug
+// index outage can never be cached into the list as id URLs.
+type CachedPost = Omit<ServerPost, 'slug'>;
+
+interface CachedPostsPage {
+  posts: CachedPost[];
+  lastVisibleTimestamp: number | null;
+  hasMore: boolean;
+}
+
 async function fetchPostsPage(
   category: string,
   limit: number,
   language: PostLanguage,
-): Promise<PostsPage> {
+): Promise<CachedPostsPage> {
   const db = getFirestore();
 
   let query = db.collection(POSTS_COLLECTION)
@@ -51,19 +63,20 @@ async function fetchPostsPage(
 
   query = query.orderBy('lastUpdated', 'desc').limit(limit);
 
-  const [snapshot, slugById] = await Promise.all([query.get(), getSlugMapSafe()]);
+  // Rejects on failure or timeout so a failed revalidation keeps the last
+  // good page instead of caching an empty one.
+  const snapshot = await withReadDeadline(query.get(), `blog posts query (${category})`);
   if (snapshot.empty) {
     return { posts: [], lastVisibleTimestamp: null, hasMore: false };
   }
 
-  const posts: ServerPost[] = snapshot.docs.flatMap((doc): ServerPost[] => {
+  const posts: CachedPost[] = snapshot.docs.flatMap((doc): CachedPost[] => {
     const data = doc.data();
     const translations = (data.translations || {}) as PostTranslations;
     const picked = pickTranslation(translations, language);
     if (!picked) return [];
     return [{
       id: doc.id,
-      slug: slugById.get(doc.id) ?? doc.id,
       title: picked.translation.title,
       summary: excerpt(picked.translation.body),
       // List cards only render a preview. Keeping the full body here made
@@ -92,9 +105,32 @@ async function fetchPostsPage(
   };
 }
 
-// Cache the initial page of each blog category for 60s.
-export const getInitialPostsCached = unstable_cache(
+// The initial page of each blog category, cached for 60s.
+const getInitialPostsPageCached = unstable_cache(
   fetchPostsPage,
   ['blog-posts-initial'],
   { revalidate: 60, tags: [BLOG_POST_LIST_CACHE_TAG] },
 );
+
+/**
+ * The initial page of a blog category with canonical slugs.
+ *
+ * The page comes from the 60s posts cache and the slugs from the slug
+ * index's own cache, joined here per request. If the slug index cannot be
+ * read, this request links by id and the next one tries again. Rejects
+ * when the posts themselves cannot be read; callers render their fallback.
+ */
+export async function getInitialPostsCached(
+  category: string,
+  limit: number,
+  language: PostLanguage,
+): Promise<PostsPage> {
+  const [page, slugById] = await Promise.all([
+    getInitialPostsPageCached(category, limit, language),
+    getSlugMapSafe(),
+  ]);
+  return {
+    ...page,
+    posts: page.posts.map((post) => ({ ...post, slug: slugById.get(post.id) ?? post.id })),
+  };
+}

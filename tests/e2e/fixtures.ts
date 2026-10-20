@@ -58,7 +58,10 @@ export const test = base.extend<object, { imageRunner: { request: APIRequestCont
       await Promise.allSettled([...inFlight]);
       await request.dispose();
     },
-    { scope: 'worker' },
+    // Time for that last read: a request of the runner's gives up after its own 30 s at most, and this teardown had
+    // only the test's 30 s too, so on a slow macOS runner, with an image still being made, the worker's end itself
+    // failed the run ("Fixture imageRunner timeout … exceeded during teardown").
+    { scope: 'worker', timeout: 60_000 },
   ],
   browser: [
     async ({ browser, imageRunner }, use) => {

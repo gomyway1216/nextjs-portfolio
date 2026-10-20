@@ -77,6 +77,7 @@ export type Pending = { kind: 'lend' | 'count'; id: string; medals: number; ball
 /** A hit's rounds played out while the page was away, still to be told. */
 export interface AwayNote {
   rounds: number;
+  /** What the tray gained by them: the balls the attacker paid, less the balls fired into it (one each). */
   balls: number;
 }
 
@@ -319,19 +320,21 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
     if (!record.machine.bonus) return record;
     const next = copySession(record);
     const kind = next.machine.bonus!.kind;
-    let paid = 0;
+    // What the tray gains, told to the player on return: each ball pays ten and takes the one fired (out of the tray,
+    // or out of what it pays when the tray is empty). Not the balls paid alone, which the tray never shows.
+    let gained = 0;
     // A hit's rounds end within a bounded number of slots: ten balls a round, each one in.
     for (let guard = 0; next.machine.bonus && guard < 10_000; guard++) {
       if (attackerOpen(next.machine)) {
         const ball = next.queue.shift() ?? draw(random);
         const fired = fire(next.machine, BEST_RIGHT, ball);
         next.tray += fired.paid - 1;
-        paid += fired.paid;
+        gained += fired.paid - 1;
       }
       tick(next.machine);
     }
     next.tray = Math.max(0, next.tray);
-    next.away = { rounds: (record.away?.rounds ?? 0) + kind.rounds, balls: (record.away?.balls ?? 0) + paid };
+    next.away = { rounds: (record.away?.rounds ?? 0) + kind.rounds, balls: (record.away?.balls ?? 0) + gained };
     return next;
   };
 
@@ -548,6 +551,21 @@ function reportTicks(ticks: readonly Tick[]): void {
 
 /** Whether Skip has anything to cut short: a reach (from its reach on), or a hit's fanfare, interval or ending. */
 export const skippable = (m: Machine): boolean => (m.spin ? m.spin.kind !== 'plain' && m.spin.phase >= 1 : m.bonus !== null && m.bonus.stage !== 'open');
+
+/**
+ * Whether the rules (`rules`) are still at the point Skip would cut short on the screen (`shown`, a ball's flight
+ * behind them): the same spin's reach, or the same stage of the same round. Not where the rules have gone on past it:
+ * the reach shown has stopped, and the hit's fanfare has begun.
+ */
+export const sameSkip = (shown: Machine, rules: Machine): boolean => {
+  if (!skippable(shown) || !skippable(rules)) return false;
+  if (shown.spin) {
+    const a = shown.spin;
+    const b = rules.spin;
+    return b !== null && b.from === a.from && b.hold.lot === a.hold.lot && b.hold.split === a.hold.split && b.hold.show === a.hold.show && b.hold.seed === a.hold.seed;
+  }
+  return shown.bonus !== null && rules.bonus !== null && rules.bonus.stage === shown.bonus.stage && rules.bonus.round === shown.bonus.round;
+};
 
 /** The balls drawn ahead, topped up to `QUEUE` with `draws`. */
 const topped = (queue: readonly BallDraw[], draws: readonly BallDraw[]): BallDraw[] => [...queue, ...draws].slice(0, QUEUE).map((d) => ({ ...d }));

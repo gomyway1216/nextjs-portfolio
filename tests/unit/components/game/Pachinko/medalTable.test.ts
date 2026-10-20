@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { BEST_LEFT, BEST_RIGHT, FATE_SLOTS, LEND_BALLS, LEND_MEDALS, attackerOpen, busy, drawBall, type BallDraw } from '@/components/game/Pachinko/engine';
+import { BEST_LEFT, BEST_RIGHT, FATE_SLOTS, LEND_BALLS, LEND_MEDALS, attackerOpen, busy, copyMachine, drawBall, newMachine, tick, type BallDraw, type Machine } from '@/components/game/Pachinko/engine';
 import {
   PACHINKO_GAME,
   QUEUE,
@@ -10,6 +10,7 @@ import {
   createTable,
   parseSession,
   roundId,
+  sameSkip,
   serializeSession,
   sessionKey,
   type SessionRecord,
@@ -263,10 +264,12 @@ describe('a hit, whatever happens to the page', () => {
     toTheHit(machine);
     // Partway into round 1.
     for (let i = 0; i < 12; i++) machine.step(attackerOpen(machine.now()!.machine) ? BEST_RIGHT : null);
+    const left = machine.now()!.tray;
     before.hide('left');
     before.close();
     expect(machine.yielded).toEqual(['left']);
-    expect(session(browser)).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4 }, machine: { mode: 'st', bonus: null } });
+    // The note tells what the tray gained while the page was away: the balls paid less the balls fired into the attacker.
+    expect(session(browser)).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4, balls: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET - left }, machine: { mode: 'st', bonus: null } });
     const reloaded = machineOn(browser.open());
     await quiet(browser);
     expect(reloaded.now()).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4 } });
@@ -285,7 +288,7 @@ describe('a hit, whatever happens to the page', () => {
     expect(session(browser)?.machine.bonus).not.toBeNull();
     const next = machineOn(browser.open());
     await quiet(browser);
-    expect(next.now()).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4 }, machine: { bonus: null, mode: 'st' } });
+    expect(next.now()).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4, balls: FOUR_ROUNDS_NET }, machine: { bonus: null, mode: 'st' } });
     const again = machineOn(browser.open());
     await quiet(browser);
     expect(again.now()?.tray).toBe(LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET);
@@ -458,6 +461,30 @@ describe('reading a session back', () => {
       JSON.stringify({ ...good, machine: { ...good.machine, spin: { from: 1, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode: 'normal', hit: false, kind: 'plain', phase: 0, age: 1 } } }),
     ];
     for (const text of bad) expect(parseSession(text)).toBeNull();
+  });
+});
+
+describe('Skip, and the screen a ball’s flight behind the rules', () => {
+  const hold = { lot: 0, split: 10, show: 0, seed: 9 };
+  const reach = (seed = hold.seed): Machine => ({ ...newMachine(), spin: { from: 1, hold: { ...hold, seed }, mode: 'normal', hit: true, kind: 'nr', phase: 1, age: 2 } });
+
+  it('cuts short what the screen shows only while the rules are still at it', () => {
+    const shown = reach();
+    expect(sameSkip(shown, reach())).toBe(true);
+    // The rules two slots on: the reach has stopped, and the hit's fanfare begun.
+    const fanfare = copyMachine(shown);
+    tick(fanfare, () => true);
+    expect(fanfare.bonus?.stage).toBe('fanfare');
+    expect(sameSkip(shown, fanfare)).toBe(false);
+    // Another spin's reach is not the one shown.
+    expect(sameSkip(shown, reach(10))).toBe(false);
+    // The fanfare shown, and the rules still in it: cut short. The rules' round open: nothing to cut.
+    expect(sameSkip(fanfare, copyMachine(fanfare))).toBe(true);
+    const open = copyMachine(fanfare);
+    while (open.bonus?.stage === 'fanfare') tick(open);
+    expect(sameSkip(fanfare, open)).toBe(false);
+    // A plain spin shown: nothing to cut.
+    expect(sameSkip({ ...newMachine(), spin: { ...reach().spin!, hit: false, kind: 'plain', phase: 0 } }, reach())).toBe(false);
   });
 });
 

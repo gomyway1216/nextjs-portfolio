@@ -190,15 +190,19 @@ test('smart-ball: a reload in the middle of a play finds the same play, finishes
   await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
   // Finished as the page went (or as it came back): the shot made, then blind at the middle strength: three lines.
   await expect.poll(() => bankBalance(page)).toBe(WELCOME - STAKE + 100);
-  expect(await record(page)).toMatchObject({ id, shots: Array.from({ length: MARBLES }, () => AIM), paid: true });
-  await expect(page.getByTestId('smb-resumed')).toBeVisible();
+  expect(await record(page)).toMatchObject({ id, shots: Array.from({ length: MARBLES }, () => AIM), paid: true, own: 1 });
+  // The page that comes back says so: one marble was the player's, the other nine were shot blind.
+  await expect(page.getByTestId('smb-resumed')).toHaveText('Finished from before');
+  await expect(page.getByTestId('smb-message')).toHaveText('The play was finished while you were away: the marbles left were shot blind.');
   await expect(machine(page)).toHaveAttribute('data-result', 'lines-3');
   await page.waitForTimeout(1_000);
   expect(await bankBalance(page)).toBe(WELCOME - STAKE + 100);
-  // And the next play goes on as ever.
+  // And the next play goes on as ever, and clears the word.
   await start(page, play([]));
   await onPlunger(page, 0);
   expect(await bankBalance(page)).toBe(WELCOME - 2 * STAKE + 100);
+  await expect(page.getByTestId('smb-message')).toHaveText('');
+  await expect(page.getByTestId('smb-resumed')).toHaveCount(0);
 });
 
 test('smart-ball: a play finished while the player was away says so when they come back: the marbles left were shot blind', async ({ context, page }) => {

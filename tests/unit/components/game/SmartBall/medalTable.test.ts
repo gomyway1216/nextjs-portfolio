@@ -176,8 +176,20 @@ describe('a play, once', () => {
     machine.start(draw([at(0, 0), at(0, 1), at(0, 2), at(0, 3)], [AIM, AIM, SOFT, SOFT, SOFT, SOFT, SOFT, SOFT, SOFT, SOFT]));
     machine.shootMany(2);
     expect(machine.stop()).toBe('paid');
-    expect(record(browser)).toMatchObject({ shots: [AIM, AIM, ...shotsAll(MARBLES - 2, SOFT)], paid: true });
+    // Two of the shots were the player's: the record says so, for the page that shows the play next.
+    expect(record(browser)).toMatchObject({ shots: [AIM, AIM, ...shotsAll(MARBLES - 2, SOFT)], paid: true, own: 2 });
     expect(stored(browser)).toBe(WELCOME - STAKE);
+  });
+
+  it('marks no shot blind on a play the player shot to its end', async () => {
+    const browser = new FakeBrowser();
+    const machine = machineOn(browser.open());
+    await quiet(browser);
+    machine.start(LINE_PLAY);
+    machine.shootMany(MARBLES);
+    expect(machine.stop()).toBe('paid');
+    expect(record(browser)).toMatchObject({ shots: shotsAll(MARBLES), paid: true });
+    expect(record(browser)).not.toHaveProperty('own');
   });
 
   it('takes nothing it should not: a draw it could not make, too few medals, a page without the card', async () => {
@@ -473,6 +485,9 @@ describe('reading a play back', () => {
     expect(parsePlay(serializePlay(good))).toEqual(good);
     const ended: PlayRecord = { ...good, shots: shotsAll(MARBLES), paid: true };
     expect(parsePlay(serializePlay(ended))).toEqual(ended);
+    // Finished blind after two of the player's shots: the shots after them are the blind ones drawn.
+    const blind: PlayRecord = { ...good, shots: [SOFT, SOFT, ...LINE_PLAY.blinds.slice(2)], paid: true, own: 2 };
+    expect(parsePlay(serializePlay(blind))).toEqual(blind);
     const bad: unknown[] = [
       null,
       'not json',
@@ -487,6 +502,12 @@ describe('reading a play back', () => {
       // Paid before every marble was shot.
       JSON.stringify({ ...good, shots: [AIM], paid: true }),
       JSON.stringify({ ...good, paid: 'yes' }),
+      // Shot blind on a play not finished, past the last marble, not a count, or a shot after them not the blind one drawn.
+      JSON.stringify({ ...ended, paid: false, shots: [AIM], own: 0 }),
+      JSON.stringify({ ...ended, own: MARBLES }),
+      JSON.stringify({ ...ended, own: 1.5 }),
+      JSON.stringify({ ...ended, own: '2' }),
+      JSON.stringify({ ...ended, shots: [AIM, AIM, SOFT, ...LINE_PLAY.blinds.slice(3)], own: 2 }),
       'x'.repeat(3_000),
     ];
     for (const text of bad) expect(parsePlay(text)).toBeNull();

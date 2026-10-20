@@ -545,6 +545,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             setShownLit(ended.play.lit);
             setOutcome(ended);
             setHistory((before) => (before.some((entry) => entry.id === ended.id) ? before : [ended, ...before].slice(0, HISTORY_LIMIT)));
+            // Finished by the page that went (reloaded, closed or hidden mid-play), the marbles still to come shot blind:
+            // said here as that page would have, since the shots that ended it were not the player's.
+            if (record.own !== undefined) {
+              setResumed(true);
+              setMessage(live.current.t.finishedAway);
+            }
           }
         } while (again);
       } finally {

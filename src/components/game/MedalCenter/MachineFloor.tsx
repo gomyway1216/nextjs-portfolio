@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, memo } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,7 @@ import { isFloorGame } from '@/lib/medalFloor/games';
 import { linked } from '@/lib/medalFloor/jackpot';
 import { getGameCoverPath } from '../constants/games';
 import type { GameLanguage } from '../constants/gameTranslations';
-import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, plateReturn, spansOf, zoneOf, type ZoneId } from './floorPlan';
+import { WIDE_ZONES, ZONE_SIGNS, cornersOf, isNewMachine, nameWords, pitchOf, pitchWords, plateReturn, spansOf, zoneOf, type ZoneId } from './floorPlan';
 import { MedalTray } from './MedalTray';
 import { percentToTenth } from './numberFormat';
 import type { CenterStrings } from './strings';
@@ -38,6 +38,31 @@ interface CabinetProps {
   pitch: string;
   language: GameLanguage;
   t: CenterStrings;
+}
+
+/** A thousand or more written with its commas (「1,000」). */
+const THOUSANDS = /(\d{1,3}(?:,\d{3})+)/;
+
+/**
+ * A plate's line as it is set. In Japanese its phrases (floorPlan.ts `PITCH_WORDS`) are joined by zero-width spaces,
+ * where Safari and Firefox, keeping Japanese words whole (MachineFloor.module.css `.pitch`), may break it; the line
+ * stays one run of text, so Chromium, which finds the phrases itself, sets it as before. A range (「1〜10」) is held
+ * together by word joiners, as Chromium and Firefox keeping words whole would break it after its dash; a thousand
+ * (「1,000」), which WebKit breaks after its comma whatever joins it, is kept on one line by an element of its own.
+ */
+function plateLine(id: string, pitch: string): ReactNode {
+  const phrases = pitchWords(id, pitch);
+  if (phrases.length < 2) return pitch;
+  const line = phrases.join('\u200B').replace(/(\d)〜(\d)/g, '$1\u2060〜\u2060$2');
+  return line.split(THOUSANDS).map((part, i) =>
+    i % 2 === 1 ? (
+      <span key={i} className={styles.number}>
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
 }
 
 /**
@@ -88,7 +113,7 @@ const Cabinet = memo(function Cabinet({ id, path, zone, tall, name, pitch, langu
       {tall && <MedalTray />}
       <div className={styles.plate}>
         <p className={styles.pitch} data-testid={`center-pitch-${id}`}>
-          {pitch}
+          {plateLine(id, pitch)}
         </p>
         <p className={styles.foot}>
           {back && (

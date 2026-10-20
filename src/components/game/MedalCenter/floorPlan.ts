@@ -135,11 +135,49 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   pachinko: ['金魚ちょうちん', 'パチンコ'],
 };
 
-/** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */
-export const nameWords = (id: string, name: string): readonly string[] => {
-  const words = Object.prototype.hasOwnProperty.call(NAME_WORDS, id) ? NAME_WORDS[id] : null;
-  return words && words.join('') === name ? words : [name];
+/**
+ * Where each machine's Japanese line on its plate (`MACHINE_PITCHES`) may break: between its phrases. Chromium finds
+ * phrases itself (`word-break: auto-phrase`, MachineFloor.module.css). Safari and Firefox have no auto-phrase and broke a
+ * line anywhere in its kana (「メ｜ダル」 and a lone 「ぶ」 at 320 px); under keep-all they keep each phrase here whole
+ * and break only between them (MachineFloor.tsx `plateLine`). The phrases are Chromium's where it breaks a plate, so
+ * it sets them as before, but for three it broke inside a word or a range on the narrowest phone, where a phrase too
+ * long for the line had nowhere else to break: 「三毛ねこと｜じゃんけん。」, 「ベーシック｜ストラテジー」, 「1〜10個。」.
+ * A phrase fits a line of the narrowest plate (center.render.test.tsx).
+ */
+export const PITCH_WORDS: Readonly<Record<string, readonly string[]>> = {
+  'medal-pusher': ['メダルを', '押し出して', 'ジャックポットを', '狙え。'],
+  'slot-machine': ['3リール。', '777なら', '1枚につき', '1,000枚。'],
+  janken: ['三毛ねこと', 'じゃんけん。', 'ランプが', '当たりを', '決める。'],
+  roulette: ['シングルゼロ。', 'マーチンゲール法の', '落とし穴も。'],
+  blackjack: ['6デッキ。', 'ベーシック', 'ストラテジー', '表つき。'],
+  'video-poker': ['9/6ジャックス・', 'オア・', 'ベターと', 'ダブルアップ。'],
+  baccarat: ['8デッキの', 'プント・', 'バンコ。', '罫線つき。'],
+  craps: ['サイコロを', '振ろう。', 'オッズベットは', '確率どおり。'],
+  'three-card-poker': ['アンティを', '置き、', '3枚を', '見て', '勝負か', '降りるか。'],
+  fishing: ['1・3・5枚で', 'キャスト。', '港の', 'ヌシを', '釣り上げろ。'],
+  'horse-race': ['ミニコースを', '6頭が', '走る。', '単勝か', '連複を', '買おう。'],
+  'ball-bingo': ['釘を', '抜ける', 'ボールで', '3×3の', 'ビンゴを', 'そろえよう。'],
+  'big-wheel': ['54マスの', '大車輪。', 'ボーナスで', '最大×400'],
+  'high-low': ['次は', 'ハイか', 'ローか。', '12段の', 'ラダーを', '上ろう'],
+  'sic-bo': ['ドームで', '振る', '3つの', 'サイコロ。', 'ゾロ目は', '180:1'],
+  sugoroku: ['サイコロで', '島を', 'めぐり、', 'くじらに', '乗ろう'],
+  'coin-maze': ['レバーで', 'はじいて', '4つの', 'ゲートを', '抜けよう'],
+  keno: ['80の', '数字から', '1〜10個。', '最後の', '球なら×5'],
+  'smart-ball': ['バネで', '玉を', '打ち、', '穴を', '4つそろえて', 'ビンゴ'],
+  pachinko: ['1/99.9の', '甘デジ。', 'メダルで', '玉を', '借りて', '遊ぶ'],
 };
+
+/** `text` in the words `table` gives machine `id`, where it knows them and they still make up `text`; else whole. */
+const inWords = (table: Readonly<Record<string, readonly string[]>>, id: string, text: string): readonly string[] => {
+  const words = Object.prototype.hasOwnProperty.call(table, id) ? table[id] : null;
+  return words && words.join('') === text ? words : [text];
+};
+
+/** A cabinet's name in its words, where `NAME_WORDS` knows them and the name is still the one they make up. */
+export const nameWords = (id: string, name: string): readonly string[] => inWords(NAME_WORDS, id, name);
+
+/** A machine's line on its plate in its phrases, where `PITCH_WORDS` knows them and the line is still the one they make up. */
+export const pitchWords = (id: string, pitch: string): readonly string[] => inWords(PITCH_WORDS, id, pitch);
 
 /** The corner a machine stands in: its own, or the new machines' when it has none yet. */
 export const zoneOf = (id: string): ZoneId => (Object.prototype.hasOwnProperty.call(MACHINE_ZONES, id) ? MACHINE_ZONES[id] : 'new');

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { SmartBall } from '@/components/game/SmartBall';
 import { HOLES, MARBLES, SIZE, WINDOWS, drawPlay, holeAt, playOf, seeded, slotFor, type Draw, type Entry } from '@/components/game/SmartBall/engine';
 import { getStrings, type SmartBallStrings } from '@/components/game/SmartBall/i18n';
+import { getStrings as getKenoStrings } from '@/components/game/Keno/i18n';
 import { OddsTab } from '@/components/game/SmartBall/OddsTab';
 import { BALL_PLACES, MEDAL_PLACES, PlayTab, WIN_PLACES, phrasesOf } from '@/components/game/SmartBall/PlayTab';
 import {
@@ -353,6 +354,11 @@ describe('the words', () => {
     const markup = render(<PlayTab />, 'ja');
     expect(markup).toContain('>今回のプレイ<');
     expect(markup).toContain('>最近のプレイ<');
+    // Which marble of the ten, said as Video Keno says which ball of the twenty (「3球目／20」), not 「3／10個目」 (a
+    // tenth); and the prompt to let go asks, as the one to pull does (「引いて」).
+    expect(plain(getKenoStrings('ja').status.drawing(3, 1))).toMatch(/^3球目／20：/);
+    expect(plain(ja.status.ready(2))).toBe('3個目／10：引いて、離して打とう！');
+    expect(plain(ja.status.pulling(3))).toBe('強さ4：いま離して！');
   });
 
   it('tells how a play ended in a few words, and in a sentence for a screen reader', () => {

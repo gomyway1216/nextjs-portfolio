@@ -6,17 +6,18 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import floorTabs from '../MedalCenter/tabs.module.css';
-import { BET_MOST, TOP, analyzeLadder, payFor, valueOf } from './engine';
+import { BET_MOST, TOP, payFor, valueOf } from './engine';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
+import { PUBLISHED_LADDER } from './published';
 import styles from './HighLow.module.css';
 
 type Tab = 'machine' | 'odds';
 
 /** Best play's return, as the rules say it: to two decimals. */
 export const bestPercent = (language: 'en' | 'ja'): string =>
-  `${(valueOf(analyzeLadder().best) * 100).toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  `${(valueOf(PUBLISHED_LADDER.best) * 100).toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
 export type HighLowProps = PlayTabProps;
 

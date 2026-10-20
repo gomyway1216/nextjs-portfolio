@@ -16,12 +16,13 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { Board } from './Board';
 import { DieFace } from './Dice';
-import { BET_IDS, analyze, betInfo, drawDice, kindOf, labelOf, sortedDice, totalOf, valueOf, winningAreas, type BetId, type Bets, type Dice, type Face } from './engine';
+import { BET_IDS, betInfo, drawDice, kindOf, labelOf, sortedDice, totalOf, valueOf, winningAreas, type BetId, type Bets, type Dice, type Face } from './engine';
 import { SECTIONS, getStrings, type Section } from './i18n';
 import { Layout, sectionOf } from './Layout';
 import { BET_SIZES, SIC_BO_GAME, SPOT_MAX, lastRoll, onTable, pressAmount, tableKey, type Table, type TableError } from './medalTable';
 import { Dome, type Lights, type ShakeRun } from './Dome';
 import { FIRST_DICE, planShake, restPoses, type Pose, type ShakeEvent } from './physics';
+import { PUBLISHED_ODDS } from './published';
 import { mayPlayTable, playTableHere, seatTable, settleTable, sicBoTable, tableStore } from './sicBoTable';
 import styles from './SicBo.module.css';
 
@@ -40,7 +41,8 @@ const RESULT_GLANCE = 1_400;
 /** The shortest gap between two dice heard landing, in ms. */
 const CLACK_GAP = 45;
 
-const ODDS = analyze();
+// Written out in published.ts: nothing is added up as the table loads.
+const ODDS = PUBLISHED_ODDS;
 
 const MOTION = '(prefers-reduced-motion: reduce)';
 const prefersCalm = (): boolean => window.matchMedia?.(MOTION).matches === true;

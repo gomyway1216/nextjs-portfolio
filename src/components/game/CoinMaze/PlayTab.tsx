@@ -14,10 +14,11 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { GATE_PATTERNS, LIMIT_WINDOWS, OPENING, STAGES, STAKE, TIMEOUT, WINDOWS, WINDOW_MS, analyze, drawPlay, endOf, gateOf, passed, playOf, slotOf, valueOf, windowAt, type GateKind, type Play, type StageEnd } from './engine';
+import { GATE_PATTERNS, LIMIT_WINDOWS, OPENING, STAGES, STAKE, TIMEOUT, WINDOWS, WINDOW_MS, drawPlay, endOf, gateOf, passed, playOf, slotOf, valueOf, windowAt, type GateKind, type Play, type StageEnd } from './engine';
 import { getStrings } from './i18n';
 import { Maze, type MazeParts } from './Maze';
 import { COIN_MAZE_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
+import { PUBLISHED_MAZE_ODDS } from './published';
 import { CONTACT_MS, CUPS, GATE_FOOT, GATE_X, createMachineClock, cuesOf, cupPose, dropTrack, flickTrack, gateAngle, gateLook, pinsTrack, poseAt, restingPose, type Cue, type CueSound, type Pose, type Track } from './scene';
 import styles from './CoinMaze.module.css';
 
@@ -750,7 +751,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   };
 
   // ── What is on the screen ──
-  const odds = analyze();
+  const odds = PUBLISHED_MAZE_ODDS;
   const running = phase !== 'idle';
   const statusText = (() => {
     if (running) {

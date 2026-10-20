@@ -14,10 +14,11 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { BETS, BOARD, START, analyzeBoard, drawPlay, medalsFor, valueOf, type Bet, type Play } from './engine';
+import { BETS, BOARD, START, drawPlay, medalsFor, valueOf, type Bet, type Play } from './engine';
 import { getStrings } from './i18n';
 import { IslandBoard, SquareIcon } from './IslandBoard';
 import { SUGOROKU_GAME, createTable, playOfRecord, rollId, standingOf, type BoardRecord, type Staked, type Table } from './medalTable';
+import { PUBLISHED_BOARD_ODDS } from './published';
 import { beatsOf, finalScene, restingScene, showLength, type Beat, type Scene } from './scene';
 import styles from './Sugoroku.module.css';
 
@@ -463,7 +464,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   });
 
   // ── What is on the screen ──
-  const odds = analyzeBoard();
+  const odds = PUBLISHED_BOARD_ODDS;
   const standingSquare = scene.boat.on === 'board' ? scene.boat.square : null;
   const statusText = (() => {
     if (running) {

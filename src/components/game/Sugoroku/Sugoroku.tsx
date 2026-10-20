@@ -6,10 +6,11 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import floorTabs from '../MedalCenter/tabs.module.css';
-import { analyzeBoard, valueOf } from './engine';
+import { valueOf } from './engine';
 import { getStrings } from './i18n';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
+import { PUBLISHED_BOARD_ODDS } from './published';
 import styles from './Sugoroku.module.css';
 
 type Tab = 'machine' | 'odds';
@@ -49,7 +50,7 @@ export const Sugoroku = ({ player }: SugorokuProps = {}) => {
     setTab(tabs[next].id);
     tabButtons.current[tabs[next].id]?.focus();
   };
-  const odds = analyzeBoard();
+  const odds = PUBLISHED_BOARD_ODDS;
 
   return (
     <div className={styles.root}>

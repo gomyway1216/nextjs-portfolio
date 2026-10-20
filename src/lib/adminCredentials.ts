@@ -16,8 +16,10 @@ import { applicationDefault } from 'firebase-admin/app';
  * Credentials found later (a developer logging in with gcloud while the server runs) are seen after a restart.
  */
 
-/** The lookup's error where there are no credentials of any kind; null where there are, or may be. Settled once. */
+/** The lookup, started once. It settles with its error where there are no credentials of any kind, null otherwise. */
 let lookup: Promise<Error | null> | null = null;
+/** Set once the lookup has found no credentials of any kind. */
+let missing: Error | null = null;
 
 /** Whether the server was given a service account of its own, as production is (see `getAdminSDK`). */
 export function hasServiceAccount(env: Readonly<Record<string, string | undefined>> = process.env): boolean {
@@ -40,13 +42,33 @@ async function lookUp(): Promise<Error | null> {
   }
 }
 
+/** The lookup, started the first time it is asked for; it never rejects. */
+function lookUpOnce(): Promise<Error | null> {
+  lookup ??= lookUp().then((found) => {
+    missing = found;
+    return found;
+  });
+  return lookup;
+}
+
+const noCredentials = (found: Error) => new Error(found.message, { cause: found });
+
 /**
  * Settles at once where the server has credentials (or may have), and rejects at once, with the lookup's own error
- * ("Could not load the default credentials…"), where it has none at all. Await it before a read that would otherwise
- * wait on the Firestore client's retries to find that out.
+ * ("Could not load the default credentials…"), where it has none at all; the first time, once the lookup has answered.
+ * Await it before a read that would otherwise wait on the Firestore client's retries to find that out.
  */
 export async function requireAdminCredentials(): Promise<void> {
-  lookup ??= lookUp();
-  const missing = await lookup;
-  if (missing) throw new Error(missing.message, { cause: missing });
+  const found = await lookUpOnce();
+  if (found) throw noCredentials(found);
+}
+
+/**
+ * For a client about to be handed out (firebase-admin.ts's `getFirestore` and `getRealtimeDatabase`): throws at once,
+ * with the lookup's own error, where the lookup has already found no credentials at all, and otherwise starts the
+ * lookup (once) and returns. It never waits, and never throws where the server was given a service account.
+ */
+export function throwIfWithoutCredentials(): void {
+  void lookUpOnce();
+  if (missing) throw noCredentials(missing);
 }

@@ -33,9 +33,11 @@ afterEach(() => {
 describe('a server given a service account, as production is', () => {
   it('has credentials with its key, and looks nothing up', async () => {
     vi.stubEnv('FIREBASE_SERVICE_ACCOUNT_KEY', 'placeholder-not-a-key');
-    const { requireAdminCredentials } = await fresh();
+    const { requireAdminCredentials, throwIfWithoutCredentials } = await fresh();
+    expect(() => throwIfWithoutCredentials()).not.toThrow();
     await expect(requireAdminCredentials()).resolves.toBeUndefined();
     await expect(requireAdminCredentials()).resolves.toBeUndefined();
+    expect(() => throwIfWithoutCredentials()).not.toThrow();
     expect(mocks.applicationDefault).not.toHaveBeenCalled();
   });
 
@@ -81,6 +83,27 @@ describe('a server with no service account', () => {
     await expect(requireAdminCredentials()).resolves.toBeUndefined();
     await expect(requireAdminCredentials()).resolves.toBeUndefined();
     expect(mocks.getAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('a client handed out before the lookup has answered is handed out; once it has found none, none is', async () => {
+    let answer: (reason: Error) => void = () => undefined;
+    mocks.getAccessToken.mockReturnValue(new Promise((_, reject) => (answer = reject)));
+    const { throwIfWithoutCredentials, requireAdminCredentials } = await fresh();
+    // The first asks start the lookup and never wait on it.
+    expect(() => throwIfWithoutCredentials()).not.toThrow();
+    expect(() => throwIfWithoutCredentials()).not.toThrow();
+    answer(new Error(NONE));
+    await expect(requireAdminCredentials()).rejects.toThrow(NONE);
+    expect(() => throwIfWithoutCredentials()).toThrow(NONE);
+    expect(mocks.getAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('with application-default credentials: a client is always handed out', async () => {
+    mocks.getAccessToken.mockResolvedValue({ access_token: 'placeholder', expires_in: 3600 });
+    const { throwIfWithoutCredentials, requireAdminCredentials } = await fresh();
+    expect(() => throwIfWithoutCredentials()).not.toThrow();
+    await requireAdminCredentials();
+    expect(() => throwIfWithoutCredentials()).not.toThrow();
   });
 
   it('with credentials that could not be used just now (the network): reads go ahead, and fail or not as before', async () => {

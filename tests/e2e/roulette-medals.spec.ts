@@ -448,10 +448,29 @@ test('the medal counter and the note that medals are not money, at a phone’s w
   expect(await sideways(page)).toBeLessThanOrEqual(375);
 });
 
+/**
+ * From now on, at each change of the meter's `attribute`, what the medals' LEDs show in that same moment: kept on the page,
+ * so that how long the test takes to ask does not change what it reads. (Read from the test, a slow macOS runner's
+ * WebKit had counted the win all the way in before the first read, and took more than 500 ms to show a bet at all.)
+ */
+const ledOnChangeOf = (page: Page, attribute: 'data-win' | 'data-bet') =>
+  page.evaluate((name) => {
+    const meter = document.querySelector('[data-testid="roulette-meter"]')!;
+    const led = document.querySelector<HTMLElement>('[data-testid="roulette-medals-led"]')!;
+    const w = window as unknown as { __ledOn: Record<string, [string | null, number][]> };
+    w.__ledOn ??= {};
+    w.__ledOn[name] = [];
+    new MutationObserver(() => w.__ledOn[name].push([meter.getAttribute(name), Number(led.dataset.shown)])).observe(meter, { attributes: true, attributeFilter: [name] });
+  }, attribute);
+/** What the LEDs showed as the meter's `attribute` became `value`, or null before it has. */
+const ledWhen = (page: Page, attribute: 'data-win' | 'data-bet', value: string) =>
+  page.evaluate(([name, wanted]) => (window as unknown as { __ledOn: Record<string, [string | null, number][]> }).__ledOn[name].find(([seen]) => seen === wanted)?.[1] ?? null, [attribute, value] as const);
+
 test('the WIN counter shows what a spin won, and the win runs into the medals on the counter', async ({ page }) => {
   await openRoulette(page);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
   await coverTheWheel(page);
+  await ledOnChangeOf(page, 'data-win');
   // Zero comes up: the medal on it wins 36 (35 and the medal back).
   await page.evaluate(() => {
     const w = window as unknown as { __random: () => number };
@@ -467,16 +486,18 @@ test('the WIN counter shows what a spin won, and the win runs into the medals on
   expect(await settledResult(page)).toBe(0);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
   await expect(page.getByTestId('roulette-win')).toHaveText('Won on the last spin: 36 medals');
-  // The medals are the player's at once; their LEDs count up to them.
+  // The medals are the player's at once; their LEDs count up to them: as the WIN counter shows the win, they still show
+  // the medals without it.
   expect(await shownMedals(page)).toBe(WELCOME - 3 + 36);
   const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
-  const early = await led();
+  const early = await ledWhen(page, 'data-win', '36');
   expect(early).toBeGreaterThanOrEqual(WELCOME - 3);
   expect(early).toBeLessThan(WELCOME - 3 + 36);
   await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + 36);
-  // A bet put on the felt (or taken back) is on the counter at once.
+  // A bet put on the felt (or taken back) is on the counter at once: in the same moment the meter shows the bet.
+  await ledOnChangeOf(page, 'data-bet');
   await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
-  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36 - 1);
+  await expect.poll(() => ledWhen(page, 'data-bet', '1')).toBe(WELCOME - 3 + 36 - 1);
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36);
+  await expect.poll(() => ledWhen(page, 'data-bet', '0')).toBe(WELCOME - 3 + 36);
 });

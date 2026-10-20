@@ -22,6 +22,8 @@ vi.mock('@/lib/firebase-admin', () => ({
   getRealtimeDatabase: () => fakes.rtdb,
   getAuth: () => fakes.auth,
 }));
+// The server has credentials: its reads go ahead (adminCredentials.ts).
+vi.mock('@/lib/adminCredentials', () => ({ requireAdminCredentials: async () => undefined }));
 vi.mock('@/app/api/_lib/withActivityLog', () => ({
   withActivityLog: (_action: string, handler: unknown) => handler,
 }));

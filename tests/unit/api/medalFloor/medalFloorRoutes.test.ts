@@ -10,12 +10,18 @@ import { FakeFirestore, FakeRtdb, fakeAuth, type FakeToken } from './fakeFirebas
 // The medal floor's routes, end to end against in-memory fakes of Firestore, the Realtime Database and token checks.
 // What matters as much as what they store is what they refuse, and that nothing they answer names an account.
 
-const fakes = vi.hoisted(() => ({ db: null as unknown, rtdb: null as unknown, auth: null as unknown }));
+const fakes = vi.hoisted(() => ({ noCredentials: null as Error | null, db: null as unknown, rtdb: null as unknown, auth: null as unknown }));
 
 vi.mock('@/lib/firebase-admin', () => ({
   getFirestore: () => fakes.db,
   getRealtimeDatabase: () => fakes.rtdb,
   getAuth: () => fakes.auth,
+}));
+// Whether the server has credentials (adminCredentials.ts): yes, unless a test says it has none.
+vi.mock('@/lib/adminCredentials', () => ({
+  requireAdminCredentials: async () => {
+    if (fakes.noCredentials) throw fakes.noCredentials;
+  },
 }));
 vi.mock('@/app/api/_lib/withActivityLog', () => ({
   withActivityLog: (_action: string, handler: unknown) => handler,
@@ -73,6 +79,7 @@ async function owner(body: unknown, token: FakeToken = 'fake-token-owner'): Prom
 
 beforeEach(() => {
   vi.resetModules();
+  fakes.noCredentials = null;
   fakes.db = new FakeFirestore();
   fakes.rtdb = new FakeRtdb();
   fakes.auth = fakeAuth();
@@ -104,6 +111,28 @@ describe('GET /api/game/medal-floor', () => {
     const floor = (await response!.json()) as FloorSummary;
     expect(floor.available).toBe(false);
     expect(floor.feed).toEqual([]);
+  });
+
+  it('answers at once that it is unavailable where the server has no credentials at all (CI), and reads nothing', async () => {
+    fakes.noCredentials = new Error('Could not load the default credentials. Browse to https://cloud.google.com/docs/authentication/getting-started for more information.');
+    const dialled: string[] = [];
+    const ref = rtdb().ref.bind(rtdb());
+    rtdb().ref = (path = '') => {
+      dialled.push(path);
+      return ref(path);
+    };
+    const { GET } = await floorRoute();
+    for (const view of ['hub', 'full']) {
+      const response = await GET(request(`?view=${view}`), undefined as never);
+      // As a store that is not set up: an empty floor, not a failure, and nothing in the log.
+      expect(response?.status).toBe(200);
+      const floor = (await response!.json()) as FloorSummary;
+      expect(floor.available).toBe(false);
+      expect(floor.feed).toEqual([]);
+    }
+    expect(db().reads).toBe(0);
+    expect(dialled).toEqual([]);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it('does not ask a failing store again for half a minute, and never dials the live database when Firestore is down', async () => {

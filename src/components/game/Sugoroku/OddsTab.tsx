@@ -13,7 +13,6 @@ import {
   LAMPS,
   LAMP_COUNT,
   STAR,
-  analyzeBoard,
   checkRolls,
   fraction,
   isArrow,
@@ -22,6 +21,7 @@ import {
   type Fraction,
 } from './engine';
 import { getStrings, timesOf } from './i18n';
+import { PUBLISHED_BOARD_ODDS } from './published';
 import styles from './Sugoroku.module.css';
 
 /** How many rolls the check plays. */
@@ -50,7 +50,8 @@ export const OddsTab = () => {
   const fmt = (n: number, digits = 0) => n.toLocaleString(locale, { maximumFractionDigits: digits, minimumFractionDigits: digits });
   const pct = (v: number, digits = 2) => `${fmt(v * 100, digits)}%`;
   const ratio = (f: Fraction) => `${f.num.toString()}/${f.den.toString()}`;
-  const odds = analyzeBoard();
+  // Written out in published.ts: nothing is worked out as the tab is drawn (it is drawn, hidden, as the page opens).
+  const odds = PUBLISHED_BOARD_ODDS;
   const every = (f: Fraction) => fmt(1 / valueOf(f), 1);
 
   const [running, setRunning] = useState(false);

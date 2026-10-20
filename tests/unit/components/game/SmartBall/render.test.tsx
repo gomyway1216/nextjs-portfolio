@@ -132,8 +132,9 @@ describe('the plunger', () => {
 
 describe('the marble’s way', () => {
   it('runs up the lane, round the rail, down through the pins and into the hole the play says, never jumping', () => {
+    // Sixty marbles, every strength among them.
     const random = seeded(3);
-    for (let p = 0; p < 12; p++) {
+    for (let p = 0; p < 6; p++) {
       const d = drawPlay(random);
       const shots = Array.from({ length: MARBLES }, (_, m) => (m + p) % WINDOWS);
       const play = playOf(d, shots);

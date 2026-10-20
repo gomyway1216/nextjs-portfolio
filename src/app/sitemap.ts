@@ -55,7 +55,9 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
 
 async function getPublicProjects() {
   try {
-    return await getProjectsServer();
+    // Bounded like the posts query: without it one hung read held the
+    // whole sitemap for minutes.
+    return await withReadDeadline(getProjectsServer(), 'sitemap projects query');
   } catch (error) {
     console.error('[sitemap] Failed to load projects:', error);
     return [];

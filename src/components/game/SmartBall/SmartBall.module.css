@@ -599,6 +599,10 @@
   white-space: nowrap;
   pointer-events: none;
 }
+/* The badge beside the board, on a phone held sideways only (below). */
+.sideBadge {
+  display: none;
+}
 .perPlay {
   position: absolute;
   top: 9px;
@@ -1031,6 +1035,64 @@
   background: var(--smb-indigo);
   color: #fff;
   font-weight: 800;
+}
+
+/* ---------- A phone held sideways: the board at the left, the words and the controls in a column at the right ---------- */
+/* Too short a screen for the board over its controls (a phone held sideways, 320 to 500 px tall): the board is as tall
+   as the screen allows under the site's toolbar (62 px, and 18 px of room), and the badge over a play from before, the
+   status line, START, Skip and the plunger stand in a column beside it, all on the screen at once. The badge's place
+   is kept while there is none, so the column never moves; on the board it would cover the rail's lamps, small as the
+   board is here. The plate that says what a play takes stays on the board, a little higher, clear of the lamps. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .machine {
+    grid-template-columns: minmax(0, 640px);
+  }
+  .playArea {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto auto auto 1fr;
+    column-gap: 12px;
+    align-items: center;
+  }
+  .boardBox {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: calc((100vh - 80px) * 0.6383 + 10px);
+    width: calc((100svh - 80px) * 0.6383 + 10px);
+    max-width: none;
+  }
+  .resumedBadge {
+    display: none;
+  }
+  .perPlay {
+    top: 5px;
+    left: 7px;
+  }
+  .sideBadge {
+    display: block;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--smb-indigo);
+    border: 1px solid #ffd9a3;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .sideBadge[data-shown='false'] {
+    visibility: hidden;
+  }
+  .status {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .controls {
+    grid-column: 2;
+    grid-row: 4;
+  }
 }
 
 /* ---------- Beside the cabinet ---------- */

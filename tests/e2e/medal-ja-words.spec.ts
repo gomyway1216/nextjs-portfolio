@@ -36,6 +36,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'VIDEO KENO': 'the video keno cabinet’s marquee, over 「ビデオキノ」',
   'SMART BALL': 'the smart ball table’s noren, over 「湯けむり」',
   'GOLDFISH LANTERN': 'the pachinko cabinet’s marquee, beside 「パチンコ・1/99.9」',
+  'SAKURA CAROUSEL': 'the carousel pusher’s marquee, beside 「メダルプッシャー」',
   // Lamps, pockets and reel symbols on a playfield, as real medal machines print them.
   JACKPOT: 'the pusher’s jackpot lamp',
   START: 'the pusher’s START pockets and the START buttons of the cabinets',

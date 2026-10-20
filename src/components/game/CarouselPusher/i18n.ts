@@ -86,7 +86,7 @@ const en = {
   dropSmall: 'hold for more',
   dropAria: 'Drop a medal from the slot; hold to keep dropping, four a second',
   giveBack: 'RETURN',
-  giveBackAria: 'Give back the medals in the slot',
+  giveBackAria: 'Return the medals in the slot to your medals',
   paytable: [
     { id: 'jackpot' as OutcomeId, shows: '777', pays: 'JACKPOT' },
     { id: 'triple' as OutcomeId, shows: '★★★', pays: String(PRIZES.triple) },
@@ -213,9 +213,9 @@ const ja: Strings = {
   hold: '保留',
   drop: '投入',
   dropSmall: '長押しで連続',
-  dropAria: 'メダルを1枚投入。長押しで1秒に4枚ずつ',
+  dropAria: '投入：メダルを1枚。長押しで1秒に4枚ずつ',
   giveBack: '返却',
-  giveBackAria: 'クレジットのメダルを持ちメダルに戻す',
+  giveBackAria: '返却：クレジットのメダルを持ちメダルに戻す',
   paytable: [
     { id: 'jackpot', shows: '777', pays: 'JACKPOT' },
     { id: 'triple', shows: '★★★', pays: `${PRIZES.triple}枚` },

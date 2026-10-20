@@ -167,6 +167,41 @@ for (const [width, height] of [
   [375, 812],
   [320, 640],
 ] as const) {
+  test(`the carousel pusher (carousel-pusher) at ${width}×${height}: DROP brings the counter, the whole field and DROP on screen together, under the toolbar`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const page = await phone(browser, width, height);
+    await page.context().addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    await page.goto('/games/carousel-pusher');
+    await arrived(page);
+    const machine = page.getByTestId('cp-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    const drop = page.getByTestId('cp-drop');
+    // Scrolled on past the field, DROP near the top of the window, as a player back from the figures under it: the
+    // counter over the field is under the toolbar or off the screen.
+    await drop.evaluate((el) => {
+      el.scrollIntoView({ block: 'start', behavior: 'instant' });
+      window.scrollBy({ top: -110, behavior: 'instant' });
+    });
+    const panel = page.getByTestId('cp-panel');
+    const covered = () =>
+      panel.evaluate((el) => {
+        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        return el.getBoundingClientRect().top < bar - 1;
+      });
+    expect(await covered()).toBe(true);
+    await pressUntil(drop, async () => (await machine.getAttribute('data-fed')) === '1');
+    await expect.poll(covered, { timeout: 4_000 }).toBe(false);
+    expect(await onScreen(panel)).toBe(1);
+    expect(await onScreen(page.getByTestId('cp-stage'))).toBe(1);
+    expect(await onScreen(drop)).toBe(1);
+    await page.context().close();
+  });
+}
+
+for (const [width, height] of [
+  [375, 812],
+  [320, 640],
+] as const) {
   test(`blackjack at ${width}×${height}: during a hand the moves are where DEAL was pressed, on screen`, async ({ browser }) => {
     test.setTimeout(60_000);
     const page = await phone(browser, width, height);

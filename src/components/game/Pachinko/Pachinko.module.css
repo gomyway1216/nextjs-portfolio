@@ -794,6 +794,89 @@
   font-weight: 800;
 }
 
+/* ---------- A phone held sideways: the board at the left, the words, controls and counters in a column at the right ---------- */
+/* Too short a screen for the board over its controls (a phone held sideways, 320 to 500 px tall): the board (the
+   canvas, its screen and hold lamps) is as tall as the screen allows under the site's toolbar (64 px, and 16 px of
+   room), and the status line, the handle with − and +, the strength, LEND, COUNT and Skip, and the counters stand in a
+   column beside it, all on the screen at once. The counters are the cabinet's, not the play area's, so the cabinet
+   lays the parts out itself and the play area's own box gives way to its parts (`display: contents`; PlayTab.tsx's
+   bringIntoView then brings the box round its parts on screen). The notes under the machine go under both columns. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .machine {
+    grid-template-columns: minmax(0, 640px);
+  }
+  .cabinet {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto auto auto 1fr;
+    grid-template-areas:
+      'sign sign'
+      'board .'
+      'board status'
+      'board controls'
+      'board meters'
+      'board .'
+      'message message'
+      'out out'
+      'sound sound'
+      'keys keys'
+      'notes notes';
+    column-gap: 12px;
+  }
+  .sign {
+    grid-area: sign;
+  }
+  .playArea {
+    display: contents;
+  }
+  .boardBox {
+    grid-area: board;
+    align-self: start;
+    width: calc((100vh - 80px) * 0.8333);
+    width: calc((100svh - 80px) * 0.8333);
+  }
+  /* The column a little tighter than under the board, so that it is never taller than the board beside it: the
+     status line's two lines held to whole pixels (as 2.9em they came to a 64th of a pixel more or less than two lines
+     of words, and everything under it moved by that as the words changed), the handle 80 px, the counters' digits
+     20 px. */
+  .status {
+    grid-area: status;
+    margin: 0.2rem 0;
+    min-height: 40px;
+    line-height: 20px;
+  }
+  .controls {
+    grid-area: controls;
+    gap: 0.35rem;
+  }
+  .handle {
+    width: 80px;
+    height: 80px;
+  }
+  .meters {
+    grid-area: meters;
+    margin-top: 0.35rem;
+  }
+  .led > span {
+    height: 20px;
+  }
+  .message {
+    grid-area: message;
+  }
+  .outRow {
+    grid-area: out;
+  }
+  .secondaryRow {
+    grid-area: sound;
+  }
+  .keysHint {
+    grid-area: keys;
+  }
+  .medalNotes {
+    grid-area: notes;
+  }
+}
+
 /* ---------- The panels beside the machine ---------- */
 .side {
   display: grid;

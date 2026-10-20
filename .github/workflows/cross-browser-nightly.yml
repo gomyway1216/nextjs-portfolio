@@ -1,0 +1,71 @@
+name: Cross-browser nightly
+
+# The e2e suite in WebKit (Safari's engine) and Firefox against a production build, once a night and on demand.
+# The PR CI (ci.yml, "E2E smoke tests") runs Chromium only; this catches the regressions that only Safari or Firefox
+# show (line breaks, select heights, focus, cross-tab hand-overs) within a day, without slowing a PR.
+
+on:
+  schedule:
+    # 18:00 UTC = 03:00 JST.
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [webkit, firefox]
+    env:
+      NEXT_PUBLIC_API_KEY: ci-placeholder
+      NEXT_PUBLIC_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+      NEXT_PUBLIC_PROJECT_ID: ci-placeholder
+      NEXT_PUBLIC_STORAGE_BUCKET: ci-placeholder.appspot.com
+      NEXT_PUBLIC_MESSAGING_SENDER_ID: "000000000000"
+      NEXT_PUBLIC_APP_ID: "1:000000000000:web:ci"
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+      NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:ci"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.13.0"
+          cache: "npm"
+
+      - name: Pin npm to 11.14.1 (matches package.json packageManager)
+        run: npm install -g npm@11.14.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Run E2E tests in ${{ matrix.browser }}
+        run: npx playwright test -c playwright.cross-browser.config.ts --project=${{ matrix.browser }}
+
+      - name: Upload the report and traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cross-browser-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14

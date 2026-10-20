@@ -1,5 +1,7 @@
 import { test, expect } from './fixtures';
 
+import { arrived } from './streamedPage';
+
 // Data-independent smoke checks: these must pass with placeholder
 // Firebase credentials (CI), where every Firestore-backed section
 // renders its fallback state.
@@ -8,6 +10,8 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
   expect(response).not.toBeNull();
   expect(response!.status()).toBe(200);
+  // The page streams in: until React lets go of its hidden copy there are two sidebars (seen in Firefox).
+  await arrived(page);
 
   await expect(page.getByRole('heading', { level: 1, name: 'Yudai Yaguchi' })).toBeVisible();
   await expect(page.locator('.header-left')).toBeVisible();

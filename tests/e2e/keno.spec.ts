@@ -299,6 +299,33 @@ test('fits 375 and 320 px phones in English and Japanese: one half of the board 
   }
 });
 
+test('on a phone the draw is shown on a half with the spots on it, and the board keeps its Tab stop on a number shown', async ({ browser }) => {
+  test.setTimeout(60_000);
+  const { context, page } = await phone(browser, 375, 'en');
+  const stop = page.locator('[data-testid="kn-board"] button[tabindex="0"]');
+  await mark(page, [3, 17, 22]);
+  // The player looks at the other half, and draws from there.
+  await page.getByTestId('kn-half-bottom').click();
+  await expect(page.getByTestId('kn-board')).toHaveAttribute('data-half', 'bottom');
+  await expect(stop).toBeVisible();
+  await draw(page, ballsWith([3, 17], 22));
+  await expect(machine(page)).toHaveAttribute('data-phase', 'draw');
+  // The draw is shown on the half with the spots: none of them would be on screen otherwise.
+  await expect(page.getByTestId('kn-board')).toHaveAttribute('data-half', 'top');
+  for (const n of [3, 17, 22]) await expect(page.getByTestId(`kn-cell-${n}`)).toBeVisible();
+  await expect(stop).toBeVisible();
+  await page.getByTestId('kn-skip').click();
+  await ended(page);
+  // A quick pick on the other half shows it, the Tab stop with it.
+  await rigPresses(page, numbersFor([70, 50, 60]));
+  await page.getByTestId('kn-quick').click();
+  await expect(page.getByTestId('kn-board')).toHaveAttribute('data-half', 'bottom');
+  await expect(page.getByTestId('kn-cell-50')).toHaveAttribute('aria-pressed', 'true');
+  await expect(stop).toBeVisible();
+  await expect(stop).toHaveAttribute('data-n', '50');
+  await context.close();
+});
+
 test.describe('with less motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 

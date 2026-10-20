@@ -15,7 +15,7 @@ import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { Board, type Half } from './Board';
-import { BETS, DRAWN, LAST_BALL_TIMES, SPOTS_MOST, drawBalls, gameOf, halfOf, isBet, payOf, quickPick, sameSpots, sortSpots, valueOf, type Bet } from './engine';
+import { BETS, DRAWN, HALF, LAST_BALL_TIMES, SPOTS_MOST, drawBalls, gameOf, halfOf, isBet, payOf, quickPick, sameSpots, sortSpots, valueOf, type Bet } from './engine';
 import { getStrings, type Result } from './i18n';
 import { KENO_GAME, TICKET_KEY, createTable, gameId, parseTicket, type GameRecord, type Staked, type Table } from './medalTable';
 import { PUBLISHED_KENO_ODDS } from './published';
@@ -163,8 +163,19 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const marksRef = useRef<number[]>([]);
   const [bet, setBetState] = useState<Bet>(1);
   const betRef = useRef<Bet>(1);
-  const [half, setHalf] = useState<Half>('top');
+  const [half, setHalfState] = useState<Half>('top');
+  const halfRef = useRef<Half>('top');
   const [focus, setFocus] = useState(1);
+  /**
+   * Shows a half of the board, where a phone shows one at a time, with the board's one stop of the Tab key on a number
+   * of it (`at`, or its first, unless the stop is on that half already): a stop on the half not shown could not be
+   * reached.
+   */
+  const setHalf = useCallback((next: Half, at?: number) => {
+    halfRef.current = next;
+    setHalfState(next);
+    setFocus((stop) => (halfOf(stop) === next ? stop : (at ?? (next === 'top' ? 1 : HALF + 1))));
+  }, []);
   // The last game's spots: Same spots plays them again.
   const [lastSpots, setLastSpots] = useState<number[]>([]);
   const lastSpotsRef = useRef<number[]>([]);
@@ -256,8 +267,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMarksState(kept.spots);
     setBetState(kept.bet);
-    if (kept.spots.length > 0) setHalf(halfOf(kept.spots[0]));
-  }, []);
+    if (kept.spots.length > 0) setHalf(halfOf(kept.spots[0]), kept.spots[0]);
+  }, [setHalf]);
 
   /** The ticket changed: the last game's balls come off the board. */
   const changed = (next: number[]) => {
@@ -295,7 +306,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const count = marksRef.current.length || lastSpotsRef.current.length || QUICK_PICK_SPOTS;
     const picked = quickPick(count, Math.random);
     changed(picked);
-    setHalf(halfOf(picked[0]));
+    setHalf(halfOf(picked[0]), picked[0]);
     play('chip');
     setAnnouncement(live.current.t.sayQuickPick(picked));
   };
@@ -316,11 +327,13 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setResumed(again);
       setMarks(record.spots);
       rememberSpots(record.spots);
-      if (record.spots.length > 0 && !record.spots.some((n) => halfOf(n) === 'top')) setHalf('bottom');
+      // A phone shows one half of the board: the draw is shown on a half with the player's spots on it, the half shown
+      // if it has any (a half with none of them would show the whole draw without one of their numbers).
+      if (record.spots.length > 0 && !record.spots.some((n) => halfOf(n) === halfRef.current)) setHalf(halfOf(record.spots[0]), record.spots[0]);
       glance.current?.drop();
       glance.current = again ? null : lookUp(screenRef.current, from);
     },
-    [rememberSpots, setMarks],
+    [rememberSpots, setHalf, setMarks],
   );
 
   /** DRAW: the twenty balls are drawn here, in the press, the game written down and the bet taken. */
@@ -651,10 +664,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             drawn={drawn}
             latest={latest}
             half={half}
-            onHalf={(next) => {
-              setHalf(next);
-              if (halfOf(focus) !== next) setFocus(next === 'top' ? 1 : 41);
-            }}
+            onHalf={setHalf}
             open={canPlay}
             onToggle={toggle}
             focus={focus}

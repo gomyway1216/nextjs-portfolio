@@ -377,19 +377,24 @@ function choicesOf(player: Player): { scale: number; choices: Choice[] } {
 // ── The dynamic programme ───────────────────────────────────────────────────
 
 const STATES = 1 << HOLES;
-const POPCOUNT: Uint8Array = (() => {
-  const counts = new Uint8Array(STATES);
-  for (let s = 1; s < STATES; s++) counts[s] = counts[s >> 1] + (s & 1);
-  return counts;
-})();
-/** Every set of lit holes ten marbles can leave, by how many are lit. */
-const SETS_BY_SIZE: readonly number[][] = (() => {
-  const sets: number[][] = Array.from({ length: MARBLES + 1 }, () => []);
-  for (let s = 0; s < STATES; s++) if (POPCOUNT[s] <= MARBLES) sets[POPCOUNT[s]].push(s);
-  return sets;
-})();
+/**
+ * Every set of lit holes ten marbles can leave, by how many are lit: made the first time the programme runs, never as
+ * the page loads (the page reads published.ts).
+ */
+let setsBySize: number[][] | null = null;
 /** The sets of lit holes a board can be in with `left` marbles still to shoot: those `MARBLES - left` marbles can light. */
-const setsWith = (left: number): number[] => SETS_BY_SIZE.slice(0, MARBLES - left + 1).flat();
+const setsWith = (left: number): number[] => {
+  if (!setsBySize) {
+    const sets: number[][] = Array.from({ length: MARBLES + 1 }, () => []);
+    for (let lit = 0; lit < STATES; lit++) {
+      let count = 0;
+      for (let rest = lit; rest !== 0 && count <= MARBLES; rest &= rest - 1) count += 1;
+      if (count <= MARBLES) sets[count].push(lit);
+    }
+    setsBySize = sets;
+  }
+  return setsBySize.slice(0, MARBLES - left + 1).flat();
+};
 
 /** What a board lit as `lit` pays once every marble has been shot. */
 const payOfSet = (lit: number): number => {
@@ -552,7 +557,7 @@ export function analyzePlayer(player: Player, { exhaustive = false }: { exhausti
   return { back, lines: byLines.map((n) => fraction(n, den)) };
 }
 
-/** Every player's exact odds (a second or so): for the tests, and for writing out odds.ts. The page reads odds.ts. */
+/** Every player's exact odds (a second or so): for the tests, and for writing out published.ts. The page reads published.ts. */
 export const analyze = (): MachineOdds => ({ perfect: analyzePlayer('perfect'), typical: analyzePlayer('typical'), blind: analyzePlayer('blind') });
 
 // ── A check by play ─────────────────────────────────────────────────────────

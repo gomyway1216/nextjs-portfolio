@@ -8,7 +8,7 @@ import floorTabs from '../MedalCenter/tabs.module.css';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { valueOf } from './engine';
 import { getStrings } from './i18n';
-import { publishedOdds } from './odds';
+import { PUBLISHED_SMART_BALL_ODDS } from './published';
 import { OddsTab } from './OddsTab';
 import { PlayTab, type PlayTabProps } from './PlayTab';
 import styles from './SmartBall.module.css';
@@ -52,7 +52,7 @@ export const SmartBall = ({ player }: SmartBallProps = {}) => {
     setTab(tabs[next].id);
     tabButtons.current[tabs[next].id]?.focus();
   };
-  const odds = publishedOdds();
+  const odds = PUBLISHED_SMART_BALL_ODDS;
 
   return (
     <div className={styles.root}>

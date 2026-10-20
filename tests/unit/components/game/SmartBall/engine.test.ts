@@ -36,9 +36,9 @@ import {
   type Draw,
   type Entry,
 } from '@/components/game/SmartBall/engine';
-import { publishedOdds } from '@/components/game/SmartBall/odds';
+import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published';
 
-// Hot Spring Smart Ball's rules. Its exact returns are worked out in odds.test.ts; here the board, the draw and a play
+// Hot Spring Smart Ball's rules. Its exact returns are worked out in published.test.tsx; here the board, the draw and a play
 // are pinned, and the published returns are checked by playing.
 
 /** A draw that drops marble `m`, shot at strength 3, at `entries[m]` (null: OUT), every blind shot at strength 3 too. */
@@ -203,7 +203,7 @@ describe('the players', () => {
   });
 
   it('brings back what the exact figures say when played, perfect, everyday and blind', { timeout: 20_000 }, () => {
-    const odds = publishedOdds();
+    const odds = PUBLISHED_SMART_BALL_ODDS;
     for (const player of ['perfect', 'typical', 'blind'] as const) {
       const seen = checkPlays(6_000, player, seeded(11));
       // About three standard errors of 6,000 plays (a play's return varies by about 1.6 of its stake at most).

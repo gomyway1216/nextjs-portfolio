@@ -17,7 +17,7 @@ import { MARBLES, STAKE, WINDOWS, drawPlay, linesOf, playOf, valueOf, type Play 
 import { getStrings } from './i18n';
 import { Board, type BoardParts } from './Board';
 import { SMART_BALL_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
-import { publishedOdds } from './odds';
+import { PUBLISHED_SMART_BALL_ODDS } from './published';
 import { PLUNGER_DRAW, createMachineClock, cuesOf, loadTrack, poseAt, restPose, shotTrack, strengthAt, weakTrack, windowOf, type Cue, type CueSound, type Pose, type Track } from './scene';
 import styles from './SmartBall.module.css';
 
@@ -759,7 +759,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   };
 
   // ── What is on the screen ──
-  const odds = publishedOdds();
+  const odds = PUBLISHED_SMART_BALL_ODDS;
   const running = phase !== 'idle';
   // The same list while the same holes are lit: the board is drawn again only when what it lights changes.
   const shownLines = useMemo(() => linesOf(shownLit), [shownLit]);

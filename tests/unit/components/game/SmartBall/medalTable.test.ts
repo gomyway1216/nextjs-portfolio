@@ -602,7 +602,7 @@ describe('a browser that dies between two writes', () => {
 
 describe('the Odds tab', () => {
   it('never touches the player’s medals', () => {
-    for (const file of ['OddsTab.tsx', 'engine.ts', 'odds.ts']) {
+    for (const file of ['OddsTab.tsx', 'engine.ts', 'published.ts']) {
       const source = readFileSync(path.join(process.cwd(), 'src/components/game/SmartBall', file), 'utf8');
       expect(source, file).not.toMatch(/MedalCenter|useBank|\bbank\(/);
     }

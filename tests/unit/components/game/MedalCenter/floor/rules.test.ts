@@ -54,7 +54,7 @@ import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUG
 import { MOST_WIN as MAZE_MOST, PAYS as MAZE_PAYS, STAGES as MAZE_GATES, STAKE as MAZE_STAKE, analyze as mazeOdds, drawPlay as mazeDraw, labelOf as mazeLabel, playOf as mazePlay, seeded as mazeSeeded, valueOf as mazeValue } from '@/components/game/CoinMaze/engine';
 import { ALL_CAUGHT_FROM as KENO_ALL_FROM, BETS as KENO_BETS, BET_MOST as KENO_BET_MOST, LAST_BALL_TIMES as KENO_TIMES, MOST_WIN as KENO_MOST, PAYS as KENO_PAYS, SPOT_COUNTS as KENO_SPOTS, analyze as kenoOdds, drawBalls as kenoDraw, labelOf as kenoLabel, quickPick as kenoPick, seeded as kenoSeeded, valueOf as kenoValue, winOf as kenoWin } from '@/components/game/Keno/engine';
 import { MARBLES as SMART_MARBLES, MOST_WIN as SMART_MOST, PAYS as SMART_PAYS, STAKE as SMART_STAKE, drawPlay as smartDraw, labelOf as smartLabel, playOf as smartPlay, seeded as smartSeeded, valueOf as smartValue } from '@/components/game/SmartBall/engine';
-import { publishedOdds as smartOdds } from '@/components/game/SmartBall/odds';
+import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -226,7 +226,7 @@ describe('which machines are linked to the floor jackpot', () => {
       keno: kenoValue(kenoOdds().best),
       // Perfect play: the best strength for every marble for the board as it stands (dynamic programming over every set
       // of lit holes and marbles left, exact): no way of pulling the plunger brings back more.
-      'smart-ball': smartValue(smartOdds().perfect.back),
+      'smart-ball': smartValue(PUBLISHED_SMART_BALL_ODDS.perfect.back),
     };
   };
 
@@ -522,7 +522,7 @@ describe('the most each machine can pay, from its own tables', () => {
       expect(play.won).toBeLessThanOrEqual(FLOOR_RULES['smart-ball'].most);
     }
     // The rule is perfect play, 93.4555...%, rounded up; an everyday hand and blind shots bring back less.
-    const odds = smartOdds();
+    const odds = PUBLISHED_SMART_BALL_ODDS;
     expect(`${odds.perfect.back.num}/${odds.perfect.back.den}`).toBe('19416340307406796973/20776019874734407680');
     expect(FLOOR_RULES['smart-ball'].bestReturn).toBe(0.9346);
     expect(smartValue(odds.typical.back)).toBeLessThan(FLOOR_RULES['smart-ball'].bestReturn);

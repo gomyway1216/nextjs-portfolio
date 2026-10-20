@@ -5,20 +5,20 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ScrollArea } from '../common/ScrollArea';
 import { COLUMN_WEIGHTS, OUT_WEIGHTS, PAYS, PLAYERS, SIZE, WINDOWS, checkPlays, ratioOf, seeded, valueOf, type Player } from './engine';
 import { getStrings } from './i18n';
-import { publishedOdds } from './odds';
+import { PUBLISHED_SMART_BALL_ODDS } from './published';
 import styles from './SmartBall.module.css';
 
 /** How many plays the check plays for each hand. */
 export const CHECK_PLAYS = 20_000;
 
-/** Hot Spring Smart Ball's exact odds (engine.ts, written out in odds.ts): the three hands, the lines, the strengths, and a check by play. */
+/** Hot Spring Smart Ball's exact odds (engine.ts, written out in published.ts): the three hands, the lines, the strengths, and a check by play. */
 export const OddsTab = () => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const fmt = (n: number, digits = 0) => n.toLocaleString(locale, { maximumFractionDigits: digits, minimumFractionDigits: digits });
   const pct = (v: number, digits = 2) => `${fmt(v * 100, digits)}%`;
-  const odds = publishedOdds();
+  const odds = PUBLISHED_SMART_BALL_ODDS;
 
   const [running, setRunning] = useState(false);
   const [seen, setSeen] = useState<Record<Player, number> | null>(null);

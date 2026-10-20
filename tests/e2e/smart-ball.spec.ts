@@ -203,6 +203,47 @@ test('smart-ball: Space held down to draw the plunger keeps the page where it is
   expect(await page.evaluate(() => window.scrollY)).toBe(before);
 });
 
+test('smart-ball: standing unplayed it asks the browser for no frames, and its rail’s lamps run on their own over the board', async ({ page }) => {
+  test.setTimeout(60_000);
+  // Every frame the page asks for is counted (the machine's frame loop asked for one 60 to 120 times a second, for ever).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __frames: number };
+    w.__frames = 0;
+    const ask = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (callback) =>
+      ask((time) => {
+        w.__frames += 1;
+        callback(time);
+      });
+  });
+  const frames = () => page.evaluate(() => (window as unknown as { __frames: number }).__frames);
+  await openTable(page);
+  await page.waitForTimeout(1_000);
+  const idle = await frames();
+  await page.waitForTimeout(2_000);
+  expect((await frames()) - idle, 'frames asked for in 2 s standing unplayed').toBeLessThanOrEqual(2);
+  // A play wakes the loop; it sleeps again when the marble waits on the plunger.
+  await start(page, play([at(0, 0)]));
+  await onPlunger(page, 0);
+  await expect.poll(async () => (await frames()) > idle).toBe(true);
+  await page.waitForTimeout(500);
+  const waiting = await frames();
+  await page.waitForTimeout(1_500);
+  expect((await frames()) - waiting, 'frames asked for in 1.5 s with a marble waiting').toBeLessThanOrEqual(2);
+  // The attract run, 12 s after a play: the board's own lamps hidden, its pictures over the board shown in turn.
+  await page.reload();
+  await arrived(page);
+  const board = page.getByTestId('smb-board');
+  await expect(board).toHaveAttribute('data-attract', 'true', { timeout: 20_000 });
+  await expect(board.locator('[data-lamp="0"]')).toBeHidden();
+  const shown = (state: string) => page.evaluate((state) => [...document.querySelectorAll(`svg[data-state="${state}"]`)].filter((svg) => getComputedStyle(svg).opacity === '1').length, state);
+  await expect.poll(() => shown('lit')).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => shown('dark')).toBeGreaterThanOrEqual(5);
+  const running = await frames();
+  await page.waitForTimeout(2_000);
+  expect((await frames()) - running, 'frames asked for in 2 s of the attract run').toBeLessThanOrEqual(2);
+});
+
 test('smart-ball: a reload in the middle of a play finds the same play, finishes it with the shots made and the rest blind, and pays it once', async ({ page }) => {
   test.setTimeout(60_000);
   await openTable(page);

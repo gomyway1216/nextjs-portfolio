@@ -314,34 +314,231 @@
 .lamps[data-window='6'] [data-lamp='6'] .lampNumber {
   fill: #8a1c10;
 }
-/* A machine left unplayed runs its rail's lamps, one after another. */
-.boardBox[data-attract='true'] .lamp {
-  animation: smb-chase 2.1s steps(1, end) infinite;
+/* A machine left unplayed runs its rail's lamps, one after another: each lamp lit for 0.315 s of every 2.1 s, the next
+   0.3 s after it, and dark (darker than at rest) once its turn has passed; before its turn first comes, it is as at
+   rest. The run is drawn over the board (Board.tsx `ChaseLamps`): each lamp three times, at rest, lit and dark, each a
+   picture of its own, only one of them shown at a time, by opacity, which the compositor runs without painting
+   anything. Two things keep the page's main thread out of it:
+   - Each change of a lamp is a 21 µs ramp of linear timing, not a step: the main thread is woken at every step of a
+     steps() animation, compositor or not (about 7 times a second for the 21 pictures), and at none of these.
+   - A round is written ten times over in one 21 s animation: the main thread still wakes at the end of each round of
+     an animation (for its events), ten times less often that way.
+   The board's own lamps are hidden while the run is on. */
+.chase {
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
 }
-.boardBox[data-attract='true'] [data-lamp='1'] .lamp {
-  animation-delay: 0.3s;
+.chaseState {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
 }
-.boardBox[data-attract='true'] [data-lamp='2'] .lamp {
-  animation-delay: 0.6s;
-}
-.boardBox[data-attract='true'] [data-lamp='3'] .lamp {
-  animation-delay: 0.9s;
-}
-.boardBox[data-attract='true'] [data-lamp='4'] .lamp {
-  animation-delay: 1.2s;
-}
-.boardBox[data-attract='true'] [data-lamp='5'] .lamp {
-  animation-delay: 1.5s;
-}
-.boardBox[data-attract='true'] [data-lamp='6'] .lamp {
-  animation-delay: 1.8s;
-}
-@keyframes smb-chase {
-  0% {
-    fill: #ffdd33;
+@media (prefers-reduced-motion: no-preference) {
+  .boardBox[data-attract='true'] [data-lamp] {
+    visibility: hidden;
   }
-  15% {
-    fill: #6b5a3a;
+  .boardBox[data-attract='true'] .chaseState[data-state='rest'] {
+    opacity: 1;
+    animation: smb-chase-gone 1s linear forwards;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-state='lit'] {
+    animation: smb-chase-lit 21s linear infinite;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-state='dark'] {
+    animation: smb-chase-dark 21s linear infinite;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-chase='1'] {
+    animation-delay: 0.3s;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-chase='2'] {
+    animation-delay: 0.6s;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-chase='3'] {
+    animation-delay: 0.9s;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-chase='4'] {
+    animation-delay: 1.2s;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-chase='5'] {
+    animation-delay: 1.5s;
+  }
+  .boardBox[data-attract='true'] .chaseState[data-chase='6'] {
+    animation-delay: 1.8s;
+  }
+}
+/* The picture at rest, gone once the lamp's turn first comes (its delay). */
+@keyframes smb-chase-gone {
+  0%,
+  100% {
+    opacity: 0;
+  }
+}
+/* Ten rounds: lit for the first 1.5% (0.315 s) of each tenth (2.1 s), and dark for the rest. */
+@keyframes smb-chase-lit {
+  0%,
+  1.4999% {
+    opacity: 1;
+  }
+  1.5%,
+  9.9999% {
+    opacity: 0;
+  }
+  10%,
+  11.4999% {
+    opacity: 1;
+  }
+  11.5%,
+  19.9999% {
+    opacity: 0;
+  }
+  20%,
+  21.4999% {
+    opacity: 1;
+  }
+  21.5%,
+  29.9999% {
+    opacity: 0;
+  }
+  30%,
+  31.4999% {
+    opacity: 1;
+  }
+  31.5%,
+  39.9999% {
+    opacity: 0;
+  }
+  40%,
+  41.4999% {
+    opacity: 1;
+  }
+  41.5%,
+  49.9999% {
+    opacity: 0;
+  }
+  50%,
+  51.4999% {
+    opacity: 1;
+  }
+  51.5%,
+  59.9999% {
+    opacity: 0;
+  }
+  60%,
+  61.4999% {
+    opacity: 1;
+  }
+  61.5%,
+  69.9999% {
+    opacity: 0;
+  }
+  70%,
+  71.4999% {
+    opacity: 1;
+  }
+  71.5%,
+  79.9999% {
+    opacity: 0;
+  }
+  80%,
+  81.4999% {
+    opacity: 1;
+  }
+  81.5%,
+  89.9999% {
+    opacity: 0;
+  }
+  90%,
+  91.4999% {
+    opacity: 1;
+  }
+  91.5%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes smb-chase-dark {
+  0%,
+  1.4999% {
+    opacity: 0;
+  }
+  1.5%,
+  9.9999% {
+    opacity: 1;
+  }
+  10%,
+  11.4999% {
+    opacity: 0;
+  }
+  11.5%,
+  19.9999% {
+    opacity: 1;
+  }
+  20%,
+  21.4999% {
+    opacity: 0;
+  }
+  21.5%,
+  29.9999% {
+    opacity: 1;
+  }
+  30%,
+  31.4999% {
+    opacity: 0;
+  }
+  31.5%,
+  39.9999% {
+    opacity: 1;
+  }
+  40%,
+  41.4999% {
+    opacity: 0;
+  }
+  41.5%,
+  49.9999% {
+    opacity: 1;
+  }
+  50%,
+  51.4999% {
+    opacity: 0;
+  }
+  51.5%,
+  59.9999% {
+    opacity: 1;
+  }
+  60%,
+  61.4999% {
+    opacity: 0;
+  }
+  61.5%,
+  69.9999% {
+    opacity: 1;
+  }
+  70%,
+  71.4999% {
+    opacity: 0;
+  }
+  71.5%,
+  79.9999% {
+    opacity: 1;
+  }
+  80%,
+  81.4999% {
+    opacity: 0;
+  }
+  81.5%,
+  89.9999% {
+    opacity: 1;
+  }
+  90%,
+  91.4999% {
+    opacity: 0;
+  }
+  91.5%,
+  100% {
+    opacity: 1;
   }
 }
 .holeNumber {
@@ -1049,9 +1246,6 @@
 @media (prefers-reduced-motion: reduce) {
   .flash {
     animation: none;
-  }
-  .boardBox[data-attract='true'] .lamp {
-    animation: none !important;
   }
 }
 

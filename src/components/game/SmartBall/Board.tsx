@@ -67,25 +67,80 @@ const Plunger = ({ part }: { part: RefObject<SVGGElement | null> }) => {
   );
 };
 
-/** The rail's lamps, one where each strength rolls off the rail, numbered 1 to 7: the page lights the one the plunger is drawn to. */
+/**
+ * Where the rail's lamps stand, one where each strength rolls off the rail, numbered 1 to 7: their middles and their
+ * numbers' baselines. Written to two places: the server's and the browser's trigonometry differ in the last bits, and
+ * the page must be drawn the same by both.
+ */
+const LAMP_SPOTS = LEAVE.map((theta) => {
+  const y = ARC.y - (ARC.r - 17) * Math.sin(theta);
+  return { x: (ARC.x + (ARC.r - 17) * Math.cos(theta)).toFixed(2), y: y.toFixed(2), baseline: (y + 4.3).toFixed(2) };
+});
+
+/** A lamp of the rail: its glass and its number. */
+const Lamp = ({ w, fill }: { w: number; fill?: string }) => (
+  <>
+    <circle cx={LAMP_SPOTS[w].x} cy={LAMP_SPOTS[w].y} r="8" className={styles.lamp} style={fill ? { fill } : undefined} />
+    <text x={LAMP_SPOTS[w].x} y={LAMP_SPOTS[w].baseline} textAnchor="middle" className={styles.lampNumber}>
+      {w + 1}
+    </text>
+  </>
+);
+
+/** The rail's lamps: the page lights the one the plunger is drawn to. */
 const RailLamps = ({ part }: { part: RefObject<SVGGElement | null> }) => (
   <g ref={part} className={styles.lamps} data-window="" aria-hidden="true">
-    {LEAVE.map((theta, w) => {
-      // Written to two places: the server's and the browser's trigonometry differ in the last bits, and the page must be
-      // drawn the same by both.
-      const x = (ARC.x + (ARC.r - 17) * Math.cos(theta)).toFixed(2);
-      const y = ARC.y - (ARC.r - 17) * Math.sin(theta);
-      return (
-        <g key={w} data-lamp={w}>
-          <circle cx={x} cy={y.toFixed(2)} r="8" className={styles.lamp} />
-          <text x={x} y={(y + 4.3).toFixed(2)} textAnchor="middle" className={styles.lampNumber}>
-            {w + 1}
-          </text>
-        </g>
-      );
-    })}
+    {LAMP_SPOTS.map((_, w) => (
+      <g key={w} data-lamp={w}>
+        <Lamp w={w} />
+      </g>
+    ))}
   </g>
 );
+
+/** A lamp's radius to the outside of its rim: its glass, 8, and half its 1-unit outline. */
+const LAMP_RIM = 8.5;
+/** The lamps' colours in the attract run: lit, and dark after it has passed (darker than at rest). */
+export const CHASE_LIT = '#ffdd33';
+export const CHASE_DARK = '#6b5a3a';
+
+/** The pictures of the attract run, in the order they are drawn: every lamp at rest, then every lamp lit and dark. */
+const CHASE_PICTURES = [
+  ...LAMP_SPOTS.map((_, w) => ({ w, state: 'rest' as const })),
+  ...LAMP_SPOTS.flatMap((_, w) => (['lit', 'dark'] as const).map((state) => ({ w, state }))),
+];
+
+/**
+ * The rail's lamps as they run on their own while the machine stands unplayed (the attract run), drawn over the board:
+ * each lamp three times (as it is at rest, lit, and dark after it has passed), each in a picture of its own, shown and
+ * hidden by opacity (SmartBall.module.css). The browser runs that on the compositor, so the run paints nothing: run on
+ * the board's own lamps, each step of it repainted the board (two to five percent of a phone's main thread while the
+ * machine stood unplayed). Every picture is the board's own drawing of the lamp, with the glass's glare over it as over
+ * the board, in a picture the board's size: a browser draws an SVG on whole pixels, and one the board's size and place
+ * lands on them as the board does, so the lamp is drawn exactly where the board draws it. The board's own lamps are
+ * hidden while the run is on.
+ */
+export const ChaseLamps = memo(function ChaseLamps() {
+  return (
+    <div className={styles.chase} aria-hidden="true">
+      {/* The pictures at rest first: they are not run by the compositor, and drawn under the ones that are, they are
+          drawn with the board, as its own lamps are. */}
+      {CHASE_PICTURES.map(({ w, state }) => {
+        const spot = LAMP_SPOTS[w];
+        return (
+          <svg key={`${w}-${state}`} className={styles.chaseState} data-chase={w} data-state={state} viewBox={`0 0 ${BOARD_W} ${BOARD_H}`} focusable="false">
+            <clipPath id={`smb-chase-${w}-${state}`}>
+              <circle cx={spot.x} cy={spot.y} r={LAMP_RIM} />
+            </clipPath>
+            <Lamp w={w} fill={state === 'lit' ? CHASE_LIT : state === 'dark' ? CHASE_DARK : undefined} />
+            {/* The glass's glare, as it lies over the board, on the lamp alone: the board under this picture has its own. */}
+            <rect x="0" y="0" width={BOARD_W} height={BOARD_H} fill="url(#smb-glare)" clipPath={`url(#smb-chase-${w}-${state})`} />
+          </svg>
+        );
+      })}
+    </div>
+  );
+});
 
 /** The marble the page moves: on the plunger, or on its way. Hidden until there is one. */
 const Marble = ({ part }: { part: RefObject<SVGGElement | null> }) => (

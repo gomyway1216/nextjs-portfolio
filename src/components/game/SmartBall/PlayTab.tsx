@@ -15,7 +15,7 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { MARBLES, STAKE, WINDOWS, drawPlay, linesOf, playOf, valueOf, type Play } from './engine';
 import { getStrings } from './i18n';
-import { Board, type BoardParts } from './Board';
+import { Board, ChaseLamps, type BoardParts } from './Board';
 import { SMART_BALL_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
 import { PUBLISHED_SMART_BALL_ODDS } from './published';
 import { PLUNGER_DRAW, createMachineClock, cuesOf, loadTrack, poseAt, restPose, shotTrack, strengthAt, weakTrack, windowOf, type Cue, type CueSound, type Pose, type Track } from './scene';
@@ -214,6 +214,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const drawnRef = useRef(0);
   const keyPulled = useRef(false);
   const pointerDown = useRef<number | null>(null);
+  /** Sets the frame loop going again, where it has stopped because nothing on the board moved (it stops itself again then). */
+  const wake = useRef<(() => void) | null>(null);
   const live = useRef({ t, player, calm });
   useEffect(() => {
     live.current = { t, player, calm };
@@ -254,6 +256,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     (flight: Flight, how: 'played' | 'skipped' | 'resumed') => {
       if (flightRef.current === flight) flightRef.current = null;
       letGo();
+      // A frame to take the marble off the board and the plunger back to rest.
+      wake.current?.();
       setSkippable(false);
       setMoment(null);
       const { staked } = flight;
@@ -306,6 +310,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       flight.wayAt = clock.now();
       flight.cues = cuesOf(way);
       flight.then = then;
+      wake.current?.();
     },
     [clock],
   );
@@ -395,6 +400,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const flight = flightRef.current;
     if (!flight || flight.phase !== 'aim' || heldAt.current !== null || clock.paused()) return false;
     heldAt.current = clock.now();
+    wake.current?.();
     setPulled(true);
     setPullWindow(-1);
     setMoment(null);
@@ -477,6 +483,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (flight) flight.staked.void = true;
       flightRef.current = null;
       letGo();
+      wake.current?.();
       table.current?.clear();
       shownLast.current = null;
       setShownLit(0);
@@ -597,13 +604,20 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   }, [phase, active, touched, outcome]);
 
   // ── The frame loop: the marble, the plunger, the rail's lamps and the gauge, moved straight on their elements ──
+  // It runs only while something moves: a marble on its way, the plunger held or springing back. A machine standing
+  // unplayed, a marble waiting on the plunger, or a machine whose clock is stopped (its Odds tab or its help in front)
+  // asks the browser for no frames at all; whatever sets something moving wakes it (`wake`).
   const boardEl = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     let frame = 0;
+    let running = false;
+    /** Woken while it ran: one more frame, to show what changed (a marble taken off the board as its play ends). */
+    let again = false;
     const shown = { marble: '', plunger: NaN, window: '', gauge: -2 };
     let drawn = 0;
     let last = performance.now();
     const step = (now: number) => {
+      again = false;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       // The machine's time: stopped while the machine is not on show. A plunger held as it was hidden is let go, unshot.
@@ -672,10 +686,26 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           }
         }
       }
+      // On while a marble is on its way (and the clock runs), or the plunger is held or still springing back.
+      if (again || (flightRef.current?.way && !clock.paused()) || heldAt.current !== null || drawn > 0) frame = window.requestAnimationFrame(step);
+      else running = false;
+    };
+    const run = () => {
+      if (running) {
+        again = true;
+        return;
+      }
+      running = true;
+      last = performance.now();
       frame = window.requestAnimationFrame(step);
     };
-    frame = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(frame);
+    wake.current = run;
+    run();
+    return () => {
+      if (wake.current === run) wake.current = null;
+      running = false;
+      window.cancelAnimationFrame(frame);
+    };
   }, [clock, letGo, parts, play]);
 
   // While the medals are in another tab's game, the machine says so, a moment after.
@@ -699,8 +729,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   // sweep and the marble's way wait, and go on from the same point when it is shown again. (A plunger held as it went is
   // let go without a shot, by the frame loop.)
   useEffect(() => {
-    if (active) clock.resume();
-    else clock.pause();
+    if (active) {
+      clock.resume();
+      wake.current?.();
+    } else clock.pause();
   }, [active, clock]);
 
   // On a desktop: Space or Enter starts a play; with a marble on the plunger, Space or Enter held and let go shoots it;
@@ -821,6 +853,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <div className={styles.playArea} ref={boardRef}>
           <div className={styles.boardBox} ref={boardEl} data-testid="smb-board" data-window="" data-attract={attract && !running ? 'true' : 'false'}>
             <Board t={t} label={t.boardLabel(where)} parts={parts} lit={shownLit} lines={shownLines} plate={Math.min(3, shownLines.length)} />
+            <ChaseLamps />
             {(resumed || (outcome?.earlier && !running)) && (
               <span className={styles.resumedBadge} data-testid="smb-resumed">
                 {resumed ? t.resumed : t.lastPlay}

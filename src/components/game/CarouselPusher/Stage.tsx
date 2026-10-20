@@ -20,7 +20,8 @@ export interface StageHandle {
   frame(m: Machine, frac: number, fieldMoved: boolean): void;
   field(m: Machine): void;
   stock(stock: number): void;
-  turnAlone(step: number): void;
+  /** Lets the carousel turn on its own from `step`; the moment (performance.now) it set off, or null if it was turning already. */
+  turnAlone(step: number): number | null;
   stopTurning(): number;
 }
 
@@ -144,26 +145,32 @@ export const Stage = ({ handle, label, initial, calm, testId }: StageProps) => {
       drawFieldNow(m);
       if (!turning.current) turnTo(angleAt(m.step));
     }
-    if (turning.current) {
+    const t = turning.current;
+    if (t) {
       // The skirt's slide is in pixels: started again at the new size, from where it has got to.
-      const steps = stopTurningNow();
-      const at = (lastMachine.current?.step ?? 0) + steps;
-      startTurning(at);
+      for (const animation of t.animations) animation.cancel();
+      turning.current = null;
+      startTurning(t.step, t.since);
     }
   };
 
-  const startTurning = (step: number) => {
+  /**
+   * The compositor turning the carousel from `step`, set off at `since` (now, or earlier when the stage is laid out
+   * again while it turns: the turn goes on from where it has got to, and `stopTurning` still counts from `since`).
+   */
+  const startTurning = (step: number, since = performance.now()): number | null => {
     const deck = deckTurn.current;
     const skirt = skirtRef.current;
-    if (!deck || !skirt || typeof deck.animate !== 'function') return;
+    if (!deck || !skirt || typeof deck.animate !== 'function') return null;
     const css = scale.current.css;
     const frames = 72;
     const skirtFrames = Array.from({ length: frames + 1 }, (_, i) => ({ transform: skirtTransform((i * 360) / frames, css) }));
     const options: KeyframeAnimationOptions = { duration: TURN_MS, iterations: Infinity, easing: 'linear' };
     const animations = [deck.animate([{ transform: deckTransform(0) }, { transform: deckTransform(360) }], options), skirt.animate(skirtFrames, options)];
-    const phase = (angleAt(step) / 360) * TURN_MS;
+    const phase = ((angleAt(step) / 360) * TURN_MS + Math.max(0, performance.now() - since)) % TURN_MS;
     for (const animation of animations) animation.currentTime = phase;
-    turning.current = { animations, since: performance.now(), step };
+    turning.current = { animations, since, step };
+    return since;
   };
 
   /** Stops the carousel turning on its own; how many steps it turned. */
@@ -219,8 +226,8 @@ export const Stage = ({ handle, label, initial, calm, testId }: StageProps) => {
       if (stock !== lastStock.current) drawStock(stock);
     },
     turnAlone(step) {
-      if (turning.current) return;
-      startTurning(step);
+      if (turning.current) return null;
+      return startTurning(step);
     },
     stopTurning() {
       return stopTurningNow();

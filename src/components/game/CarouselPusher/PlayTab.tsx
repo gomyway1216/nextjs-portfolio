@@ -14,7 +14,7 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { HOLD_MAX, STEP_RATE, TIMES, atRest, busy, idle, step as stepMachine, type Machine, type MachineEvent, type Spin } from './engine';
+import { HOLD_MAX, STEP_RATE, TIMES, TURN_STEPS, atRest, busy, idle, step as stepMachine, type Machine, type MachineEvent, type Spin } from './engine';
 import { getStrings } from './i18n';
 import { LOTTERY, OUTCOME_IDS, type OutcomeId } from './lottery';
 import { CAROUSEL_GAME, createTable, roundId, type SessionRecord, type Table } from './medalTable';
@@ -37,6 +37,13 @@ export const SLOT_QUEUE = 4;
 const STEP_MS = 1000 / STEP_RATE;
 /** Steps worked out in one frame at most: a page that fell far behind plays on from now. */
 const MOST_STEPS = 8;
+/**
+ * How far a medal may move in a step and the field still count as standing still to the eye: a hundredth of a medal's
+ * radius, a tenth of a pixel on a phone. The machine lets the carousel turn on its own once nothing has moved further
+ * than that for a whole turn (or the field is still to the last bit, engine.ts `atRest`): what is left of the medals'
+ * overlaps easing apart is too little to see, and takes a pile of a few hundred medals many turns to finish.
+ */
+const STILL_STEP = 0.01;
 const HISTORY_LIMIT = 12;
 
 /** This device's storage for the machine: the session, under the player's name. Every call may throw. */
@@ -62,6 +69,9 @@ const subscribeToMotion = (listener: () => void): (() => void) => {
   query?.addEventListener('change', listener);
   return () => query?.removeEventListener('change', listener);
 };
+
+/** Whether the machine may turn on its own: nothing on its way or to come, and the field still, to the last bit or to the eye for a whole turn. */
+export const standsStill = (m: Machine, stillFor: number): boolean => !busy(m) && (atRest(m) || stillFor >= TURN_STEPS);
 
 /** A line of words kept whole between its phrases: in Japanese it breaks only after 、。：！…, a zero-width space or a space. */
 export function phrasesOf(text: string): string[] {
@@ -194,6 +204,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [history, setHistory] = useState<{ id: number; outcome: OutcomeId; medals: number }[]>([]);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [resting, setResting] = useState(true);
+  /** Where and when the carousel last set off turning on its own: the step it was at, and the moment (for the tests' clock). */
+  const [restFrom, setRestFrom] = useState<{ step: number; since: number } | null>(null);
 
   const session = useRef<SessionRecord | null>(null);
   const table = useRef<Table | null>(null);
@@ -201,6 +213,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const stage = useRef<StageHandle | null>(null);
   const reopen = useRef(true);
   const frameId = useRef<number | null>(null);
+  /** Steps in a row the field has stood still to the eye (`STILL_STEP`). */
+  const stillFor = useRef(0);
   const loop = useRef<() => void>(() => undefined);
   const lastTime = useRef(0);
   const restingRef = useRef(true);
@@ -383,7 +397,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (!m) return;
       save(now);
       stage.current?.field(m);
-      stage.current?.turnAlone(m.step);
+      const since = stage.current?.turnAlone(m.step) ?? null;
+      if (since !== null) setRestFrom({ step: m.step, since });
       restingRef.current = true;
       setResting(true);
       showSession();
@@ -408,6 +423,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     }
     const events: MachineEvent[] = [];
     const before = m.ids.length;
+    const was = m.xy.slice();
     let moved = false;
     for (let i = 0; i < steps; i++) {
       // DROP held: a medal whenever the slot is free.
@@ -417,6 +433,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     }
     lastTime.current += steps * STEP_MS;
     if (steps > 0) dirty.current = true;
+    if (m.ids.length !== before || events.length > 0) stillFor.current = 0;
+    else if (steps > 0) {
+      let most = 0;
+      for (let i = 0; i < was.length; i++) most = Math.max(most, Math.abs(m.xy[i] - was[i]));
+      stillFor.current = most > STILL_STEP * steps ? 0 : stillFor.current + steps;
+    }
     const wantSave = hear(events, m);
     if (m.ids.length !== before) moved = true;
     if (m.tray > 0 && (now - lastCollect.current >= COLLECT_EVERY || !busy(m))) collect(now);
@@ -425,7 +447,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     stage.current?.frame(m, frac, moved);
     if (events.length > 0) showSession();
     const current = session.current;
-    if (current && !heldRef.current && atRest(current.machine) && current.machine.tray === 0 && !current.pending) {
+    if (current && !heldRef.current && standsStill(current.machine, stillFor.current) && current.machine.tray === 0 && !current.pending) {
       goIdle(now);
       return;
     }
@@ -444,6 +466,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (restingRef.current) {
       const turned = stage.current?.stopTurning() ?? 0;
       idle(m, turned);
+      stillFor.current = 0;
       restingRef.current = false;
       setResting(false);
       lastTime.current = performance.now();
@@ -482,7 +505,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (m) {
       lastTime.current = performance.now();
       if (atRest(m) && m.tray === 0) {
-        stage.current?.turnAlone(m.step);
+        const since = stage.current?.turnAlone(m.step) ?? null;
+        if (since !== null) setRestFrom({ step: m.step, since });
         restingRef.current = true;
         setResting(true);
       } else {
@@ -666,15 +690,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       const m = session.current?.machine;
       if (m && seat.current?.holding()) {
         if (atRest(m) && m.tray === 0) {
-          stage.current?.turnAlone(m.step);
+          const since = stage.current?.turnAlone(m.step) ?? null;
+          if (since !== null) setRestFrom({ step: m.step, since });
           restingRef.current = true;
           setResting(true);
         } else wake();
       }
     } else {
       save(performance.now());
-      // The machine stopped as it is put out of sight: a state of the page's own, not an echo of React's.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       halt();
       letGo();
     }
@@ -797,6 +820,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       data-stock={stock}
       data-held={held ? 'true' : 'false'}
       data-resting={resting ? 'true' : 'false'}
+      data-rest-step={resting && restFrom ? restFrom.step : ''}
+      data-rest-since={resting && restFrom ? restFrom.since.toFixed(3) : ''}
+      data-fed={stats.fed}
       data-throwing={throwing ? 'true' : 'false'}
       data-jackpots={stats.jackpots}
       data-wins={stats.wins}

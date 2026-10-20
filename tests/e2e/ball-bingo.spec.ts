@@ -239,14 +239,24 @@ test('a ball is shot up the lane, falls through the pins and drops into the pock
   test.setTimeout(60_000);
   await openBingo(page);
   await start(page, LOSS, 1);
-  // In the air: the ball's place is written on the drawing frame by frame, and it moves.
+  // In the air: the ball's place is written on the drawing frame by frame, and it moves. Read on the page at every
+  // frame of the flight: read from the test every 150 ms, a slow machine's round trips spaced the reads out so far that
+  // only four of them fell inside the flight (WebKit on the macOS runner).
   await expect(page.getByTestId('bingo-board')).toHaveAttribute('data-flying', 'true');
-  const ball = page.locator('[data-testid="bingo-board"] g[data-flying]');
-  const places: string[] = [];
-  for (let i = 0; i < 8; i++) {
-    places.push((await ball.getAttribute('transform')) ?? '');
-    await page.waitForTimeout(150);
-  }
+  const places = await page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const seen: string[] = [];
+        const board = document.querySelector('[data-testid="bingo-board"]')!;
+        const step = () => {
+          const ball = board.querySelector('g[data-flying]');
+          seen.push(ball?.getAttribute('transform') ?? '');
+          if (board.getAttribute('data-flying') === 'true' && seen.length < 600) requestAnimationFrame(step);
+          else resolve(seen);
+        };
+        requestAnimationFrame(step);
+      }),
+  );
   expect(new Set(places).size).toBeGreaterThan(4);
   // It comes down in OUT, the pocket drawn for it: nothing marked, four balls to come.
   await expect(page.getByTestId('bingo-balls')).toHaveText('4', { timeout: 10_000 });

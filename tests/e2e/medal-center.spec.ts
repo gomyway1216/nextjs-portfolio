@@ -10,6 +10,7 @@ import { bankBalance, openCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
 import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
+import { arrived } from './streamedPage';
 
 // The medal center's front and its one medal bank, which the Medal Pusher plays from. The machine itself is covered in
 // medal-pusher.spec.ts; these check the medals: where they are, that every machine and page sees the same ones, and
@@ -139,6 +140,11 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   // Pressed anywhere on the cabinet, not only on its name, it takes the player in.
   await page.locator('li[data-machine="craps"]').click();
   await expect(page).toHaveURL(/\/games\/craps$/);
+  // And the table has come: the address changes before the page's content is in, and a goto back to the center made
+  // then cut short the router's fetch of the table; it went to the table again by itself, over the goto (WebKit on a
+  // slow macOS runner: "Load failed", then "page.goto … interrupted by another navigation to /games/craps").
+  await arrived(page);
+  await expect(page.getByTestId('craps-counter')).toHaveAttribute('data-loaded', 'true');
   await openCenter(page);
   // Nothing moves when it is hovered, for a player who asks for less motion.
   await page.locator('li[data-machine="baccarat"]').hover();

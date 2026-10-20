@@ -44,6 +44,24 @@ async function stopClock(page: Page): Promise<void> {
   }
 }
 
+/**
+ * From now on, at each change of the meter's `attribute`, what the medals' LEDs show in that same moment: kept on the page,
+ * so that how long the test takes to ask does not change what it reads. (Read from the test, a slow macOS runner's
+ * WebKit had counted the win all the way in before the first read, and took more than 500 ms to show a bet at all.)
+ */
+const ledOnChangeOf = (page: Page, attribute: 'data-win' | 'data-bet') =>
+  page.evaluate((name) => {
+    const meter = document.querySelector('[data-testid="roulette-meter"]')!;
+    const led = document.querySelector<HTMLElement>('[data-testid="roulette-medals-led"]')!;
+    const w = window as unknown as { __ledOn: Record<string, [string | null, number][]> };
+    w.__ledOn ??= {};
+    w.__ledOn[name] = [];
+    new MutationObserver(() => w.__ledOn[name].push([meter.getAttribute(name), Number(led.dataset.shown)])).observe(meter, { attributes: true, attributeFilter: [name] });
+  }, attribute);
+/** What the LEDs showed as the meter's `attribute` became `value`, or null before it has. */
+const ledWhen = (page: Page, attribute: 'data-win' | 'data-bet', value: string) =>
+  page.evaluate(([name, wanted]) => (window as unknown as { __ledOn: Record<string, [string | null, number][]> }).__ledOn[name].find(([seen]) => seen === wanted)?.[1] ?? null, [attribute, value] as const);
+
 test('a bet takes medals when the wheel spins, a win puts medals back, and the medal center shows the same count after a reload', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoulette(page);
@@ -201,21 +219,29 @@ test('moving to another page of the site while the ball rolls settles the spin a
 
 test('a spin settled while the medal center borrowed the medals still goes on the board when the page is reloaded before the ball stops', async ({ page, context }) => {
   test.setTimeout(60_000);
+  // The pages' clock is the test's, stopped once the ball rolls, so that it is still rolling at the reload however long
+  // the medal center takes (on a slow macOS runner the ball had stopped before it). The medal center is open in another
+  // tab first: a page opened with the clock stopped never finishes arriving.
+  await page.clock.install();
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
   await openRoulette(page);
   await placeFirstBet(page, /^Red \(1:1\)$/);
   await spinButton(page).click();
   await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  await stopClock(page);
   const staked = await spinOnRecord(page);
-  // The day's bonus taken at the medal center in another tab: it borrows the medals for a moment, and the spin is
+  // The day's bonus taken at the medal center in the other tab: it borrows the medals for a moment, and the spin is
   // settled as they go.
-  const hub = await context.newPage();
-  await openCenter(hub);
   await hub.getByTestId('pusher-bonus-take').click();
   await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
   await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
   await hub.close();
   // Reloaded before the ball has stopped: the number goes on the board all the same, once.
   await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  await page.clock.resume();
   await page.reload();
   await arrived(page);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
@@ -261,12 +287,14 @@ test('a win paid while the medal center borrowed the medals is not shown before 
   await expect.poll(led).toBe(WELCOME - 3 + bonus);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
   await expect(wheel).toHaveAttribute('data-spinning', 'true');
-  // Time goes on, and the ball stops on zero: the 36 show, and run into the medals on the counter.
+  // Time goes on, and the ball stops on zero: the 36 show, and run into the medals on the counter (as they show, the
+  // LEDs are still without them).
+  await ledOnChangeOf(page, 'data-win');
   await page.clock.resume();
   expect(await settledResult(page)).toBe(0);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
   expect(await shownMedals(page)).toBe(WELCOME - 3 + bonus + 36);
-  expect(await led()).toBeLessThan(WELCOME - 3 + bonus + 36);
+  expect(await ledWhen(page, 'data-win', '36')).toBeLessThan(WELCOME - 3 + bonus + 36);
   await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + bonus + 36);
   // Paid once: what the medal center borrowed the medals for put the 36 in, and the ball stopping put nothing more.
   expect(await bankBalance(page)).toBe(WELCOME - 3 + bonus + 36);
@@ -452,6 +480,7 @@ test('the WIN counter shows what a spin won, and the win runs into the medals on
   await openRoulette(page);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
   await coverTheWheel(page);
+  await ledOnChangeOf(page, 'data-win');
   // Zero comes up: the medal on it wins 36 (35 and the medal back).
   await page.evaluate(() => {
     const w = window as unknown as { __random: () => number };
@@ -467,16 +496,18 @@ test('the WIN counter shows what a spin won, and the win runs into the medals on
   expect(await settledResult(page)).toBe(0);
   await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
   await expect(page.getByTestId('roulette-win')).toHaveText('Won on the last spin: 36 medals');
-  // The medals are the player's at once; their LEDs count up to them.
+  // The medals are the player's at once; their LEDs count up to them: as the WIN counter shows the win, they still show
+  // the medals without it.
   expect(await shownMedals(page)).toBe(WELCOME - 3 + 36);
   const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
-  const early = await led();
+  const early = await ledWhen(page, 'data-win', '36');
   expect(early).toBeGreaterThanOrEqual(WELCOME - 3);
   expect(early).toBeLessThan(WELCOME - 3 + 36);
   await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + 36);
-  // A bet put on the felt (or taken back) is on the counter at once.
+  // A bet put on the felt (or taken back) is on the counter at once: in the same moment the meter shows the bet.
+  await ledOnChangeOf(page, 'data-bet');
   await page.getByRole('button', { name: /^Red \(1:1\)$/ }).click();
-  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36 - 1);
+  await expect.poll(() => ledWhen(page, 'data-bet', '1')).toBe(WELCOME - 3 + 36 - 1);
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect.poll(led, { timeout: 500 }).toBe(WELCOME - 3 + 36);
+  await expect.poll(() => ledWhen(page, 'data-bet', '0')).toBe(WELCOME - 3 + 36);
 });

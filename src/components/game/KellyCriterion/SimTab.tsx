@@ -135,7 +135,18 @@ export const SimTab = () => {
             </select>
           </div>
           <button type="button" className={`${styles.btn} ${styles.btnRun}`} onClick={start} disabled={busy}>
-            {busy ? t.running(progress) : t.run}
+            {busy ? (
+              // As wide as it will ever be while the run counts up ("… 100%", unseen under the count), so the count's
+              // digits never push Cancel, beside it, along the row: it stands still to be pressed.
+              <span className={styles.runCount}>
+                <span className={styles.runCountWidest} aria-hidden="true">
+                  {t.running(100)}
+                </span>
+                <span>{t.running(progress)}</span>
+              </span>
+            ) : (
+              t.run
+            )}
           </button>
           {busy && (
             <button type="button" className={styles.btn} onClick={cancel}>

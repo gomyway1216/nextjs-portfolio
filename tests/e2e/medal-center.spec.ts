@@ -93,11 +93,12 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-keno')).toHaveAttribute('href', '/games/keno');
   await expect(page.getByTestId('center-play-smart-ball')).toHaveAttribute('href', '/games/smart-ball');
   await expect(page.getByTestId('center-play-pachinko')).toHaveAttribute('href', '/games/pachinko');
-  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko']) {
+  await expect(page.getByTestId('center-play-carousel-pusher')).toHaveAttribute('href', '/games/carousel-pusher');
+  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
-  // Twenty machines on the floor: those open, and the rest shown as coming.
-  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(20);
+  // Twenty-one machines on the floor: those open, and the rest shown as coming.
+  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(21);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('center-reset')).toBeEnabled();
@@ -165,25 +166,29 @@ test('the floor stands in corners under hanging signs: two cabinets a row on a p
   expect(errors).toEqual([]);
 });
 
-test('on a desk the pusher stands as tall as the video machines beside it, its tray of medals filling the cabinet, and the two corners end level', async ({ page }) => {
+test('on a desk the two pushers stand one above the other as tall as the video machines beside them, trays of medals filling their cabinets, and the two corners end level', async ({ page }) => {
   await openCenter(page);
   const bottom = (id: string) => page.locator(id).evaluate((el) => el.getBoundingClientRect().bottom);
-  const tray = page.getByTestId('center-tray');
+  const top = (id: string) => page.locator(id).evaluate((el) => el.getBoundingClientRect().top);
+  const trays = page.getByTestId('center-tray');
   for (const width of [1280, 1024, 900, 768]) {
     await page.setViewportSize({ width, height: 900 });
     const where = `${width} px`;
-    // The two corners side by side end level, and so do their cabinets: the pusher's and the video corner's last row.
+    // The two corners side by side end level, and so do their cabinets: the lower pusher's and the video corner's last row.
     expect(Math.abs((await bottom('[data-testid="center-zone-pusher"]')) - (await bottom('[data-testid="center-zone-video"]'))), where).toBeLessThanOrEqual(3);
-    expect(Math.abs((await bottom('li[data-machine="medal-pusher"]')) - (await bottom('[data-testid="center-zone-video"] li:last-child'))), where).toBeLessThanOrEqual(3);
-    // The extra height is the cabinet's lower body, a tray of medals, not a blank panel: drawn, and taller than a strip.
-    await expect(tray, where).toBeVisible();
-    expect((await tray.boundingBox())!.height, where).toBeGreaterThan(60);
+    expect(Math.abs((await bottom('li[data-machine="carousel-pusher"]')) - (await bottom('[data-testid="center-zone-video"] li:last-child'))), where).toBeLessThanOrEqual(3);
+    // The two pushers one above the other, the first level with the video corner's first row.
+    expect(await top('li[data-machine="carousel-pusher"]'), where).toBeGreaterThan(await bottom('li[data-machine="medal-pusher"]'));
+    expect(Math.abs((await top('li[data-machine="medal-pusher"]')) - (await top('[data-testid="center-zone-video"] li:first-child'))), where).toBeLessThanOrEqual(3);
+    // The extra height is each cabinet's lower body, a tray of medals, not a blank panel.
+    await expect(trays, where).toHaveCount(2);
+    for (const id of ['medal-pusher', 'carousel-pusher']) await expect(page.locator(`li[data-machine="${id}"] [data-testid="center-tray"]`), `${where} ${id}`).toHaveCount(1);
   }
-  // Where the video machines have a row of their own, the pusher is as it always was: no tray.
+  // Where the video machines have a row of their own, the pushers are as they always were: no tray.
   await page.setViewportSize({ width: 600, height: 900 });
-  await expect(tray).toBeHidden();
+  for (const tray of await trays.all()) await expect(tray).toBeHidden();
   await page.setViewportSize({ width: 375, height: 812 });
-  await expect(tray).toBeHidden();
+  for (const tray of await trays.all()) await expect(tray).toBeHidden();
 });
 
 test('every cabinet’s cover loads once it is scrolled into view, at a phone’s width', async ({ page }) => {

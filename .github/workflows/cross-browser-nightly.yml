@@ -3,6 +3,11 @@ name: Cross-browser nightly
 # The e2e suite in WebKit (Safari's engine) and Firefox against a production build, once a night and on demand.
 # The PR CI (ci.yml, "E2E smoke tests") runs Chromium only; this catches the regressions that only Safari or Firefox
 # show (line breaks, select heights, focus, cross-tab hand-overs) within a day, without slowing a PR.
+#
+# On macOS, not Linux: Playwright's WebKit on Linux is another port of WebKit than Safari's (its own fonts, media and
+# graphics), and on the Ubuntu runner 38 of the 430 tests it reached failed (sound, the pusher's renderer, Japanese
+# widths) before the job ran out of time; on macOS it is Safari's engine with Safari's fonts. Firefox on Ubuntu laid
+# Japanese out in the runner's fallback fonts, not the ones the Japanese layout checks were measured in.
 
 on:
   schedule:
@@ -23,8 +28,8 @@ permissions:
 jobs:
   e2e:
     name: E2E (${{ matrix.browser }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: macos-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +59,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright ${{ matrix.browser }}
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: npx playwright install ${{ matrix.browser }}
 
       - name: Build production app
         run: npm run build

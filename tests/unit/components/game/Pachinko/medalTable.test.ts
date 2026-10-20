@@ -264,10 +264,12 @@ describe('a hit, whatever happens to the page', () => {
     toTheHit(machine);
     // Partway into round 1.
     for (let i = 0; i < 12; i++) machine.step(attackerOpen(machine.now()!.machine) ? BEST_RIGHT : null);
+    const left = machine.now()!.tray;
     before.hide('left');
     before.close();
     expect(machine.yielded).toEqual(['left']);
-    expect(session(browser)).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4 }, machine: { mode: 'st', bonus: null } });
+    // The note tells what the tray gained while the page was away: the balls paid less the balls fired into the attacker.
+    expect(session(browser)).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4, balls: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET - left }, machine: { mode: 'st', bonus: null } });
     const reloaded = machineOn(browser.open());
     await quiet(browser);
     expect(reloaded.now()).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4 } });
@@ -286,7 +288,7 @@ describe('a hit, whatever happens to the page', () => {
     expect(session(browser)?.machine.bonus).not.toBeNull();
     const next = machineOn(browser.open());
     await quiet(browser);
-    expect(next.now()).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4 }, machine: { bonus: null, mode: 'st' } });
+    expect(next.now()).toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, away: { rounds: 4, balls: FOUR_ROUNDS_NET }, machine: { bonus: null, mode: 'st' } });
     const again = machineOn(browser.open());
     await quiet(browser);
     expect(again.now()?.tray).toBe(LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET);

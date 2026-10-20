@@ -5,7 +5,9 @@ import { ROUND_KEY } from '../../src/components/game/Janken/round';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { bankBalance, openCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Calico Janken plays with the medal center's medals. The cat's hand and the roulette's lamp are drawn with
@@ -32,14 +34,12 @@ async function shown(page: Page): Promise<number> {
   return Number(((await page.getByTestId('janken-medals').textContent()) ?? '').replace(/,/g, ''));
 }
 
-/** The cat's next draws, queued just before the press that uses them. */
+/**
+ * The cat's next draws (its hand, and the roulette's lamp on a won play), served only to the press that draws them
+ * (rigPresses): the page's other callers of Math.random get real ones, as the floor's live strip does on the live site.
+ */
 async function cat(page: Page, draws: number[]) {
-  await page.evaluate((queue) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const left = [...queue];
-    Math.random = () => (left.length ? left.shift()! : w.__random!());
-  }, draws);
+  await rigPresses(page, draws);
 }
 
 /** Puts a medal in, retrying until hydration has attached the handler and the machine holds the card. */
@@ -282,7 +282,7 @@ test('a reset in the middle of a win leaves nothing of that win behind: the next
 test('fits a phone’s width in both languages, with the odds on their own tab', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openJanken(page);
   expect(await sideways(page)).toBeLessThanOrEqual(375);
   await page.getByRole('tab', { name: 'Odds' }).click();

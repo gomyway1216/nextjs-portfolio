@@ -1,5 +1,7 @@
 'use client';
 
+// The admin console's stylesheet: imported here rather than by the root layout, so no other page downloads it.
+import '@/assets/scss/main/_admin.scss';
 import { usePostMutations,usePostTaxonomy,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';

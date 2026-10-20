@@ -70,7 +70,7 @@ test('switching tabs mid-spin keeps the spin, the winnings and the medals', asyn
   await expect(wheel).toHaveAttribute('data-spinning', 'true');
 
   // Leave while the ball is still rolling…
-  await page.getByRole('tab', { name: 'Martingale sim' }).click();
+  await page.getByRole('tab', { name: 'Martingale' }).click();
   await expect(page.getByRole('button', { name: 'Run simulation' })).toBeVisible();
   // …the spin keeps going on the hidden play tab and settles there.
   await expect(wheel).toHaveAttribute('data-spinning', 'false', { timeout: 15_000 });
@@ -140,7 +140,7 @@ test('winning numbers are saved across reloads and tab switches, and can be clea
   expect(saved).toHaveLength(3);
 
   // Survives switching to another tab and back (the play tab remounts).
-  await page.getByRole('tab', { name: 'Martingale sim' }).click();
+  await page.getByRole('tab', { name: 'Martingale' }).click();
   await page.getByRole('tab', { name: 'Play' }).click();
   expect(await boardNumbers(page)).toEqual(saved);
 
@@ -252,8 +252,8 @@ test('the wheel, wherever it has come to rest, never covers the tabs or anything
       window.scrollTo({ top: 0, behavior: 'instant' });
       document.querySelector<SVGElement>('[class*="wheelHead"]')!.style.transform = 'rotate(32deg)';
     });
-    await page.getByRole('tab', { name: 'Martingale sim' }).click({ timeout: 5_000 });
-    await expect(page.getByRole('tab', { name: 'Martingale sim' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Martingale' }).click({ timeout: 5_000 });
+    await expect(page.getByRole('tab', { name: 'Martingale' })).toHaveAttribute('aria-selected', 'true');
     await page.getByRole('tab', { name: 'Play' }).click({ timeout: 5_000 });
   }
 });

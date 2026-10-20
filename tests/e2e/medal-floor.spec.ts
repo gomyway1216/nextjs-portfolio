@@ -4,6 +4,7 @@ import { getFloorStrings } from '../../src/components/game/MedalCenter/floor/str
 import { periodAt } from '../../src/lib/medalFloor/periods';
 import type { FloorFeedEntry, FloorRow, FloorSummary } from '../../src/lib/medalFloor/types';
 import { openCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
 
 // The medal floor played together: the big wins of everyone playing, live, and the day's and week's rankings, on the
@@ -71,15 +72,23 @@ async function fakeFloor(page: Page, answer: () => FloorSummary): Promise<Reques
 }
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+/** The board by the door: the floor jackpot and the latest big wins, over the machines. */
+const board = (page: Page) => page.getByTestId('floor-now');
+/** Further in, under the machines: the rankings and the player's place on the floor. */
 const together = (page: Page) => page.getByTestId('floor-together');
 
-test('the medal center’s front shows the big wins on the floor and today’s rankings, at a phone’s width', async ({ page }) => {
+test('the medal center’s front shows the big wins on the floor by the door and today’s rankings under the machines, at a phone’s width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await fakeFloor(page, () => floor(FEED));
   await openCenter(page);
-  const moments = together(page).getByTestId('floor-moment');
+  // By the door, right after the medals and the daily bonus: over the machines, which are over the rankings.
+  const top = async (id: string) => (await page.getByTestId(id).boundingBox())?.y ?? -1;
+  expect(await top('center-bonus')).toBeLessThan(await top('floor-now'));
+  expect(await top('floor-now')).toBeLessThan(await top('center-machines'));
+  expect(await top('center-machines')).toBeLessThan(await top('floor-together'));
+  const moments = board(page).getByTestId('floor-moment');
   await expect(moments).toHaveCount(3);
   await expect(moments.nth(0)).toContainText('Lucky Cat hit the JACKPOT: 523 medals');
   await expect(moments.nth(0)).toContainText('Medal Pusher');
@@ -87,8 +96,9 @@ test('the medal center’s front shows the big wins on the floor and today’s r
   await expect(moments.nth(1)).toContainText('Player 1002 lined up three sevens: 3,000 medals');
   await expect(moments.nth(1)).toContainText('4 min ago');
   await expect(moments.nth(2)).toContainText('みけ won a 160-medal double-up');
-  // Cut off from the live database, it says it asks every 30 seconds.
-  await expect(together(page).getByTestId('floor-live')).toHaveText(t.polling);
+  // Cut off from the live database, it says it asks every 30 seconds; every win and ranking is a tap away.
+  await expect(board(page).getByTestId('floor-live')).toHaveText(t.polling);
+  await expect(board(page).getByTestId('floor-more-moments')).toHaveAttribute('href', '/games/medal-center/rankings');
 
   // Today's boards: medals won, with a shared rank, and the biggest win at each machine.
   const won = together(page).getByTestId('floor-won').getByTestId('floor-row');
@@ -123,35 +133,107 @@ test('this week’s boards are a tap away', async ({ page }) => {
   await expect(rankings.getByTestId('floor-best-row')).toContainText('Roulette');
 });
 
-test('a new big win comes onto the floor without reloading the page', async ({ page }) => {
+test('a new big win comes onto the board by the door without reloading the page, and the oldest of the three goes', async ({ page }) => {
   await page.clock.install();
   let feed = FEED;
   const asked = await fakeFloor(page, () => floor(feed));
   await openCenter(page);
-  await expect(together(page).getByTestId('floor-moment')).toHaveCount(3);
+  await expect(board(page).getByTestId('floor-moment')).toHaveCount(3);
   const before = asked.length;
   feed = [moment(4, 'video-poker', 4_000, 'royal', 'Night Owl', 0), ...FEED];
   await page.clock.fastForward(31_000);
-  await expect(together(page).getByTestId('floor-moment')).toHaveCount(4);
-  await expect(together(page).getByTestId('floor-moment').first()).toContainText('Night Owl drew a royal flush: 4,000 medals');
+  await expect(board(page).getByTestId('floor-moment').first()).toContainText('Night Owl drew a royal flush: 4,000 medals');
+  await expect(board(page).getByTestId('floor-moment')).toHaveCount(3);
+  await expect(board(page)).not.toContainText('みけ');
   expect(asked.length).toBeGreaterThan(before);
+});
+
+test('the floor’s news reaches only the board by the door: the machines and their plates are not drawn again', async ({ page }) => {
+  await page.clock.install();
+  let feed = FEED;
+  await fakeFloor(page, () => floor(feed));
+  await openCenter(page);
+  await expect(board(page).getByTestId('floor-moment')).toHaveCount(3);
+  // What React last gave an element is a new object whenever the component that draws it is drawn again.
+  const LOOKED_AT = ['[data-testid="center-machines"]', '[data-testid="center-best-roulette"]', '[data-testid="floor-feed"]'];
+  const drawn = (selectors: string[]) =>
+    page.evaluate((selectors) => {
+      const seen = window as unknown as { drawnBefore?: unknown[] };
+      const props = selectors.map((selector) => {
+        const element = document.querySelector(selector) as (Element & Record<string, unknown>) | null;
+        const key = element ? Object.keys(element).find((name) => name.startsWith('__reactProps$')) : undefined;
+        return element && key ? element[key] : null;
+      });
+      const before = seen.drawnBefore;
+      seen.drawnBefore = props;
+      return { found: props.map((value) => value !== null), same: before ? props.map((value, i) => value === before[i]) : null };
+    }, selectors);
+  expect((await drawn(LOOKED_AT)).found).toEqual([true, true, true]);
+  // A new big win, and the floor's clock ticking: both reach the board by the door.
+  feed = [moment(4, 'video-poker', 4_000, 'royal', 'Night Owl', 0), ...FEED];
+  await page.clock.fastForward(31_000);
+  await expect(board(page).getByTestId('floor-moment').first()).toContainText('Night Owl drew a royal flush: 4,000 medals');
+  // The board was drawn again; the floor of machines and its plates were not.
+  expect((await drawn(LOOKED_AT)).same).toEqual([true, true, false]);
 });
 
 test('reads in Japanese', async ({ page }) => {
   const ja = getFloorStrings('ja');
-  await fakeFloor(page, () => floor(FEED));
+  let feed = FEED;
+  await fakeFloor(page, () => floor(feed));
   await openCenter(page, 'ja');
   await expect(together(page).getByRole('heading', { level: 2 })).toHaveText(ja.title);
-  await expect(together(page).getByTestId('floor-moment').first()).toContainText('Lucky Cat ジャックポット！523枚');
-  await expect(together(page).getByTestId('floor-moment').nth(1)).toContainText('プレイヤー1002');
+  await expect(board(page).getByRole('heading', { level: 2 })).toHaveText(ja.nowTitle);
+  await expect(board(page).getByTestId('floor-moment').first()).toContainText('Lucky Cat ジャックポット！523枚');
+  await expect(board(page).getByTestId('floor-moment').nth(1)).toContainText('プレイヤー1002');
   await expect(together(page).getByTestId('floor-won').getByTestId('floor-row').first()).toContainText('1位');
   await expect(together(page).getByTestId('floor-honesty')).toHaveText(ja.honesty);
+  // The newest machines' named wins, on the rankings' feed: 「ゾロ目が的中」, never 「ゾロ目的中」 (「ゾロ・目的・中」).
+  feed = [moment(9, 'sic-bo', 4_525, 'sicbo-triple', 'みけ', 30), moment(8, 'high-low', 2_000, 'ladder-top', null, 90)];
+  await page.goto('/games/medal-center/rankings');
+  await arrived(page);
+  const moments = page.getByTestId('floor-moment');
+  await expect(moments.first()).toContainText('みけ シックボーでゾロ目が的中！4,525枚');
+  await expect(moments.nth(1)).toContainText('プレイヤー1008 ハイ＆ローのラダーをトップまで上って2,000枚');
+});
+
+test('the board by the door keeps its size while the floor is read: the machines under it do not move when the wins and the floor jackpot come in', async ({ page }) => {
+  // Both of the floor's answers are held until the page has drawn the board without them, then let go at once.
+  const held: (() => Promise<void>)[] = [];
+  await page.routeWebSocket(/firebaseio\.com/, (socket) => socket.close());
+  await page.route(/firebaseio\.com/, (route) => route.abort());
+  await page.route(/\/api\/game\/medal-floor\/jackpot\/wins/, (route) => route.fulfill({ status: 401, json: { error: 'No authorization token provided' } }));
+  await page.route(/\/api\/game\/medal-floor\/jackpot(\?|$)/, (route) => {
+    held.push(() =>
+      route.fulfill({ json: { now: NOW, available: true, amount: 3_214, seq: 3, v: 42, wins: [{ name: 'ABCDEFGHIJKL', tag: '0001', game: 'roulette', medals: 17_820, at: NOW - 2 * 3_600_000 }] } }),
+    );
+  });
+  await page.route(/\/api\/game\/medal-floor(\?|$)/, (route) => {
+    held.push(() => route.fulfill({ json: floor(FEED) }));
+  });
+  const place = () =>
+    page.evaluate(() => ({
+      machines: Math.round((document.querySelector('[data-testid="center-machines"]')?.getBoundingClientRect().top ?? 0) + window.scrollY),
+      board: Math.round(document.querySelector('[data-testid="floor-now"]')?.getBoundingClientRect().height ?? 0),
+    }));
+  for (const width of [320, 375, 1280]) {
+    held.length = 0;
+    await page.setViewportSize({ width, height: 800 });
+    await openCenter(page);
+    await expect(board(page).getByTestId('floor-feed-empty')).toBeVisible();
+    await expect.poll(() => held.length).toBe(2);
+    const before = await place();
+    await Promise.all(held.map((fulfill) => fulfill()));
+    await expect(board(page).getByTestId('floor-moment')).toHaveCount(3);
+    await expect(page.getByTestId('floor-jackpot-amount')).toHaveAttribute('data-amount', '3214');
+    expect(await place(), `${width} px`).toEqual(before);
+  }
 });
 
 test('a floor that cannot be reached says so, and the medal center works as before', async ({ page }) => {
   await fakeFloor(page, () => floor([], false));
   await openCenter(page);
-  await expect(together(page).getByTestId('floor-feed-empty')).toHaveText(t.feedUnavailable);
+  await expect(board(page).getByTestId('floor-feed-empty')).toHaveText(t.feedUnavailable);
   await expect(page.getByTestId('center-balance')).not.toHaveText('—');
   await expect(page.getByTestId('center-play-medal-pusher')).toBeVisible();
 });
@@ -159,7 +241,7 @@ test('a floor that cannot be reached says so, and the medal center works as befo
 test('the rankings page has every machine’s board, today and this week, and the moments on show, at a phone’s width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   const asked = await fakeFloor(page, () => floor(FEED));
   await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);
   const response = await page.goto('/games/medal-center/rankings');
@@ -167,7 +249,7 @@ test('the rankings page has every machine’s board, today and this week, and th
   await arrived(page);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('RANKINGS');
   await expect(page.getByTestId('rankings-won').getByTestId('floor-row')).toHaveCount(3);
-  for (const game of ['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker']) {
+  for (const game of ['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball']) {
     await expect(page.getByTestId(`rankings-best-${game}`)).toBeVisible();
   }
   await expect(page.getByTestId('rankings-best-slot-machine').getByTestId('floor-row')).toContainText('Player 1234');

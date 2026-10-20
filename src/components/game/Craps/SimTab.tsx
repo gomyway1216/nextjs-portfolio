@@ -19,6 +19,7 @@ import {
   type StrategyId,
 } from './sim';
 import styles from './Craps.module.css';
+import selectStyles from '../common/select.module.css';
 
 export const ROLL_OPTIONS = [10_000, 100_000, 1_000_000] as const;
 export const HAND_OPTIONS = [1_000, 10_000, 100_000] as const;
@@ -109,14 +110,14 @@ export const SimTab = () => {
         {t.simOwnMedals}
       </p>
       <section className={styles.panel} aria-labelledby="craps-sim-edge-title">
-        <h3 id="craps-sim-edge-title" className={styles.blockTitle}>
+        <h2 id="craps-sim-edge-title" className={styles.blockTitle}>
           {t.simEdgeTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.simEdgeIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.rollsLabel}</span>
-            <select className={styles.input} value={rolls} onChange={(e) => setRolls(Number(e.target.value))} disabled={edgesProgress !== null}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={rolls} onChange={(e) => setRolls(Number(e.target.value))} disabled={edgesProgress !== null}>
               {ROLL_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -165,15 +166,15 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-sim-session-title">
-        <h3 id="craps-sim-session-title" className={styles.blockTitle}>
+        <h2 id="craps-sim-session-title" className={styles.blockTitle}>
           {t.sessionTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.sessionIntro}</p>
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.strategyLabel}</span>
             <select
-              className={styles.input}
+              className={`${styles.input} ${selectStyles.select}`}
               value={session.strategy}
               onChange={(e) => setSession({ ...session, strategy: e.target.value as StrategyId })}
               disabled={sessionProgress !== null}
@@ -250,23 +251,23 @@ export const SimTab = () => {
                 <span className={styles.statNote}>{t.expectedFinalNote}</span>
               </div>
             </div>
-            <h4 className={styles.subTitle}>{t.finalDist}</h4>
+            <h3 className={styles.subTitle}>{t.finalDist}</h3>
             <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.simMedalsAxis} />
-            <h4 className={styles.subTitle}>{t.sampleSession}</h4>
+            <h3 className={styles.subTitle}>{t.sampleSession}</h3>
             <TrajectoryChart trajectory={summary.sampleTrajectory} start={summaryConfig.bankroll} xLabel={t.survivalAxis} />
           </div>
         )}
       </section>
 
       <section className={styles.panel} aria-labelledby="craps-sim-hands-title">
-        <h3 id="craps-sim-hands-title" className={styles.blockTitle}>
+        <h2 id="craps-sim-hands-title" className={styles.blockTitle}>
           {t.handsTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.handsIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.handsLabel}</span>
-            <select className={styles.input} value={hands} onChange={(e) => setHands(Number(e.target.value))} disabled={handsProgress !== null}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={hands} onChange={(e) => setHands(Number(e.target.value))} disabled={handsProgress !== null}>
               {HAND_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}

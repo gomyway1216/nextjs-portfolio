@@ -1370,6 +1370,46 @@
     "mahjong": {
       "title": "Riichi Mahjong",
       "description": "Play a full East-round riichi mahjong game against three AI seats, yaku and fu included."
+    },
+    "fishing": {
+      "title": "Big Catch Harbor",
+      "description": "A fishing medal machine at the Medal Center: cast for 1, 3 or 5 medals, reel in whatever bites — from tiny fry to a treasure chest and the harbor’s giant lord — and see why exactly 90 of every 100 medals come back."
+    },
+    "horse-race": {
+      "title": "Mini Turf Racing",
+      "description": "A horse-racing medal machine on a miniature track: six horses, win and quinella tickets bought with your medals, a race run to a result drawn at the off — and the exact odds of every ticket, all of them bringing back 89.5% to 90%."
+    },
+    "ball-bingo": {
+      "title": "Ball Bingo",
+      "description": "A ball-drop bingo of the Medal Center: shoot balls through the pins into numbered pockets, line up a 3×3 card, catch FREE and CHANCE for more balls — and see the exact odds of every line, and why about 90 of every 100 medals come back."
+    },
+    "big-wheel": {
+      "title": "Star Festival Big Wheel",
+      "description": "A big upright prize wheel at the Medal Center: put your medals on its numbers, watch the 54-segment wheel clack to a stop under the flapper, and chase the Milky Way Chance’s second spin up to ×400 — every number bringing back exactly 90%."
+    },
+    "high-low": {
+      "title": "High & Low Ladder",
+      "description": "The card machine of the Medal Center: guess whether the next card is higher or lower, climb a twelve-rung ladder and TAKE your medals before a miss — with the best play for every card on every rung, worked out exactly: 89.96% back."
+    },
+    "sic-bo": {
+      "title": "Moonlit Sic Bo",
+      "description": "An electronic Sic Bo table at the Medal Center: put your medals on Small, Big, totals, doubles, triples and single numbers, watch three dice tumble under a glass dome, and see every winning area light up — on a real casino paytable, Small and Big bringing back 97.2%."
+    },
+    "sugoroku": {
+      "title": "Whale Isle Sugoroku",
+      "description": "The board-game machine of the Medal Center: roll the die in its dome, sail the boat round thirty squares of Whale Isle, and ride the whale to the blowhole for the jackpot — with every square’s next roll worked out exactly, so that no square is one to bet big on."
+    },
+    "coin-maze": {
+      "title": "Candy Shop Medal Maze",
+      "description": "The candy shop corner’s flick-a-medal maze: drop one medal into the glass case, flick it with the levers through four moving gates and down the pins into WIN — with perfect timing, an everyday hand and blind presses each worked out exactly, so that no timing beats the machine."
+    },
+    "keno": {
+      "title": "Video Keno",
+      "description": "The video & slots corner’s keno cabinet: mark 1 to 10 of the 80 numbers, bet, and watch 20 balls drawn one by one — a paytable for every number of spots, a catch on the last ball paying ×5, and every ticket’s return worked out exactly from the hypergeometric odds, at about 90% for each."
+    },
+    "smart-ball": {
+      "title": "Hot Spring Smart Ball",
+      "description": "The hot-spring town’s smart ball: pull the plunger, shoot ten glass marbles round the rail and down through the pins into sixteen numbered holes, and light four in a row for BINGO — with perfect play, an everyday hand and blind shots each worked out exactly, so that no pull beats the machine."
     }
   },
   "home": {

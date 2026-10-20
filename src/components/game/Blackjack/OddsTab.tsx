@@ -7,10 +7,7 @@ import {
   TABLE_RULES,
   VALUES,
   dealerOutcome,
-  gameValue,
-  medalBetEdge,
   optimalChart,
-  policyValue,
   type Action,
   type ChartCell,
   type Rules,
@@ -19,9 +16,11 @@ import {
 import { HARD_CHART, PAIR_CHART, SOFT_CHART, naturalWin } from './engine';
 import { getStrings } from './i18n';
 import { MAX_BET, MIN_BET } from './medalTable';
+import { PUBLISHED_MEDAL_BET_EDGES, PUBLISHED_POLICY_EDGES, PUBLISHED_VALUE, PUBLISHED_VARIANT_EDGES, type RuleVariantId } from './published';
 import styles from './Blackjack.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
-const RULE_VARIANTS: { id: 'table' | 'h17' | 'sixFive' | 'noDas' | 'splitOnce' | 'surrender'; rules: Rules }[] = [
+export const RULE_VARIANTS: { id: RuleVariantId; rules: Rules }[] = [
   { id: 'table', rules: TABLE_RULES },
   { id: 'surrender', rules: { ...TABLE_RULES, surrender: true } },
   { id: 'splitOnce', rules: { ...TABLE_RULES, maxHands: 2 } },
@@ -46,15 +45,16 @@ export const OddsTab = () => {
   const pct = (v: number, digits = 3) => `${(v * 100).toFixed(digits)}%`;
   const signed = (v: number, digits = 3) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
 
-  const value = useMemo(() => gameValue(), []);
+  // The games' values as published (published.ts): never worked out here. The chart and the dealer cost next to nothing.
+  const value = PUBLISHED_VALUE;
   const dealer = useMemo(() => VALUES.map((up) => ({ up, d: dealerOutcome(up) })), []);
   const chart = useMemo(() => optimalChart(), []);
-  const variants = useMemo(() => RULE_VARIANTS.map((v) => ({ ...v, edge: gameValue(v.rules).houseEdge })), []);
+  const variants = useMemo(() => RULE_VARIANTS.map((v) => ({ ...v, edge: PUBLISHED_VARIANT_EDGES[v.id] })), []);
   const players = useMemo(
     () => [
       { id: 'optimal' as const, edge: value.houseEdge },
-      { id: 'mimic' as const, edge: -policyValue((h) => h.total < 17) },
-      { id: 'neverBust' as const, edge: -policyValue((h) => h.total <= 11 || (h.soft && h.total < 18)) },
+      { id: 'mimic' as const, edge: PUBLISHED_POLICY_EDGES.mimic },
+      { id: 'neverBust' as const, edge: PUBLISHED_POLICY_EDGES.neverBust },
     ],
     [value],
   );
@@ -63,7 +63,7 @@ export const OddsTab = () => {
     () =>
       Array.from({ length: MAX_BET - MIN_BET + 1 }, (_, i) => {
         const bet = MIN_BET + i;
-        return { bet, wins: naturalWin(bet, true), edge: medalBetEdge(bet) };
+        return { bet, wins: naturalWin(bet, true), edge: PUBLISHED_MEDAL_BET_EDGES[bet] };
       }),
     [],
   );
@@ -83,12 +83,14 @@ export const OddsTab = () => {
 
   const renderChart = (section: Section, rows: Record<number, ChartCell[]>, title: string) => (
     <div className={styles.chartBlock}>
-      <h4 className={styles.subTitle}>{title}</h4>
-      <div className={styles.tableWrap}>
+      <h3 className={styles.subTitle}>{title}</h3>
+      <ScrollArea className={styles.tableWrap}>
         <table className={styles.chart} data-chart={section}>
           <thead>
             <tr>
-              <th />
+              <th>
+                <span className={styles.srOnly}>{t.chartCorner}</span>
+              </th>
               {VALUES.map((up) => (
                 <th key={up}>{upLabel(up)}</th>
               ))}
@@ -126,7 +128,7 @@ export const OddsTab = () => {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollArea>
     </div>
   );
 
@@ -138,9 +140,9 @@ export const OddsTab = () => {
       <p className={styles.intro}>{t.oddsIntro}</p>
 
       <section className={styles.panel} aria-labelledby="bj-edge-title">
-        <h3 id="bj-edge-title" className={styles.blockTitle}>
+        <h2 id="bj-edge-title" className={styles.blockTitle}>
           {t.edgeHeadline}
-        </h3>
+        </h2>
         <div className={styles.headline}>
           <span className={styles.headlineValue} data-testid="bj-house-edge">
             {pct(value.houseEdge)}
@@ -167,13 +169,13 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-medal-title">
-        <h3 id="bj-medal-title" className={styles.blockTitle}>
+        <h2 id="bj-medal-title" className={styles.blockTitle}>
           {t.medalTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.medalIntro(MIN_BET, MAX_BET)}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bj-medal-table">
             <thead>
               <tr>
@@ -194,18 +196,18 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
         <p className={styles.note}>{t.medalNote(pct(unmatched, 2))}</p>
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-dealer-title">
-        <h3 id="bj-dealer-title" className={styles.blockTitle}>
+        <h2 id="bj-dealer-title" className={styles.blockTitle}>
           {t.dealerTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.dealerIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bj-dealer-table">
             <thead>
               <tr>
@@ -237,13 +239,13 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-chart-title">
-        <h3 id="bj-chart-title" className={styles.blockTitle}>
+        <h2 id="bj-chart-title" className={styles.blockTitle}>
           {t.chartTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.chartIntro}
         </p>
@@ -258,7 +260,7 @@ export const OddsTab = () => {
         <div className={styles.cellInfo} aria-live="polite" data-testid="bj-cell-info">
           {picked && pickedCell ? (
             <>
-              <h4>{t.cellDetail(handName(picked.section, picked.row), upLabel(VALUES[picked.up]))}</h4>
+              <h3>{t.cellDetail(handName(picked.section, picked.row), upLabel(VALUES[picked.up]))}</h3>
               <ul className={styles.evList}>
                 {ranked.map(([a, ev]) => (
                   <li key={a} className={styles.evItem} data-best={a === pickedCell.best ? 'true' : undefined}>
@@ -291,13 +293,13 @@ export const OddsTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-rules-title">
-        <h3 id="bj-rules-title" className={styles.blockTitle}>
+        <h2 id="bj-rules-title" className={styles.blockTitle}>
           {t.rulesTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.rulesIntro}
         </p>
-        <div className={styles.tableWrap}>
+        <ScrollArea className={styles.tableWrap}>
           <table className={styles.oddsTable} data-testid="bj-rules-table">
             <thead>
               <tr>
@@ -318,13 +320,13 @@ export const OddsTab = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
 
       <section className={styles.panel} aria-labelledby="bj-players-title">
-        <h3 id="bj-players-title" className={styles.blockTitle}>
+        <h2 id="bj-players-title" className={styles.blockTitle}>
           {t.playersTitle}
-        </h3>
+        </h2>
         <p className={styles.note} style={{ marginTop: 0 }}>
           {t.playersIntro}
         </p>

@@ -7,7 +7,9 @@ import { REFILL } from '../MedalCenter/ledger';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
-import { betOdds, exactOdds, oddsBetFor, shoeOdds } from './analysis';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
+import { betOdds, oddsBetFor } from './analysis';
+import { publishedShoeOdds, unseenOdds } from './published';
 import {
   BET_IDS,
   DEFAULT_DECKS,
@@ -58,6 +60,7 @@ import {
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { useCountUp } from '../MedalCenter/countUp';
+import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { MedalCounter, MedalIcon, MedalStack } from './MedalCounter';
 import { PlayingCard, cardLabel } from './Cards';
 import { BeadPlate, BigRoad } from './Roads';
@@ -69,8 +72,27 @@ import styles from './Baccarat.module.css';
  * last card has turned face up and its total is showing (0.46 s into its slide, then 0.18 s to appear: `totalLate`).
  */
 const CARD_MS = 340;
+
+/**
+ * The note that the table plays with the player's medals now: told once, kept on the page until it is put away. The
+ * server draws it, and its gate hides it before the page is painted where it has been told (MedalCenter/onceNote.tsx),
+ * so the table never moves for it.
+ */
+const NOTE = createOnceNote({ name: 'baccarat', storageKey: NOTICE_KEY, readWhenShown: true });
 const THIRD_CARD_PAUSE_MS = 360;
 const SETTLE_MS = 680;
+
+/**
+ * The squeeze (絞り), as at the tables of Macau and on the electronic baccarat machines that copy them: the hand's last
+ * card slides out face down, and its face is peeled up from one long edge, the corner pips first, before it is turned.
+ * Only the last card, and only for a little over a second; a tap on it (or Space) turns it at once. The hand, and the
+ * medals it moves, were drawn and written down at the deal: the squeeze only shows a card that is already there.
+ */
+const SQUEEZE_SLIDE_MS = 340;
+const SQUEEZE_PEEL_MS = 900;
+export const SQUEEZE_MS = SQUEEZE_SLIDE_MS + SQUEEZE_PEEL_MS;
+/** From the squeezed card's face being all up to the result: its total pops in (0.18 s), and a beat. */
+export const SQUEEZE_SETTLE_MS = 260;
 
 /**
  * How long the table waits for the card before it says that it is in another tab, in seconds. The card is away for
@@ -81,6 +103,16 @@ export const CARD_WAIT = 1.5;
 export function revealSchedule(cards: number): { reveal: number[]; settle: number } {
   const reveal = Array.from({ length: cards }, (_, k) => k * CARD_MS + Math.max(0, k - 3) * THIRD_CARD_PAUSE_MS);
   return { reveal, settle: reveal[cards - 1] + SETTLE_MS };
+}
+
+/**
+ * The deal with the last card squeezed: the cards before it as `revealSchedule`, the last one put down face down at its
+ * time and its face all up `SQUEEZE_MS` later (`unveil`), and the result called `SQUEEZE_SETTLE_MS` after that.
+ */
+export function squeezeSchedule(cards: number): { reveal: number[]; unveil: number; settle: number } {
+  const { reveal } = revealSchedule(cards);
+  const unveil = reveal[cards - 1] + SQUEEZE_MS;
+  return { reveal, unveil, settle: unveil + SQUEEZE_SETTLE_MS };
 }
 
 const prefersReducedMotion = () =>
@@ -104,6 +136,10 @@ interface Round {
   hand: Hand;
   /** Cards turned over so far, in dealing order. */
   shown: number;
+  /** The hand's last card is on the table face down, being squeezed: it is not counted yet. */
+  squeezing?: boolean;
+  /** The last card was squeezed and is now face up. */
+  squeezed?: boolean;
   settled: boolean;
   results: BetResult[];
   mode: Mode;
@@ -168,7 +204,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const [stats, setStats] = useState<Stats>(NEW_TABLE.stats);
   const [shoeView, setShoeView] = useState<ShoeView>(NO_SHOE);
   const [unseen, setUnseen] = useState<number[]>(() => fullShoeCounts(DEFAULT_DECKS));
-  const [notice, setNotice] = useState(false);
+  const notice = NOTE.useShown();
   /** Says that the medals about to come back are a win, to be counted up on the counter (`medalMeter.pay`). */
   const payMedals = useRef<() => void>(() => undefined);
   // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch beside the shoe.
@@ -199,6 +235,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   });
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  /** Turns the squeezed card at once, while it is being squeezed (a tap on it, or Space); null otherwise. */
+  const turnNow = useRef<(() => void) | null>(null);
 
   const commitBets = (next: Bets) => {
     betsRef.current = next;
@@ -224,6 +262,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const stopReveal = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    turnNow.current = null;
     dealingRef.current = false;
     setDealing(false);
   };
@@ -265,11 +304,6 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     // Storage is read only in the browser, after the first drawing matches the server's.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (table) showTable(table);
-    // Told once that the table plays with the player's medals now.
-    if (store.read(NOTICE_KEY) === null) {
-      setNotice(true);
-      store.write(NOTICE_KEY, '1');
-    }
     // Once, on opening: the functions it calls only set state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
@@ -479,20 +513,48 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     };
 
     const count = cardsInHand(hand);
-    const { reveal, settle } = prefersReducedMotion() ? { reveal: new Array<number>(count).fill(0), settle: 0 } : revealSchedule(count);
-    // Each card slides out of the shoe as it is turned over, a third card a beat later.
-    reveal.forEach((ms) => play('card', ms / 1000));
     timers.current.forEach(clearTimeout);
+    turnNow.current = null;
+    const showUpTo = (k: number) => setRound((r) => (r && r.id === id ? { ...r, shown: Math.max(r.shown, k + 1) } : r));
+    if (prefersReducedMotion()) {
+      // Every card at once, and no squeeze.
+      for (let k = 0; k < count; k++) play('card');
+      timers.current = [setTimeout(() => showUpTo(count - 1), 0), setTimeout(finish, 0)];
+      return;
+    }
+    // Each card slides out of the shoe as it is turned over, a third card a beat later; the last one is squeezed.
+    const { reveal, unveil, settle } = squeezeSchedule(count);
+    reveal.forEach((ms) => play('card', ms / 1000));
+    const last = count - 1;
+    let unveiled = false;
+    const turn = () => {
+      if (unveiled) return;
+      unveiled = true;
+      turnNow.current = null;
+      play('card');
+      setRound((r) => (r && r.id === id ? { ...r, shown: count, squeezing: false, squeezed: true } : r));
+    };
     timers.current = reveal.map((ms, k) =>
-      setTimeout(() => setRound((r) => (r && r.id === id ? { ...r, shown: Math.max(r.shown, k + 1) } : r)), ms),
+      k < last
+        ? setTimeout(() => showUpTo(k), ms)
+        : setTimeout(() => {
+            setRound((r) => (r && r.id === id ? { ...r, shown: last, squeezing: true } : r));
+            // A tap turns the card at once, and the result is called a beat later.
+            turnNow.current = () => {
+              timers.current.forEach(clearTimeout);
+              turn();
+              timers.current = [setTimeout(finish, SQUEEZE_SETTLE_MS)];
+            };
+          }, ms),
     );
-    timers.current.push(setTimeout(finish, settle));
+    timers.current.push(setTimeout(turn, unveil), setTimeout(finish, settle));
   };
 
-  const nextOdds = useMemo(() => exactOdds(unseen), [unseen]);
+  // A fresh shoe's odds are published (published.ts); a shoe with cards gone is counted as it is dealt.
+  const nextOdds = useMemo(() => unseenOdds(unseen), [unseen]);
   const unseenTotal = nextOdds.cards;
   const freshShoe = unseenTotal === DEFAULT_DECKS * 52;
-  const exact = shoeOdds(DEFAULT_DECKS);
+  const exact = publishedShoeOdds(DEFAULT_DECKS);
 
   const onTable = totalOnTable(bets);
   const settledHand = round?.settled ? round.hand : null;
@@ -513,7 +575,12 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const handView = (side: Side) => {
     const cards = round ? round.hand[side] : [];
     const order = round ? dealOrder(round.hand)[side] : [];
-    const visible = cards.filter((_, i) => order[i] < (round?.shown ?? 0));
+    const shown = round?.shown ?? 0;
+    const lastOrder = round ? cardsInHand(round.hand) - 1 : -1;
+    // The cards that count, and the one being squeezed (face down until it is turned), which does not count yet.
+    const visible = cards.filter((_, i) => order[i] < shown);
+    const onTable = cards.filter((_, i) => order[i] < shown || (round?.squeezing === true && order[i] === shown));
+    const squeezeHere = round !== null && order.includes(lastOrder) && (round.squeezing === true || round.squeezed === true);
     const total = visible.length > 0 ? handTotal(visible) : null;
     const wonSide = settledHand?.winner === side;
     const natural = settledHand?.natural === true && visible.length === 2 && total !== null && total >= 8;
@@ -528,17 +595,39 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         <div className={styles.handHead}>
           <span className={styles.handName}>{t.side[side]}</span>
           {/* The total changes as the card it counts shows its face, not as the card leaves the shoe. */}
-          <span key={`${round?.id ?? 0}-${visible.length}`} className={`${styles.handTotal} ${visible.length > 0 ? styles.totalLate : ''}`} data-testid={`${side}-total`}>
+          <span
+            key={`${round?.id ?? 0}-${visible.length}`}
+            className={`${styles.handTotal} ${visible.length > 0 ? (squeezeHere && round?.squeezed && order.indexOf(lastOrder) < visible.length ? styles.totalNow : styles.totalLate) : ''}`}
+            data-testid={`${side}-total`}
+          >
             {total ?? '–'}
           </span>
         </div>
         <div className={styles.handCards}>
-          {visible.map((card, i) => (
-            <PlayingCard key={`${round!.id}-${i}`} card={card} sideways={i === 2} />
-          ))}
+          {onTable.map((card, i) => {
+            const squeeze = squeezeHere && order[i] === lastOrder ? (round!.squeezing ? 'peel' : 'done') : undefined;
+            return <PlayingCard key={`${round!.id}-${i}`} card={card} sideways={i === 2} squeeze={squeeze} />;
+          })}
         </div>
+        {round?.squeezing && squeezeHere && (
+          <button type="button" className={styles.squeezeTurn} onClick={() => turnNow.current?.()} aria-label={t.squeezeTurn} data-testid="baccarat-squeeze" />
+        )}
         {natural && <span className={styles.naturalTag}>{t.natural}</span>}
       </div>
+    );
+  };
+
+  /** A spot's name, broken (if at all) between its words: 「プレイヤー｜ペア」, never 「バンカーペ｜ア」. */
+  const spotName = (name: string) => {
+    const pair = /^(.+)(ペア)$/.exec(name);
+    return pair ? (
+      <>
+        {pair[1]}
+        <wbr />
+        {pair[2]}
+      </>
+    ) : (
+      name
     );
   };
 
@@ -559,7 +648,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         data-bet={id}
         data-lit={lit ? 'true' : undefined}
       >
-        <span className={styles.spotLabel}>{t.betName[id]}</span>
+        <span className={styles.spotLabel}>{spotName(t.betName[id])}</span>
         <span className={styles.spotPays}>{pays}</span>
         {amount > 0 && (
           <span className={styles.spotStake} data-testid={`stake-${id}`}>
@@ -584,6 +673,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   };
 
   const calloutText = () => {
+    if (round?.squeezing) return t.squeezing;
     if (dealing || !round) return dealing ? t.dealing : t.placeBets;
     const h = round.hand;
     const extra = isDragon7(h) ? ` · ${t.dragon7Hit}` : isPanda8(h) ? ` · ${t.panda8Hit}` : '';
@@ -612,7 +702,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   // last hand's bets back and U takes the last one off. Each does just what its button does, and nothing while a hand
   // is being dealt.
   useMachineKeys(active, (key) => {
-    if (key === ' ' || key === 'Enter') deal();
+    if ((key === ' ' || key === 'Enter') && turnNow.current) turnNow.current();
+    else if (key === ' ' || key === 'Enter') deal();
     else if (key === 'p') place('player');
     else if (key === 'b') place('banker');
     else if (key === 't') place('tie');
@@ -628,23 +719,26 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   return (
     <div>
       {notice && (
-        <aside className={styles.notice} aria-labelledby="baccarat-notice-title" data-testid="baccarat-notice">
-          <MedalIcon className={styles.noticeMedal} />
-          <div className={styles.noticeText}>
-            <h3 id="baccarat-notice-title" className={styles.noticeTitle}>
-              {t.noticeTitle}
-            </h3>
-            <p>
-              {t.noticeBody}{' '}
-              <a className={styles.link} href={MEDAL_CENTER_PATH}>
-                {t.centerLink}
-              </a>
-            </p>
-          </div>
-          <button type="button" className={styles.btn} onClick={() => setNotice(false)} data-testid="baccarat-notice-ok">
-            {t.noticeOk}
-          </button>
-        </aside>
+        <>
+          <NoteGate name="baccarat" storageKey={NOTICE_KEY} />
+          <aside className={styles.notice} aria-labelledby="baccarat-notice-title" data-testid="baccarat-notice" {...noteAttributes('baccarat')}>
+            <MedalIcon className={styles.noticeMedal} />
+            <div className={styles.noticeText}>
+              <h2 id="baccarat-notice-title" className={styles.noticeTitle}>
+                {t.noticeTitle}
+              </h2>
+              <p>
+                {t.noticeBody}{' '}
+                <a className={styles.link} href={MEDAL_CENTER_PATH}>
+                  {t.centerLink}
+                </a>
+              </p>
+            </div>
+            <button type="button" className={styles.btn} onClick={NOTE.putAway} data-testid="baccarat-notice-ok">
+              {t.noticeOk}
+            </button>
+          </aside>
+        </>
       )}
       <div className={styles.playGrid}>
         {/*
@@ -655,15 +749,26 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         <div className={styles.tableSide}>
           <div className={`${styles.part} ${styles.cardsPart}`}>
             <div className={styles.tableTop}>
+              {/* Two lines, the same before a shoe's first deal and after it: the shoe and the hand beside the sound switch, and
+                  the cards left and the burn card under them. */}
               <div className={styles.shoeBar} data-testid="shoe-info">
                 {shoeView.number === 0 ? (
-                  <span>{t.shoeWaiting}</span>
+                  <>
+                    <span className={styles.shoeRow}>
+                      <span className={styles.shoeStrong}>{t.shoeNew}</span>
+                    </span>
+                    <span className={styles.shoeRow}>{t.shoeWaiting}</span>
+                  </>
                 ) : (
                   <>
-                    <span className={styles.shoeStrong}>{t.shoeLabel(shoeView.number)}</span>
-                    <span>{t.handInShoe(shoeView.hand)}</span>
-                    <span data-testid="cards-left">{t.cardsLeft(shoeView.cardsLeft)}</span>
-                    {shoeView.burnCard && <span className={styles.muted}>{t.burnInfo(cardLabel(shoeView.burnCard), shoeView.burned)}</span>}
+                    <span className={styles.shoeRow}>
+                      <span className={styles.shoeStrong}>{t.shoeLabel(shoeView.number)}</span>
+                      <span>{t.handInShoe(shoeView.hand)}</span>
+                    </span>
+                    <span className={styles.shoeRow}>
+                      <span data-testid="cards-left">{t.cardsLeft(shoeView.cardsLeft)}</span>
+                      {shoeView.burnCard && <span className={styles.muted}>{t.burnInfo(cardLabel(shoeView.burnCard), shoeView.burned)}</span>}
+                    </span>
                   </>
                 )}
               </div>
@@ -768,9 +873,9 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           </div>
         </div>
 
-        {/* The machine's front: the counter, the felt and its buttons, then the odds. On a phone the felt and the buttons come first. */}
+        {/* The machine's front: the counter over the felt and its buttons, then what the medals are and the table, then the odds. */}
         <div className={styles.front}>
-          <div className={`${styles.part} ${styles.counterPart}`}>
+          <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="baccarat-buttons">
             <MedalCounter
               loaded={bankState.loaded}
               medals={shownMedals}
@@ -788,39 +893,12 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
                 waiting: t.medalsWaiting,
               }}
             />
-            <p className={styles.notMoney} data-testid="baccarat-not-money">
-              {t.notMoney}
-            </p>
-            <p className={`${styles.note} ${styles.medalsFrom}`} data-testid="baccarat-medals-from">
-              {t.medalsFrom}{' '}
-              <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="baccarat-center-note-link">
-                {t.centerLink}
-              </a>
-            </p>
-            <div className={styles.modeRow} role="radiogroup" aria-label={t.tableMode}>
-              {(['ez', 'commission'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === m}
-                  className={styles.modeBtn}
-                  onClick={() => switchMode(m)}
-                  disabled={busy}
-                >
-                  {t.modeName[m]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="baccarat-buttons">
             {/* Out of medals: the medal center's free refill, right by the felt it lets the player bet on again. Not while
                 some are out on a round at another machine: the line says where. */}
             {outOfMedals && bankState.out.length > 0 && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="baccarat-out" />}
             {outOfMedals && bankState.out.length === 0 && (
               <button type="button" className={`${styles.btn} ${styles.refill}`} data-testid="baccarat-refill" onClick={() => medalBank().refill()}>
-                {t.refill(REFILL)}
+                <RefillWords text={t.refill(REFILL)} />
               </button>
             )}
             <div className={styles.chipRow} role="radiogroup" aria-label={t.betButtons}>
@@ -899,18 +977,43 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
                 {t.rebet}
               </button>
             </div>
-            <p className={styles.keysHint} data-testid="baccarat-keys">
-              {t.keysHint}
-            </p>
+            <KeysHint text={t.keysHint} className={styles.keysHint} testId="baccarat-keys" />
 
+          </div>
+
+          <div className={`${styles.part} ${styles.counterPart}`}>
+            <p className={styles.notMoney} data-testid="baccarat-not-money">
+              {t.notMoney}
+            </p>
+            <p className={`${styles.note} ${styles.medalsFrom}`} data-testid="baccarat-medals-from">
+              {t.medalsFrom}{' '}
+              <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="baccarat-center-note-link">
+                {t.centerLink}
+              </a>
+            </p>
+            <div className={styles.modeRow} role="radiogroup" aria-label={t.tableMode}>
+              {(['ez', 'commission'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m}
+                  className={styles.modeBtn}
+                  onClick={() => switchMode(m)}
+                  disabled={busy}
+                >
+                  {t.modeName[m]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className={`${styles.part} ${styles.morePart}`}>
             <section className={styles.live} aria-labelledby="baccarat-live-title">
               <div className={styles.liveHead}>
-                <h3 id="baccarat-live-title" className={styles.liveTitle}>
+                <h2 id="baccarat-live-title" className={styles.liveTitle}>
                   {t.liveTitle}
-                </h3>
+                </h2>
                 {freshShoe && <span className={styles.liveBadge}>{t.liveFresh}</span>}
               </div>
               <table className={styles.liveTable} data-testid="live-odds">

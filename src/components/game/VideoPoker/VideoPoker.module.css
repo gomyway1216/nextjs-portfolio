@@ -9,12 +9,19 @@
   --vp-red: #ef4444;
   --vp-win: #16a34a;
   --vp-lose: #ef4444;
+  /* The verdict as text on the panels: at least 4.5:1 on the light surfaces (dark values below). */
+  --vp-win-text: #15803d;
+  --vp-lose-text: #b91c1c;
   --cw: 86px;
   --ch: 122px;
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --vp-win-text: #4ade80;
+  --vp-lose-text: #f87171;
 }
 @media (max-width: 720px) {
   .root {
@@ -54,6 +61,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 /* The way back to the medal center's front, over the machine's name. The arrow and the words are flex items, so the
    space between them is a gap: a space at the end of the arrow would be dropped. */
@@ -613,6 +630,13 @@
   letter-spacing: 0.04em;
   font-size: clamp(0.9rem, 2.6vw, 1.15rem);
   color: #fff;
+  /* Broken between phrases, never inside a word (「ドロ｜ー」。」). */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* A quoted word and the stop after it, on one line (PlayTab's Unbroken). */
+.unbroken {
+  white-space: nowrap;
 }
 /* On a phone a message can take two lines: the line keeps room for two, so that nothing under it jumps as it changes. */
 @media (max-width: 520px) {
@@ -929,12 +953,13 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
+/* Drawn by the page in every browser, its arrow and its 44 px included: common/select.module.css. */
 .select {
   background: #0b0b0f;
   color: #f8fafc;
   border: 1px solid #3f3f46;
   border-radius: 8px;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
 }
 .select:disabled {
@@ -1036,10 +1061,10 @@
   font-weight: 750;
 }
 .verdict[data-good='true'] {
-  color: var(--vp-win);
+  color: var(--vp-win-text);
 }
 .verdict[data-good='false'] {
-  color: var(--vp-lose);
+  color: var(--vp-lose-text);
 }
 .note {
   margin: 0.5rem 0 0;
@@ -1179,7 +1204,7 @@
   background: var(--games-route-surface-raised);
   font-size: 0.86rem;
 }
-.callItem h4 {
+.callItem h3 {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
 }
@@ -1202,4 +1227,14 @@
   .card {
     animation: none;
   }
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.select,
+.soundSwitch,
+.toggle,
+.optionBtn {
+  min-height: 44px;
 }

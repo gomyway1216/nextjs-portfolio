@@ -34,12 +34,24 @@ const geistSans = Geist({
   subsets: ['latin'],
   variable: '--font-geist-sans',
   display: 'swap',
+  // Text paints in the fallback until Geist arrives, then swaps. next/font's own fallback is Arial at one size
+  // (104.76%), which matches Geist's width only at weight 500; regular text ran 2.5% wider and wrapped onto
+  // extra lines (the medal center's lead paragraph: 3 lines, then 2, moving the page by 24 px). The
+  // "Geist Metric Fallback" faces in globals.css match Geist's width weight by weight for the Latin text
+  // Geist covers; "Geist Fallback" there is next/font's face, unchanged, for every other character.
+  adjustFontFallback: false,
+  fallback: ["'Geist Metric Fallback'", "'Geist Fallback'"],
 });
 
+// Not preloaded: little text uses this face (the blog list's post numbers, `font-mono` on a few tools pages,
+// share dialogs and lobbies, the CS lab), yet the preload made every page download its 23 KB alongside the
+// render-blocking CSS. A page that uses it still loads it as soon as that text is laid out, and `swap` with the
+// size-adjusted fallback keeps the text visible and in place meanwhile.
 const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-geist-mono',
   display: 'swap',
+  preload: false,
 });
 
 const SITE_NAME = 'Yudai Yaguchi';

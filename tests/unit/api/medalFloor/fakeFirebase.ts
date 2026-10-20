@@ -31,6 +31,13 @@ function setField(data: Data, path: string, value: unknown): void {
   at[parts[parts.length - 1]] = value;
 }
 
+/** As Firestore does: a field whose value is `undefined` is refused (it is not a value), wherever it is in the document. */
+function refuseUndefined(value: unknown, path = ''): void {
+  if (value === undefined) throw new Error(`fake Firestore: Cannot use "undefined" as a Firestore value (found in field "${path}")`);
+  if (Array.isArray(value)) value.forEach((item, index) => refuseUndefined(item, `${path}.${index}`));
+  else if (isPlain(value)) for (const [key, field] of Object.entries(value)) refuseUndefined(field, path ? `${path}.${key}` : key);
+}
+
 function deepMerge(into: Data, from: Data): Data {
   const out: Data = { ...into };
   for (const [key, value] of Object.entries(from)) out[key] = isPlain(value) && isPlain(out[key]) ? deepMerge(out[key] as Data, value) : value;
@@ -80,10 +87,12 @@ export class FakeDocRef {
   }
 
   async set(data: Data, options?: { merge?: boolean }): Promise<void> {
+    refuseUndefined(data);
     this.db.write(this, 'set', data, options);
   }
 
   async update(data: Data): Promise<void> {
+    refuseUndefined(data);
     this.db.write(this, 'update', data);
   }
 
@@ -155,23 +164,33 @@ export class FakeQuery {
 
 type Write = { ref: FakeDocRef; kind: 'set' | 'update' | 'delete'; data?: Data; options?: { merge?: boolean } };
 
+/** A transaction that read a document another transaction has written since: it is run again, as Firestore runs it. */
+class Contention extends Error {}
+
 export class FakeTransaction {
   private readonly writes: Write[] = [];
+  /** The version of every document read, as it was read. */
+  private readonly seen = new Map<string, number>();
 
   constructor(private readonly db: FakeFirestore) {}
 
   async get(ref: FakeDocRef): Promise<FakeSnapshot> {
     // As in Firestore: every read of a transaction comes before its writes.
     if (this.writes.length > 0) throw new Error('fake Firestore: a transaction read after a write');
+    this.seen.set(ref.path, this.db.versionOf(ref.path));
+    // A read takes a moment, as it does over the network: another transaction can run in between.
+    await Promise.resolve();
     return ref.get();
   }
 
   set(ref: FakeDocRef, data: Data, options?: { merge?: boolean }): this {
+    refuseUndefined(data);
     this.writes.push({ ref, kind: 'set', data: clone(data), options });
     return this;
   }
 
   update(ref: FakeDocRef, data: Data): this {
+    refuseUndefined(data);
     this.writes.push({ ref, kind: 'update', data: clone(data) });
     return this;
   }
@@ -183,6 +202,7 @@ export class FakeTransaction {
 
   commit(): void {
     // Checked first, then applied: a write that fails leaves nothing of the transaction behind.
+    for (const [path, version] of this.seen) if (this.db.versionOf(path) !== version) throw new Contention(`fake Firestore: ${path} changed under the transaction`);
     for (const write of this.writes) if (write.kind === 'update' && !this.db.docs.has(write.ref.path)) throw new Error(`fake Firestore: NOT_FOUND ${write.ref.path}`);
     for (const write of this.writes) this.db.write(write.ref, write.kind, write.data, write.options);
   }
@@ -190,9 +210,13 @@ export class FakeTransaction {
 
 export class FakeFirestore {
   readonly docs = new Map<string, Data>();
+  /** How many times each document has been written: what a transaction checks its reads against. */
+  private readonly versions = new Map<string, number>();
   reads = 0;
   writes = 0;
   autoIds = 0;
+  /** Transactions run again because what they read had changed. */
+  retries = 0;
   /** Set to make every call fail, as a store that is down does. */
   failing: Error | null = null;
 
@@ -207,17 +231,35 @@ export class FakeFirestore {
 
   async runTransaction<T>(run: (tx: FakeTransaction) => Promise<T>): Promise<T> {
     this.check();
-    const tx = new FakeTransaction(this);
-    const result = await run(tx);
-    tx.commit();
-    return result;
+    for (let attempt = 1; ; attempt += 1) {
+      const tx = new FakeTransaction(this);
+      const result = await run(tx);
+      try {
+        tx.commit();
+        return result;
+      } catch (error) {
+        // As Firestore: tried again from the start, on what is there now, up to five times.
+        if (!(error instanceof Contention) || attempt >= 5) throw error;
+        this.retries += 1;
+      }
+    }
+  }
+
+  versionOf(path: string): number {
+    return this.versions.get(path) ?? 0;
   }
 
   batch() {
     const writes: Write[] = [];
     return {
-      set: (ref: FakeDocRef, data: Data) => writes.push({ ref, kind: 'set', data: clone(data) }),
-      update: (ref: FakeDocRef, data: Data) => writes.push({ ref, kind: 'update', data: clone(data) }),
+      set: (ref: FakeDocRef, data: Data) => {
+        refuseUndefined(data);
+        writes.push({ ref, kind: 'set', data: clone(data) });
+      },
+      update: (ref: FakeDocRef, data: Data) => {
+        refuseUndefined(data);
+        writes.push({ ref, kind: 'update', data: clone(data) });
+      },
       delete: (ref: FakeDocRef) => writes.push({ ref, kind: 'delete' }),
       commit: async () => {
         for (const write of writes) this.write(write.ref, write.kind, write.data);
@@ -227,6 +269,7 @@ export class FakeFirestore {
 
   write(ref: FakeDocRef, kind: Write['kind'], data?: Data, options?: { merge?: boolean }): void {
     this.writes += 1;
+    this.versions.set(ref.path, this.versionOf(ref.path) + 1);
     if (kind === 'delete') {
       this.docs.delete(ref.path);
       return;

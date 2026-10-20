@@ -198,7 +198,10 @@ describe('the stylesheet, for a thumb', () => {
     expect(strip).toContain("content: ''");
     expect(strip).toContain('position: absolute');
     expect(strip).toContain('height: 44px');
-    expect(strip).toContain('top: 50%');
+    // Through the middle, placed by its top and not moved there by a transform, which Firefox hit-tests on the
+    // screen's pixels, a quarter of a pixel short.
+    expect(strip).toContain('top: calc(50% - 22px)');
+    expect(strip).not.toContain('transform');
     expect(css).toMatch(/\.toggle,\s*\.tab \{\s*position: relative;\s*\}/);
     expect(css).toMatch(/\.refill \{\s*min-height: 44px;\s*\}/);
     // A slider is 44 px tall, and a swipe up or down it still scrolls the page: the aims' and the volume's alike.

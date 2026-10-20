@@ -3,6 +3,7 @@
    them follows the --games-route-* theme vars. Every text colour on a panel is at least 4.5:1 on what it stands on. */
 
 .together,
+.now,
 .page,
 .place {
   --fl-night: #120a2e;
@@ -18,10 +19,83 @@
   --fl-lead: var(--games-route-muted);
 }
 
-.together {
+.together,
+.now {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  min-width: 0;
+}
+
+/* The board by the door: the floor jackpot over the latest big wins; side by side on a tablet, where the board has the
+   page's width to itself (from 960px it stands beside the medal counter, and they go one over the other again). */
+.nowBoard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+@media (min-width: 680px) and (max-width: 959px) {
+  .nowBoard {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+/* The latest big wins as the lines of an LED message board: one under the other, ruled, not boxed. Like a real board
+   it has a fixed number of lines (--moments, set from HUB_MOMENTS_SHOWN), each the same height, and keeps their room
+   while the floor is read, while it is quiet and when it cannot be reached: the machines under it never move when
+   the wins come in. */
+.ticker {
+  --moment-h: 4.6rem;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1.5px) 0 0 / 5px 5px,
+    linear-gradient(180deg, #1a0f45 0%, var(--fl-night) 100%);
+}
+.ticker .feed {
+  gap: 0;
+}
+.ticker .feed,
+.ticker .empty {
+  min-height: calc(var(--moments, 3) * var(--moment-h));
+}
+.ticker .empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  text-align: center;
+}
+.ticker .moment,
+.ticker .moment[data-big='true'] {
+  box-sizing: border-box;
+  height: var(--moment-h);
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.1rem;
+  overflow: hidden;
+  padding: 0.45rem 0.15rem;
+  border: 0;
+  border-top: 1px dashed rgba(217, 210, 245, 0.25);
+  border-radius: 0;
+  background: transparent;
+}
+.ticker .moment:first-child {
+  border-top: 0;
+}
+/* A line's win in two lines at the most, and where and when under it. */
+.ticker .momentText {
+  font-size: 0.9rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ticker .momentWhere {
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 .title {
   margin: 0.4rem 0 0;
@@ -100,11 +174,26 @@
     opacity: 0.35;
   }
 }
+/* Off screen, the live lamp rests (offscreen.ts). */
+.now[data-away='true'] .liveBadge::before {
+  animation-play-state: paused;
+}
 .empty {
   margin: 0;
   color: var(--fl-ink-soft);
   font-size: 0.9rem;
   line-height: 1.5;
+}
+/* A line holding its place until the floor has been read. */
+.unseen {
+  visibility: hidden;
+}
+/* What is said while the floor is being read, over the line that holds its place: as tall as the taller of the two. */
+.holder {
+  display: grid;
+}
+.holder > * {
+  grid-area: 1 / 1;
 }
 
 /* ---------- The moments on show ---------- */
@@ -136,6 +225,8 @@
   min-width: 0;
   overflow-wrap: anywhere;
   line-height: 1.45;
+  /* Never 「1,500｜枚」: a moment breaks at its spaces and its 「！」, and a name too long for the line anywhere. */
+  word-break: keep-all;
 }
 .who {
   font-weight: 900;
@@ -305,6 +396,8 @@
 
 /* ---------- A player's place ---------- */
 .place {
+  /* Clear of the site's header when the floor jackpot's line links down to it. */
+  scroll-margin-top: 80px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -417,6 +510,7 @@
 .back {
   align-self: flex-start;
   display: inline-flex;
+  gap: 0.3em;
   align-items: center;
   min-height: 44px;
   color: var(--games-route-fg);
@@ -457,4 +551,11 @@
   .liveBadge[data-live='true']::before {
     animation: none;
   }
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.tab {
+  min-height: 44px;
 }

@@ -9,13 +9,20 @@
   --bc-gold: #e9c46a;
   --bc-banker: #dc2626;
   --bc-player: #2563eb;
-  --bc-tie: #16a34a;
+  /* Dark enough for the white figures and letters drawn on it (the T on the bead plate, the share on the bar):
+     #16a34a was 3.3:1. */
+  --bc-tie: #15803d;
   --bc-grid: rgba(127, 127, 127, 0.28);
   --bc-win: #16a34a;
   --bc-lose: #ef4444;
   /* Result text on the panels and on the green-tinted rows: at least 4.5:1 on the light surfaces (dark values below). */
   --bc-win-text: #166534;
   --bc-lose-text: #b91c1c;
+  /* Who won, as text on the panels: the sides' own colours are under 4.5:1 there (the red and the blue on the dark
+     panels, the green on the light ones). */
+  --bc-banker-text: #b91c1c;
+  --bc-player-text: #1d4ed8;
+  --bc-tie-text: #15803d;
   --cw: 56px;
   --ch: 80px;
 
@@ -26,6 +33,9 @@
 :global(html.dark) .root {
   --bc-win-text: #4ade80;
   --bc-lose-text: #f87171;
+  --bc-banker-text: #f87171;
+  --bc-player-text: #60a5fa;
+  --bc-tie-text: #4ade80;
 }
 @media (max-width: 520px) {
   .root {
@@ -51,6 +61,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 .subtitle {
   margin: 0.4rem 0 0;
@@ -528,6 +548,75 @@
   font-size: calc(var(--cw) * 0.52);
 }
 
+/* The squeeze (絞り): the hand's last card slides out face down, then its face is peeled up from the right-hand long
+   edge, the corner pips first, a little, then a little more, then all of it (PlayTab: SQUEEZE_MS). A tap on the hand
+   turns it at once. */
+.cardSqueeze,
+.cardSqueezed {
+  transform-style: flat;
+}
+.cardSqueeze {
+  animation: bcSlideDown 0.34s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.cardSqueeze .cardBack,
+.cardSqueezed .cardBack {
+  transform: none;
+}
+.cardSqueeze .cardFace {
+  z-index: 1;
+  animation: bcPeel 0.9s ease-in-out 0.34s both;
+}
+.cardSqueezed {
+  animation: none;
+}
+.cardSqueezed .cardFace {
+  z-index: 1;
+}
+@keyframes bcSlideDown {
+  0% {
+    opacity: 0;
+    transform: translate(120px, -90px) rotate(-14deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bcPeel {
+  0% {
+    clip-path: inset(0 0 0 100%);
+  }
+  35% {
+    clip-path: inset(0 0 0 76%);
+  }
+  65% {
+    clip-path: inset(0 0 0 64%);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+/* The whole hand is the button that turns the squeezed card. */
+.squeezeTurn {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.squeezeTurn:focus-visible {
+  outline: 2px solid var(--bc-gold);
+  outline-offset: 2px;
+}
+/* The squeezed card's total appears as soon as its face is all up. */
+.totalNow {
+  animation: bcTotalIn 0.18s ease-out both;
+}
+
 .callout {
   margin-top: 0.8rem;
   min-height: 1.8rem;
@@ -541,13 +630,13 @@
   font-size: 0.95rem;
 }
 .calloutBanker {
-  color: var(--bc-banker);
+  color: var(--bc-banker-text);
 }
 .calloutPlayer {
-  color: var(--bc-player);
+  color: var(--bc-player-text);
 }
 .calloutTie {
-  color: var(--bc-tie);
+  color: var(--bc-tie-text);
 }
 .cutNote {
   margin: 0.2rem 0 0;
@@ -823,6 +912,13 @@
   /* Clear of the chosen medal's ring, which is drawn outside the medal. */
   margin-right: 0.3rem;
 }
+/* On the narrowest phones the five medals do not fit beside 「ベット」: the word has a line of its own over them, rather
+   than the 100 dropping alone to a second row. */
+@media (max-width: 360px) {
+  .chipRowLabel {
+    flex-basis: 100%;
+  }
+}
 .chip {
   /* A medal of the floor's silver (medalLook.ts MEDAL_PAINT): a raised rim, the face, and the number struck on it. */
   appearance: none;
@@ -913,11 +1009,17 @@
   font-size: 0.78rem;
   line-height: 1.15;
   text-align: center;
+  /* A name is broken only between its words (「プレイヤー｜ペア」), never inside one (「バンカーペ｜ア」, 「プレイヤ｜ー」). */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .spotPays {
   font-size: 0.66rem;
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
+  /* 「1:1・3枚の7は引き分け」 breaks after the 「・」, not in 「引き分｜け」. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .playerSpot,
 .bankerSpot {
@@ -927,6 +1029,18 @@
 .bankerSpot .spotLabel {
   font-size: 1.15rem;
   letter-spacing: 0.12em;
+}
+/* On the narrowest phones 「プレイヤー」 keeps to one line in its spot and in its box over the cards. */
+@media (max-width: 360px) {
+  .playerSpot .spotLabel,
+  .bankerSpot .spotLabel {
+    letter-spacing: 0.02em;
+  }
+  .handName {
+    letter-spacing: 0.02em;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
 }
 .playerSpot,
 .playerPairSpot {
@@ -1059,6 +1173,14 @@
   }
   .actions .btnPrimary {
     grid-column: 1 / -1;
+  }
+}
+
+/* On the narrowest phones Undo, Clear and Rebet (「同じベット」) keep their words on one line under DEAL. */
+@media (max-width: 360px) {
+  .actions .btn {
+    white-space: nowrap;
+    font-size: 0.85rem;
   }
 }
 
@@ -1403,5 +1525,122 @@
 @media (hover: none) and (pointer: coarse) {
   .keysHint {
     display: none;
+  }
+}
+
+/* The shoe line is two lines of a set height, before a shoe's first deal and after it, so the table under it does not
+   move: the shoe and the hand on the first, beside the sound switch, and the cards left and the burn card under them,
+   across the whole width (a little smaller on the narrowest phones, so that they fit). (After the rules they adjust.) */
+.tableTop {
+  display: block;
+  position: relative;
+}
+.tableTop > .soundToggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.shoeBar {
+  display: grid;
+  gap: 0.1rem;
+  line-height: 1.4;
+}
+.shoeRow {
+  display: flex;
+  align-items: center;
+  gap: 0 0.8rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.shoeRow > * {
+  font-size: inherit;
+}
+.shoeRow:first-child {
+  min-height: 36px;
+  padding-right: 7.5rem;
+}
+.shoeRow + .shoeRow {
+  /* A set height: a suit sign drawn from another font would otherwise make the line a little taller after the deal. */
+  height: 1.4em;
+  font-size: clamp(0.7rem, 3.7vw, 0.8rem);
+}
+
+/* The call-out is one line on every phone, in either language, so the table and its buttons do not move as a hand is
+   settled: its type scales down with a narrow screen (「ナチュラル — プレイヤーの勝ち（9対8）」 at 320 px) and is
+   unchanged from about 420 px up. */
+.callout {
+  font-size: clamp(0.8rem, 4.2vw, 1.1rem);
+}
+.calloutIdle {
+  font-size: clamp(0.78rem, 3.7vw, 0.95rem);
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.soundToggle,
+.modeBtn {
+  min-height: 44px;
+}
+
+/*
+ * On a phone (one column) the counter is the machine's credit meter on its panel, right under the table and over the
+ * buttons, as at the other machines of the floor: one row of windows, the medals, the bet and the win, each with its
+ * name over it. The medals written in type stay for a screen reader; the note that medals are not money follows the
+ * buttons. A row of a set height, so nothing under it moves as the medals are read.
+ */
+@media (max-width: 900px) {
+  .buttonsPart > .counter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 0.5rem;
+    position: relative;
+    margin: 0 0 0.55rem;
+    padding: 0.3rem 0.55rem 0.35rem;
+  }
+  .buttonsPart > .counter .counterMain {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    flex-wrap: nowrap;
+  }
+  .buttonsPart > .counter .counterLabel,
+  .buttonsPart > .counter .ledLabel {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .buttonsPart > .counter .counterMedal {
+    display: none;
+  }
+  .buttonsPart > .counter .ledBig {
+    margin-left: 0;
+  }
+  .buttonsPart > .counter .ledBig > span {
+    width: 100%;
+    height: 26px;
+    padding: 3px 6px;
+  }
+  .buttonsPart > .counter .counterSmall {
+    display: contents;
+  }
+  .buttonsPart > .counter .ledPair {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+  }
+  .buttonsPart > .counter .ledSmall > span {
+    height: 26px;
+    padding: 3px 5px;
+  }
+  .buttonsPart > .counter .counterText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }

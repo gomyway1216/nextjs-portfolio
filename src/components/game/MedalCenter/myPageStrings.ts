@@ -48,6 +48,13 @@ export interface MyPageStrings {
   last: string;
   inARow: (count: number, shown: string) => string;
   notPlayedTitle: string;
+  // The floor jackpot's records
+  floorTitle: string;
+  floorLead: string;
+  floorWins: string;
+  floorMedals: string;
+  floorBiggest: string;
+  floorLast: string;
   notPlayed: string;
   play: string;
   none: string;
@@ -73,6 +80,10 @@ export interface MyPageStrings {
   bonus: (medals: string) => string;
   refill: (medals: string) => string;
   reset: (thrown: string, start: string) => string;
+  /** Where a floor jackpot was won, where a machine's name would go: the floor itself. */
+  floorName: string;
+  /** A floor jackpot paid into the medals. */
+  floorJackpot: (medals: string) => string;
   up: (count: string) => string;
   down: (count: string) => string;
   even: string;
@@ -80,8 +91,11 @@ export interface MyPageStrings {
   showMore: (count: number) => string;
   shownOf: (shown: number, all: number) => string;
   olderTitle: string;
-  olderLead: string;
+  /** The days kept by their totals: the latest `days` with anything in them. */
+  olderLead: (days: number) => string;
   dayLine: (bet: string, won: string, free: string, rounds: string) => string;
+  /** Under the oldest day the list reaches, once it may have lost its earlier things: what the day's totals (`dayLine`) after it are. */
+  dayCut: string;
   dayLeft: (count: string) => string;
 }
 
@@ -97,7 +111,7 @@ const en: MyPageStrings = {
   medals: (count) => `${count} medals`,
   memberGuest: 'Guest',
   memberAccount: 'Member',
-  memberChecking: 'Looking for your medals…',
+  memberChecking: 'Checking…',
   whose: { guest: 'This device’s history and records.', account: 'Your account’s history and records.' },
   where: {
     device: 'Kept on this device.',
@@ -127,6 +141,12 @@ const en: MyPageStrings = {
   last: 'Last played',
   inARow: (count, shown) => `${shown} ${count === 1 ? 'round' : 'rounds'} won in a row`,
   notPlayedTitle: 'Not played yet',
+  floorTitle: 'FLOOR JACKPOT',
+  floorLead: 'The medal floor’s shared jackpot, won while playing a linked machine on the floor. It is not counted in the machines’ figures above.',
+  floorWins: 'Times won',
+  floorMedals: 'Medals won',
+  floorBiggest: 'Biggest',
+  floorLast: 'Last won',
   notPlayed: 'Not played since your history began.',
   play: 'Play',
   none: '—',
@@ -150,6 +170,8 @@ const en: MyPageStrings = {
   bonus: (medals) => `Daily bonus: ${medals} medals`,
   refill: (medals) => `Free medals from the attendant: ${medals}`,
   reset: (thrown, start) => `Medals reset: ${thrown} thrown away, started again with ${start}`,
+  floorName: 'Medal floor',
+  floorJackpot: (medals) => `FLOOR JACKPOT +${medals}`,
   up: (count) => `${count} medals up`,
   down: (count) => `${count} medals down`,
   even: 'even',
@@ -157,8 +179,9 @@ const en: MyPageStrings = {
   showMore: (count) => `Show ${count} more`,
   shownOf: (shown, all) => `Showing ${shown} of ${all}.`,
   olderTitle: 'EARLIER DAYS',
-  olderLead: 'Each day’s totals, for the days the list above no longer reaches.',
-  dayLine: (bet, won, free, rounds) => `Bet ${bet} · won ${won} · given ${free} · ${rounds} rounds`,
+  olderLead: (days) => `Each day’s totals, for the days the list above no longer reaches. The latest ${days} days with anything in them are kept.`,
+  dayLine: (bet, won, free, rounds) => `Bet ${bet} · won ${won} · given ${free} · ${rounds} ${rounds === '1' ? 'round' : 'rounds'}`,
+  dayCut: 'The whole day, with what the list no longer holds:',
   dayLeft: (count) => `${count} medals at the end of the day`,
 };
 
@@ -174,7 +197,7 @@ const ja: MyPageStrings = {
   medals: (count) => `${count}枚`,
   memberGuest: 'ゲスト',
   memberAccount: '会員',
-  memberChecking: 'メダルを確認しています…',
+  memberChecking: '確認中…',
   whose: { guest: 'この端末の履歴と記録です。', account: 'アカウントの履歴と記録です。' },
   where: {
     device: 'この端末に保存しています。',
@@ -204,6 +227,12 @@ const ja: MyPageStrings = {
   last: '最後に遊んだ日',
   inARow: (_count, shown) => `${shown}連勝`,
   notPlayedTitle: 'まだ遊んでいないマシン',
+  floorTitle: 'フロアジャックポット',
+  floorLead: 'メダルフロアみんなのジャックポットです。フロアの対象のマシンで遊んでいるときに当たります。上のマシンの記録には含みません。',
+  floorWins: '当たった回数',
+  floorMedals: '獲得したメダル',
+  floorBiggest: '最高',
+  floorLast: '最後に当たった日',
   notPlayed: '履歴が始まってから、まだ遊んでいません。',
   play: '遊ぶ',
   none: '—',
@@ -227,6 +256,8 @@ const ja: MyPageStrings = {
   bonus: (medals) => `デイリーボーナス：${medals}枚`,
   refill: (medals) => `店員さんから無料のメダル：${medals}枚`,
   reset: (thrown, start) => `メダルをリセット：${thrown}枚を捨てて、${start}枚からやり直し`,
+  floorName: 'メダルフロア',
+  floorJackpot: (medals) => `フロアジャックポット +${medals}枚`,
   up: (count) => `${count}枚プラス`,
   down: (count) => `${count}枚マイナス`,
   even: 'プラスマイナスなし',
@@ -234,8 +265,9 @@ const ja: MyPageStrings = {
   showMore: (count) => `さらに${count}件を表示`,
   shownOf: (shown, all) => `${all}件のうち${shown}件を表示しています。`,
   olderTitle: 'それより前の日',
-  olderLead: '上の一覧に入りきらない日の、1日ごとの合計です。',
+  olderLead: (days) => `上の一覧に入りきらない日の、1日ごとの合計です。記録のある日のうち、新しい${days}日分まで残ります。`,
   dayLine: (bet, won, free, rounds) => `ベット${bet}枚・獲得${won}枚・無料${free}枚・${rounds}回`,
+  dayCut: 'この日の合計（一覧にない分も含む）：',
   dayLeft: (count) => `その日の終わりの持ちメダル ${count}枚`,
 };
 

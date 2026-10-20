@@ -32,8 +32,6 @@ export interface MedalCounterProps {
   t: BlackjackStrings;
   /** Whether the player's medals have been read: until then nothing is shown on the digits. */
   loaded: boolean;
-  /** Whether this browser keeps the medals at all: when it does not, they start again on a reload, and the counter says so. */
-  kept: boolean;
   medals: number;
   /** Medals on the table: the bet before a hand, every stake during one. Null until the player's medals are found. */
   onTable: number | null;
@@ -52,10 +50,11 @@ export interface MedalCounterProps {
  * The table's counter, as a medal machine's: the player's medals on red LED
  * digits beside a stack of medals, and the bet and the win on amber ones. The
  * digits are a picture; every number is written in type too, for a screen
- * reader and for anything else that reads the page. Under it, always, the
- * note that medals are not money.
+ * reader and for anything else that reads the page. It stands on the machine's
+ * panel over its buttons; the note that medals are not money (`MedalNotes`)
+ * follows the buttons.
  */
-export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, ledMedals = null, children }: MedalCounterProps) => {
+export const MedalCounter = ({ t, loaded, medals, onTable, won, format, ledMedals = null, children }: MedalCounterProps) => {
   return (
     <section className={styles.cabinet} aria-labelledby="bj-medals-label" data-testid="bj-counter" data-loaded={loaded}>
       <div className={styles.cabinetHead}>
@@ -96,14 +95,32 @@ export const MedalCounter = ({ t, loaded, kept, medals, onTable, won, format, le
         </div>
       </div>
       {children}
-      {loaded && !kept && (
-        <p className={styles.notKept} data-testid="bj-not-kept">
-          {t.notKept}
-        </p>
-      )}
-      <p className={styles.notMoney} data-testid="bj-not-money">
-        {t.notMoney}
-      </p>
     </section>
   );
 };
+
+/**
+ * What the counter's medals are, said under the table's buttons: that they are not money, and, where this browser
+ * does not keep them, that they start again on a reload.
+ */
+export const MedalNotes = ({
+  t,
+  loaded,
+  kept,
+}: {
+  t: BlackjackStrings;
+  loaded: boolean;
+  /** Whether this browser keeps the medals at all: when it does not, they start again on a reload, and the note says so. */
+  kept: boolean;
+}) => (
+  <>
+    {loaded && !kept && (
+      <p className={styles.notKept} data-testid="bj-not-kept">
+        {t.notKept}
+      </p>
+    )}
+    <p className={styles.notMoney} data-testid="bj-not-money">
+      {t.notMoney}
+    </p>
+  </>
+);

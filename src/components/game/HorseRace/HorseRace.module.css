@@ -1,0 +1,875 @@
+/* Mini Turf Racing. The page's panels follow the --games-route-* theme vars (light + dark); the cabinet itself (the
+   board, the track, the counters and the tickets) is a fixed arcade palette that reads in both. */
+
+.root {
+  --hr-cabinet: #15171d;
+  --hr-cabinet-2: #20232c;
+  --hr-led: #ffb020;
+  --hr-led-dim: #5a3b06;
+  --hr-gold: #f2c94c;
+  --hr-ticket: #fdf8e8;
+  --hr-ticket-ink: #1c1a14;
+  --hr-pick: #e8402e;
+  --hr-win-text: #15803d;
+  --hr-lose-text: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
+}
+:global(html.dark) .root {
+  --hr-win-text: #4ade80;
+  --hr-lose-text: #f87171;
+}
+.shell {
+  max-width: 1160px;
+  margin: 0 auto;
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
+}
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 44px;
+  margin-bottom: 0.1rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.infoP {
+  margin: 0 0 0.75rem;
+  line-height: 1.6;
+}
+.muted {
+  color: var(--games-route-muted);
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
+.link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Tabs & buttons ---------- */
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.1rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.5rem 1.05rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab[aria-selected='true'] {
+  background: var(--hr-gold);
+  color: #1a1200;
+}
+.tab:focus-visible,
+.btn:focus-visible,
+.winTicket:focus-visible,
+.quinellaTicket:focus-visible,
+.stepButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible {
+  outline: 3px solid #4da3ff;
+  outline-offset: 2px;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- The machine ---------- */
+.machine {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+@media (min-width: 960px) {
+  .machine {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+}
+.stage,
+.side {
+  min-width: 0;
+}
+.stage {
+  padding: 0.6rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--hr-cabinet-2), var(--hr-cabinet));
+  border: 2px solid #3b3f4c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.25);
+  color: #f5f1e6;
+}
+
+/* The board over the track: LED letters behind smoked glass, and a row of bulbs that chase while betting is open. */
+.marquee {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-height: 2.2rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 10px;
+  background: #07080a;
+  border: 1px solid #2d3038;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color: var(--hr-led);
+  text-shadow: 0 0 6px rgba(255, 176, 32, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* The bulbs along the top of the board: lit in turn while betting is open, steady once it is not. */
+.marquee::before,
+.marquee::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 2px;
+  height: 4px;
+  background: radial-gradient(circle, #ffd65c 0 1.6px, transparent 2px) 0 0 / 12px 4px repeat-x;
+  pointer-events: none;
+}
+.marquee::after {
+  background-position: 6px 0;
+  opacity: 0.25;
+}
+.marquee[data-chase='true']::before {
+  animation: chase 0.9s steps(1) infinite;
+}
+.marquee[data-chase='true']::after {
+  animation: chase 0.9s steps(1) infinite reverse;
+}
+@keyframes chase {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.raceNo {
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  font-size: 1.05rem;
+}
+.runners {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+.status {
+  margin-left: auto;
+  font-weight: 800;
+  font-size: 0.9rem;
+  /* Wide enough for the longest status in either language, so the board never moves as it changes. */
+  min-width: 10.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 360px) {
+  .runners {
+    display: none;
+  }
+  .status {
+    min-width: 0;
+  }
+}
+.ticker {
+  height: 1.4rem;
+  margin: 0.35rem 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #07080a;
+  color: #ffe08a;
+  font-size: 0.75rem;
+  line-height: 1.4rem;
+  white-space: nowrap;
+}
+.tickerText {
+  display: inline-block;
+  padding-left: 100%;
+  animation: ticker 22s linear infinite;
+  opacity: 0.85;
+}
+.ticker[data-on='false'] .tickerText {
+  animation-play-state: paused;
+  opacity: 0.35;
+}
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* The track. */
+.trackBox {
+  position: relative;
+}
+.track {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 360 / 200;
+  border-radius: 12px;
+}
+.gate {
+  transition: opacity 0.35s ease;
+}
+.gate[data-open='true'] {
+  opacity: 0;
+}
+.photo {
+  animation: photoIn 0.25s ease-out;
+}
+@keyframes photoIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.commentary {
+  /* Two lines kept for the caller in either language, and never more, so nothing under it moves as the line changes. */
+  height: 2.9em;
+  overflow: hidden;
+  margin: 0.45rem 0.2rem 0.2rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #fff3c4;
+}
+@media (max-width: 360px) {
+  .commentary {
+    font-size: 0.8rem;
+  }
+}
+/* A horse's number in the caller's line, on its saddle cloth's colour, as on the board under the line. */
+.callGate {
+  display: inline-block;
+  min-width: 1.3em;
+  margin: 0 0.15em 0 0.05em;
+  padding: 0 0.15em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  line-height: 1.3em;
+  text-align: center;
+  vertical-align: 0.05em;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+.runningOrder {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.2rem 0.2rem 0;
+  padding: 0;
+  list-style: none;
+}
+.orderChip {
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  font-weight: 900;
+  font-size: 0.8rem;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* The result plate under the track: kept at one height, so nothing moves as a race starts or ends. */
+.result {
+  /* One height for every state (waiting, running, a result), each line of a result on one line: nothing under it moves. */
+  height: 9.6rem;
+  overflow: hidden;
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: #0d0f13;
+  border: 1px solid #2d3038;
+}
+.resultEmpty {
+  margin: 0;
+  color: #9aa0ad;
+  font-size: 0.85rem;
+}
+.resultHead {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #d8dbe3;
+}
+.confirmed {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  margin-right: 0.3rem;
+  border-radius: 4px;
+  background: #d6262e;
+  color: #ffffff;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.resultPlaces {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+}
+.resultPlaces li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.resultPlace {
+  width: 2.2rem;
+  font-weight: 900;
+  color: var(--hr-gold);
+  font-size: 0.85rem;
+}
+.resultName {
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.resultMargin {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #c9cdd6;
+  white-space: nowrap;
+}
+.resultHead,
+.resultPays,
+.resultLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resultPays {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffd65c;
+}
+.resultLine {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #f5f1e6;
+}
+
+/* ---------- The counters ---------- */
+.meter {
+  container: meter / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  padding: 0.75rem 0.85rem 0.8rem;
+  border-radius: 14px;
+  border: 2px solid #3a2a7a;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 32%), linear-gradient(180deg, #2a1b66 0%, #1c1147 100%);
+  color: #fff6d6;
+}
+.meterRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
+}
+@container meter (max-width: 460px) {
+  .meterRow {
+    flex-wrap: wrap;
+    row-gap: 0.55rem;
+  }
+  .meterMain {
+    flex-basis: 100%;
+  }
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.meterLabel {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd65c;
+  white-space: nowrap;
+}
+.meterLed {
+  display: flex;
+  min-width: 0;
+}
+.meterLed > span {
+  width: 100%;
+  height: clamp(28px, 8vw, 38px);
+  padding: 4px 6px;
+  gap: 2px;
+}
+.meterWon .meterLed > span {
+  box-shadow: 0 0 0 1px #05040b, 0 0 0 2.5px #fde047, 0 0 14px rgba(253, 224, 71, 0.55), inset 0 2px 5px rgba(0, 0, 0, 0.9);
+}
+.meterNote {
+  margin: 0;
+  color: #d9d2f5;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.refill {
+  appearance: none;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: #2c1d70;
+  color: #ffd65c;
+  font-weight: 900;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* ---------- The tickets ---------- */
+.boardArea {
+  position: relative;
+  padding: 0.65rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+}
+.steps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+}
+.stepsLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.stepButton {
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #8a8f9c;
+  background: radial-gradient(circle at 35% 30%, #f4f4f2, #b8bcc4 70%);
+  color: #1c1d22;
+  font-weight: 900;
+  cursor: pointer;
+}
+.stepButton[aria-checked='true'] {
+  border-color: var(--hr-pick);
+  box-shadow: 0 0 0 3px rgba(232, 64, 46, 0.35);
+}
+.stepButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.soundSwitch {
+  margin-left: auto;
+}
+.tickets {
+  margin: 0 0 0.65rem;
+}
+.ticketsTitle {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+.ticketsHelp {
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0;
+  color: var(--games-route-muted);
+}
+.winList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+.winTicket {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.3rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #d8cfae;
+  background: var(--hr-ticket);
+  color: var(--hr-ticket-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.winTicket:disabled {
+  cursor: default;
+}
+.winTicket[data-won='true'],
+.quinellaTicket[data-won='true'] {
+  border-color: #d6262e;
+  box-shadow: 0 0 0 2px #d6262e;
+}
+.gateBadge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 5px;
+  font-weight: 900;
+  font-size: 0.85rem;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.horseName {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.horseNameText {
+  font-weight: 800;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.horseStyle {
+  font-size: 0.7rem;
+  color: #5c5646;
+}
+.odds {
+  flex: none;
+  min-width: 3.4em;
+  text-align: right;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: #a3160d;
+}
+.stake {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  border: 1.5px dashed #c9bf9b;
+}
+.stake[data-on='true'],
+.qStake[data-on='true'] {
+  border: none;
+  background: radial-gradient(circle at 35% 30%, #f4f4f2, #aeb3bc 70%);
+  color: #1c1d22;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 2px #8a8f9c;
+}
+
+/* The quinella triangle: a header row and column of gates, the pairs above the diagonal. */
+.quinellaGrid {
+  display: grid;
+  grid-template-columns: 1.6rem repeat(5, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+.gridCorner,
+.gridEmpty {
+  min-height: 1rem;
+}
+.gridHead {
+  display: grid;
+  place-items: center;
+  height: 1.6rem;
+  border-radius: 5px;
+  font-weight: 900;
+  font-size: 0.8rem;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.quinellaTicket {
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0.15rem;
+  border-radius: 8px;
+  border: 1px solid #d8cfae;
+  background: var(--hr-ticket);
+  color: #a3160d;
+  cursor: pointer;
+}
+.quinellaTicket:disabled {
+  cursor: default;
+}
+.qOdds {
+  font-weight: 900;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.qStake {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: var(--hr-ticket-ink);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.btnStart {
+  /* As wide whatever it says (START, or the race running), so that the buttons beside it never move. */
+  min-width: 7.5rem;
+  background: linear-gradient(180deg, #ef4b3a, #b8231a);
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: rgba(10, 6, 26, 0.92);
+  color: #fff6d6;
+  line-height: 1.45;
+  text-align: center;
+}
+.cardAway p {
+  margin: 0;
+  max-width: 34ch;
+}
+.cardAwayButton {
+  appearance: none;
+  min-height: 44px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid #ffd65c;
+  background: #ffd65c;
+  color: #1a1200;
+  font-weight: 900;
+  cursor: pointer;
+}
+.message {
+  min-height: 1.4em;
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  color: var(--hr-lose-text);
+}
+.keysHint {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: var(--games-route-muted);
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.history {
+  margin-top: 0.9rem;
+}
+.historyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.historyTable th,
+.historyTable td {
+  padding: 0.25rem 0.4rem;
+  text-align: right;
+  border-bottom: 1px solid var(--games-route-border);
+}
+.historyTable th:first-child,
+.historyTable td:first-child {
+  text-align: left;
+}
+.pos {
+  color: var(--hr-win-text);
+  font-weight: 800;
+}
+.neg {
+  color: var(--hr-lose-text);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The Odds tab ---------- */
+.oddsPage {
+  max-width: 760px;
+}
+.oddsTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+.oddsTiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.5rem;
+}
+.oddsTile {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+.oddsTileLabel {
+  font-size: 0.8rem;
+  color: var(--games-route-muted);
+}
+.oddsLead {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.3rem 0.4rem;
+  text-align: right;
+  border-bottom: 1px solid var(--games-route-border);
+}
+.oddsTable th:first-child,
+.oddsTable td:first-child {
+  text-align: left;
+}
+.oddsName {
+  text-align: left !important;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tickerText,
+  .photo,
+  .gate,
+  .marquee::before,
+  .marquee::after,
+  /* The chase is set on the lit marquee, a selector stronger than .marquee's: it is stopped by one as strong. */
+  .marquee[data-chase='true']::before,
+  .marquee[data-chase='true']::after {
+    animation: none;
+    transition: none;
+  }
+}

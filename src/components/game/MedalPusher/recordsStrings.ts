@@ -45,6 +45,8 @@ export interface RecordStrings {
   /** While the account is asked whether another device has taken today's bonus. */
   bonusAsking: string;
   pipsAria: (stamped: number, squares: number) => string;
+  /** Two of the sentences above, one after the other: with a space between them in English, and none in Japanese. */
+  then: (first: string, second: string) => string;
 
   // The stamp card
   cardTitle: string;
@@ -127,10 +129,11 @@ const en: RecordStrings = {
   bonusNotApart: 'No daily bonus in this browser: it has no way to keep two tabs of the game from each being paid for the same day.',
   bonusAsking: 'Asking your account whether today’s bonus has been taken on another device…',
   pipsAria: (stamped, squares) => `${stamped} of ${squares} stamped`,
+  then: (first, second) => `${first} ${second}`,
 
   cardTitle: 'Daily stamp card',
   cardLead: (week) =>
-    `One stamp a day, and medals with each. Every day in a row gives more, day ${week} gives the most, and then a new card begins. Miss a day and the card starts again.`,
+    `One stamp a day, and medals with each. Every day in a row gives more, day ${week} gives the most, and then a new card begins. Miss a day and the card starts again. There is one card: a bonus taken at the Medal Center or at this cabinet is stamped on it.`,
   dayN: (square) => `DAY ${square}`,
   today: 'TODAY',
   medals: (medals) => `+${medals}`,
@@ -148,13 +151,13 @@ const en: RecordStrings = {
   bigReturn: 'RETURN',
   bigPrize: 'BIGGEST PRIZE',
   bigJackpots: 'JACKPOTS',
-  group: { medals: 'Medals', slot: 'The slot', games: 'Games and prizes', days: 'Days' },
+  group: { medals: 'Medals', slot: 'The slot', games: 'Games and prizes', days: 'Days at this cabinet' },
   row: {
     fed: 'Medals fed',
     won: 'Won over the front',
     lost: 'Lost down the side holes',
     return: 'Lifetime return',
-    bonus: 'Bonus medals taken',
+    bonus: 'Bonus medals taken at this cabinet',
     refills: 'Refills taken',
     hits: 'Medals through a START pocket',
     wasted: 'Of those, found the hold full',
@@ -185,7 +188,7 @@ const en: RecordStrings = {
     days: 'Days played',
     streakNow: 'Days in a row, now',
     streak: 'Longest run of days',
-    claims: 'Daily bonuses taken',
+    claims: 'Daily bonuses taken at this cabinet',
   },
   inARow: (count) => `${count} in a row`,
   times: (count) => `${count}`,
@@ -207,7 +210,7 @@ const en: RecordStrings = {
     fullRun: { name: 'Perfect Run', how: `Hit ${run} numbers in a row on the roulette.` },
     jackpot: { name: 'Jackpot!', how: 'Win the jackpot.' },
     thousand: { name: 'Thousand Club', how: `Win ${medals.toLocaleString('en-US')} medals in all.` },
-    week: { name: 'Regular', how: `Play ${days} days in a row.` },
+    week: { name: 'Regular', how: `Play at this cabinet ${days} days in a row.` },
   }),
   stampedOn: (date) => `Stamped ${date}`,
   notYet: 'Not yet',
@@ -246,29 +249,30 @@ const en: RecordStrings = {
 const ja: RecordStrings = {
   bonusTitle: 'デイリーボーナス',
   bonusWaiting: 'スタンプカードを確認しています…',
-  bonusReady: (square, medals) => `${square}日目のボーナスを受け取れます: ${medals}枚`,
-  bonusRestarted: '1日あいたので、新しいカードになりました。',
+  bonusReady: (square, medals) => `${square}日目のボーナス、${medals}枚を受け取れます。`,
+  bonusRestarted: '前回から日があいたので、新しいカードになりました。',
   bonusTake: (medals) => `受け取る +${medals}`,
-  bonusTakeMore: '枚: 今日のデイリーボーナス',
-  bonusTaken: (medals) => `今日のスタンプ済み: +${medals}枚`,
-  bonusTomorrow: (medals) => `明日は +${medals}枚`,
-  bonusNewCard: (medals) => `カードがいっぱいになりました！ 明日から新しいカード: +${medals}枚`,
-  bonusLater: (date, medals) => `カードには今日より先の日付のスタンプがあります。次のボーナスは${date}: +${medals}枚`,
+  bonusTakeMore: '枚：今日のデイリーボーナス',
+  bonusTaken: (medals) => `今日のスタンプを押しました（+${medals}枚）。`,
+  bonusTomorrow: (medals) => `明日は+${medals}枚。`,
+  bonusNewCard: (medals) => `カードがいっぱいになりました！明日から新しいカード（+${medals}枚）。`,
+  bonusLater: (date, medals) => `カードには、今日より先の日付のスタンプがあります。次のボーナスは${date}（+${medals}枚）。`,
   bonusNoDay: 'この端末の日付がカレンダーの範囲外のため、今日のボーナスはありません。',
   bonusNotKept: 'このブラウザではメダルを保存できないため、デイリーボーナスはありません。',
   bonusNotApart: 'このブラウザでは、2つのタブが同じ日のボーナスを重ねて受け取るのを防げないため、デイリーボーナスはありません。',
   bonusAsking: 'ほかの端末で今日のボーナスを受け取っていないか、アカウントに確認しています…',
   pipsAria: (stamped, squares) => `${squares}個中${stamped}個スタンプ済み`,
+  then: (first, second) => `${first}${second}`,
 
   cardTitle: 'デイリースタンプカード',
   cardLead: (week) =>
-    `1日1回、スタンプと一緒にメダルがもらえます。続けて来るほど増え、${week}日目がいちばん多く、そのあと新しいカードになります。1日あくとカードは最初からです。`,
+    `1日1回、スタンプと一緒にメダルがもらえます。続けて来るほど増え、${week}日目がいちばん多く、そのあと新しいカードになります。1日あくとカードは最初からです。カードは1枚だけで、メダルゲームセンターで受け取っても、この台で受け取っても押されます。`,
   dayN: (square) => `${square}日目`,
   today: '今日',
   medals: (medals) => `+${medals}`,
-  squareBlank: (square, medals) => `${square}日目: ${medals}枚`,
-  squareToday: (square, medals) => `${square}日目: ${medals}枚。今日受け取れます。`,
-  squareStamped: (square, medals, date) => `${square}日目: ${medals}枚。${date}にスタンプ済み。`,
+  squareBlank: (square, medals) => `${square}日目：${medals}枚`,
+  squareToday: (square, medals) => `${square}日目：${medals}枚。今日受け取れます。`,
+  squareStamped: (square, medals, date) => `${square}日目：${medals}枚。${date}にスタンプ済み。`,
   cardNote:
     'ボーナスのメダルは無料です。そのまま持ちメダルに加わり（メダルゲームセンターのどのゲームでも使えます）、投入・獲得・払い出しのどれにも数えません。このページの還元率（マシンの還元率、下の通算の還元率、確率の表）は変わりません。',
   clockNote:
@@ -280,13 +284,13 @@ const ja: RecordStrings = {
   bigReturn: '還元率',
   bigPrize: '最高配当',
   bigJackpots: 'ジャックポット',
-  group: { medals: 'メダル', slot: 'スロット', games: 'ゲームと配当', days: '遊んだ日' },
+  group: { medals: 'メダル', slot: 'スロット', games: 'ゲームと配当', days: 'この台で遊んだ日' },
   row: {
     fed: '投入したメダル',
     won: '手前に落として獲得',
     lost: '脇の穴に落ちたメダル',
     return: '通算の還元率',
-    bonus: 'ボーナスでもらったメダル',
+    bonus: 'この台で受け取ったボーナスのメダル',
     refills: 'メダルを補充した回数',
     hits: 'STARTポケットを通ったメダル',
     wasted: 'うち、保留が満杯だったメダル',
@@ -317,7 +321,7 @@ const ja: RecordStrings = {
     days: '遊んだ日数',
     streakNow: '現在の連続日数',
     streak: '最長の連続日数',
-    claims: '受け取ったデイリーボーナス',
+    claims: 'この台で受け取ったボーナス',
   },
   inARow: (count) => `${count}連続`,
   times: (count) => `${count}回`,
@@ -339,7 +343,7 @@ const ja: RecordStrings = {
     fullRun: { name: 'パーフェクトラン', how: `ルーレットで数字を${run}回続ける。` },
     jackpot: { name: 'ジャックポット', how: 'ジャックポットを獲得する。' },
     thousand: { name: '1000枚クラブ', how: `通算${medals.toLocaleString('ja-JP')}枚を獲得する。` },
-    week: { name: '常連さん', how: `${days}日続けて遊ぶ。` },
+    week: { name: '常連さん', how: `この台で${days}日続けて遊ぶ。` },
   }),
   stampedOn: (date) => `${date} 達成`,
   notYet: '未達成',

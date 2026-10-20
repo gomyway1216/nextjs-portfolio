@@ -107,7 +107,7 @@
 import { useSyncExternalStore } from 'react';
 import { GUEST, createSync, fromCloud, slotFor, toCloud, type AccountStore, type Kept, type Player, type Slots, type Standing, type Status, type Sync, type Verdict } from '../MedalPusher/account';
 import { dayFrom, readDays, unionDays, type Day, type DaySet } from '../MedalPusher/records';
-import type { Observation } from './history';
+import { FLOOR_JACKPOT, type Observation } from './history';
 import { HISTORY_GAME_KEY, HISTORY_WAITING, createHistoryStore, type HistoryState } from './historyStore';
 import {
   REFILL,
@@ -128,6 +128,7 @@ import {
   parseLedger,
   printOf,
   receiptOf,
+  receiptsOf,
   refill,
   refillDue,
   resetLedger,
@@ -270,6 +271,12 @@ export interface CardLock {
   apart: boolean;
   /** Asks for the card. `granted` runs once this page holds it, with what gives it back. Returns what withdraws the request while it waits. */
   ask: (granted: (release: () => void) => void) => () => void;
+  /**
+   * Resolves once the lock manager has every request this page has made so far (it handles a page's calls in the
+   * order they are made, so a question asked after them is answered after them). Without it, a request is taken to be
+   * in at once.
+   */
+  queued?: () => Promise<void>;
 }
 
 export interface BankEnv {
@@ -739,22 +746,42 @@ export function createBank(env: BankEnv) {
   /**
    * Asks for the card, telling the page that holds it why: for a machine to be played, for a moment, or not at all.
    *
-   * The request goes in before the holder is told. A holder that lets the card go asks for it again at once, when its
-   * machine is still to be played; told first, it could ask again before this page's request had reached the browser's
-   * lock manager, and take the card straight back, and this page would wait behind it for as long as the machine
-   * played. A page that waits with a job to do also says so again with every tick (`tick`), so that even a request
-   * that reached the lock manager late is next in a turn or two.
+   * The holder is told only once the request is in the browser's lock manager (`card.queued`). A holder that lets the
+   * card go asks for it again at once, when its machine is still to be played; told while this page's request was still
+   * on its way (a browser handles it apart from the page, and can be slow to), it could ask again first and take the
+   * card straight back, and this page would wait behind it for as long as the machine played. A page that waits with a
+   * job to do also says so again with every tick (`tick`): a browser whose lock manager cannot be asked, or a page
+   * whose word went astray, is next in a turn or two all the same.
    */
   const ask = (because: 'play' | 'moment' | null): void => {
+    let asked = false;
     if (!held && !waiting) {
       let answered = false;
       const withdraw = env.card.ask((release) => {
         answered = true;
         granted(release);
       });
-      if (!answered) waiting = withdraw;
+      if (!answered) {
+        waiting = withdraw;
+        asked = true;
+      }
     }
-    if (because) env.post({ kind: 'want', page: env.page, play: because === 'play' });
+    if (because) {
+      const say = (): void => env.post({ kind: 'want', page: env.page, play: because === 'play' });
+      if (asked && env.card.queued) {
+        // Said once the request is in, and only if this page is still waiting then: a card it was given meanwhile, or
+        // one it no longer wants, needs no word, and the word would only send the card round again.
+        const waits = waiting;
+        env.card.queued().then(
+          () => {
+            if (!held && waiting === waits) say();
+          },
+          () => {
+            if (!held && waiting === waits) say();
+          },
+        );
+      } else say();
+    }
     publish();
   };
 
@@ -1260,6 +1287,60 @@ export function createBank(env: BankEnv) {
       return 'applied';
     },
 
+    /**
+     * Pays medals in from outside the machines (a floor jackpot won on the
+     * server: MedalCenter/floor/jackpotPayer.ts) under a receipt, once, as
+     * `apply` makes a round's move, but with the card: at once on a page that
+     * holds it, and otherwise as soon as it is given, as the hub's buttons do.
+     * The same write lets go of the game's other receipts on this device but
+     * those `keep` says are still needed. Resolves to `applied`, `already`
+     * (made before, here or on any device whose medals have been joined in),
+     * or null: not made, because the medals were not read yet, another
+     * player's medals came onto the table meanwhile, or the move will not do.
+     */
+    credit(move: Move, keep: (round: string) => boolean): Promise<'applied' | 'already' | null> {
+      return new Promise((resolve) => {
+        const at = desk;
+        if (!at || !started || !Number.isSafeInteger(move.medals) || move.medals <= 0) {
+          resolve(null);
+          return;
+        }
+        withCard(() => {
+          if (at !== desk) {
+            resolve(null);
+            return;
+          }
+          fresh(at);
+          if (move.era !== undefined && move.era !== at.ledger.era) {
+            resolve(null);
+            return;
+          }
+          const receipt = receiptOf(move.game, move.round, move.step);
+          const moved = receipt === null ? null : applyMove(at.ledger, receipt, move.medals, false);
+          if (!moved) {
+            resolve(null);
+            return;
+          }
+          const prefix = `${move.game}:`;
+          const rounds = receiptsOf(moved.ledger, moved.ledger.device)
+            .ids.filter((id) => id.startsWith(prefix))
+            .map((id) => id.slice(prefix.length, id.indexOf(':', prefix.length)));
+          const ledger = forgetReceipts(moved.ledger, move.game, [move.round, ...rounds.filter(keep)]);
+          let kept = true;
+          if (ledger !== at.ledger) {
+            at.ledger = ledger;
+            kept = store(at);
+            // A floor jackpot is an entry of its own in the history; anything else from outside the machines, only what is left.
+            if (moved.applied) noted(move.game === FLOOR_JACKPOT ? { type: 'floor', id: move.round, medals: move.medals } : { type: 'medals' });
+            sync?.save('moment');
+          }
+          // Made, but not kept by this browser's storage: it is in the medals on the page, and goes to the account with
+          // them. Said as not made yet, so that whoever asked waits a while before saying it is paid.
+          resolve(!kept ? null : moved.applied ? 'applied' : 'already');
+        });
+      });
+    },
+
     /** Whether a move of a round's medals has been made in the medals on the table: its receipt is there. */
     applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean {
       const at = desk;
@@ -1499,10 +1580,121 @@ const randomFrom = (): (() => number) => {
   }
 };
 
-/** The card in a browser: a Web Lock held for as long as the page keeps the card. */
-const browserCard = (): CardLock => {
-  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+/**
+ * Runs `then` in a task of its own, after this one: a message to itself, which the browser does not hold back in a
+ * hidden page as it does a timer.
+ */
+const nextTask = (then: () => void): void => {
+  if (typeof MessageChannel === 'undefined') {
+    setTimeout(then, 0);
+    return;
+  }
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => {
+    channel.port1.close();
+    then();
+  };
+  channel.port2.postMessage(null);
+};
+
+/** Where a page that lets the card go writes, last of all, a mark of its own: the next page to hold it reads it first. */
+export const CARD_HANDED_KEY = 'medal-center-card-handed';
+/** How long a page given the card waits at most for the mark of the page that let it go. A page that died left none. */
+export const CARD_HANDED_WAIT_MS = 2_000;
+
+/** The parts of a browser the card is made of. */
+export interface BrowserCardDeps {
+  /** The browser's lock manager, where it has one. */
+  locks: Pick<LockManager, 'request' | 'query'> | undefined;
+  /** This page's storage. Either may throw, when storage is blocked. */
+  read: (key: string) => string | null;
+  write: (key: string, text: string) => void;
+  /** Hears another page's writes to storage, by key (null for a clear). Returns what stops it. */
+  onStorage: (listener: (key: string | null) => void) => () => void;
+  /** Runs something in a task after this one. */
+  nextTask: (run: () => void) => void;
+  /** Runs something after `ms`. Returns what cancels it. */
+  later: (run: () => void, ms: number) => () => void;
+  /** A mark no other page will write. */
+  mark: () => string;
+  /** Whether the page is being left (from pagehide until it is shown again). */
+  leaving: () => boolean;
+}
+
+/**
+ * The card in a browser: a Web Lock held for as long as the page keeps the card.
+ *
+ * What a page writes down as it lets the card go (the bank, its machine) is in its own storage at once, but it reaches
+ * the other tabs later, and the lock can reach the next tab first: Firefox hands a tab what another wrote once the
+ * task that wrote it is over, and WebKit sends storage and locks to a tab by different ways, so either can come first.
+ * A tab that read the bank and the machine then would find them as they were before, and write them back so. So the
+ * card is handed over:
+ *
+ * - The page that lets it go writes a mark of its own (`CARD_HANDED_KEY`) after everything else, and lets go a task
+ *   later, when the task that wrote is over. A page that is being left lets go at once: it may not run another task,
+ *   and the browser takes the card back as it goes.
+ * - A page asks first for the card only if nobody holds it (`ifAvailable`), and then takes it at once, with nothing to
+ *   wait for. If another page holds it, it gets in line for it, and is given it only once its storage has that page's
+ *   mark, and so everything written before it. A page that died wrote no mark: after `CARD_HANDED_WAIT_MS` the card
+ *   is given all the same. A page whose own card is still on its way out waits for no mark either.
+ */
+export function createBrowserCard({ locks, read, write, onStorage, nextTask: afterThis, later, mark, leaving }: BrowserCardDeps): CardLock {
   const apart = !!locks && typeof locks.request === 'function';
+  /** This page's own cards that have been let go and not yet given back to the lock manager. */
+  let going = 0;
+  const readMark = (): string | null | undefined => {
+    try {
+      return read(CARD_HANDED_KEY);
+    } catch {
+      return undefined;
+    }
+  };
+  /** Resolves once storage has a mark other than `before`, or after the longest wait. */
+  const markAfter = (before: string | null): Promise<void> =>
+    new Promise<void>((done) => {
+      let over = false;
+      const stops: (() => void)[] = [];
+      const finish = () => {
+        if (over) return;
+        over = true;
+        for (const stop of stops) stop();
+        done();
+      };
+      const look = () => {
+        if (readMark() !== before) finish();
+      };
+      stops.push(onStorage((key) => (key === CARD_HANDED_KEY || key === null) && look()));
+      stops.push(later(finish, CARD_HANDED_WAIT_MS));
+      // Storage tells a page of another's writes; a look now and then makes sure of it.
+      const poll = () => {
+        if (over) return;
+        look();
+        if (!over) stops.push(later(poll, 50));
+      };
+      poll();
+    });
+  /** Gives the card to the page, with what lets it go: its mark written last, and the lock let go a task later. */
+  const hold = (granted: (release: () => void) => void) =>
+    new Promise<void>((release) =>
+      granted(() => {
+        try {
+          write(CARD_HANDED_KEY, mark());
+        } catch {
+          // Storage is blocked: there is nothing the next page could read anyway.
+        }
+        if (leaving()) {
+          release();
+          return;
+        }
+        going += 1;
+        afterThis(() => {
+          going -= 1;
+          release();
+        });
+      }),
+    );
+  /** Resolves once this page's latest request for the card is in the lock manager's line, or has been given. */
+  let inLine: Promise<void> = Promise.resolve();
   return {
     apart,
     ask: (granted) => {
@@ -1512,19 +1704,84 @@ const browserCard = (): CardLock => {
       }
       const stop = new AbortController();
       let given = false;
+      let lineUp: () => void = () => undefined;
+      inLine = new Promise<void>((resolve) => (lineUp = resolve));
+      // The mark the last page to let the card go left, as this page's storage has it now; and whether the card on its
+      // way back to the lock manager is this page's own.
+      const before = readMark();
+      const ours = going > 0;
       locks
-        .request(CARD_LOCK, { signal: stop.signal }, () => {
-          given = true;
-          return new Promise<void>((release) => granted(release));
+        .request(CARD_LOCK, { ifAvailable: true }, (free) => {
+          if (free && stop.signal.aborted) {
+            // Withdrawn before it was answered: the card is let go again untouched.
+            lineUp();
+            return undefined;
+          }
+          if (free) {
+            given = true;
+            lineUp();
+            return hold(granted);
+          }
+          if (stop.signal.aborted) {
+            lineUp();
+            return undefined;
+          }
+          locks
+            .request(CARD_LOCK, { signal: stop.signal }, async () => {
+              given = true;
+              if (before !== undefined && !ours) await markAfter(before);
+              return hold(granted);
+            })
+            .catch(() => {
+              // Withdrawn while it waited, or refused: nothing was given.
+            });
+          lineUp();
+          return undefined;
         })
         .catch(() => {
-          // Withdrawn while it waited, or refused: nothing was given.
+          // Refused: nothing was given, and nothing is waited for.
+          lineUp();
         });
       return () => {
         if (!given) stop.abort();
       };
     },
+    // The lock manager answers a page's calls in the order they were made: a question asked after a request is
+    // answered once the request is in. The request that waits is made once the card is found taken, so the question
+    // is asked once that request has been made.
+    queued: () =>
+      apart && locks && typeof locks.query === 'function'
+        ? inLine.then(() => locks.query()).then(
+            () => undefined,
+            () => undefined,
+          )
+        : Promise.resolve(),
   };
+}
+
+const browserCard = (): CardLock => {
+  let leaving = false;
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => (leaving = true), true);
+    window.addEventListener('pageshow', () => (leaving = false), true);
+  }
+  return createBrowserCard({
+    locks: typeof navigator === 'undefined' ? undefined : navigator.locks,
+    read: (key) => window.localStorage.getItem(key),
+    write: (key, text) => window.localStorage.setItem(key, text),
+    onStorage: (listener) => {
+      const onEvent = (event: StorageEvent) => listener(event.key);
+      window.addEventListener('storage', onEvent);
+      return () => window.removeEventListener('storage', onEvent);
+    },
+    nextTask,
+    later: (run, ms) => {
+      const id = window.setTimeout(run, ms);
+      return () => window.clearTimeout(id);
+    },
+    mark: () => randomName(randomFrom()) + randomName(randomFrom()),
+    leaving: () => leaving,
+  });
 };
 
 /**

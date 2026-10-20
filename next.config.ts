@@ -20,10 +20,29 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_APP_BUILD_SHA: readGitSha(),
+    // A build on Vercel ships without the shogi AI's 94.7MB weights (.vercelignore), and its worker fetches them from
+    // the public asset bucket instead; anywhere else they are in public/ as before. See ShogiImproved/weightsAsset.ts.
+    NEXT_PUBLIC_SHOGI_WEIGHTS_REMOTE: process.env.VERCEL === "1" ? "1" : "",
   },
 
   // Disable React StrictMode to suppress warnings from third-party packages
   reactStrictMode: false,
+
+  experimental: {
+    // How Turbopack groups CSS modules into the stylesheets a route links. The default ("loose") merged the
+    // modules of unrelated routes into shared files: every medal machine linked Baccarat's, Blackjack's,
+    // Craps', Fishing's, Janken's, Mahjong's and the shogi pieces' styles (about 36 KB brotli of
+    // render-blocking CSS it never uses), and the home page and /blog the memory dashboard's, /projects',
+    // /growth's and /tools'. "graph" groups modules by the routes that import them together. On this app
+    // it links less CSS on every route (none more; 12 routes link one more, smaller file), and every route
+    // still renders with the same computed styles.
+    cssChunking: 'graph',
+    // Don't reuse Turbopack's build cache (on by default since Next 16.3; Vercel restores `.next/cache` from the
+    // previous deployment). On Vercel it shipped src/app/globals.css one deployment late: the #996 build served
+    // the stylesheet as it was before #996, and the build that reverted #996 served #996's version. Every
+    // build now compiles from source.
+    turbopackFileSystemCacheForBuild: false,
+  },
 
   // Enable SCSS support
   sassOptions: {

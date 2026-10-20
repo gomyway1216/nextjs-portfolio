@@ -50,8 +50,6 @@ export interface CrapsStrings {
   takeDown: string;
   /** Under the table: what is printed on the felt and not played. */
   printedNote: string;
-  soundOn: string;
-  soundOff: string;
   quickRoll: string;
   puckOn: string;
   puckOff: string;
@@ -119,6 +117,8 @@ export interface CrapsStrings {
   passPoint: (p: number) => string;
   passTotal: string;
   colChance: string;
+  /** The first column of the table of how Pass wins, said to a screen reader. */
+  colPassWay: string;
   colMake: string;
   colContribution: string;
   oddsEffectTitle: string;
@@ -286,8 +286,6 @@ const EN: CrapsStrings = {
   takeDown: 'Take down',
   printedNote:
     'COME and DON’T COME are bet once a point is on, as a line bet for the next roll: a number other than 7, 11, 2, 3 or 12 moves the bet to that number, where its own odds can be put on (tap it there). The line’s odds go behind the line bet, on ODDS and LAY.',
-  soundOn: 'Sound: on',
-  soundOff: 'Sound: off',
   quickRoll: 'Quick roll',
   puckOn: 'ON',
   puckOff: 'OFF',
@@ -391,6 +389,7 @@ const EN: CrapsStrings = {
   passPoint: (p) => `Point ${p}, then made`,
   passTotal: 'Pass wins',
   colChance: 'Chance',
+  colPassWay: 'How it is decided',
   colMake: 'Makes it',
   colContribution: 'Contributes',
   oddsEffectTitle: 'Taking odds shrinks the edge',
@@ -496,9 +495,7 @@ const JA: CrapsStrings = {
   repeat: '前回と同じ賭け',
   takeDown: '引き上げる',
   printedNote:
-    'カム・ドントカムはポイントが決まってから置く、次の1投のためのラインベットです。7・11・2・3・12 以外の目が出るとその数字に移り、そこでオッズを付けられます（数字の上のベットをタップ）。ラインのオッズはラインベットの後ろの ODDS・LAY に置きます。',
-  soundOn: '音: オン',
-  soundOff: '音: オフ',
+    'カム・ドントカムはポイントが決まってから置く、次の1投のためのラインベットです。7・11・2・3・12 以外の目が出るとその数字に移り、そこでオッズを付けられます（数字の上のベットをタップ）。ラインのオッズはラインベットの後ろの「オッズ」「レイ」に置きます。',
   quickRoll: 'クイックロール',
   puckOn: 'ON',
   puckOff: 'OFF',
@@ -599,6 +596,7 @@ const JA: CrapsStrings = {
   passPoint: (p) => `ポイント ${p} → 成立`,
   passTotal: 'パスの勝ち',
   colChance: '確率',
+  colPassWay: '決まり方',
   colMake: '成立する確率',
   colContribution: '寄与',
   oddsEffectTitle: 'オッズを付けるほどエッジは小さくなる',

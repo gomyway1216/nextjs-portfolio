@@ -5,6 +5,7 @@ import { REELS, VIRTUAL_STOPS, analyzeMachine, analyzeNearMisses, symbolAt } fro
 import { getStrings } from './i18n';
 import { SlotSymbol } from './Symbols';
 import styles from './SlotMachine.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const ODDS = analyzeMachine();
 const NEAR = analyzeNearMisses();
@@ -64,7 +65,7 @@ export const OddsTab = () => {
         </div>
       </div>
 
-      <div className={styles.tableWrap}>
+      <ScrollArea className={styles.tableWrap}>
         <table className={styles.oddsTable}>
           <thead>
             <tr>
@@ -119,12 +120,12 @@ export const OddsTab = () => {
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollArea>
 
       <section aria-labelledby="slot-virtual-title">
-        <h3 id="slot-virtual-title" className={styles.blockTitle}>
+        <h2 id="slot-virtual-title" className={styles.blockTitle}>
           {t.virtualReelTitle}
-        </h3>
+        </h2>
         <div className={styles.intro}>
           {t.virtualReelIntro.map((p, i) => (
             <p key={i}>{p}</p>

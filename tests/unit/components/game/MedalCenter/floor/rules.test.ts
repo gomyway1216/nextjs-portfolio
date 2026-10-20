@@ -25,11 +25,37 @@ import { SPOT_MAX as ROULETTE_SPOT_MAX } from '@/components/game/Roulette/medalT
 import { PAY_RULES } from '@/components/game/SlotMachine/engine';
 import { BET_OPTIONS } from '@/components/game/SlotMachine/medals';
 import { ANTE_BONUS_PAYS, PAIR_PLUS_PAYS } from '@/components/game/ThreeCardPoker/engine';
-import { SPOT_MAX as TCP_SPOT_MAX } from '@/components/game/ThreeCardPoker/medalTable';
+import { HAND_MAX as TCP_HAND_MAX, SPOT_MAX as TCP_SPOT_MAX } from '@/components/game/ThreeCardPoker/medalTable';
 import { DOUBLE_MAX, DOUBLE_RETURN } from '@/components/game/VideoPoker/doubleUp';
 import { HANDS, MAX_COINS, PAY_TABLES, PAY_TABLE_IDS, ROYAL_SHORT_PAY, payout, type HandRank } from '@/components/game/VideoPoker/engine';
 import { games } from '@/components/game/constants/games';
-import { FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
+import { analyzeMachine as slotOdds } from '@/components/game/SlotMachine/engine';
+import { analyzeMachine as jankenOdds, valueOf as jankenValue } from '@/components/game/Janken/engine';
+import { HOUSE_EDGE as ROULETTE_EDGE } from '@/components/game/Roulette/engine';
+import { gameValue as blackjackValue } from '@/components/game/Blackjack/analysis';
+import { PRECOMPUTED as VIDEO_POKER_TABLES } from '@/components/game/VideoPoker/precomputed';
+import { ODDS_BETS as BACCARAT_BETS, betOdds as baccaratOdds, shoeOdds as baccaratShoe } from '@/components/game/Baccarat/analysis';
+import { DEFAULT_DECKS as BACCARAT_DECKS } from '@/components/game/Baccarat/engine';
+import { allBetOdds as crapsOdds, toNumber as crapsNumber } from '@/components/game/Craps/analysis';
+import { pairPlusOdds, strategyOdds as tcpStrategy } from '@/components/game/ThreeCardPoker/analysis';
+import { PAIR_PLUS_TABLES } from '@/components/game/ThreeCardPoker/engine';
+import { ODDS_LIMITS as HORSE_ODDS, RETURN_MOST as HORSE_RETURN_MOST, TICKETS as HORSE_TICKETS, raceCard } from '@/components/game/HorseRace/card';
+import { toNumber } from '@/components/game/HorseRace/fraction';
+import { RACE_STAKE_MOST as HORSE_STAKE_MOST, TICKET_MAX as HORSE_TICKET_MAX } from '@/components/game/HorseRace/medalTable';
+import { EXPECTED_PER_MEDAL, LINKED_GAMES, linked } from '@/lib/medalFloor/jackpot';
+import { BET_OPTIONS as FISHING_BETS, CHEST as FISHING_CHEST, FISH, MOST_MEDALS as FISHING_MOST, analyzeMachine as fishingOdds, valueOf as fishingValue } from '@/components/game/Fishing/engine';
+import { BET_OPTIONS as BINGO_BETS, FULL_CARD_LINES, MOST_WIN as BINGO_MOST, analyzeMachine as bingoOdds, paysFor as bingoPays } from '@/components/game/BallBingo/engine';
+import { LAMPS as WHEEL_LAMPS, SPOTS as WHEEL_SPOTS, TOP_MULTIPLE as WHEEL_TOP, analyzeWheel, valueOf as wheelValue } from '@/components/game/BigWheel/engine';
+import { SPIN_STAKE_MOST as WHEEL_STAKE_MOST, SPOT_MAX as WHEEL_SPOT_MAX } from '@/components/game/BigWheel/medalTable';
+import { BETS as LADDER_BETS, BET_MOST as LADDER_BET_MOST, TOP as LADDER_TOP, analyzeLadder, payFor as ladderPays, valueOf as ladderValue } from '@/components/game/HighLow/engine';
+import { BET_IDS as SIC_BO_AREAS, MOST_BACK_PER_MEDAL as SIC_BO_MOST_BACK, PAYTABLE as SIC_BO_PAYS, analyze as sicBoOdds, resolveRoll as sicBoRoll, valueOf as sicBoValue, type Dice as SicBoDice } from '@/components/game/SicBo/engine';
+import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } from '@/components/game/SicBo/medalTable';
+import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUGOROKU_SQUARES, analyzeBoard, labelOf as sugorokuLabel, medalsFor as sugorokuMedals, outcomesFrom as sugorokuOutcomes, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
+import { MOST_WIN as MAZE_MOST, PAYS as MAZE_PAYS, STAGES as MAZE_GATES, STAKE as MAZE_STAKE, analyze as mazeOdds, drawPlay as mazeDraw, labelOf as mazeLabel, playOf as mazePlay, seeded as mazeSeeded, valueOf as mazeValue } from '@/components/game/CoinMaze/engine';
+import { ALL_CAUGHT_FROM as KENO_ALL_FROM, BETS as KENO_BETS, BET_MOST as KENO_BET_MOST, LAST_BALL_TIMES as KENO_TIMES, MOST_WIN as KENO_MOST, PAYS as KENO_PAYS, SPOT_COUNTS as KENO_SPOTS, analyze as kenoOdds, drawBalls as kenoDraw, labelOf as kenoLabel, quickPick as kenoPick, seeded as kenoSeeded, valueOf as kenoValue, winOf as kenoWin } from '@/components/game/Keno/engine';
+import { MARBLES as SMART_MARBLES, MOST_WIN as SMART_MOST, PAYS as SMART_PAYS, STAKE as SMART_STAKE, drawPlay as smartDraw, labelOf as smartLabel, playOf as smartPlay, seeded as smartSeeded, valueOf as smartValue } from '@/components/game/SmartBall/engine';
+import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published';
+import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
 // change to a game's payouts that the floor has not heard of fails this test instead of refusing a real win.
@@ -52,6 +78,177 @@ describe('the machines on the floor', () => {
         expect(named.max ?? 0, `${game} ${label}`).toBeLessThanOrEqual(rule.most);
       }
     }
+  });
+});
+
+/** Every spot of the roulette felt, each bet once: 151 of them. */
+function rouletteFelt(): Bet[] {
+  const felt: Bet[] = [];
+  for (let n = 0; n <= 36; n += 1) felt.push({ kind: 'straight', number: n });
+  for (let n = 1; n <= 33; n += 1) felt.push({ kind: 'split', numbers: [n, n + 3] });
+  for (let n = 1; n <= 35; n += 1) if (n % 3 !== 0) felt.push({ kind: 'split', numbers: [n, n + 1] });
+  for (let n = 1; n <= 32; n += 1) if (n % 3 !== 0) felt.push({ kind: 'corner', numbers: [n, n + 1, n + 3, n + 4] });
+  for (let n = 1; n <= 34; n += 3) felt.push({ kind: 'street', numbers: [n, n + 1, n + 2] });
+  for (let n = 1; n <= 31; n += 3) felt.push({ kind: 'line', numbers: [n, n + 1, n + 2, n + 3, n + 4, n + 5] });
+  for (const which of [1, 2, 3] as const) felt.push({ kind: 'dozen', which }, { kind: 'column', which });
+  for (const kind of ['red', 'black', 'odd', 'even', 'low', 'high'] as const) felt.push({ kind });
+  return felt;
+}
+
+/**
+ * The fullest craps table there can be with the line's point `point` (or none): every spot each at its most, the odds
+ * as far as they go. What a table cannot hold at once is left off (see the craps case below).
+ */
+function fullestCraps(point: PointNumber | null): CrapsBets {
+  const bets: CrapsBets = {};
+  for (const id of CRAPS_BET_IDS) {
+    if (isOddsBet(id)) continue;
+    const come = comePoint(id);
+    if (come) {
+      if (come.n !== point) bets[id] = crapsSpotLimit(come.kind === 'come' ? 'come' : 'dontCome', point, {});
+    } else if (point !== null || (id !== 'come' && id !== 'dontCome')) bets[id] = crapsSpotLimit(id, point, {});
+  }
+  for (const id of CRAPS_BET_IDS) {
+    if (!isOddsBet(id) || ((id === 'passOdds' || id === 'dontPassOdds') && point === null)) continue;
+    const most = maxOdds(id, point, bets);
+    if (most > 0) bets[id] = most - (most % crapsStakeStep(id, point));
+  }
+  return bets;
+}
+
+describe('the most each machine can take from the player at once, for the medals played', () => {
+  it('sizes each allowance of medals played to hold the biggest stake on top of ten minutes at the fastest', () => {
+    for (const game of FLOOR_GAMES) expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].perMinute);
+  });
+
+  it('from each machine’s own limits', () => {
+    // A medal fed at a time; a slot's biggest bet; a medal a round of janken.
+    expect(FLOOR_RULES['medal-pusher'].stakeMost).toBe(1);
+    expect(FLOOR_RULES['slot-machine'].stakeMost).toBe(Math.max(...BET_OPTIONS));
+    expect(FLOOR_RULES.janken.stakeMost).toBe(1);
+    // Every spot of the felt at its most.
+    expect(rouletteFelt()).toHaveLength(151);
+    expect(FLOOR_RULES.roulette.stakeMost).toBe(rouletteFelt().length * ROULETTE_SPOT_MAX);
+    // Four hands of the biggest bet, each doubled, and the insurance on the first.
+    expect(FLOOR_RULES.blackjack.stakeMost).toBe(MAX_HANDS * 2 * BLACKJACK_MAX_BET + Math.floor(BLACKJACK_MAX_BET / 2));
+    // Five coins a hand (a double-up puts back what was won, and is not counted).
+    expect(FLOOR_RULES['video-poker'].stakeMost).toBe(MAX_COINS);
+    // Every spot of the baccarat table at its most.
+    expect(FLOOR_RULES.baccarat.stakeMost).toBe(Object.values(BACCARAT_SPOT_MAX).reduce((sum, most) => sum + most, 0));
+    // An Ante, Pair Plus and a Play bet, each at its most.
+    expect(FLOOR_RULES['three-card-poker'].stakeMost).toBe(TCP_HAND_MAX);
+    expect(TCP_HAND_MAX).toBe(3 * TCP_SPOT_MAX);
+    // One cast at its biggest bet.
+    expect(FLOOR_RULES.fishing.stakeMost).toBe(Math.max(...FISHING_BETS));
+    // Every ticket of a horse race at its most.
+    expect(FLOOR_RULES['horse-race'].stakeMost).toBe(HORSE_STAKE_MOST);
+    expect(HORSE_STAKE_MOST).toBe(HORSE_TICKETS.length * HORSE_TICKET_MAX);
+    // Ball Bingo: a game's bet at its biggest.
+    expect(FLOOR_RULES['ball-bingo'].stakeMost).toBe(Math.max(...BINGO_BETS));
+    // The big wheel: every number of the board at its most.
+    expect(FLOOR_RULES['big-wheel'].stakeMost).toBe(WHEEL_STAKE_MOST);
+    expect(WHEEL_STAKE_MOST).toBe(WHEEL_SPOTS.length * WHEEL_SPOT_MAX);
+    // The High & Low Ladder: one game's bet at its biggest, out from START until the game ends.
+    expect(FLOOR_RULES['high-low'].stakeMost).toBe(LADDER_BET_MOST);
+    expect(LADDER_BET_MOST).toBe(Math.max(...LADDER_BETS));
+    // Sic Bo: every area of the layout at its most.
+    expect(FLOOR_RULES['sic-bo'].stakeMost).toBe(SIC_BO_STAKE_MOST);
+    expect(SIC_BO_STAKE_MOST).toBe(SIC_BO_AREAS.length * SIC_BO_SPOT_MAX);
+    expect(SIC_BO_STAKE_MOST).toBe(4_950);
+    // Whale Isle Sugoroku: one roll at its biggest bet (a ride and a chance are part of the roll, and take nothing more).
+    expect(FLOOR_RULES.sugoroku.stakeMost).toBe(SUGOROKU_BET_MOST);
+    expect(SUGOROKU_BET_MOST).toBe(Math.max(...SUGOROKU_BETS));
+    // Candy Shop Medal Maze: one medal a play, the one that rolls.
+    expect(FLOOR_RULES['coin-maze'].stakeMost).toBe(MAZE_STAKE);
+    expect(MAZE_STAKE).toBe(1);
+    // Video Keno: one game at its biggest bet.
+    expect(FLOOR_RULES.keno.stakeMost).toBe(KENO_BET_MOST);
+    expect(KENO_BET_MOST).toBe(Math.max(...KENO_BETS));
+    // Hot Spring Smart Ball: five medals a play, for its ten marbles.
+    expect(FLOOR_RULES['smart-ball'].stakeMost).toBe(SMART_STAKE);
+    expect(SMART_STAKE).toBe(5);
+  });
+
+  it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
+    let held = 0;
+    let decided = 0;
+    for (const point of [null, ...POINT_NUMBERS]) {
+      const bets = fullestCraps(point);
+      held = Math.max(held, Object.values(bets).reduce<number>((sum, medals) => sum + (medals ?? 0), 0));
+      for (let a = 1; a <= 6; a += 1)
+        for (let b = 1; b <= 6; b += 1) {
+          const { results } = resolveRoll(point, bets, [a, b]);
+          decided = Math.max(decided, results.reduce((sum, r) => sum + (r.outcome === 'lose' || (r.outcome === 'win' && !r.staysUp) ? r.stake : 0), 0));
+        }
+    }
+    expect(CRAPS_DECIDED_MOST).toBe(held);
+    expect(CRAPS_DECIDED_MOST).toBe(decided);
+    expect(FLOOR_RULES.craps.stakeMost).toBe(CRAPS_DECIDED_MOST);
+  });
+});
+
+describe('which machines are linked to the floor jackpot', () => {
+  /** Each machine's best return, from its own exact odds: its best bet, played its best way, per medal played. */
+  const exactBest = (): Partial<Record<(typeof FLOOR_GAMES)[number], number>> => {
+    const shoe = baccaratShoe(BACCARAT_DECKS);
+    const tcp = tcpStrategy('optimal');
+    return {
+      'slot-machine': slotOdds().rtp,
+      janken: jankenValue(jankenOdds().rtp),
+      roulette: 1 - ROULETTE_EDGE,
+      blackjack: 1 - blackjackValue().houseEdge,
+      'video-poker': Math.max(...Object.values(VIDEO_POKER_TABLES).map((table) => table.payback)),
+      baccarat: Math.max(...BACCARAT_BETS.map((id) => 1 + baccaratOdds(id, shoe).ev)),
+      craps: Math.max(...crapsOdds().map((bet) => 1 - crapsNumber(bet.houseEdge))),
+      // The Ante and Play per medal wagered (the element of risk), or Pair Plus on either table.
+      'three-card-poker': Math.max(1 - tcp.elementOfRisk, ...Object.values(PAIR_PLUS_TABLES).map((table) => 1 + pairPlusOdds(table).ev)),
+      fishing: fishingValue(fishingOdds().rtp),
+      // The most any ticket of any race brings back: every card is priced to at most this (card.test.ts checks every
+      // ticket of hundreds of cards, and adds a few up exactly over all 720 finishing orders).
+      'horse-race': toNumber(HORSE_RETURN_MOST),
+      // The same on every bet: worked out over every state a game can be in.
+      'ball-bingo': bingoOdds().rtp,
+      // The same on every number, exactly (engine.test.ts adds up all 43,200 ways a spin can be drawn).
+      'big-wheel': wheelValue(analyzeWheel().rtp),
+      // Best play (TAKE or go on, HIGH or LOW, per card and rung), worked out by dynamic programming: the same at every
+      // bet, since every rung pays in proportion to the bet.
+      'high-low': ladderValue(analyzeLadder().best),
+      // Small or Big, the best of the 50 areas, worked out over the 216 rolls (engine.test.ts adds them up again).
+      'sic-bo': sicBoValue(sicBoOdds().best),
+      // The best square's next roll (the board's Markov chain, exact): the player sees the square before choosing the
+      // bet, so the floor is told the best of every square, not the long run of steady play.
+      sugoroku: sugorokuValue(analyzeBoard().best),
+      // Perfect timing at every gate (dynamic programming down the four gates and the pins, exact): no way of playing
+      // brings back more.
+      'coin-maze': mazeValue(mazeOdds().perfect.back),
+      // The best ticket (one spot: 9/10 exactly), the hypergeometric chances of every catch and the last ball's ×5:
+      // the player chooses the ticket, so the floor is told the best of the ten.
+      keno: kenoValue(kenoOdds().best),
+      // Perfect play: the best strength for every marble for the board as it stands (dynamic programming over every set
+      // of lit holes and marbles left, exact): no way of pulling the plunger brings back more.
+      'smart-ball': smartValue(PUBLISHED_SMART_BALL_ODDS.perfect.back),
+    };
+  };
+
+  it('knows each machine’s best return from its own exact odds, rounded up', () => {
+    const exact = exactBest();
+    for (const [game, best] of Object.entries(exact)) {
+      const rule = FLOOR_RULES[game as (typeof FLOOR_GAMES)[number]];
+      expect(rule.bestReturn, game).toBeGreaterThanOrEqual(best!);
+      expect(rule.bestReturn - best!, game).toBeLessThan(1e-4);
+    }
+    // The Medal Pusher's is measured by its simulation, not worked out: the slowest feed down the middle, about 90%.
+    expect(FLOOR_RULES['medal-pusher'].bestReturn).toBe(0.902);
+  });
+
+  it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball']);
+    for (const game of FLOOR_GAMES) {
+      const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
+      expect(linked(game), game).toBe(withJackpot <= 1);
+    }
+    // The tables that are not: their best play is already near even, and the floor jackpot would take it over.
+    for (const game of ['blackjack', 'video-poker', 'baccarat', 'craps'] as const) expect(exactBest()[game]! + EXPECTED_PER_MEDAL, game).toBeGreaterThan(1);
   });
 });
 
@@ -157,9 +354,179 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(resolveRoll(null, fullest(null), [1, 1]).returned).toBe(2 * CRAPS_SPOT_MAX + won(ONE_ROLL_PAYS.field[2]) + won(ONE_ROLL_PAYS.anyCraps) + won(ONE_ROLL_PAYS.aces));
   });
 
+  it('Mini Turf Racing: a win ticket and a quinella both at their most, each at the longest odds the board can show', () => {
+    expect(FLOOR_RULES['horse-race'].most).toBe(HORSE_TICKET_MAX * (HORSE_ODDS.win.most + HORSE_ODDS.quinella.most));
+    expect(FLOOR_RULES['horse-race'].most).toBe(108_702);
+    // A race pays at most one win ticket and one quinella: no card's odds go past the board's.
+    for (let race = 1; race <= 40; race += 1) {
+      const card = raceCard('rules-test', race);
+      expect(Math.max(...card.winOdds)).toBeLessThanOrEqual(HORSE_ODDS.win.most);
+      expect(Math.max(...card.quinellaOdds)).toBeLessThanOrEqual(HORSE_ODDS.quinella.most);
+    }
+  });
+
   it('three card poker: a straight flush against a dealer who qualifies', () => {
     const most = 2 * TCP_SPOT_MAX + 2 * TCP_SPOT_MAX + TCP_SPOT_MAX * ANTE_BONUS_PAYS.straightFlush + TCP_SPOT_MAX * (PAIR_PLUS_PAYS.straightFlush + 1);
     expect(FLOOR_RULES['three-card-poker'].most).toBe(most);
+  });
+
+  it('Big Catch Harbor: the harbor’s lord on the biggest bet, and every lord and treasure chest there is', () => {
+    const top = Math.max(...FISHING_BETS);
+    const lord = FISH.find((fish) => fish.id === 'lord')!.pays!;
+    expect(FLOOR_RULES.fishing.most).toBe(FISHING_MOST);
+    expect(FLOOR_RULES.fishing.most).toBe(Math.max(...FISH.map((fish) => fish.pays ?? 0), ...FISHING_CHEST.map((prize) => prize.pays)) * top);
+    expect(FLOOR_RULES.fishing.most).toBe(1_500);
+    expect(FLOOR_RULES.fishing.labels['harbor-lord'].amounts).toEqual(FISHING_BETS.map((bet) => lord * bet));
+    expect(FLOOR_RULES.fishing.labels.treasure.amounts).toEqual(sorted(FISHING_CHEST.flatMap((prize) => FISHING_BETS.map((bet) => prize.pays * bet))));
+    expect(FLOOR_RULES.fishing.bestReturn).toBe(0.9);
+  });
+
+  it('Ball Bingo: the full card on the biggest bet, and the full card on every bet', () => {
+    expect(FLOOR_RULES['ball-bingo'].most).toBe(BINGO_MOST);
+    expect(BINGO_MOST).toBe(bingoPays(FULL_CARD_LINES) * Math.max(...BINGO_BETS));
+    expect(FLOOR_RULES['ball-bingo'].labels['full-card'].amounts).toEqual(BINGO_BETS.map((bet) => bingoPays(FULL_CARD_LINES) * bet));
+    expect(FLOOR_RULES['ball-bingo'].labels['full-card'].feed).toBe(true);
+  });
+
+  it('Star Festival Big Wheel: a second chance’s ×10 on the ×40 with every medal a number holds, and every second-chance win there is', () => {
+    const medals = Array.from({ length: WHEEL_SPOT_MAX }, (_, i) => i + 1);
+    const lamps = sorted(WHEEL_LAMPS);
+    expect(WHEEL_TOP).toBe(Math.max(...WHEEL_SPOTS) * Math.max(...lamps));
+    expect(FLOOR_RULES['big-wheel'].most).toBe(WHEEL_TOP * WHEEL_SPOT_MAX);
+    expect(FLOOR_RULES['big-wheel'].most).toBe(39_600);
+    expect(FLOOR_RULES['big-wheel'].labels['wheel-400'].amounts).toEqual(medals.map((n) => WHEEL_TOP * n));
+    expect(FLOOR_RULES['big-wheel'].labels['wheel-400'].feed).toBe(true);
+    expect(FLOOR_RULES['big-wheel'].labels['wheel-bonus'].amounts).toEqual(sorted(WHEEL_SPOTS.flatMap((spot) => lamps.flatMap((lamp) => medals.map((n) => spot * lamp * n)))));
+    expect(FLOOR_RULES['big-wheel'].bestReturn).toBe(0.9);
+  });
+
+  it('High & Low Ladder: the top of the ladder on the biggest bet, and the top named on every bet', () => {
+    expect(FLOOR_RULES['high-low'].most).toBe(ladderPays(LADDER_BET_MOST, LADDER_TOP));
+    expect(FLOOR_RULES['high-low'].most).toBe(2_000);
+    // Nothing pays more than the top: every rung below it pays less.
+    for (const bet of LADDER_BETS) for (let rung = 1; rung <= LADDER_TOP; rung++) expect(ladderPays(bet, rung)).toBeLessThanOrEqual(FLOOR_RULES['high-low'].most);
+    expect(FLOOR_RULES['high-low'].labels['ladder-top'].amounts).toEqual(LADDER_BETS.map((bet) => ladderPays(bet, LADDER_TOP)));
+    expect(FLOOR_RULES['high-low'].labels['ladder-top'].feed).toBe(true);
+    expect(FLOOR_RULES['high-low'].bestReturn).toBe(0.8997);
+  });
+
+  it('Moonlit Sic Bo: a triple 2 or 5 with 99 medals on every area it wins, and the named triples from their smallest win', () => {
+    // Every area at its most, every roll: the most any roll brings back.
+    const everything = Object.fromEntries(SIC_BO_AREAS.map((id) => [id, SIC_BO_SPOT_MAX]));
+    let most = 0;
+    for (let a = 1; a <= 6; a++)
+      for (let b = 1; b <= 6; b++)
+        for (let c = 1; c <= 6; c++) most = Math.max(most, sicBoRoll(everything, [a, b, c] as unknown as SicBoDice).returned);
+    expect(most).toBe(SIC_BO_MOST_BACK * SIC_BO_SPOT_MAX);
+    expect(FLOOR_RULES['sic-bo'].most).toBe(most);
+    expect(FLOOR_RULES['sic-bo'].most).toBe(24_255);
+    // A triple bet won brings back at least 181 on one medal; any triple at least 31.
+    expect(FLOOR_RULES['sic-bo'].labels['sicbo-triple']).toEqual({ min: SIC_BO_PAYS.triple + 1, max: most, feed: true });
+    expect(FLOOR_RULES['sic-bo'].labels['sicbo-any-triple']).toEqual({ min: SIC_BO_PAYS.anyTriple + 1, max: most, feed: false });
+    expect(FLOOR_RULES['sic-bo'].bestReturn).toBe(0.9723);
+  });
+
+  it('Whale Isle Sugoroku: the whale ride to the jackpot on the biggest bet, and every jackpot and ride there is', () => {
+    const jackpots = new Set<number>();
+    const rides = new Set<number>();
+    let most = 0;
+    for (let square = 0; square < SUGOROKU_SQUARES; square++) {
+      for (const { play } of sugorokuOutcomes(square)) {
+        for (const bet of SUGOROKU_BETS) {
+          const won = sugorokuMedals(bet, play.pays);
+          most = Math.max(most, won);
+          const label = sugorokuLabel(play);
+          if (label === 'sugoroku-jp') jackpots.add(won);
+          else if (label === 'whale-ride') rides.add(won);
+        }
+      }
+    }
+    expect(FLOOR_RULES.sugoroku.most).toBe(most);
+    expect(FLOOR_RULES.sugoroku.most).toBe(1_020);
+    expect(FLOOR_RULES.sugoroku.labels['sugoroku-jp'].amounts).toEqual(sorted(jackpots));
+    expect(FLOOR_RULES.sugoroku.labels['sugoroku-jp'].feed).toBe(true);
+    expect(FLOOR_RULES.sugoroku.labels['whale-ride'].amounts).toEqual(sorted(rides));
+    expect(FLOOR_RULES.sugoroku.labels['whale-ride'].feed).toBe(false);
+    // The rule is the best square's next roll, 67/72, rounded up; steady play and betting by the square bring back less.
+    const odds = analyzeBoard();
+    expect(`${odds.best.num}/${odds.best.den}`).toBe('67/72');
+    expect(FLOOR_RULES.sugoroku.bestReturn).toBe(0.9306);
+    expect(sugorokuValue(odds.longRun)).toBeLessThan(FLOOR_RULES.sugoroku.bestReturn);
+    expect(sugorokuValue(odds.betting.value)).toBeLessThan(FLOOR_RULES.sugoroku.bestReturn);
+  });
+
+  it('Candy Shop Medal Maze: the BIG WIN at the end pockets, the WIN in the middle, and perfect timing as the best return', () => {
+    expect(FLOOR_RULES['coin-maze'].most).toBe(MAZE_MOST);
+    expect(FLOOR_RULES['coin-maze'].most).toBe(5);
+    expect(FLOOR_RULES['coin-maze'].labels['maze-big']).toEqual({ amounts: [MAZE_PAYS.big], feed: true });
+    expect(FLOOR_RULES['coin-maze'].labels['maze-win']).toEqual({ amounts: [MAZE_PAYS.win], feed: false });
+    // Every named win a play can make is one the floor believes.
+    const random = mazeSeeded(3);
+    for (let n = 0; n < 2_000; n++) {
+      const play = mazePlay(mazeDraw(random), [1, 1, 1, 1].slice(0, MAZE_GATES), true);
+      const label = mazeLabel(play);
+      if (label) expect(labelPays('coin-maze', label, play.won)).toBe(true);
+      expect(play.won).toBeLessThanOrEqual(FLOOR_RULES['coin-maze'].most);
+    }
+    // The rule is perfect timing, 121,275/131,072, rounded up; an everyday hand and blind presses bring back less.
+    const odds = mazeOdds();
+    expect(`${odds.perfect.back.num}/${odds.perfect.back.den}`).toBe('121275/131072');
+    expect(FLOOR_RULES['coin-maze'].bestReturn).toBe(0.9253);
+    expect(mazeValue(odds.typical.back)).toBeLessThan(FLOOR_RULES['coin-maze'].bestReturn);
+    expect(mazeValue(odds.blind.back)).toBeLessThan(mazeValue(odds.typical.back));
+  });
+
+  it('Video Keno: the 10-spot top on the last ball on the biggest bet, every spot caught named on every bet, and the best ticket as the best return', () => {
+    expect(FLOOR_RULES.keno.most).toBe(KENO_MOST);
+    expect(FLOOR_RULES.keno.most).toBe(100_000);
+    for (const n of KENO_SPOTS) for (const pay of KENO_PAYS[n]) expect(pay * KENO_TIMES * KENO_BET_MOST).toBeLessThanOrEqual(FLOOR_RULES.keno.most);
+    // Every spot caught, on five spots or more: its whole win on every bet, with the last ball's ×5 or without.
+    const all = KENO_SPOTS.filter((n) => n >= KENO_ALL_FROM).flatMap((n) => KENO_BETS.flatMap((bet) => [1, KENO_TIMES].map((times) => KENO_PAYS[n][n] * times * bet)));
+    expect(FLOOR_RULES.keno.labels['keno-all'].amounts).toEqual(sorted(all));
+    expect(FLOOR_RULES.keno.labels['keno-all'].feed).toBe(true);
+    // Every named win a game can make is one the floor believes.
+    const random = kenoSeeded(4);
+    for (let g = 0; g < 2_000; g++) {
+      const spots = kenoPick(5 + (g % 6), random);
+      const balls = kenoDraw(random);
+      // Every spot caught, now and then: the ticket is made of the balls drawn.
+      const ticket = g % 3 === 0 ? [...balls.slice(0, spots.length - 1), balls[19]].sort((a, b) => a - b) : spots;
+      const bet = KENO_BETS[g % KENO_BETS.length];
+      const won = kenoWin(ticket, balls, bet);
+      const label = kenoLabel(ticket, balls);
+      if (label) expect(labelPays('keno', label, won), `${ticket} ${won}`).toBe(true);
+      expect(won).toBeLessThanOrEqual(FLOOR_RULES.keno.most);
+    }
+    // The rule is the best ticket, one spot, at 9/10 exactly; every other ticket brings back less, and none less than 89.6%.
+    const odds = kenoOdds();
+    expect(`${odds.best.num}/${odds.best.den}`).toBe('9/10');
+    expect(FLOOR_RULES.keno.bestReturn).toBe(0.9);
+    for (const ticket of odds.tickets) {
+      expect(kenoValue(ticket.back)).toBeLessThanOrEqual(FLOOR_RULES.keno.bestReturn);
+      expect(kenoValue(ticket.back)).toBeGreaterThan(0.896);
+    }
+  });
+
+  it('Hot Spring Smart Ball: one, two and three lines, the most three, and perfect play as the best return', () => {
+    expect(FLOOR_RULES['smart-ball'].most).toBe(SMART_MOST);
+    expect(FLOOR_RULES['smart-ball'].most).toBe(100);
+    expect(FLOOR_RULES['smart-ball'].labels['smart-triple']).toEqual({ amounts: [SMART_PAYS[3]], feed: true });
+    expect(FLOOR_RULES['smart-ball'].labels['smart-double']).toEqual({ amounts: [SMART_PAYS[2]], feed: false });
+    expect(FLOOR_RULES['smart-ball'].labels['smart-line']).toEqual({ amounts: [SMART_PAYS[1]], feed: false });
+    // Every named win a play can make is one the floor believes, whatever strengths the marbles are shot at.
+    const random = smartSeeded(3);
+    for (let n = 0; n < 2_000; n++) {
+      const play = smartPlay(smartDraw(random), Array.from({ length: SMART_MARBLES }, (_, m) => (m + n) % 7));
+      const label = smartLabel(play);
+      if (label) expect(labelPays('smart-ball', label, play.won)).toBe(true);
+      expect(play.won).toBeLessThanOrEqual(FLOOR_RULES['smart-ball'].most);
+    }
+    // The rule is perfect play, 93.4555...%, rounded up; an everyday hand and blind shots bring back less.
+    const odds = PUBLISHED_SMART_BALL_ODDS;
+    expect(`${odds.perfect.back.num}/${odds.perfect.back.den}`).toBe('19416340307406796973/20776019874734407680');
+    expect(FLOOR_RULES['smart-ball'].bestReturn).toBe(0.9346);
+    expect(smartValue(odds.typical.back)).toBeLessThan(FLOOR_RULES['smart-ball'].bestReturn);
+    expect(smartValue(odds.blind.back)).toBeLessThan(smartValue(odds.typical.back));
   });
 
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
@@ -184,6 +551,41 @@ describe('named wins and the feed', () => {
     expect(labelPays('video-poker', 'double-up', 45)).toBe(false);
     expect(labelPays('slot-machine', 'constructor', 1)).toBe(false);
     expect(labelPays('roulette', 'seven3', 1_000)).toBe(false);
+    expect(labelPays('fishing', 'harbor-lord', 900)).toBe(true);
+    expect(labelPays('fishing', 'harbor-lord', 600)).toBe(false);
+    expect(labelPays('fishing', 'treasure', 1_000)).toBe(true);
+    expect(labelPays('fishing', 'treasure', 400)).toBe(false);
+    expect(labelPays('ball-bingo', 'full-card', 1_500)).toBe(true);
+    expect(labelPays('ball-bingo', 'full-card', 1_499)).toBe(false);
+    expect(labelPays('big-wheel', 'wheel-400', 39_600)).toBe(true);
+    expect(labelPays('big-wheel', 'wheel-400', 4_000)).toBe(true);
+    expect(labelPays('big-wheel', 'wheel-400', 401)).toBe(false);
+    expect(labelPays('big-wheel', 'wheel-bonus', 4 * 3 * 7)).toBe(true);
+    expect(labelPays('big-wheel', 'wheel-bonus', 7)).toBe(false);
+    expect(labelPays('high-low', 'ladder-top', 2_000)).toBe(true);
+    expect(labelPays('high-low', 'ladder-top', 200)).toBe(true);
+    expect(labelPays('high-low', 'ladder-top', 120)).toBe(false);
+    expect(labelPays('sic-bo', 'sicbo-triple', 181)).toBe(true);
+    expect(labelPays('sic-bo', 'sicbo-triple', 180)).toBe(false);
+    expect(labelPays('sic-bo', 'sicbo-any-triple', 31)).toBe(true);
+    expect(labelPays('sic-bo', 'sicbo-any-triple', 24_256)).toBe(false);
+    expect(labelPays('sugoroku', 'sugoroku-jp', 1_020)).toBe(true);
+    expect(labelPays('sugoroku', 'sugoroku-jp', 200)).toBe(true);
+    expect(labelPays('sugoroku', 'sugoroku-jp', 199)).toBe(false);
+    expect(labelPays('sugoroku', 'whale-ride', 70)).toBe(true);
+    expect(labelPays('sugoroku', 'whale-ride', 71)).toBe(false);
+    expect(labelPays('coin-maze', 'maze-big', 5)).toBe(true);
+    expect(labelPays('coin-maze', 'maze-big', 2)).toBe(false);
+    expect(labelPays('coin-maze', 'maze-win', 2)).toBe(true);
+    expect(labelPays('coin-maze', 'maze-win', 5)).toBe(false);
+    expect(labelPays('keno', 'keno-all', 250)).toBe(true);
+    expect(labelPays('keno', 'keno-all', 100_000)).toBe(true);
+    expect(labelPays('keno', 'keno-all', 251)).toBe(false);
+    expect(labelPays('smart-ball', 'smart-triple', 100)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-double', 20)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-line', 7)).toBe(true);
+    expect(labelPays('smart-ball', 'smart-line', 20)).toBe(false);
+    expect(labelPays('smart-ball', 'smart-triple', 7)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -195,5 +597,30 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('slot-machine', 50)).toBe(false);
     expect(feedWorthy('roulette', 360)).toBe(true);
     expect(feedWorthy('medal-pusher', 50, 'bowl')).toBe(false);
+    expect(feedWorthy('fishing', 300, 'harbor-lord')).toBe(true);
+    expect(feedWorthy('fishing', 10, 'treasure')).toBe(false);
+    expect(feedWorthy('fishing', 150)).toBe(true);
+    expect(feedWorthy('ball-bingo', 500, 'full-card')).toBe(true);
+    expect(feedWorthy('ball-bingo', 100)).toBe(false);
+    expect(feedWorthy('big-wheel', 400, 'wheel-400')).toBe(true);
+    expect(feedWorthy('big-wheel', 30, 'wheel-bonus')).toBe(false);
+    expect(feedWorthy('big-wheel', 400)).toBe(true);
+    expect(feedWorthy('high-low', 200, 'ladder-top')).toBe(true);
+    expect(feedWorthy('high-low', 240)).toBe(false);
+    expect(feedWorthy('high-low', 400)).toBe(true);
+    expect(feedWorthy('sic-bo', 181, 'sicbo-triple')).toBe(true);
+    expect(feedWorthy('sic-bo', 62, 'sicbo-any-triple')).toBe(false);
+    expect(feedWorthy('sic-bo', 300)).toBe(true);
+    expect(feedWorthy('sugoroku', 200, 'sugoroku-jp')).toBe(true);
+    expect(feedWorthy('sugoroku', 70, 'whale-ride')).toBe(false);
+    expect(feedWorthy('sugoroku', 300)).toBe(true);
+    expect(feedWorthy('coin-maze', 5, 'maze-big')).toBe(true);
+    expect(feedWorthy('coin-maze', 2, 'maze-win')).toBe(false);
+    expect(feedWorthy('keno', 250, 'keno-all')).toBe(true);
+    expect(feedWorthy('keno', 400)).toBe(false);
+    expect(feedWorthy('keno', 590)).toBe(true);
+    expect(feedWorthy('smart-ball', 100, 'smart-triple')).toBe(true);
+    expect(feedWorthy('smart-ball', 20, 'smart-double')).toBe(false);
+    expect(feedWorthy('smart-ball', 7, 'smart-line')).toBe(false);
   });
 });

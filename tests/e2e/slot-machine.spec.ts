@@ -6,6 +6,8 @@ import { PHYSICAL_STOPS, REELS, evaluateLine, type Line, type SymbolId } from '.
 import { NOTICE_KEY, ROUND_KEY, SLOT_GAME, parseRound } from '../../src/components/game/SlotMachine/medals';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { onPageError } from './pageErrors';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
 
 // Spins are random, so these checks read what was drawn and verify that the
@@ -40,8 +42,9 @@ async function medals(page: Page): Promise<number> {
 /** Presses SPIN once the machine takes bets (its medals read, the card here, the page hydrated). */
 async function spin(page: Page) {
   await expect(spinButton(page)).toBeEnabled({ timeout: 20_000 });
-  await spinButton(page).click();
-  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+  // An enabled SPIN can still be pressed before hydration has attached its handler: pressed again only while no spin
+  // has started, so never twice.
+  await pressUntil(spinButton(page), async () => (await reelWindow(page).getAttribute('data-spinning')) === 'true');
 }
 
 /** The next spins land on 7-7-7: virtual stop 0 of every reel is its 7. Put back with `unforce`. */
@@ -81,6 +84,18 @@ async function stat(page: Page, label: string): Promise<number> {
 }
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
+
+/** Stops the pages' clock (installed with `page.clock.install`) a moment from now: time moves on while the page is asked, so a moment that has gone by is asked again. */
+async function stopClock(page: Page): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 300);
+      return;
+    } catch (error) {
+      if (attempt >= 4 || !String(error).includes('past')) throw error;
+    }
+  }
+}
 
 test('the reels stop on the payline that is announced, and its win goes into the player’s medals', async ({ page }) => {
   await openSlots(page);
@@ -208,8 +223,13 @@ test('a spin under way when the page is reloaded is finished after the reload, a
 
   await page.reload();
   await arrived(page);
-  // The page going paid it, once; the tab comes back and is shown the spin it left, reels and all.
+  // The page going paid it, once; the tab comes back and is shown the spin it left, reels and all. While they turn
+  // again, the 1,000 are not on the meters yet: the reels have not stopped on the line that won them.
   await expect(page.getByTestId('slot-medals')).toHaveAttribute('data-loaded', 'true', { timeout: 20_000 });
+  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true', { timeout: 15_000 });
+  expect(await bankBalance(page)).toBe(WELCOME + 999);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1));
+  expect(await led(page, 'slot-medals-led')).toBe(WELCOME - 1);
   await expect(page.getByTestId('slot-resumed')).toHaveText('The spin left under way has been finished.', { timeout: 15_000 });
   expect(await settledLine(page)).toEqual(['seven', 'seven', 'seven']);
   expect(await paylineOnScreen(page)).toEqual(['seven', 'seven', 'seven']);
@@ -227,6 +247,44 @@ test('a spin under way when the page is reloaded is finished after the reload, a
   await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME + 999));
   expect(await stat(page, 'Spins')).toBe(0);
   expect(await bankBalance(page)).toBe(WELCOME + 999);
+});
+
+test('a jackpot paid while the medal center borrowed the medals is not on the meters before the reels stop, and runs in once they have', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  // The pages' clock is the test's: it runs as usual until it is stopped, and then the reels stay where they are while
+  // the medal center borrows the medals, however long that takes.
+  await page.clock.install();
+  // The medal center is open in another tab first, so that the day's bonus is there to take while the reels spin.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openSlots(page);
+  await force(page);
+  await spin(page);
+  await unforce(page);
+  await stopClock(page);
+  // The bonus is taken while the reels spin: the medal center borrows the medals for a moment, and the round is paid as
+  // they go. The 1,000 are the player's at once, and once only.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await expect.poll(async () => parseRound(await page.evaluate((key) => window.localStorage.getItem(key), ROUND_KEY))?.paid).toBe(true);
+  const bonus = (await bankBalance(page)) - (WELCOME - 1 + 1000);
+  expect(bonus).toBeGreaterThan(0);
+  // Still spinning: the meters have the bonus, which is no win of the machine's, and not the 1,000.
+  await expect(reelWindow(page)).toHaveAttribute('data-spinning', 'true');
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + bonus));
+  await expect.poll(() => led(page, 'slot-medals-led')).toBe(WELCOME - 1 + bonus);
+  expect(await led(page, 'slot-win-led')).toBe(0);
+  // Time goes on, and the reels stop on 7-7-7: the 1,000 show, and run into the medals.
+  await page.clock.resume();
+  expect(await settledLine(page)).toEqual(['seven', 'seven', 'seven']);
+  await expect(page.getByTestId('slot-medals')).toHaveText(count(WELCOME - 1 + bonus + 1000));
+  expect(await led(page, 'slot-medals-led')).toBeLessThan(WELCOME - 1 + bonus + 1000);
+  await expect.poll(() => led(page, 'slot-medals-led'), { timeout: 4_000 }).toBe(WELCOME - 1 + bonus + 1000);
+  // Paid once: the medal center's borrowing put the 1,000 in, and the reels stopping put nothing more.
+  expect(await bankBalance(page)).toBe(WELCOME - 1 + bonus + 1000);
+  await hub.close();
 });
 
 test('the medals are played at one machine at a time: another tab takes them, this one waits, and Play here brings them back', async ({ page, context }) => {
@@ -297,7 +355,7 @@ test('the reset at the medal center starts the machine over with a new member’
 test('says once that the machine plays with the player’s medals now, and fits a phone in both languages', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // Whatever a device kept under the machine's names before (it never saved its old count) is passed over.
   await page.addInitScript(() => {
     if (window.localStorage.getItem('slot-machine-seeded') !== null) return;

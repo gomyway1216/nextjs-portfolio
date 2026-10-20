@@ -9,6 +9,8 @@ import { JACKPOT_START, JACKPOT_STEP, spinValue, tierChance, type Tier } from '.
 import { MAX_STOCK } from './session';
 import { AIM_COLORS, AIM_IDS, AIM_MARKERS, PACES, WARM_UP, frontShare, simulate, steadyReturn, type Pace, type SimResult } from './sim';
 import styles from './MedalPusher.module.css';
+import selectStyles from '../common/select.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 /**
  * Medals per aim on offer. The field is simulated step by step on the main
@@ -90,7 +92,7 @@ export const SimTab = () => {
             <label htmlFor={paceId} className={styles.fieldLabel}>
               {t.paceLabel}
             </label>
-            <select id={paceId} className={styles.select} value={pace} disabled={busy} onChange={(event) => setPace(Number(event.target.value) as Pace)}>
+            <select id={paceId} className={`${styles.select} ${selectStyles.select}`} value={pace} disabled={busy} onChange={(event) => setPace(Number(event.target.value) as Pace)}>
               {PACES.map((option) => (
                 <option key={option} value={option}>
                   {t.paceOption(option)}
@@ -102,7 +104,7 @@ export const SimTab = () => {
             <label htmlFor={medalsId} className={styles.fieldLabel}>
               {t.medalsLabel}
             </label>
-            <select id={medalsId} className={styles.select} value={medals} disabled={busy} onChange={(event) => setMedals(Number(event.target.value))}>
+            <select id={medalsId} className={`${styles.select} ${selectStyles.select}`} value={medals} disabled={busy} onChange={(event) => setMedals(Number(event.target.value))}>
               {MEDAL_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {fmt(option)}
@@ -124,7 +126,7 @@ export const SimTab = () => {
       {run && (
         <section className={styles.panelBox} data-testid="pusher-sim-result">
           <h2 className={styles.blockTitle}>{t.resultTitle(fmt(run.medals), run.pace)}</h2>
-          <div className={styles.tableWrap}>
+          <ScrollArea className={styles.tableWrap}>
             <table className={styles.oddsTable} data-testid="pusher-sim-table">
               <caption className={styles.srOnly}>{t.simCaption}</caption>
               <thead>
@@ -179,7 +181,7 @@ export const SimTab = () => {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollArea>
           <ul className={styles.facts}>
             {t.simNotes(exactPerSpin.toFixed(2), MAX_STOCK, JACKPOT_STEP).map((note, index) => (
               <li key={index}>{note}</li>
@@ -232,7 +234,7 @@ export const SimTab = () => {
           <div className={styles.chartBlock}>
             <h3 className={styles.chartTitle}>{t.slotCheckTitle}</h3>
             <p className={styles.note}>{t.slotCheckIntro(fmt(totalSpins))}</p>
-            <div className={styles.tableWrap}>
+            <ScrollArea className={styles.tableWrap}>
               <table className={styles.oddsTable} data-testid="pusher-sim-slot">
                 <caption className={styles.srOnly}>{t.slotCheckCaption}</caption>
                 <thead>
@@ -264,7 +266,7 @@ export const SimTab = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollArea>
           </div>
         </section>
       )}

@@ -5,8 +5,13 @@ import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { WELCOME, rowOf, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { betStep, dealAndSettle, dealButton, firstBet, handOnTable, medalsShown, onTable, openBaccarat, spot } from './baccaratPage';
-import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { bankBalance, bankWritten, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
+import { quietFloor } from './quietFloor';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Baccarat on the medal floor: it plays with the player's medals from the Medal Game Center. These check the medals
 // (a bet takes them at the deal, a win puts them back, once), the card that one tab at a time holds, the reset, a
@@ -26,7 +31,7 @@ test('plays with the medals from the Medal Game Center: a bet takes them at the 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
 
   // The floor has the table open, with a way in.
   await openCenter(page);
@@ -84,6 +89,7 @@ test('the Play link on the floor walks straight to the table, which plays with t
   await openCenter(page);
   await page.getByTestId('center-play-baccarat').click();
   await expect(page).toHaveURL(/\/games\/baccarat$/);
+  await arrived(page);
   await expect(page.getByTestId('baccarat-counter')).toHaveAttribute('data-loaded', 'true');
   await expect.poll(() => medalsShown(page)).toBe(WELCOME);
   await firstBet(page, /^Banker \(1:1/);
@@ -138,6 +144,7 @@ test('a hand dealt just before a reload is finished, not refunded, and its medal
 
 test('a hand left unpaid by a page that was killed mid-deal is paid by the next one, once', async ({ page }) => {
   await openCenter(page);
+  await bankWritten(page);
   // As a page killed mid-deal leaves it: the stake taken from the medals, and the hand written down unpaid.
   const ledger = (await storedBank(page))!;
   const after = take(ledger, 10)!;
@@ -204,7 +211,7 @@ test('starts over after the reset at the Medal Game Center: the medals are a new
   await openBaccarat(page);
   await expect.poll(() => medalsShown(page)).toBe(WELCOME);
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(0);
-  await expect(page.getByTestId('shoe-info')).toHaveText('A fresh eight-deck shoe is shuffled on the first deal.');
+  await expect(page.getByTestId('shoe-info')).toHaveText('New shoeEight decks, shuffled on the first deal');
   await expect(page.getByTestId('baccarat-message')).toHaveText('Your medals were reset at the Medal Game Center, so this table starts over with a new shoe.');
   // Written down as started over on this device, once.
   await expect.poll(async () => {
@@ -220,9 +227,10 @@ test('starts over after the reset at the Medal Game Center: the medals are a new
 
 test('opens with old or damaged saved state without an error, and pays nothing from it', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // The player's medals, then damaged saved state of the table's beside them.
   await openCenter(page);
+  await bankWritten(page);
   await page.evaluate(
     ([tableKey, coup]) => {
       window.localStorage.setItem(tableKey, '{"v":1,"mode":"ez","shoe":{"decks":8,"cards":"A♠');
@@ -236,7 +244,7 @@ test('opens with old or damaged saved state without an error, and pays nothing f
   await page.waitForTimeout(1_000);
   expect(await medalsShown(page)).toBe(WELCOME);
   expect(await bankBalance(page)).toBe(WELCOME);
-  await expect(page.getByTestId('shoe-info')).toHaveText('A fresh eight-deck shoe is shuffled on the first deal.');
+  await expect(page.getByTestId('shoe-info')).toHaveText('New shoeEight decks, shuffled on the first deal');
   await expect(page.locator('[data-road="bead"] [data-cell]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

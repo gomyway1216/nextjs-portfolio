@@ -39,11 +39,27 @@ export interface CenterStrings {
   // The floor
   floorTitle: string;
   floorLead: string;
-  open: string;
   soon: string;
   play: string;
-  playsFromBank: string;
   soonNote: string;
+  // The machines' plates
+  /** The sticker on a machine new to the floor, and what it says to a screen reader. */
+  newBadge: string;
+  newSay: string;
+  /** The sticker on a machine linked to the floor jackpot, and what it says to a screen reader. */
+  jpBadge: string;
+  jpSay: string;
+  /** A machine's best return, as its Odds tab publishes it. */
+  bestReturn: (percent: string) => string;
+  /** The return of a machine every play of which brings back a figure in a range (each race of the horse race). */
+  returnRange: (least: string, most: string) => string;
+  /** How many machines stand in a corner. */
+  machineCount: (count: number) => string;
+  /** The key to the plates, under the floor's lead. */
+  legendTitle: string;
+  legendJp: string;
+  legendNew: string;
+  legendReturn: string;
   // How the bank works
   rulesTitle: string;
   rules: string[];
@@ -81,7 +97,7 @@ const en: CenterStrings = {
   owed: (count) => `${count} medals short: two devices played the same medals at once. Your next wins pay it back.`,
   memberGuest: 'Guest',
   memberAccount: 'Member',
-  memberChecking: 'Looking for your medals…',
+  memberChecking: 'Checking…',
   where: {
     device: 'Kept on this device.',
     account: 'Kept on your account, and on every device you sign in on.',
@@ -100,11 +116,20 @@ const en: CenterStrings = {
   myPageNote: 'Your history and records at every machine',
   floorTitle: 'THE FLOOR',
   floorLead: 'Every open machine plays with your medals, and the medals it wins come straight back to you.',
-  open: 'OPEN',
   soon: 'COMING SOON',
-  play: 'Play',
-  playsFromBank: 'Plays with your medals.',
+  play: 'PLAY',
   soonNote: 'These casino games are coming onto the medal floor one by one. Until each does, it keeps its own chips on its own page, apart from your medals.',
+  newBadge: 'NEW',
+  newSay: 'New on the floor.',
+  jpBadge: 'FLOOR JP',
+  jpSay: 'Linked to the floor jackpot.',
+  bestReturn: (percent) => `Best return ${percent}`,
+  returnRange: (least, most) => `Return ${least}–${most}`,
+  machineCount: (count) => (count === 1 ? '1 machine' : `${count} machines`),
+  legendTitle: 'On the plates',
+  legendJp: 'linked to the floor jackpot',
+  legendNew: 'new on the floor',
+  legendReturn: 'Best return: the medals a machine brings back for every 100 played in the long run, at the best play a player can actually make.',
   rulesTitle: 'ABOUT YOUR MEDALS',
   rules: [
     'Every medal you drop at a machine comes out of your medals, and every medal you win is added to them as it lands. Nothing is left behind at the machine.',
@@ -136,7 +161,7 @@ const ja: CenterStrings = {
   owed: (count) => `${count}枚足りません。2つの端末で同じメダルを同時に遊んだためです。次に勝ったメダルで埋まります。`,
   memberGuest: 'ゲスト',
   memberAccount: '会員',
-  memberChecking: 'メダルを確認しています…',
+  memberChecking: '確認中…',
   where: {
     device: 'この端末に保存しています。',
     account: 'アカウントに保存しています。サインインしたどの端末でも使えます。',
@@ -150,16 +175,25 @@ const ja: CenterStrings = {
   outAt: '{games}で、まだメダルが勝負に出ています。そこで勝負を終えるとメダルが戻ります。無料のメダルは、どこにもメダルが残っていないときにもらえます。',
   outJoin: '、',
   sayRefill: (medals) => `メダルが${medals}枚増えました。`,
-  sayBonus: (medals) => `デイリーボーナス: メダルが${medals}枚増えました。`,
+  sayBonus: (medals) => `デイリーボーナス：メダルが${medals}枚増えました。`,
   myPage: 'マイページ',
   myPageNote: '持ちメダルの履歴と、各マシンの記録',
   floorTitle: 'フロア',
   floorLead: '遊べるマシンは持ちメダルで遊べ、勝ったメダルはそのまま持ちメダルに加わります。',
-  open: '営業中',
   soon: '準備中',
   play: '遊ぶ',
-  playsFromBank: '持ちメダルで遊べます。',
   soonNote: 'これらのカジノゲームは、順番にメダルフロアに入る予定です。それまでは各ゲームのページで、メダルとは別のそのゲームのチップで遊びます。',
+  newBadge: '新台',
+  newSay: '新台です。',
+  jpBadge: 'JP対象',
+  jpSay: 'フロアジャックポットの対象です。',
+  bestReturn: (percent) => `最高還元率${percent}`,
+  returnRange: (least, most) => `還元率${least}〜${most}`,
+  machineCount: (count) => `${count}台`,
+  legendTitle: '台の見かた',
+  legendJp: 'フロアジャックポットの対象',
+  legendNew: '新しく入った台',
+  legendReturn: '最高還元率：実際にできるいちばん良い遊び方で、遊んだメダル100枚につき長い目で見て戻ってくる枚数です。',
   rulesTitle: 'メダルについて',
   rules: [
     'マシンに入れたメダルは持ちメダルから減り、勝ったメダルは落ちたそばから持ちメダルに加わります。マシンに残しておくメダルはありません。',

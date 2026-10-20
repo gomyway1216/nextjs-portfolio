@@ -5,7 +5,9 @@ import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { TABLE_KEY, parseTable, unreadKey } from '../../src/components/game/Craps/medalTable';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
 import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // Random rolls are read back from the table and checked against the engine;
@@ -51,14 +53,16 @@ async function rollAndSettle(page: Page): Promise<Dice> {
   return [Number(m![1]), Number(m![2])];
 }
 
+/**
+ * The next roll comes up `dice`: the two numbers ROLL draws (1 + floor(r × 6) = face, so r = (face − 0.5) / 6), served
+ * only to the press that rolls (rigPresses). The page's other callers of Math.random get real ones: on the live site the
+ * floor's live strip draws one of its own a moment after the table is playable, and a plain queue gave it the first die.
+ */
 async function forceNextRoll(page: Page, dice: Dice) {
-  // 1 + floor(r × 6) = face  →  r = (face − 0.5) / 6
-  await page.evaluate(([a, b]) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const queue = [(a - 0.5) / 6, (b - 0.5) / 6];
-    Math.random = () => (queue.length ? queue.shift()! : w.__random!());
-  }, dice);
+  await rigPresses(
+    page,
+    dice.map((face) => (face - 0.5) / 6),
+  );
 }
 
 /** The table this browser keeps for a guest. */
@@ -269,7 +273,7 @@ test('a reset at the Medal Game Center clears the table, whose bets went with th
 test('says once that the table plays with medals now, at a phone’s width, with the note that medals are not money', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCraps(page);
   const notice = page.getByTestId('craps-notice');
   await expect(notice).toBeVisible();
@@ -305,7 +309,7 @@ test('a craps table kept under the table’s name that cannot be read does not s
     [TABLE_KEY, old],
   );
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openCraps(page);
   await expect(medalsShown(page)).toHaveText(String(WELCOME));
   await expect(onTable(page)).toHaveText('0');
@@ -423,26 +427,65 @@ test('the layout is played with the keyboard too', async ({ page }) => {
   await expect(field).toHaveAccessibleName(/10 medals on it/);
 });
 
-test('the throw is heard with the sound switched on, and the switch is kept', async ({ page }) => {
+test('the sound switch is the floor’s: off on every visit, the throw heard once it is on, and Quick roll still kept', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
+  // A device where the old switch was left on, and every sound the page starts counted, with its length (a headless
+  // browser has nothing to listen with). The throw's knocks and clicks are cut from one second of noise.
+  await page.addInitScript((key) => {
+    if (window.sessionStorage.getItem('seeded') === null) {
+      window.localStorage.setItem(key, JSON.stringify({ sound: true, quick: false }));
+      window.sessionStorage.setItem('seeded', '1');
+    }
+    const w = window as unknown as { __sounds: number[] };
+    w.__sounds = [];
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+      w.__sounds.push(this.buffer?.duration ?? 0);
+      return start.apply(this, args);
+    };
+  }, 'craps-throw'); // PlayTab's THROW_KEY
+  const heard = () => page.evaluate(() => (window as unknown as { __sounds: number[] }).__sounds);
   await openCraps(page);
+  const toggle = page.getByTestId('craps-sound');
+  await expect(toggle).toHaveAccessibleName('Sound off');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveText('🔈 Sound off');
   await firstBet(page);
-  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'false');
-  await page.getByTestId('craps-sound').click();
-  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('craps-sound')).toHaveText('Sound: on');
-  await forceNextRoll(page, [6, 5]);
-  expect(await rollAndSettle(page)).toEqual([6, 5]);
+  // A throw with the sound off is not heard.
+  await forceNextRoll(page, [2, 4]);
+  await rollAndSettle(page);
+  expect(await heard()).toEqual([]);
+
+  await toggle.click();
+  await expect(toggle).toHaveAccessibleName('Sound on');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await forceNextRoll(page, [5, 5]);
+  await rollAndSettle(page);
+  await expect.poll(async () => (await heard()).filter((d) => d === 1).length).toBeGreaterThan(0);
+
+  // Quick roll is still the device's: kept over a reload. The sound is off again.
+  await page.getByTestId('craps-quick').click();
+  await expect(page.getByTestId('craps-quick')).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
   await arrived(page);
-  await expect(page.getByTestId('craps-sound')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('craps-counter')).toHaveAttribute('data-loaded', 'true');
+  await expect(page.getByTestId('craps-quick')).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveAccessibleName('Sound off');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   expect(errors).toEqual([]);
+});
+
+test('in Japanese the switch says 音なし, as everywhere on the floor', async ({ page }) => {
+  await openCraps(page, 'ja');
+  await expect(page.getByTestId('craps-sound')).toHaveText('🔈 音なし');
+  await page.getByTestId('craps-sound').click();
+  await expect(page.getByTestId('craps-sound')).toHaveText('🔊 音あり');
 });
 
 test('with the sound on a medal is heard going down, the dice land on a win to a fanfare, and the counter counts the medals in', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A headless browser has nothing to listen with: every sound the page starts is noted instead, with its length
   // (as in medal-machine-sound.spec.ts). The floor's sounds are the medal set down (0.16 s), the fanfare (0.9 s) and the
   // chirp of a medal counted in (under 0.05 s); the throw's own knocks and clicks are cut from one second of noise.

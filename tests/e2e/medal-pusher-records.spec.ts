@@ -14,8 +14,10 @@ import {
   viewOf,
 } from '../../src/components/game/MedalPusher/records';
 import { START_CREDITS } from '../../src/components/game/MedalPusher/session';
-import { bankBalance, resetAtCenter } from './medalCenterPage';
+import { bankBalance, openCenter, resetAtCenter } from './medalCenterPage';
 import { settled } from './medalPusherPage';
+import { onPageError } from './pageErrors';
+import { quietFloor } from './quietFloor';
 
 // The Medal Pusher's daily bonus and record book. The machine itself is covered in medal-pusher.spec.ts; these
 // check what is the player's own: the stamp card, the Records tab, and that neither gets in the machine's way.
@@ -60,7 +62,7 @@ const sideways = (page: Page) => page.evaluate(() => ({ scroll: document.documen
 /** Collects what would show that the page the server sent and the page in the browser disagreed, and any error nobody caught. */
 function watchForTrouble(page: Page): string[] {
   const trouble: string[] = [];
-  page.on('pageerror', (error) => trouble.push(`uncaught: ${error.message}`));
+  onPageError(page, (error) => trouble.push(`uncaught: ${error.message}`));
   page.on('console', (message) => {
     const text = message.text();
     if (/hydrat|Minified React error #4(18|23|25)/i.test(text)) trouble.push(`${message.type()}: ${text}`);
@@ -176,7 +178,7 @@ test('the bonus plate and the Records tab fit a phone, cover nothing, and read i
   await openGame(page, 'ja');
   await expect(bonus(page)).toHaveAttribute('data-state', 'ready');
   await expect(bonus(page)).toContainText('デイリーボーナス');
-  await expect(machine(page).getByTestId('pusher-bonus-status')).toHaveText(`1日目のボーナスを受け取れます: ${BONUS_CARD[0]}枚`);
+  await expect(machine(page).getByTestId('pusher-bonus-status')).toHaveText(`1日目のボーナス、${BONUS_CARD[0]}枚を受け取れます。`);
   await expect(page.getByRole('tab', { name: '記録' })).toBeVisible();
   await page.getByRole('tab', { name: '記録' }).click();
   await expect(records(page)).toContainText('デイリースタンプカード');
@@ -411,4 +413,33 @@ test('two tabs of the game pay a day’s bonus once between them, and both end u
   await expect(takeButton(other)).toHaveCount(0);
   const book = await savedBook(other);
   expect(book ? viewOf(book).total.claims : -1).toBe(1);
+});
+
+test('bonuses taken at the medal center are stamped on the cabinet’s card, and its board says it counts only its own', async ({ page }) => {
+  test.setTimeout(60_000);
+  await quietFloor(page.context());
+  await page.setViewportSize({ width: 375, height: 812 });
+  // Two evenings in Japan, the bonus taken at the medal center's counter each time, never at the cabinet.
+  await page.clock.install({ time: new Date('2026-10-12T11:00:00Z') });
+  for (const evening of [0, 1]) {
+    if (evening > 0) await page.clock.setSystemTime(new Date('2026-10-13T11:00:00Z'));
+    await openCenter(page, 'ja');
+    await expect(page.getByTestId('pusher-bonus-take')).toBeVisible();
+    await page.getByTestId('pusher-bonus-take').click();
+    await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  }
+  await openGame(page, 'ja');
+  await page.getByRole('tab', { name: '記録' }).click();
+  // There is one card, the medal center's: both days are stamped on it, and it says where a bonus can be taken.
+  const card = records(page).getByTestId('pusher-card');
+  await expect(card.locator('li[data-stamped="true"]')).toHaveCount(2);
+  await expect(card).toContainText('カードは1枚だけで、メダルゲームセンターで受け取っても、この台で受け取っても押されます。');
+  // The board is the cabinet's: it took no bonus itself, and its rows say that what they count is the cabinet's.
+  const board = records(page).getByTestId('pusher-records-board');
+  await expect(board.getByRole('heading', { name: 'この台で遊んだ日' })).toBeVisible();
+  const claims = records(page).getByTestId('pusher-record-claims');
+  await expect(claims).toHaveText('0回');
+  await expect(claims.locator('xpath=preceding-sibling::dt')).toHaveText('この台で受け取ったボーナス');
+  await expect(records(page).getByTestId('pusher-record-bonus').locator('xpath=preceding-sibling::dt')).toHaveText('この台で受け取ったボーナスのメダル');
+  await expect(records(page).locator('[data-achievement="week"]')).toContainText('この台で7日続けて遊ぶ。');
 });

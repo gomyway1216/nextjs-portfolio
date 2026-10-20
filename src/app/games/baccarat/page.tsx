@@ -4,5 +4,10 @@ import { buildGameMetadata } from '@/lib/games/gameMetadata';
 export const metadata = buildGameMetadata('baccarat');
 
 export default function BaccaratPage() {
-  return <BaccaratForPlayer />;
+  // The page's main landmark: everything of the page but the site's toolbar.
+  return (
+    <main>
+      <BaccaratForPlayer />
+    </main>
+  );
 }

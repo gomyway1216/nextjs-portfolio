@@ -9,9 +9,10 @@ import { ACHIEVEMENT_IDS, lifetimeReturn, viewOf } from '../MedalPusher/records'
 import { useRecords, type RecordsState } from '../MedalPusher/recordsStore';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useBank, useMedalHistory, type BankState } from './bank';
-import { CENTER, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
+import { CENTER, FLOOR_JACKPOT, HISTORY_LIMITS, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
 import type { HistoryState } from './historyStore';
 import { COUNTER_PLACES, FLOOR, MedalStack } from './MedalCenter';
+import { DottedParts } from './KeysHint';
 import { getMyPageStrings, type MyPageStrings } from './myPageStrings';
 import { MEDAL_CENTER_PATH, MEDAL_PUSHER_PATH } from './paths';
 import styles from './MyPage.module.css';
@@ -48,6 +49,11 @@ const formatsFor = (language: 'en' | 'ja'): Formats => {
 export interface MyPageProps {
   /** Where a guest goes to sign in, so that the history is kept on an account. */
   signInHref?: string;
+  /**
+   * Whether the site expects a member, before it knows who is playing (AuthProvider's `presumedSignedIn`). Until the
+   * medals have been read, everyone else is shown the counter a guest will see, so it does not move when they are.
+   */
+  presumedMember?: boolean;
 }
 
 /**
@@ -56,17 +62,22 @@ export interface MyPageProps {
  * Medal Pusher's own record book, and the history of what happened to the
  * medals. A guest sees this device's; a member, the account's.
  */
-export const MyPage = ({ signInHref }: MyPageProps) => <MyPageView bank={useBank()} history={useMedalHistory()} book={useRecords()} signInHref={signInHref} />;
+export const MyPage = ({ signInHref, presumedMember }: MyPageProps) => (
+  <MyPageView bank={useBank()} history={useMedalHistory()} book={useRecords()} signInHref={signInHref} presumedMember={presumedMember} />
+);
 
 /** The page for a given state of the medals, their history and the Medal Pusher's book. */
-export const MyPageView = ({ bank, history, book, signInHref }: { bank: BankState; history: HistoryState; book: RecordsState } & MyPageProps) => {
+export const MyPageView = ({ bank, history, book, signInHref, presumedMember = false }: { bank: BankState; history: HistoryState; book: RecordsState } & MyPageProps) => {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getMyPageStrings(language);
   const f = formatsFor(language);
-  const nameOf = (game: string): string => (game === CENTER ? t.centerName : translate(`games.${game}.title`));
+  const nameOf = (game: string): string => (game === CENTER ? t.centerName : game === FLOOR_JACKPOT ? t.floorName : translate(`games.${game}.title`));
   const account = bank.owner !== null;
-  const member = !bank.loaded ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
+  // Until the medals have been read: a guest's counter, unless a member is expected (most visitors are guests, and
+  // their counter then stays as it is when the medals come in).
+  const guest = bank.loaded ? !account : !presumedMember;
+  const member = !bank.loaded && presumedMember ? t.memberChecking : account ? t.memberAccount : t.memberGuest;
   const doc = history.loaded ? history.history : null;
   const since = doc && doc.since > 0 ? f.date(doc.since) : null;
 
@@ -120,8 +131,8 @@ export const MyPageView = ({ bank, history, book, signInHref }: { bank: BankStat
             <span className={styles.unit}>{t.unit}</span>
           </p>
           <p className={styles.where} data-testid="mypage-where" data-where={history.where} data-kept={history.kept}>
-            {account ? t.whose.account : t.whose.guest} {history.kept ? t.where[history.where] : t.notKept}
-            {bank.loaded && !account && signInHref && (
+            {guest ? t.whose.guest : t.whose.account} {history.kept ? t.where[!bank.loaded && presumedMember ? 'checking' : history.where] : t.notKept}
+            {guest && signInHref && (
               <>
                 {' '}
                 <a className={styles.link} href={signInHref} data-testid="mypage-sign-in">
@@ -259,6 +270,7 @@ const RecordsSection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
           </div>
         </dl>
       </div>
+      <FloorJackpotCard row={byGame.get(FLOOR_JACKPOT) ?? null} t={t} f={f} />
       {played.length > 0 && (
         <ul className={styles.games}>
           {played.map(({ id, path }) => (
@@ -288,6 +300,35 @@ const RecordsSection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
         </div>
       )}
     </section>
+  );
+};
+
+/** The floor jackpot's own records, once one has been won: how many, how many medals, the biggest, the last. */
+const FloorJackpotCard = ({ row, t, f }: { row: GameRecord | null; t: MyPageStrings; f: Formats }) => {
+  if (!row || row.rounds === 0) return null;
+  return (
+    <div className={styles.totals} data-testid="mypage-floor-jackpot">
+      <h3 className={styles.cardTitle}>{t.floorTitle}</h3>
+      <p className={styles.sectionLead}>{t.floorLead}</p>
+      <dl className={styles.figures}>
+        <div>
+          <dt>{t.floorWins}</dt>
+          <dd data-testid="mypage-floor-wins">{f.n(row.rounds)}</dd>
+        </div>
+        <div>
+          <dt>{t.floorMedals}</dt>
+          <dd data-testid="mypage-floor-medals">{f.n(row.won)}</dd>
+        </div>
+        <div>
+          <dt>{t.floorBiggest}</dt>
+          <dd data-testid="mypage-floor-biggest">{f.n(row.top)}</dd>
+        </div>
+        <div>
+          <dt>{t.floorLast}</dt>
+          <dd data-testid="mypage-floor-last">{row.last > 0 ? f.date(row.last) : t.none}</dd>
+        </div>
+      </dl>
+    </div>
   );
 };
 
@@ -404,6 +445,8 @@ function whatHappened(entry: Entry, t: MyPageStrings, f: Formats): string {
       return t.refill(f.n(entry.won));
     case 'reset':
       return t.reset(f.n(entry.bet), f.n(entry.won));
+    case 'floor':
+      return t.floorJackpot(f.n(entry.won));
   }
 }
 
@@ -433,7 +476,11 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
   }
   // The days the entries no longer reach, by their totals.
   const oldest = entries.length > 0 ? localDayOf(entries[entries.length - 1].t) : null;
-  const older = doc ? dayTotals(doc).filter((total) => oldest !== null && total.day < oldest) : [];
+  const totals = doc ? dayTotals(doc) : [];
+  const older = totals.filter((total) => oldest !== null && total.day < oldest);
+  // Once entries have been let go (only the latest are kept), the oldest day the list reaches may have lost its
+  // earlier things: what it lists of that day is only the rest. So the whole day's totals are said under it.
+  const cut = oldest !== null && (entries.length >= HISTORY_LIMITS.entries || older.length > 0) ? (totals.find((total) => total.day === oldest) ?? null) : null;
 
   return (
     <section id="mypage-history" className={styles.history} aria-labelledby="mypage-history-title" data-testid="mypage-history" data-loaded={doc !== null} data-entries={entries.length}>
@@ -469,6 +516,14 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
               </li>
             ))}
           </ol>
+          {cut && group.day === cut.day && listed.length === entries.length && (
+            <p className={styles.dayCut} data-testid="mypage-day-cut">
+              <span>{t.dayCut}</span>{' '}
+              <span>
+                <DottedParts text={t.dayLine(f.n(cut.bet), f.n(cut.won), f.n(cut.free), f.n(cut.rounds))} />
+              </span>
+            </p>
+          )}
         </div>
       ))}
       {entries.length > count && (
@@ -482,12 +537,14 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
       {older.length > 0 && (
         <div className={styles.older} data-testid="mypage-older">
           <h3 className={styles.cardTitle}>{t.olderTitle}</h3>
-          <p className={styles.sectionLead}>{t.olderLead}</p>
+          <p className={styles.sectionLead}>{t.olderLead(HISTORY_LIMITS.days)}</p>
           <ul className={styles.olderList}>
             {older.map((total) => (
               <li key={total.day} className={styles.olderDay}>
                 <strong>{f.day(noonOf(total.day))}</strong>
-                <span>{t.dayLine(f.n(total.bet), f.n(total.won), f.n(total.free), f.n(total.rounds))}</span>
+                <span>
+                  <DottedParts text={t.dayLine(f.n(total.bet), f.n(total.won), f.n(total.free), f.n(total.rounds))} />
+                </span>
                 {total.left !== null && <span className={styles.entryLeft}>{t.dayLeft(f.n(total.left))}</span>}
               </li>
             ))}

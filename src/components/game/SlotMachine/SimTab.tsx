@@ -15,6 +15,7 @@ import { ConvergenceChart, Histogram, TrajectoryChart } from './charts';
 import { getStrings } from './i18n';
 import { BET_OPTIONS } from './medals';
 import styles from './SlotMachine.module.css';
+import selectStyles from '../common/select.module.css';
 
 const ODDS = analyzeMachine();
 export const CONVERGENCE_SPINS = [10_000, 100_000, 1_000_000, 10_000_000] as const;
@@ -95,14 +96,14 @@ export const SimTab = () => {
   return (
     <div className={styles.simLayout}>
       <section className={styles.panel} aria-labelledby="slot-convergence-title">
-        <h3 id="slot-convergence-title" className={styles.blockTitle}>
+        <h2 id="slot-convergence-title" className={styles.blockTitle}>
           {t.convergenceTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.convergenceIntro}</p>
         <div className={styles.formRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.spinsLabel}</span>
-            <select className={styles.input} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={busy}>
+            <select className={`${styles.input} ${selectStyles.select}`} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={busy}>
               {CONVERGENCE_SPINS.map((n) => (
                 <option key={n} value={n}>
                   {fmt(n)}
@@ -143,9 +144,9 @@ export const SimTab = () => {
       </section>
 
       <section className={styles.panel} aria-labelledby="slot-sessions-title">
-        <h3 id="slot-sessions-title" className={styles.blockTitle}>
+        <h2 id="slot-sessions-title" className={styles.blockTitle}>
           {t.sessionsTitle}
-        </h3>
+        </h2>
         <p className={styles.note}>{t.sessionsIntro}</p>
         <div className={styles.formGrid}>
           <label className={styles.field}>
@@ -163,7 +164,7 @@ export const SimTab = () => {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{t.betLabel}</span>
             <select
-              className={styles.input}
+              className={`${styles.input} ${selectStyles.select}`}
               value={session.bet}
               onChange={(e) => setSession({ ...session, bet: Number(e.target.value) })}
               disabled={busy}
@@ -229,9 +230,9 @@ export const SimTab = () => {
                 <span className={styles.statNote}>{t.expectedFinalNote(pct(ODDS.houseEdge, 2))}</span>
               </div>
             </div>
-            <h4 className={styles.subTitle}>{t.finalDist}</h4>
+            <h3 className={styles.subTitle}>{t.finalDist}</h3>
             <Histogram values={summary.finals} marker={summaryConfig.bankroll} xLabel={t.medals} />
-            <h4 className={styles.subTitle}>{t.sampleSession}</h4>
+            <h3 className={styles.subTitle}>{t.sampleSession}</h3>
             <TrajectoryChart trajectory={summary.sampleTrajectory} start={summaryConfig.bankroll} xLabel={t.spinsAxis} />
           </div>
         )}

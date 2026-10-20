@@ -24,17 +24,27 @@ import {
   type Round,
 } from './engine';
 import { useCountUp } from '../MedalCenter/countUp';
+import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { HoleCard, PlayingCard } from './Cards';
 import { getStrings } from './i18n';
-import { MedalCounter, MedalStack } from './MedalCounter';
+import { MedalCounter, MedalNotes, MedalStack } from './MedalCounter';
 import { DEFAULT_BET, GAME, MAX_BET, MIN_BET, NOTICE_KEY, createMedalTable, freshTable, unsettled, type MedalTable, type Shelf, type Step, type TableSave } from './medalTable';
 import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
 
 const ACTIONS: Action[] = ['hit', 'stand', 'double', 'split'];
+
+/**
+ * The note that the table plays with the player's medals now: told once, the first time this browser shows the table
+ * since it came onto the medal floor, and kept on the page until it is put away or a hand is dealt. The server draws
+ * it, and its gate hides it before the page is painted where it has been told (MedalCenter/onceNote.tsx), so the table
+ * never moves for it.
+ */
+const NOTE = createOnceNote({ name: 'blackjack', storageKey: NOTICE_KEY, writeValue: 'seen', readWhenShown: true });
 
 /** The keys of the four moves, on a desktop: H hit, S stand, D double, P split. */
 export const KEY_ACTIONS: Readonly<Record<string, Action>> = { h: 'hit', s: 'stand', d: 'double', p: 'split' };
@@ -127,7 +137,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   const [dealNo, setDealNo] = useState(0);
   const [won, setWon] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  const [notice, setNotice] = useState(false);
+  const notice = NOTE.useShown();
   const [longWait, setLongWait] = useState(false);
   // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch beside the shoe.
   const sound = useMachineSound();
@@ -243,17 +253,6 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     setAnnouncement(t.sayReset);
   };
 
-  /** The first time this browser shows the table since it came onto the medal floor, it says so, once. */
-  const showNoticeOnce = () => {
-    try {
-      if (window.localStorage.getItem(NOTICE_KEY) !== null) return;
-      window.localStorage.setItem(NOTICE_KEY, 'seen');
-    } catch {
-      return;
-    }
-    setNotice(true);
-  };
-
   // A win runs into the medals on the counter's LED digits, as a machine's meter counts it up (MedalCenter/countUp.ts),
   // each medal with its chirp; WIN shows the whole win at once. Every bet and every stake shows at once. The meter
   // shows the medals once the player's table is open (`open`, below).
@@ -263,14 +262,10 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   );
   const payMedals = medalMeter.pay;
 
-  const live = useRef({ reconcile, openTable, afterReset, showNoticeOnce, t, payMedals: () => {} });
+  const live = useRef({ reconcile, openTable, afterReset, t, payMedals: () => {} });
   useEffect(() => {
-    live.current = { reconcile, openTable, afterReset, showNoticeOnce, t, payMedals };
+    live.current = { reconcile, openTable, afterReset, t, payMedals };
   });
-
-  useEffect(() => {
-    live.current.showNoticeOnce();
-  }, []);
 
   // The table's place at the medal center. It asks for the card as it is set up and plays with the player's medals
   // while it holds it. Everything at the table is written down as it happens, so there is nothing more to write as
@@ -385,7 +380,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     commitSave(step.save);
     setMessage(null);
     setWon(null);
-    setNotice(false);
+    NOTE.putAway();
     const r = step.save.round!;
     const fast = prefersReducedMotion();
     // The opening deal: player, dealer, player, the hole card; each slides out of the shoe in turn.
@@ -555,7 +550,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   const callout = !round
     ? t.placeBet
     : round.phase === 'insurance'
-      ? t.insuranceQuestion(t.medals(String(insuranceCost(round))))
+      ? t.insuranceAsked
       : round.phase === 'player'
         ? busy
           ? t.dealing
@@ -568,20 +563,23 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   return (
     <>
       {notice && (
-        <aside className={styles.notice} aria-labelledby="bj-notice-title" data-testid="bj-notice">
-          <h2 id="bj-notice-title" className={styles.noticeTitle}>
-            {t.noticeTitle}
-          </h2>
-          <p>{t.noticeBody}</p>
-          <div className={styles.noticeActions}>
-            <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="bj-notice-center">
-              {t.noticeLink}
-            </Link>
-            <button type="button" className={styles.btn} onClick={() => setNotice(false)} data-testid="bj-notice-dismiss">
-              {t.noticeDismiss}
-            </button>
-          </div>
-        </aside>
+        <>
+          <NoteGate name="blackjack" storageKey={NOTICE_KEY} />
+          <aside className={styles.notice} aria-labelledby="bj-notice-title" data-testid="bj-notice" {...noteAttributes('blackjack')}>
+            <h2 id="bj-notice-title" className={styles.noticeTitle}>
+              {t.noticeTitle}
+            </h2>
+            <p>{t.noticeBody}</p>
+            <div className={styles.noticeActions}>
+              <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="bj-notice-center">
+                {t.noticeLink}
+              </Link>
+              <button type="button" className={styles.btn} onClick={NOTE.putAway} data-testid="bj-notice-dismiss">
+                {t.noticeDismiss}
+              </button>
+            </div>
+          </aside>
+        </>
       )}
 
       <div className={styles.playGrid}>
@@ -734,98 +732,121 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
         </div>
 
         {/*
-          The machine's front: the medal counter, the buttons, then the rest. On a desk it is one panel beside the
-          table. On a phone the buttons come straight under the table, as a machine's buttons sit under its screen, so
-          the cards and the buttons that play them are on the screen together; the counter follows them.
+          The machine's front: the medal counter over the buttons, then what the medals are, then the rest. On a desk it
+          is one panel beside the table. On a phone the counter and the buttons come straight under the table, as a
+          machine's credit meter and buttons sit under its screen, so the cards, the medals and the buttons that play
+          them are on the screen together.
         */}
         <div className={styles.front}>
-          <div className={`${styles.frontPart} ${styles.counterPart}`}>
+          <div className={`${styles.frontPart} ${styles.buttonsPart}`} data-testid="bj-buttons">
             <MedalCounter
               t={t}
               loaded={open}
-              kept={bankState.kept}
               medals={medals}
               onTable={open ? onTable : null}
               won={won}
               format={fmt}
               ledMedals={medalMeter.shown}
             />
-            <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
-              {t.noticeLink}
-            </Link>
-          </div>
-
-          <div className={`${styles.frontPart} ${styles.buttonsPart}`} data-testid="bj-buttons">
             {/* Out of medals: the medal center's free refill, right by the buttons it lets the player press again. */}
             {open && holdingCard && medals === 0 && !inRound && (
               <button type="button" className={styles.refill} data-testid="bj-refill" onClick={() => medalBank().refill()}>
-                {t.refill(REFILL)}
+                <RefillWords text={t.refill(REFILL)} />
               </button>
             )}
-            <div className={styles.betRow}>
-              <button type="button" className={styles.betCircle} onClick={addOne} disabled={!canBet || bet >= MAX_BET} aria-label={t.betAria(t.medals(String(bet)))}>
-                <span className={styles.betCircleLabel}>{t.bet}</span>
-                <span className={styles.betAmount} data-testid="bj-bet">
-                  {bet}
-                </span>
-              </button>
-              <div className={styles.betButtons}>
-                <button type="button" className={styles.btn} onClick={addOne} disabled={!canBet || bet >= MAX_BET} title={t.oneBetAria} data-testid="bj-one-bet">
-                  {t.oneBet}
-                </button>
-                <button type="button" className={styles.btn} onClick={maxBet} disabled={!canBet} title={t.maxBetAria(MAX_BET)} data-testid="bj-max-bet">
-                  {t.maxBet}
-                </button>
-                <button type="button" className={styles.btn} onClick={clearBet} disabled={!canBet}>
-                  {t.clearBet}
-                </button>
-                <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={!canBet}>
-                  {t.deal}
-                </button>
-              </div>
-            </div>
-            <p className={styles.betNote} data-testid="bj-bet-note">
-              {t.betRange(MIN_BET, MAX_BET)}
-              {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
-            </p>
-
-            {round?.phase === 'insurance' && !busy && (
-              <div className={styles.insuranceBox} data-testid="bj-insurance">
-                <span>{t.insuranceQuestion(t.medals(String(insuranceCost(round))))}</span>
-                <div className={styles.actions} style={{ marginTop: 0 }}>
-                  <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard}>
-                    {t.insuranceYes}
+            {/*
+              The bet and the moves share one place on a phone, as a machine's buttons change what they do: between hands
+              the bet and DEAL, during one HIT / STAND / DOUBLE / SPLIT, right where DEAL was pressed. On a desk both show.
+            */}
+            <div className={styles.playSpot} data-phase={inRound ? 'hand' : 'bet'} data-testid="bj-play-spot">
+              <div className={styles.betArea}>
+                <div className={styles.betRow}>
+                  <button type="button" className={styles.betCircle} onClick={addOne} disabled={!canBet || bet >= MAX_BET} aria-label={t.betAria(t.medals(String(bet)))}>
+                    <span className={styles.betCircleLabel}>{t.bet}</span>
+                    <span className={styles.betAmount} data-testid="bj-bet">
+                      {bet}
+                    </span>
                   </button>
-                  <button type="button" className={styles.btn} onClick={() => onInsurance(false)} disabled={!holdingCard} data-hint={showHint ? 'true' : undefined}>
-                    {t.insuranceNo}
-                  </button>
+                  <div className={styles.betButtons}>
+                    <button type="button" className={styles.btn} onClick={addOne} disabled={!canBet || bet >= MAX_BET} title={t.oneBetAria} data-testid="bj-one-bet">
+                      {t.oneBet}
+                    </button>
+                    <button type="button" className={styles.btn} onClick={maxBet} disabled={!canBet} title={t.maxBetAria(MAX_BET)} data-testid="bj-max-bet">
+                      {t.maxBet}
+                    </button>
+                    <button type="button" className={styles.btn} onClick={clearBet} disabled={!canBet}>
+                      {t.clearBet}
+                    </button>
+                    <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={deal} disabled={!canBet}>
+                      {t.deal}
+                    </button>
+                  </div>
                 </div>
-                {showHint && <span className={styles.muted}>{t.insuranceAdvice}</span>}
+                <p className={styles.betNote} data-testid="bj-bet-note">
+                  {t.betRange(MIN_BET, MAX_BET)}
+                  {bet % 2 === 1 && <> {t.oddBet(bet, naturalWin(bet, true), half(bet * BLACKJACK_PAYS))}</>}
+                </p>
               </div>
-            )}
 
-            <div className={styles.actionRow} role="group" aria-label={t.yourMove}>
-              {ACTIONS.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  className={styles.actionBtn}
-                  data-action={a}
-                  data-hint={showHint && playing && hint === a ? 'true' : undefined}
-                  onClick={() => onAction(a)}
-                  disabled={!playing || !can?.[a]}
+              {/*
+                The insurance offer takes the place of HIT / STAND / DOUBLE / SPLIT while it is asked, in the same room, as a
+                machine's buttons turn to YES and NO: nothing on the panel moves as it comes and goes.
+              */}
+              <div className={styles.moveArea}>
+                {round?.phase === 'insurance' && !busy && (
+                  <div className={styles.insuranceBox} data-testid="bj-insurance">
+                    <span className={styles.insuranceAsk}>{t.insuranceFor(t.medals(String(insuranceCost(round))))}</span>
+                    <div className={styles.insuranceChoices}>
+                      <button type="button" className={styles.btn} onClick={() => onInsurance(true)} disabled={!holdingCard} aria-label={t.insuranceYesAria}>
+                        {t.insuranceYes}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        onClick={() => onInsurance(false)}
+                        disabled={!holdingCard}
+                        data-hint={showHint ? 'true' : undefined}
+                        aria-label={t.insuranceNoAria}
+                      >
+                        {t.insuranceNo}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={`${styles.actionRow} ${round?.phase === 'insurance' && !busy ? styles.actionRowAway : ''}`}
+                  role="group"
+                  aria-label={t.yourMove}
                 >
-                  {t.action[a]}
-                </button>
-              ))}
+                  {ACTIONS.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={styles.actionBtn}
+                      data-action={a}
+                      data-hint={showHint && playing && hint === a ? 'true' : undefined}
+                      onClick={() => onAction(a)}
+                      disabled={!playing || !can?.[a]}
+                    >
+                      {t.action[a]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <p className={`${styles.message} ${message?.error ? styles.messageError : ''}`} role="status" data-testid="bj-message">
               {message?.text ?? ''}
             </p>
-            <p className={styles.keysHint} data-testid="bj-keys">
-              {t.keysHint}
-            </p>
+            <KeysHint text={t.keysHint} className={styles.keysHint} testId="bj-keys" />
+          </div>
+
+          <div className={`${styles.frontPart} ${styles.counterPart}`}>
+            <MedalNotes t={t} loaded={open} kept={bankState.kept} />
+            <Link href={MEDAL_CENTER_PATH} className={styles.counterLink} data-testid="bj-center-link">
+              {t.noticeLink}
+            </Link>
           </div>
 
           <div className={`${styles.frontPart} ${styles.morePart}`}>
@@ -837,6 +858,12 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
               {showHint && playing && hint && (
                 <span className={styles.hintText} data-testid="bj-hint">
                   {t.hintSays(t.action[hint])}
+                </span>
+              )}
+              {/* While insurance is offered, the strategy's word on it, where the hint for a move is shown. */}
+              {showHint && round?.phase === 'insurance' && !busy && (
+                <span className={styles.hintText} data-testid="bj-hint">
+                  {t.insuranceAdvice}
                 </span>
               )}
             </div>

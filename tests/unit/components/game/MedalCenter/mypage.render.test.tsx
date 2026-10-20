@@ -101,6 +101,21 @@ describe('the medal center’s my page, for a player', () => {
     expect(html.match(/<a[^>]*data-testid="mypage-book-open"[^>]*>/)?.[0]).toContain(`href="${MEDAL_PUSHER_PATH}"`);
   });
 
+  it('draws a guest’s counter until the medals have been read, unless a member is expected, so that it does not move as they come in', () => {
+    const t = getMyPageStrings('en');
+    const waiting = (presumedMember: boolean) =>
+      // Without React's markers between the pieces of text.
+      wrap(<MyPageView bank={BANK_WAITING} history={HISTORY_WAITING} book={BOOK_WAITING} signInHref="/signin" presumedMember={presumedMember} />).replace(/<!-- -->/g, '');
+    const guest = waiting(false);
+    expect(guest).toMatch(new RegExp(`data-testid="mypage-member" data-owner="guest">${t.memberGuest}<`));
+    expect(guest).toContain(`${t.whose.guest} ${t.where.device}`);
+    expect(guest).toContain('data-testid="mypage-sign-in"');
+    const member = waiting(true);
+    expect(member).toMatch(new RegExp(`data-testid="mypage-member" data-owner="guest">${t.memberChecking}<`));
+    expect(member).toContain(`${t.whose.account} ${t.where.checking}`);
+    expect(member).not.toContain('data-testid="mypage-sign-in"');
+  });
+
   it('invites a guest to sign in, and tells a member their account keeps it', () => {
     expect(view()).toContain('data-testid="mypage-sign-in"');
     const member = view('en', 'test-player-1');
@@ -116,6 +131,32 @@ describe('the medal center’s my page, for a player', () => {
     const html = view('en', null, history);
     expect(html.match(/data-testid="mypage-entry"/g)).toHaveLength(PAGE_SIZE);
     expect(html).toContain('Show 5 more');
+  });
+
+  it('says the whole of the oldest day it lists once earlier things have been let go, and how many days it keeps', () => {
+    // Three days of play: a round on the first, the bonus and three rounds on the second, two rounds on the third.
+    const at = (date: number, minute: number) => new Date(2026, 9, date, 20, minute).getTime();
+    const steps: Observation[] = [
+      { type: 'move', game: 'roulette', round: 'a1', step: 'pay', medals: 5, at: at(15, 0), day: '2026-10-15', left: 105 },
+      { type: 'bonus', medals: 40, at: at(16, 0), day: '2026-10-16', left: 145 },
+      ...[1, 2, 3].map((n): Observation => ({ type: 'move', game: 'roulette', round: `b${n}`, step: 'pay', medals: 2, at: at(16, n), day: '2026-10-16', left: 145 + 2 * n })),
+      ...[1, 2].map((n): Observation => ({ type: 'move', game: 'roulette', round: `c${n}`, step: 'pay', medals: 1, at: at(17, n), day: '2026-10-17', left: 151 + n })),
+    ];
+    const whole = steps.reduce(record, createHistory('phone00001', at(15, 0) - 60_000));
+    // The oldest entries let go, as a history does past what it keeps: all of the first day, and the bonus and the first round of the second.
+    const kept: History = { ...whole, entries: whole.entries.slice(0, 4) };
+    const html = view('en', null, kept);
+    expect(html.match(/data-testid="mypage-entry"/g)).toHaveLength(4);
+    // Under the second day, which lists two of its four things: all four, added up.
+    const cut = html.match(/data-testid="mypage-day-cut">([\s\S]*?)<\/p>/);
+    expect(textOf(cut?.[1] ?? '').trim()).toBe('The whole day, with what the list no longer holds: Bet 0 · won 6 · given 40 · 3 rounds');
+    // The first day, which it lists nothing of, by its totals; and how long those are kept.
+    const older = html.match(/data-testid="mypage-older"[\s\S]*$/)?.[0] ?? '';
+    expect(textOf(older)).toContain('Bet 0 · won 5 · given 0 · 1 round ');
+    expect(textOf(html)).toContain('The latest 90 days with anything in them are kept.');
+    expect(textOf(view('ja', null, kept)).replace(/ /g, '')).toContain('この日の合計（一覧にない分も含む）：ベット0枚・獲得6枚・無料40枚・3回');
+    // A history that has let nothing go says nothing of the kind.
+    expect(view('en', null, whole)).not.toContain('mypage-day-cut');
   });
 
   it('reads in Japanese, in the words of a medal counter, and nothing on it reads as money', () => {
@@ -146,5 +187,35 @@ describe('the way to the my page', () => {
     const html = wrap(<MedalCenter signInHref="/signin" />);
     expect(html.match(/<a[^>]*data-testid="center-my-page"[^>]*>/)?.[0]).toContain(`href="${MY_PAGE_PATH}"`);
     expect(wrap(<MedalCenter signInHref="/signin" />, 'ja')).toContain('マイページ');
+  });
+});
+
+describe('a floor jackpot on the my page', () => {
+  const withJackpot = (): History =>
+    [
+      { type: 'floor', id: '20261017-a1b2c3d4', medals: 2_431, at: T0 + 300_000, day: DAY, left: 2_531 },
+      { type: 'floor', id: '20261019-0badcafe', medals: 1_200, at: T0 + 2 * 86_400_000, day: '2026-10-19', left: 3_731 },
+    ].reduce((history, step) => record(history, step as Observation), historyOf());
+
+  it('lists each win as an entry of its own, under the floor jackpot’s name', () => {
+    const html = view('en', 'test-player-1', withJackpot());
+    const t = getMyPageStrings('en');
+    expect(html.match(/data-kind="floor"/g)).toHaveLength(2);
+    expect(textOf(html)).toContain(`${t.floorName} FLOOR JACKPOT +2,431`);
+    expect(t.floorName).toBe('Medal floor');
+    expect(textOf(html)).toContain('FLOOR JACKPOT +1,200');
+    expect(textOf(view('ja', 'test-player-1', withJackpot()))).toContain('フロアジャックポット +2,431枚');
+  });
+
+  it('keeps its records apart from the machines’: how many, how many medals, the biggest, the last', () => {
+    const html = view('en', 'test-player-1', withJackpot());
+    expect(html).toContain('data-testid="mypage-floor-jackpot"');
+    expect(html).toMatch(/data-testid="mypage-floor-wins">2</);
+    expect(html).toMatch(/data-testid="mypage-floor-medals">3,631</);
+    expect(html).toMatch(/data-testid="mypage-floor-biggest">2,431</);
+    // The machines' totals are what the machines did: the floor jackpot is not in them.
+    expect(html).toMatch(/data-testid="mypage-total-won">357</);
+    // Nobody who has not won one is shown the card.
+    expect(view('en', 'test-player-1')).not.toContain('mypage-floor-jackpot');
   });
 });

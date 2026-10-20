@@ -3,14 +3,18 @@
 import { useCallback, useState } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { NOTICE_KEY } from './medalTable';
 import { putNoticeAway, useNoticeShown } from './notice';
 import { PlayTab, type PlayTabProps } from './PlayTab';
 import { SimTab } from './SimTab';
 import { EdgeTab } from './EdgeTab';
 import { getStrings, betName } from './i18n';
 import { BET_ODDS } from './engine';
+import floorTabs from '../MedalCenter/tabs.module.css';
 import styles from './Roulette.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'play' | 'sim' | 'edge';
 
@@ -54,20 +58,26 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
         </div>
 
         {noticeShown && (
-          <div className={styles.notice} role="note" data-testid="roulette-notice">
-            <p>
-              {t.notice}{' '}
-              <a className={styles.meterLink} href={MEDAL_CENTER_PATH}>
-                {t.noticeLink}
-              </a>
-            </p>
-            <button type="button" className={styles.btn} onClick={putNoticeAway} data-testid="roulette-notice-ok">
-              {t.noticeOk}
-            </button>
-          </div>
+          <>
+            <NoteGate name="roulette" storageKey={NOTICE_KEY} />
+            <div className={styles.notice} role="note" data-testid="roulette-notice" {...noteAttributes('roulette')}>
+              <p>
+                {t.notice}{' '}
+                <a className={styles.meterLink} href={MEDAL_CENTER_PATH}>
+                  {t.noticeLink}
+                </a>
+              </p>
+              <button type="button" className={styles.btn} onClick={putNoticeAway} data-testid="roulette-notice-ok">
+                {t.noticeOk}
+              </button>
+            </div>
+          </>
         )}
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip game="roulette" />
+
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -75,7 +85,7 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
               id={`rl-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`rl-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}
@@ -94,6 +104,8 @@ export const Roulette = ({ player }: RouletteProps = {}) => {
         </div>
         <div role="tabpanel" id="rl-panel-edge" aria-labelledby="rl-tab-edge" hidden={tab !== 'edge'}>
           <EdgeTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote game="roulette" />
         </div>
       </div>
 

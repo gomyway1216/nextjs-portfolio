@@ -41,6 +41,7 @@
 }
 .centerLink {
   display: inline-flex;
+  gap: 0.3em;
   align-items: center;
   min-height: 44px;
   color: var(--games-route-fg);
@@ -57,6 +58,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 .titleCat {
   width: 1.5em;
@@ -952,6 +963,14 @@
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+/* The machine's keys, on a desktop: the line of them and the key on each button. A phone has no keys, so neither is
+   shown there, as at every other machine on the floor. */
+@media (hover: none) and (pointer: coarse) {
+  .keysHint,
+  .kbd {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

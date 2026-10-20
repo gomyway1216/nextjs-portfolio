@@ -1,14 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FloorGame } from '@/lib/medalFloor/games';
+import type { FloorBoards } from '@/lib/medalFloor/types';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
-import { MEDAL_RANKINGS_PATH } from './paths';
-import { BestAtEach, Board, FeedList, PeriodTabs, PlaceCard, placeKey, useServerNow, type PeriodChoice } from './FloorParts';
+import { markAway } from '../offscreen';
+import { FLOOR_PLACE_ANCHOR, MEDAL_RANKINGS_PATH } from './paths';
+import { FloorJackpotPanel, type JackpotStanding } from './FloorJackpot';
+import { BestAtEach, Board, FeedList, PeriodTabs, PlaceCard, placeKey, useServerNow, type FloorWords, type PeriodChoice, type PlaceState } from './FloorParts';
 import { getFloorStrings } from './strings';
-import { useFloor } from './useFloor';
+import { useFloor, type FloorView } from './useFloor';
 import { useFloorPlace, type FloorMember } from './useFloorPlace';
 import styles from './Floor.module.css';
 
@@ -20,49 +23,140 @@ export interface FloorTogetherProps {
   signInHref?: string;
 }
 
+/** How many of the latest big wins the board by the door shows: the rankings page has the rest. */
+export const HUB_MOMENTS_SHOWN = 3;
+
+/** What the floor jackpot's line says, from where the player stands on the floor. */
+const standingOf = (state: PlaceState): JackpotStanding => (state.kind === 'guest' ? 'guest' : state.kind === 'off' ? 'off' : state.kind === 'on' ? 'on' : 'none');
+
+/** The two places the floor played together shows on the medal center's front. */
+export interface FloorHubParts {
+  /** The board by the door: the floor jackpot and the latest big wins, over the machines. */
+  now: ReactNode;
+  /** Further in, under the machines: the rankings and the player's own place on the floor. */
+  together: ReactNode;
+}
+
+type Place = ReturnType<typeof useFloorPlace>;
+
+/** The floor as FloorHub has it, for the two parts of the front that show it. */
+interface HubFloor {
+  words: FloorWords;
+  floor: FloorView;
+  now: number;
+  place: Place;
+  signInHref?: string;
+}
+
+const HubFloorContext = createContext<HubFloor | null>(null);
+
+/** The board by the door, as the front is handed it: it reads the floor where FloorHub puts it. */
+function HubNow() {
+  const hub = useContext(HubFloorContext);
+  return hub && <FloorNow words={hub.words} floor={hub.floor} now={hub.now} place={hub.place} signInHref={hub.signInHref} />;
+}
+
+/** The rankings and the place card, as the front is handed them. */
+function HubTogether() {
+  const hub = useContext(HubFloorContext);
+  return hub && <FloorTogether words={hub.words} floor={hub.floor} place={hub.place} signInHref={hub.signInHref} />;
+}
+
+/** The same two parts every time: the front they are put in is not drawn again because the floor has news. */
+const HUB_PARTS: FloorHubParts = { now: <HubNow />, together: <HubTogether /> };
+
 /**
- * The medal center's front, played together: what is being won on the floor
- * right now, live; today's and this week's rankings, short; and the player's
- * own place on the floor, which they are off until they join.
+ * The medal center's front, played together. The floor and the player's place
+ * on it are asked for once, here, and shown in two places: the floor jackpot
+ * and the latest big wins by the door, where every player sees them as they
+ * come in, and the rankings and the place card further in, under the machines.
+ *
+ * The front itself is drawn from `children` once, and again only when they
+ * change: what the floor hears, and its clock ticking for "2 min ago", reach
+ * only the two parts that show them, never the counter or the machines.
  */
-export function FloorTogether({ member, settled, signInHref }: FloorTogetherProps) {
+export function FloorHub({ member, settled, signInHref, children }: FloorTogetherProps & { children: (parts: FloorHubParts) => ReactNode }) {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getFloorStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
-  const words = { t, fmt: (n: number) => n.toLocaleString(locale), gameName: (game: FloorGame) => translate(`games.${game}.title`) };
-  const floor = useFloor('hub');
+  const words = useMemo<FloorWords>(() => ({ t, fmt: (n: number) => n.toLocaleString(locale), gameName: (game: FloorGame) => translate(`games.${game}.title`) }), [t, locale, translate]);
+  const floor = useFloor('hub', null, HUB_MOMENTS_SHOWN);
   const now = useServerNow(floor.skew);
-  const [period, setPeriod] = useState<PeriodChoice>('day');
   const place = useFloorPlace(member, settled, t);
+  const front = useMemo(() => children(HUB_PARTS), [children]);
+  return <HubFloorContext.Provider value={{ words, floor, now, place, signInHref }}>{front}</HubFloorContext.Provider>;
+}
+
+interface PartProps {
+  words: FloorWords;
+  floor: FloorView;
+  place: Place;
+  signInHref?: string;
+}
+
+/**
+ * The board by the door, as a real floor hangs one: the floor jackpot on its
+ * LED counter, and the last few big wins as they happen.
+ */
+export function FloorNow({ words, floor, now, place, signInHref }: PartProps & { now: number }) {
+  const { t } = words;
+  return (
+    <section className={styles.now} aria-labelledby="floor-now-title" data-testid="floor-now" ref={markAway}>
+      <h2 id="floor-now-title" className={styles.title}>
+        {t.nowTitle}
+      </h2>
+      <div className={styles.nowBoard}>
+        <FloorJackpotPanel standing={standingOf(place.state)} signInHref={signInHref} />
+        <div className={`${styles.panel} ${styles.ticker}`} style={{ '--moments': HUB_MOMENTS_SHOWN } as CSSProperties}>
+          <div className={styles.panelHead}>
+            <h3 className={styles.panelTitle}>{t.feedTitle}</h3>
+            <span className={styles.liveBadge} data-live={floor.live} data-testid="floor-live">
+              {floor.live ? t.live : t.polling}
+            </span>
+          </div>
+          <FeedList {...words} feed={floor.feed.slice(0, HUB_MOMENTS_SHOWN)} now={now} loading={floor.summary === null && !floor.unavailable} unavailable={floor.unavailable} />
+          <Link href={MEDAL_RANKINGS_PATH} className={styles.more} data-testid="floor-more-moments">
+            {t.moreMoments}
+            <span aria-hidden> →</span>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** The hub's boards as they are drawn while the floor is being read: empty, every line held unseen. */
+const HELD: Pick<FloorBoards, 'won' | 'best'> = { won: [], best: {} };
+
+/**
+ * Further in, under the machines: today's and this week's rankings, short,
+ * and the player's own place on the floor, which they are off until they join.
+ */
+export function FloorTogether({ words, floor, place, signInHref }: PartProps) {
+  const { t } = words;
+  const [period, setPeriod] = useState<PeriodChoice>('day');
   const boards = floor.summary ? (period === 'day' ? floor.summary.day : floor.summary.week) : null;
+  // While the floor is being read, the boards are drawn empty, their lines held unseen: they come in where they were.
+  const shown = boards ?? (floor.summary === null && !floor.unavailable ? HELD : null);
 
   return (
     <section className={styles.together} aria-labelledby="floor-together-title" data-testid="floor-together">
       <h2 id="floor-together-title" className={styles.title}>
         {t.title}
       </h2>
-      <p className={styles.lead}>{t.lead}</p>
-
-      <div className={styles.panel}>
-        <div className={styles.panelHead}>
-          <h3 className={styles.panelTitle}>{t.feedTitle}</h3>
-          <span className={styles.liveBadge} data-live={floor.live} data-testid="floor-live">
-            {floor.live ? t.live : t.polling}
-          </span>
-        </div>
-        <FeedList {...words} feed={floor.feed} now={now} loading={floor.summary === null && !floor.unavailable} unavailable={floor.unavailable} />
-      </div>
+      <p className={styles.lead}>{t.togetherLead}</p>
 
       <div className={styles.panel} data-testid="floor-rankings">
         <div className={styles.panelHead}>
           <h3 className={styles.panelTitle}>{t.rankingsTitle}</h3>
           <PeriodTabs value={period} onChange={setPeriod} t={t} />
         </div>
-        {boards && (
-          <div className={styles.boards} data-period={period}>
-            <Board {...words} title={t.wonBoard} rows={boards.won} testId="floor-won" />
-            <BestAtEach {...words} boards={boards} />
+        {/* `data-floor-read`, not `data-loaded`: that one says the page has read the player's own medals. */}
+        {shown && (
+          <div className={styles.boards} data-period={period} data-floor-read={boards !== null}>
+            <Board {...words} title={t.wonBoard} rows={shown.won} testId="floor-won" holding={!boards} />
+            <BestAtEach {...words} boards={shown} holding={!boards} />
           </div>
         )}
         <Link href={MEDAL_RANKINGS_PATH} className={styles.more} data-testid="floor-all-rankings">
@@ -71,10 +165,23 @@ export function FloorTogether({ member, settled, signInHref }: FloorTogetherProp
         </Link>
       </div>
 
-      <PlaceCard key={placeKey(place.state)} t={t} state={place.state} busy={place.busy} problem={place.problem} signInHref={signInHref} onJoin={place.join} onLeave={place.leave} />
+      <PlaceCard
+        key={placeKey(place.state)}
+        id={FLOOR_PLACE_ANCHOR}
+        t={t}
+        state={place.state}
+        busy={place.busy}
+        problem={place.problem}
+        signInHref={signInHref}
+        onJoin={place.join}
+        onLeave={place.leave}
+      />
 
       <p className={styles.honesty} data-testid="floor-honesty">
         {t.honesty}
+      </p>
+      <p className={styles.honesty} data-testid="jackpot-honesty">
+        {t.jackpotHonesty}
       </p>
       <p className={styles.srOnly} aria-live="polite">
         {place.said}
@@ -83,4 +190,4 @@ export function FloorTogether({ member, settled, signInHref }: FloorTogetherProp
   );
 }
 
-export default FloorTogether;
+export default FloorHub;

@@ -6,6 +6,7 @@ import { Bet, HOUSE_EDGE, HouseEdgeResult, simulateHouseEdge } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings, betName } from './i18n';
 import styles from './Roulette.module.css';
+import selectStyles from '../common/select.module.css';
 
 // Representative bet of each family so the demo shows the edge is identical.
 const BET_OPTIONS: { id: string; label: string; bet: Bet }[] = [
@@ -51,12 +52,12 @@ export const EdgeTab = () => {
 
   return (
     <div>
-      <h3 className={styles.blockTitle} style={{ color: 'var(--rl-gold)' }}>{t.edgeTitle}</h3>
+      <h2 className={styles.blockTitle} style={{ color: 'var(--rl-gold-text)' }}>{t.edgeTitle}</h2>
 
       <div className={styles.formGrid} style={{ marginBottom: '1rem' }}>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{t.edgeBetLabel}</span>
-          <select className={styles.input} value={betId} onChange={(e) => setBetId(e.target.value)} disabled={running}>
+          <select className={`${styles.input} ${selectStyles.select}`} value={betId} onChange={(e) => setBetId(e.target.value)} disabled={running}>
             {BET_OPTIONS.map((o) => (
               <option key={o.id} value={o.id}>
                 {betName(o.label, language)}
@@ -66,7 +67,7 @@ export const EdgeTab = () => {
         </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{t.edgeSpinsLabel}</span>
-          <select className={styles.input} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={running}>
+          <select className={`${styles.input} ${selectStyles.select}`} value={spins} onChange={(e) => setSpins(Number(e.target.value))} disabled={running}>
             {SPIN_OPTIONS.map((n) => (
               <option key={n} value={n}>
                 {n.toLocaleString()}
@@ -92,12 +93,12 @@ export const EdgeTab = () => {
       {result && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className={styles.statGrid}>
-            <Stat label={t.theoretical} value={fmtPct(-HOUSE_EDGE)} accent="var(--rl-gold)" />
-            <Stat label={t.empirical} value={fmtPct(result.finalEdge)} accent="#38bdf8" />
+            <Stat label={t.theoretical} value={fmtPct(-HOUSE_EDGE)} accent="var(--rl-gold-text)" />
+            <Stat label={t.empirical} value={fmtPct(result.finalEdge)} accent="var(--rl-sky-text)" />
           </div>
 
           <div>
-            <h4 className={styles.subTitle}>{t.edgeChartTitle}</h4>
+            <h3 className={styles.subTitle}>{t.edgeChartTitle}</h3>
             <EdgeChart
               points={result.points}
               theoretical={-HOUSE_EDGE}

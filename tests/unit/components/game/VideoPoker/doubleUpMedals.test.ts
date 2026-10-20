@@ -246,13 +246,15 @@ describe('a win put on a double-up', () => {
 describe('what the medal floor hears of a double-up', () => {
   it('a double won: what it made, the stake again, and what it brought back as a double-up won', async () => {
     const { play, id } = await won(double('2♠', 'A♥'), double('3♠', 'K♥'));
-    // The hand's own win, as it went in.
+    // The five coins played, as they went in (they feed the floor jackpot), and the hand's own win, as it went in.
+    expect(reports.splice(0, 1)).toEqual([[GAME, { played: 5 }]]);
     expect(reports).toEqual([[GAME, { won: WON, prize: { medals: WON, label: undefined } }]]);
     play.doubleUp(id);
     expect(reports).toHaveLength(1);
     play.pick(id, 0);
     play.doubleUp(id);
     play.pick(id, 0);
+    // A double-up puts back what was just won: it is not medals played, and the floor jackpot is not fed by it.
     expect(reports.slice(1)).toEqual([
       [GAME, { won: WON, prize: { medals: 2 * WON, label: FLOOR_DOUBLE } }],
       [GAME, { won: 2 * WON, prize: { medals: 4 * WON, label: FLOOR_DOUBLE } }],
@@ -266,6 +268,7 @@ describe('what the medal floor hears of a double-up', () => {
 
   it('a push or a loss: nothing, since nothing was made', async () => {
     const { play, id } = await won(double('J♠', 'J♥'), double('A♠', '3♣'));
+    reports.splice(0, 1);
     play.doubleUp(id);
     expect(play.pick(id, 0)).toMatchObject({ outcome: 'push' });
     play.doubleUp(id);
@@ -275,6 +278,7 @@ describe('what the medal floor hears of a double-up', () => {
 
   it('a double picked after a reload is heard of once', async () => {
     const { browser, page, play, id } = await won(double('9♣', 'K♦'));
+    reports.splice(0, 1);
     play.doubleUp(id);
     page.close();
     const second = browser.open();

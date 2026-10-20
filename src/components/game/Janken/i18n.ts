@@ -52,7 +52,8 @@ export interface JankenStrings {
   cat: string;
   lamps: Record<Outcome, string>;
   hands: Record<Hand, string>;
-  handsSub: Record<Hand, string>;
+  /** A second, smaller name under each hand: the Japanese name in English (the machine is a Japanese one); none in Japanese. */
+  handsSub: Record<Hand, string> | null;
   medalIn: string;
   double: string;
   collect: string;
@@ -302,18 +303,18 @@ const ja: JankenStrings = {
   sayPaid: (medals) => `${medals}枚どうぞ！`,
   sayEmpty: 'メダルがないよ…',
   counterLabel: '持ちメダル',
-  winLabel: 'WIN',
+  winLabel: '獲得',
   stakeLabel: 'ダブルアップ中',
   unit: '枚',
   you: 'あなた',
   cat: 'ねこ',
   lamps: { win: 'かち', draw: 'あいこ', lose: 'まけ' },
   hands: { gu: 'グー', choki: 'チョキ', pa: 'パー' },
-  handsSub: { gu: 'ROCK', choki: 'SCISSORS', pa: 'PAPER' },
+  handsSub: null,
   medalIn: 'メダル投入',
   double: 'ダブルアップ',
   collect: 'うけとる',
-  keysHint: 'キー：M メダル投入・1 2 3 グー チョキ パー・D ダブルアップ・T うけとる',
+  keysHint: 'キー：M でメダル投入・1 2 3 でグー チョキ パー・D でダブルアップ・T でうけとる',
   refill: (medals) => `メダルがなくなりました — ${medals}枚もらう`,
   finding: '持ちメダルを確認しています…',
   cardAway: 'メダルは別のタブのマシンで遊ばれています。このマシンはそのまま待っています。',

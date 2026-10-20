@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank } from '../MedalCenter/bank';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
@@ -18,6 +18,7 @@ import { MAX_STOCK } from './session';
 import { SimTab } from './SimTab';
 import { getWorksStrings } from './worksStrings';
 import styles from './MedalPusher.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'machine' | 'odds' | 'sim' | 'records';
 
@@ -54,6 +55,12 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
     medalBank().attend({ uid, settled, expected }, bankStore, bankStore ? { machines: store ?? null, books: recordsStore } : {});
   }, [uid, settled, expected, recordsStore, bankStore, store]);
   const [infoOpen, setInfoOpen] = useState(false);
+  // What opened the instruction plate (How to play, or the compact plate on the cabinet), which has the focus back after.
+  const plateOpener = useRef<HTMLElement | null>(null);
+  const openPlate = useCallback((open: boolean, opener?: HTMLElement | null) => {
+    if (open) plateOpener.current = opener ?? null;
+    setInfoOpen(open);
+  }, []);
   const { language } = useGameLanguage();
   const t = getStrings(language);
 
@@ -99,10 +106,13 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
             </h1>
             <p className={styles.subtitle}>{t.subtitle}</p>
           </div>
-          <button type="button" className={styles.btn} aria-haspopup="dialog" data-testid="pusher-how-to-play" onClick={() => setInfoOpen(true)}>
+          <button type="button" className={styles.btn} aria-haspopup="dialog" data-testid="pusher-how-to-play" onClick={(event) => openPlate(true, event.currentTarget)}>
             {t.howToPlay}
           </button>
         </div>
+
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip game="medal-pusher" />
 
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           {tabs.map((tb, index) => (
@@ -131,12 +141,14 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
             resets the machine or drops a finished simulation. The machine only runs while its tab is showing. */}
         <div role="tabpanel" id="pusher-panel-machine" aria-labelledby="pusher-tab-machine" hidden={tab !== 'machine'}>
           {/* The compact instruction plate on the cabinet opens the full one, which is held here. */}
-          <PlateSwitch.Provider value={setInfoOpen}>
+          <PlateSwitch.Provider value={openPlate}>
             <PlayTab active={tab === 'machine'} player={player} store={store} signInHref={signInHref} />
           </PlateSwitch.Provider>
         </div>
         <div role="tabpanel" id="pusher-panel-odds" aria-labelledby="pusher-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote game="medal-pusher" />
         </div>
         <div role="tabpanel" id="pusher-panel-sim" aria-labelledby="pusher-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />
@@ -149,6 +161,7 @@ export const MedalPusher = ({ player, store, signInHref, recordsStore = null, ba
       <InstructionPlateDialog
         isOpen={infoOpen}
         onClose={() => setInfoOpen(false)}
+        opener={() => plateOpener.current}
         title={t.howToPlay}
         body={[...t.infoBody(MAX_STOCK), ...getWorksStrings(language).howItPays(POUR.threshold)]}
       />

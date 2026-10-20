@@ -1,8 +1,9 @@
 import { htmlToText } from 'html-to-text';
 import { getFirestore } from '@/lib/firebase-admin';
+import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { pickTranslation, type PostTranslations } from '@/lib/blog/postTranslations';
-import { getSlugMapSafe } from '@/lib/blog/getSlugIndexServer';
+import { getSlugMapResult } from '@/lib/blog/getSlugIndexServer';
 import { SITE_URL } from '@/lib/siteConfig';
 
 // Rendered per request, like the sitemap: a build-time snapshot would be
@@ -50,14 +51,17 @@ function excerpt(body: string): string {
 
 export async function GET() {
   try {
-    const [snapshot, slugById] = await Promise.all([
-      getFirestore()
-        .collection(POSTS_COLLECTION)
-        .where('isPublic', '==', true)
-        .orderBy('lastUpdated', 'desc')
-        .limit(MAX_ITEMS)
-        .get(),
-      getSlugMapSafe(),
+    const [snapshot, { slugById, complete: slugsComplete }] = await Promise.all([
+      withReadDeadline(
+        getFirestore()
+          .collection(POSTS_COLLECTION)
+          .where('isPublic', '==', true)
+          .orderBy('lastUpdated', 'desc')
+          .limit(MAX_ITEMS)
+          .get(),
+        'rss posts query',
+      ),
+      getSlugMapResult(),
     ]);
 
     const items = snapshot.docs.flatMap((doc) => {
@@ -109,7 +113,11 @@ export async function GET() {
       headers: {
         'Content-Type': 'application/rss+xml; charset=utf-8',
         // Cache at the CDN for an hour; the feed itself renders on demand.
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        // A feed built while the slug index was unreadable links by id, so
+        // it is served once and not cached.
+        'Cache-Control': slugsComplete
+          ? 'public, s-maxage=3600, stale-while-revalidate=86400'
+          : 'no-store',
       },
     });
   } catch (error) {

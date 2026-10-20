@@ -56,6 +56,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 .subtitle {
   margin: 0.4rem 0 0;
@@ -117,7 +127,8 @@
   cursor: not-allowed;
 }
 .btnPrimary {
-  background: linear-gradient(180deg, #ef4444, #b91c1c);
+  /* White ROLL at least 4.5:1 from the top of the gradient down (#ef4444 at the top was 3.8:1). */
+  background: linear-gradient(180deg, #dc2626, #b91c1c);
   color: #fff;
   border-color: transparent;
   font-weight: 850;
@@ -316,6 +327,10 @@
   overflow: hidden;
   border-radius: 14px;
   z-index: 5;
+}
+/* On the half table the dice lie between rolls on the near rail, half over its edge towards the stickman's box. */
+.tableView[data-table-kind='half'] .diceLayer {
+  overflow: visible;
 }
 .tableDie,
 .tableDieShadow {
@@ -1095,7 +1110,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .spot,
-  .betSize {
+  .betSize,
+  .tablePuck {
     transition: none;
   }
 }
@@ -1149,4 +1165,11 @@
   font-size: 0.85rem;
   font-weight: 750;
   color: var(--games-route-muted);
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.toggle {
+  min-height: 44px;
 }

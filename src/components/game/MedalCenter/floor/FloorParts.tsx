@@ -24,13 +24,53 @@ export interface FloorWords {
 /** The name a player goes by: the one they chose, or "Player" and their four digits. */
 export const shownName = (t: FloorStrings, entry: { name: string | null; tag: string }): string => entry.name ?? t.defaultName(entry.tag);
 
+/** Where the count goes in what `say` says, while the words are put together around it. */
+const COUNT_MARK = '\u0000';
+
+/**
+ * What `say` says of a count of medals, with the count kept on one line with the word it counts and what is joined to
+ * it (「1,500枚」, 「123,456枚（1日前）」, "523 medals,"): never 「1,｜500枚」 or 「1,500｜枚」, which WebKit and Firefox broke
+ * even where the rest of the line keeps its words whole. Read as text, it is what `say` says.
+ */
+export function Counted({ say, count }: { say: (count: string) => string; count: string }) {
+  const [before, after = ''] = say(COUNT_MARK).split(COUNT_MARK);
+  const unit = /^ ?[^\s]*/.exec(after)?.[0] ?? '';
+  return (
+    <>
+      {before}
+      <span style={{ whiteSpace: 'nowrap' }}>
+        {count}
+        {unit}
+      </span>
+      {after.slice(unit.length)}
+    </>
+  );
+}
+
+/**
+ * Every clock on the page ticks on one timer: the board by the door and the floor jackpot over it move on to "3 min
+ * ago" together, and the page is drawn again once for both of them, not once for each.
+ */
+const ticking = new Set<() => void>();
+let ticker: number | null = null;
+const onTick = (heard: () => void): (() => void) => {
+  ticking.add(heard);
+  ticker ??= window.setInterval(() => {
+    for (const tick of [...ticking]) tick();
+  }, 30_000);
+  return () => {
+    ticking.delete(heard);
+    if (ticking.size === 0 && ticker !== null) {
+      window.clearInterval(ticker);
+      ticker = null;
+    }
+  };
+};
+
 /** The time now, by the server's clock (`skew` is the server's less this device's), ticking every half minute so that "2 min ago" stays true. */
 export function useServerNow(skew: number): number {
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  useEffect(() => onTick(() => setNow(Date.now())), []);
   return now + skew;
 }
 
@@ -46,18 +86,30 @@ export interface FeedListProps extends FloorWords {
 
 export function FeedList({ feed, now, loading, unavailable, onHide, t, gameName, fmt }: FeedListProps) {
   if (feed.length === 0) {
-    return (
+    // While the floor is being read, the quiet floor's line holds its place unseen under the dots: it is what comes in
+    // most often, and then nothing under it moves.
+    return loading ? (
+      <p className={`${styles.empty} ${styles.holder}`} data-testid="floor-feed-empty">
+        <span>…</span>
+        <span className={styles.unseen} aria-hidden="true">
+          {t.feedEmpty}
+        </span>
+      </p>
+    ) : (
       <p className={styles.empty} data-testid="floor-feed-empty">
-        {loading ? '…' : unavailable ? t.feedUnavailable : t.feedEmpty}
+        {unavailable ? t.feedUnavailable : t.feedEmpty}
       </p>
     );
   }
   return (
     <ol className={styles.feed} data-testid="floor-feed" aria-live="polite" aria-relevant="additions">
       {feed.map((entry) => (
-        <li key={entry.id} className={styles.moment} data-testid="floor-moment" data-game={entry.game} data-label={entry.label ?? ''} data-big={entry.label === 'jackpot' || entry.label === 'seven3' || entry.label === 'royal'}>
+        <li key={entry.id} className={styles.moment} data-testid="floor-moment" data-game={entry.game} data-label={entry.label ?? ''} data-big={entry.label === 'jackpot' || entry.label === 'seven3' || entry.label === 'royal' || entry.label === 'floor-jackpot'}>
           <span className={styles.momentText}>
-            <bdi className={styles.who}>{shownName(t, entry)}</bdi> <span>{t.moment(entry.label, fmt(entry.medals))}</span>
+            <bdi className={styles.who}>{shownName(t, entry)}</bdi>{' '}
+            <span>
+              <Counted say={(count) => t.moment(entry.label, count)} count={fmt(entry.medals)} />
+            </span>
           </span>
           <span className={styles.momentWhere}>
             {gameName(entry.game)} · <time dateTime={new Date(entry.at).toISOString()}>{t.ago(Math.max(0, Math.round((now - entry.at) / 1000)))}</time>
@@ -77,16 +129,23 @@ export interface BoardProps extends FloorWords {
   title: string;
   rows: FloorRow[];
   testId: string;
+  /** While the floor is being read: the board is drawn empty, its line held unseen, so it comes in where it was held. */
+  holding?: boolean;
+  /** The board's heading level: an h4 under the hub's RANKINGS (an h3); on the rankings page, an h2 standing alone, or an h3 under a panel's h2. */
+  level?: 2 | 3 | 4;
   /** The owner's controls on each line. */
   owner?: { hide: (row: FloorRow, hidden: boolean) => void; block: (row: FloorRow, blocked: boolean) => void };
 }
 
-export function Board({ title, rows, testId, owner, t, fmt }: BoardProps) {
+export function Board({ title, rows, testId, holding = false, owner, level = 4, t, fmt }: BoardProps) {
+  const Title = level === 2 ? 'h2' : level === 3 ? 'h3' : 'h4';
   return (
     <div className={styles.board} data-testid={testId}>
-      <h4 className={styles.boardTitle}>{title}</h4>
+      <Title className={styles.boardTitle}>{title}</Title>
       {rows.length === 0 ? (
-        <p className={styles.empty}>{t.boardEmpty}</p>
+        <p className={holding ? `${styles.empty} ${styles.unseen}` : styles.empty} aria-hidden={holding || undefined}>
+          {t.boardEmpty}
+        </p>
       ) : (
         <ol className={styles.rows}>
           {rows.map((row, index) => (
@@ -115,11 +174,13 @@ export function Board({ title, rows, testId, owner, t, fmt }: BoardProps) {
 }
 
 export interface BestAtEachProps extends FloorWords {
-  boards: FloorBoards;
+  boards: Pick<FloorBoards, 'best'>;
+  /** While the floor is being read: the board is drawn empty, its line held unseen, so it comes in where it was held. */
+  holding?: boolean;
 }
 
 /** The hub's short board: the biggest win at each machine that has one, the machine's name with it. */
-export function BestAtEach({ boards, t, gameName, fmt }: BestAtEachProps) {
+export function BestAtEach({ boards, holding = false, t, gameName, fmt }: BestAtEachProps) {
   const lines = FLOOR_GAMES.flatMap((game) => {
     const top = boards.best[game]?.[0];
     return top ? [{ game, top }] : [];
@@ -128,7 +189,9 @@ export function BestAtEach({ boards, t, gameName, fmt }: BestAtEachProps) {
     <div className={styles.board} data-testid="floor-best">
       <h4 className={styles.boardTitle}>{t.bestBoard}</h4>
       {lines.length === 0 ? (
-        <p className={styles.empty}>{t.boardEmpty}</p>
+        <p className={holding ? `${styles.empty} ${styles.unseen}` : styles.empty} aria-hidden={holding || undefined}>
+          {t.boardEmpty}
+        </p>
       ) : (
         <ul className={styles.rows}>
           {lines.map(({ game, top }) => (
@@ -176,12 +239,14 @@ export interface PlaceCardProps {
   signInHref?: string;
   onJoin: (name: string | null) => void;
   onLeave: () => void;
+  /** An id for the card, for a link on the same page to come to it. */
+  id?: string;
 }
 
 /** The card's key: it starts over (its field showing the name the player has) whenever where they stand changes. */
 export const placeKey = (state: PlaceState): string => (state.kind === 'on' ? `on:${state.tag}:${state.name ?? ''}` : state.kind);
 
-export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave }: PlaceCardProps) {
+export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave, id }: PlaceCardProps) {
   const inputId = useId();
   const hintId = useId();
   const [name, setName] = useState(state.kind === 'on' ? (state.name ?? '') : '');
@@ -206,7 +271,7 @@ export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave
 
   const said = local ?? problem;
   return (
-    <div className={styles.place} data-testid="floor-place" data-state={state.kind}>
+    <div id={id} className={styles.place} data-testid="floor-place" data-state={state.kind}>
       <h3 className={styles.placeTitle}>{t.placeTitle}</h3>
       {state.kind === 'guest' && (
         <p className={styles.placeText}>
@@ -219,7 +284,15 @@ export function PlaceCard({ t, state, busy, problem, signInHref, onJoin, onLeave
           )}
         </p>
       )}
-      {state.kind === 'checking' && <p className={styles.placeText}>{t.checking}</p>}
+      {/* While it is asked, a guest's line holds its place unseen under the question: most visitors are guests. */}
+      {state.kind === 'checking' && (
+        <p className={`${styles.placeText} ${styles.holder}`}>
+          <span>{t.checking}</span>
+          <span className={styles.unseen} aria-hidden="true">
+            {t.signInToJoin}
+          </span>
+        </p>
+      )}
       {state.kind === 'unavailable' && <p className={styles.placeText}>{t.feedUnavailable}</p>}
       {state.kind === 'blocked' && <p className={styles.placeText}>{t.blocked}</p>}
       {(state.kind === 'off' || state.kind === 'on') && (

@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { GAME, NOTICE_KEY, TABLE_KEY, parseTable } from '../../src/components/game/Blackjack/medalTable';
 import { PUSHER } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { onPageError } from './pageErrors';
 import { arrived } from './streamedPage';
 import { cardsIn, dealButton, finishRound, medalsShown, openBlackjack, seated, shownNet } from './blackjackPage';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
@@ -196,7 +197,7 @@ test('the medal center’s reset starts the table over: the hand on it goes with
 
 test('old saved state: what the table cannot read is put aside, and the medals a Medal Pusher kept before the medal center are played here', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await page.addInitScript(
     ([tableKey, machineKey]) => {
       if (window.localStorage.getItem(machineKey) !== null) return;
@@ -254,7 +255,7 @@ test('a browser with no room left for the table bets nothing, and says why', asy
 test('at a phone’s width, in both languages: the counter, the note that medals are not money, the note shown once, and no sideways scroll', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openBlackjack(page);
   await expect(page.getByTestId('bj-notice')).toBeVisible();
   await expect(page.getByTestId('bj-notice-center')).toHaveAttribute('href', '/games/medal-center');

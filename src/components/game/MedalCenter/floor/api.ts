@@ -4,6 +4,7 @@
  * and finds whoever is signed in.
  */
 
+import { jackpotViewFrom, type FloorJackpotView } from '@/lib/medalFloor/jackpot';
 import type { NameRefusal } from '@/lib/medalFloor/names';
 import type { FloorMe, FloorSummary } from '@/lib/medalFloor/types';
 
@@ -41,6 +42,13 @@ const bearer = (token: string): Record<string, string> => ({ Authorization: `Bea
 /** What the floor shows now: the hub's short boards, or the rankings page's long ones. */
 export const fetchFloor = (view: 'hub' | 'full'): Promise<FloorSummary> => fetch(`${FLOOR_API}?view=${view}`).then((response) => answer<FloorSummary>(response));
 
+/** The floor jackpot as everybody is shown it. */
+export async function fetchJackpot(): Promise<FloorJackpotView> {
+  const view = jackpotViewFrom(await fetch(`${FLOOR_API}/jackpot`).then((response) => answer<unknown>(response)));
+  if (!view) throw new FloorCallError(200);
+  return view;
+}
+
 export const fetchMe = (token: string): Promise<FloorMe> => fetch(`${FLOOR_API}/me`, { headers: bearer(token), cache: 'no-store' }).then((response) => answer<FloorMe>(response));
 
 /** Joins the floor, or changes the name; null is "Player" and the four digits. */
@@ -55,7 +63,8 @@ export const fetchOwnerFloor = (token: string): Promise<FloorSummary> => fetch(`
 export type OwnerAction =
   | { action: 'hide-line' | 'show-line'; period: string; board: string; pid: string }
   | { action: 'hide-moment'; id: number }
-  | { action: 'block' | 'unblock'; pid: string };
+  | { action: 'block' | 'unblock'; pid: string }
+  | { action: 'void-jackpot'; id: string };
 
 export const ownerAct = (token: string, act: OwnerAction): Promise<{ done: true }> =>
   fetch(`${FLOOR_API}/admin`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...bearer(token) }, body: JSON.stringify(act) }).then((response) => answer<{ done: true }>(response));

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
@@ -34,6 +35,7 @@ import { roundOutcome, type DoubleOutcome } from './doubleUp';
 import { canDouble, cardsOf, createMedalPlay, deviceStore, doubleOf, doublePending, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
 import { PRECOMPUTED } from './precomputed';
 import styles from './VideoPoker.module.css';
+import selectStyles from '../common/select.module.css';
 
 /** Animation pacing (ms): the gap between cards turning over and the pause before the result is shown. */
 export const TIMING = { step: 90, flip: 340, settle: 200 } as const;
@@ -108,6 +110,26 @@ const CounterMedal = () => (
     <circle cx="16.4" cy="16.5" r="12.2" fill="none" stroke={MEDAL_PAINT.rim} strokeWidth="0.8" opacity="0.7" />
     <polygon points={COUNTER_STAR} fill={MEDAL_PAINT.dark} />
   </svg>
+);
+
+/**
+ * A message with each 「quoted」 word kept on one line, with the stop after it. Under keep-all Safari broke
+ * 「ドロー」。 at its edges (「ドロー」 then 。 alone at the start of the next line, or 「 alone at the end of one), and
+ * neither a word joiner nor a break offered before 「 changed where; a run that does not wrap does, in every browser.
+ * The text is the message's own, character for character.
+ */
+const Unbroken = ({ text }: { text: string }) => (
+  <>
+    {text.split(/(「[^」]*」[。、]?)/).map((part, i) =>
+      i % 2 === 1 ? (
+        <span key={i} className={styles.unbroken}>
+          {part}
+        </span>
+      ) : (
+        part
+      ),
+    )}
+  </>
 );
 
 /**
@@ -693,7 +715,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
           )}
 
           <p className={styles.message} role="status" data-tone={message.tone} data-testid="vp-message">
-            {message.text}
+            <Unbroken text={message.text} />
           </p>
 
           {/* The member's card is in a machine in another tab: this one waits until it is played here again. */}
@@ -781,17 +803,15 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
         </div>
         {refillDue && (
           <button type="button" className={styles.refill} data-testid="vp-refill" onClick={onRefill}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
         {outOfMedals && !refillDue && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="vp-out" />}
-        <p className={styles.keysHint} data-testid="vp-keys">
-          {t.keysHint}
-        </p>
+        <KeysHint text={t.keysHint} className={styles.keysHint} testId="vp-keys" />
 
         <div className={styles.settingsRow}>
           <label htmlFor="vp-paytable-select">{t.payTableLabel}</label>
-          <select id="vp-paytable-select" className={styles.select} value={payId} onChange={(e) => setPayId(e.target.value as PayTableId)} disabled={!canChange}>
+          <select id="vp-paytable-select" className={`${styles.select} ${selectStyles.select}`} value={payId} onChange={(e) => setPayId(e.target.value as PayTableId)} disabled={!canChange}>
             {PAY_TABLE_IDS.map((id) => (
               <option key={id} value={id}>
                 {t.payTableOption(id, `${(PRECOMPUTED[id].payback * 100).toFixed(2)}%`)}
@@ -804,9 +824,9 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
 
       <div className={styles.panel}>
         <div className={styles.toggleRow}>
-          <h3 className={styles.blockTitle} style={{ margin: 0 }}>
+          <h2 className={styles.blockTitle} style={{ margin: 0 }}>
             {t.bestTitle}
-          </h3>
+          </h2>
           <label className={styles.toggle}>
             <input type="checkbox" checked={showBest} onChange={(e) => setShowBest(e.target.checked)} />
             {t.bestToggle}

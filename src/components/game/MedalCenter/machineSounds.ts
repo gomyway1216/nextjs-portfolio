@@ -11,7 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * buffer for the Web Audio API. Nothing is downloaded or recorded.
  *
  * What a medal machine is heard to do: a medal going in, the lever, each reel
- * stopping, a card dealt, the ball launched and dropping into its pocket, and
+ * stopping, a card dealt, the ball launched and dropping into its pocket, the
+ * horse race's bell before betting closes, its fanfare, gate and hoof beats, and
  * above all a win counted into the player's medals a medal at a time, each
  * with its chirp (`tick`), with a jingle over it, a fanfare for a big one. A
  * loss is silent, as on the machines.
@@ -20,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -224,7 +225,256 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     knock(t, 0.19, 1100, 0.2, 0.008);
     return t;
   },
+  // A float landing on the water (Big Catch Harbor): a soft splash, and two bubbles rising.
+  splash: (rate) => {
+    const t = take(0.5, rate);
+    hiss(t, 0.0, 0.22, 1, 700, 91, true);
+    hiss(t, 0.01, 0.12, 0.6, 1800, 92);
+    bubble(t, 0.16, 380, 900, 0.07, 0.35);
+    bubble(t, 0.27, 460, 1100, 0.06, 0.25);
+    return t;
+  },
+  // A bite: the float pulled under with a plunk, and a bubble.
+  bite: (rate) => {
+    const t = take(0.36, rate);
+    knock(t, 0.002, 150, 0.9, 0.05);
+    hiss(t, 0.002, 0.08, 0.5, 900, 101);
+    bubble(t, 0.1, 300, 700, 0.09, 0.4);
+    return t;
+  },
+  // The reel's ratchet: four quick clicks of the pawl.
+  ratchet: (rate) => {
+    const t = take(0.2, rate);
+    for (let i = 0; i < 4; i++) {
+      knock(t, 0.002 + i * 0.042, 1900, 0.5, 0.004);
+      hiss(t, 0.002 + i * 0.042, 0.01, 0.6, 4200, 111 + i);
+    }
+    return t;
+  },
+  // The horse-racing machine's fanfare before the off: the machine's own call of a few rising notes on its speaker,
+  // a held top note, and an answer up to the octave.
+  fanfare: (rate) => {
+    const t = take(1.85, rate);
+    const call: [string, number, number][] = [
+      ['G4', 0.0, 0.09],
+      ['C5', 0.12, 0.09],
+      ['E5', 0.24, 0.09],
+      ['G5', 0.36, 0.3],
+      ['E5', 0.72, 0.09],
+      ['G5', 0.84, 0.09],
+      ['C6', 0.96, 0.62],
+    ];
+    for (const [name, at, length] of call) {
+      note(t, 0.01 + at, pitch(name), length, 0.32, length > 0.2 ? 0.006 : 0);
+      note(t, 0.01 + at, pitch(name) * 2, length, 0.08);
+    }
+    ping(t, 0.97, pitch('C7'), 0.12, 0.12);
+    return t;
+  },
+  // The starting gate flying open: a clank of steel, the rattle of the doors, a thump.
+  gate: (rate) => {
+    const t = take(0.4, rate);
+    knock(t, 0.002, 160, 0.9, 0.03);
+    ping(t, 0.004, 1250, 0.35, 0.05);
+    ping(t, 0.01, 1780, 0.25, 0.04);
+    hiss(t, 0.0, 0.18, 0.7, 2400, 91);
+    knock(t, 0.09, 120, 0.5, 0.025);
+    return t;
+  },
+  // A stride of the field at the gallop: four hoof beats close together, over the dust.
+  hooves: (rate) => {
+    const t = take(0.5, rate);
+    [0.0, 0.07, 0.13, 0.25].forEach((at, i) => {
+      knock(t, 0.004 + at, 95 + i * 12, 0.85 - i * 0.08, 0.018);
+      hiss(t, 0.004 + at, 0.04, 0.35, 700, 101 + i);
+    });
+    return t;
+  },
+  // The bell that says betting is about to close: a small electric bell, ringing.
+  bell: (rate) => {
+    const t = take(0.95, rate);
+    for (let i = 0; i < 20; i++) ping(t, 0.004 + i * 0.04, 2100, 0.3 * (1 - i / 26), 0.05);
+    ping(t, 0.81, 2100, 0.3, 0.12);
+    return t;
+  },
+  // The big wheel's flapper slapping over a peg (Star Festival Big Wheel): a dry knock of leather on wood, and the peg's tick.
+  flap: (rate) => {
+    const t = take(0.07, rate);
+    knock(t, 0.001, 520, 0.8, 0.007);
+    hiss(t, 0.001, 0.018, 0.9, 1700, 121);
+    ping(t, 0.002, 2300, 0.18, 0.006);
+    return t;
+  },
+  // The big wheel stopping on BONUS: a run of star chimes up two octaves, ringing on.
+  bonus: (rate) => {
+    const t = take(1.3, rate);
+    ['E5', 'G#5', 'B5', 'E6', 'G#6', 'B6', 'E7'].forEach((name, i) => {
+      note(t, 0.01 + i * 0.06, pitch(name), 0.05, 0.24);
+      ping(t, 0.01 + i * 0.06, pitch(name) * 2, 0.16, 0.12);
+    });
+    for (const name of ['E6', 'G#6', 'B6']) note(t, 0.45, pitch(name), 0.5, 0.14, 0.01);
+    return t;
+  },
+  // A rung of the High & Low ladder lighting: three quick steps up and a bell on the last.
+  rung: (rate) => {
+    const t = take(0.42, rate);
+    ['G5', 'C6', 'E6'].forEach((name, i) => note(t, 0.01 + i * 0.045, pitch(name), 0.04, 0.3));
+    ping(t, 0.1, pitch('G6'), 0.24, 0.09);
+    return t;
+  },
+  // The Sic Bo shaker (Moonlit Sic Bo): the platter's motor humming under the dome, and the three dice rattling
+  // against the glass and the felt, thick at first and thinning as the shake ends.
+  shaker: (rate) => {
+    const t = take(1.5, rate);
+    hiss(t, 0.0, 1.42, 0.35, 140, 131, true);
+    const next = noise(132);
+    for (let i = 0; i < 70; i++) {
+      const at = 0.01 + 1.36 * ((i + 0.5 + next() * 0.45) / 70);
+      const level = 0.55 + 0.3 * next();
+      knock(t, at, 1500 + 700 * next(), level * 0.45, 0.004);
+      hiss(t, at, 0.012, level * 0.5, 3600 + 1200 * next(), 140 + i);
+      if (i % 3 === 0) ping(t, at + 0.002, 4300 + 900 * next(), level * 0.12, 0.01);
+    }
+    return t;
+  },
+  // A die dropping onto the felt and coming to rest: a soft knock and the tick of its corner.
+  dice: (rate) => {
+    const t = take(0.12, rate);
+    knock(t, 0.001, 420, 0.7, 0.012);
+    hiss(t, 0.001, 0.02, 0.5, 2400, 211);
+    knock(t, 0.035, 900, 0.25, 0.005);
+    return t;
+  },
+  // The die tumbling in Whale Isle Sugoroku's dome: one hard little die knocking about inside clear plastic, slowing down.
+  tumble: (rate) => {
+    const t = take(0.75, rate);
+    [0, 0.07, 0.15, 0.24, 0.35, 0.47, 0.6].forEach((at, i) => {
+      knock(t, 0.003 + at, 1300 + (i % 3) * 260, 0.55 - i * 0.05, 0.006);
+      hiss(t, 0.003 + at, 0.025, 0.5 - i * 0.04, 5200, 231 + i);
+    });
+    return t;
+  },
+  // The sugoroku boat hopping one square on: a soft wooden pok.
+  hop: (rate) => {
+    const t = take(0.12, rate);
+    knock(t, 0.002, 620, 0.7, 0.012);
+    note(t, 0.004, pitch('A5'), 0.025, 0.12);
+    return t;
+  },
+  // The candy-shop maze's lever let go: the spring's twang, and the striker's knock on the medal.
+  spring: (rate) => {
+    const t = take(0.36, rate);
+    knock(t, 0.002, 1500, 0.55, 0.006);
+    twang(t, 0.004, 310, 0.6, 0.09);
+    ping(t, 0.006, 2600, 0.2, 0.02);
+    return t;
+  },
+  // A medal rolling down a wooden shelf: a low rumble that swells and dies, and the faint tick of its rim.
+  roll: (rate) => {
+    const t = take(0.5, rate);
+    hiss(t, 0, 0.48, 0.9, 520, 241, true);
+    hiss(t, 0, 0.48, 0.35, 1900, 242, true);
+    for (let i = 0; i < 6; i++) knock(t, 0.05 + i * 0.07, 2100 + (i % 2) * 300, 0.06, 0.003);
+    return t;
+  },
+  // A medal against a gate: a hard little clack of steel on painted wood.
+  clack: (rate) => {
+    const t = take(0.18, rate);
+    knock(t, 0.001, 1700, 0.8, 0.006);
+    ping(t, 0.002, 3100, 0.35, 0.025);
+    hiss(t, 0.001, 0.02, 0.6, 4200, 251);
+    knock(t, 0.045, 1500, 0.25, 0.004);
+    return t;
+  },
+  // A medal on a brass pin: a bright tick.
+  pin: (rate) => {
+    const t = take(0.12, rate);
+    ping(t, 0.001, 3400, 0.5, 0.018);
+    hiss(t, 0.001, 0.012, 0.35, 5600, 261);
+    return t;
+  },
+  // A medal landing in a pocket: the clunk of the pocket's floor and the medal's ring settling.
+  pocket: (rate) => {
+    const t = take(0.42, rate);
+    knock(t, 0.002, 320, 0.9, 0.03);
+    clink(t, 0.004, 0.7, 271);
+    clink(t, 0.11, 0.35, 272);
+    clink(t, 0.19, 0.18, 273);
+    return t;
+  },
+  // A keno ball coming out on the screen: the cabinet's short electronic blip, a fifth up at its end.
+  ball: (rate) => {
+    const t = take(0.12, rate);
+    note(t, 0.002, pitch('E5'), 0.028, 0.3);
+    note(t, 0.032, pitch('B5'), 0.03, 0.26);
+    return t;
+  },
+  // A keno spot caught: a bright double ding with a ring under it.
+  catch: (rate) => {
+    const t = take(0.4, rate);
+    note(t, 0.004, pitch('C6'), 0.045, 0.3);
+    note(t, 0.06, pitch('G6'), 0.06, 0.28);
+    ping(t, 0.06, pitch('G6'), 0.22, 0.08);
+    return t;
+  },
+  // The smart ball's plunger taken hold of and drawn back: the coil stretching with a rising squeak, and the rod's knock.
+  plunger: (rate) => {
+    const t = take(0.3, rate);
+    knock(t, 0.002, 900, 0.35, 0.006);
+    bubble(t, 0.01, 260, 470, 0.22, 0.22);
+    hiss(t, 0.01, 0.2, 0.25, 2600, 281, true);
+    return t;
+  },
+  // A glass marble on a brass pin: a bright, glassy tick, higher than a medal's.
+  marble: (rate) => {
+    const t = take(0.12, rate);
+    ping(t, 0.001, 4300, 0.45, 0.014);
+    ping(t, 0.001, 6200, 0.25, 0.009);
+    hiss(t, 0.001, 0.01, 0.3, 6400, 291);
+    return t;
+  },
+  // A marble rattling over one already sitting in a hole: glass on glass, twice.
+  rattle: (rate) => {
+    const t = take(0.2, rate);
+    clink(t, 0.002, 0.55, 301);
+    ping(t, 0.003, 5200, 0.3, 0.012);
+    clink(t, 0.06, 0.35, 302);
+    return t;
+  },
+  // A glass marble dropping into a wooden hole: the hollow knock of the hole, the marble running round its rim, settling.
+  hole: (rate) => {
+    const t = take(0.5, rate);
+    knock(t, 0.002, 260, 0.85, 0.035);
+    for (let i = 0; i < 5; i++) ping(t, 0.04 + i * 0.06, 3900 - i * 180, 0.22 * (1 - i * 0.16), 0.01);
+    clink(t, 0.34, 0.25, 311);
+    return t;
+  },
 };
+
+/** A spring let go: a tone bent down from a wobble, dying away. */
+function twang(t: Take, at: number, hz: number, level: number, life: number): void {
+  const start = Math.floor(at * t.rate);
+  const total = Math.min(t.out.length - start, Math.ceil(life * 6 * t.rate));
+  let phase = 0;
+  for (let i = 0; i < total; i++) {
+    const s = i / t.rate;
+    const f = hz * (1 + 0.35 * Math.exp(-s / 0.03)) * (1 + 0.04 * Math.sin(TAU * 18 * s));
+    phase += (TAU * f) / t.rate;
+    t.out[start + i] += level * (Math.sin(phase) + 0.3 * Math.sin(phase * 2.01)) * Math.exp(-s / life) * Math.min(1, s / 0.002);
+  }
+}
+
+/** A bubble rising through water: a sine that sweeps up in pitch, swelling and dying away. */
+function bubble(t: Take, at: number, from: number, to: number, length: number, level: number): void {
+  const start = Math.floor(at * t.rate);
+  const total = Math.min(t.out.length - start, Math.ceil(length * t.rate));
+  let phase = 0;
+  for (let i = 0; i < total; i++) {
+    const s = i / t.rate;
+    phase += (TAU * (from + (to - from) * (s / length) ** 2)) / t.rate;
+    t.out[start + i] += level * Math.sin(phase) * Math.sin(Math.PI * (s / length));
+  }
+}
 
 /** A sound as samples at `rate` per second: worked out, brought to `PEAK` at its loudest, and faded in and out over a few ms. */
 export function renderSound(sound: MachineSound, rate: number): Float32Array {
@@ -247,7 +497,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7 };
 
 export interface Speaker {
   on: () => boolean;

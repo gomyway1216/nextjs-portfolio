@@ -4,7 +4,7 @@ import { useLayoutEffect, useMemo } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { accountStoreFor } from '../MedalPusher/accountStore';
 import { BANK_GAME_KEY, PUSHER, bank as medalBank } from './bank';
-import { FloorTogether } from './floor/FloorTogether';
+import { FloorHub } from './floor/FloorTogether';
 import type { FloorMember } from './floor/useFloorPlace';
 import { MEDAL_CENTER_PATH } from './paths';
 import { MedalCenter } from './MedalCenter';
@@ -31,7 +31,12 @@ export const MedalCenterForPlayer = () => {
   useLayoutEffect(() => {
     medalBank().attend({ uid, settled, expected: presumedSignedIn }, BANK, { machines: PUSHER_MACHINE, books: PUSHER_BOOK });
   }, [uid, settled, presumedSignedIn]);
-  return <MedalCenter signInHref={SIGN_IN} together={<FloorTogether member={member} settled={settled} signInHref={SIGN_IN} />} />;
+  // The floor played together shows in two places on the front: its board by the door, and its rankings under the machines.
+  return (
+    <FloorHub member={member} settled={settled} signInHref={SIGN_IN}>
+      {({ now, together }) => <MedalCenter signInHref={SIGN_IN} presumedMember={presumedSignedIn} now={now} together={together} />}
+    </FloorHub>
+  );
 };
 
 export default MedalCenterForPlayer;

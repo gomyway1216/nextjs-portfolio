@@ -512,6 +512,9 @@ export function createMedalPlay(env: MedalPlayEnv) {
         else removeKey(key());
         return { kind: 'short' };
       }
+      // The medal floor hears of the medals played, once, as the bet goes in. (A double-up stakes what was just won, and is
+      // not counted as medals played. Video poker is not linked to the floor jackpot: lib/medalFloor/jackpot.ts.)
+      floorReport(GAME, { played: coins });
       // The hand before this one is no longer kept: nothing will look at its receipts again.
       bank.forget(GAME, [dealt.id]);
       return { kind: 'dealt', hand: dealt };
@@ -680,21 +683,3 @@ export function createMedalPlay(env: MedalPlayEnv) {
 }
 
 export type MedalPlay = ReturnType<typeof createMedalPlay>;
-
-/** Whether the player has been told that the machine plays with their medals now. Storage that cannot be read tells them again. */
-export function noticeSeen(store: HandStore): boolean {
-  try {
-    return store.read(NOTICE_KEY) !== null;
-  } catch {
-    return false;
-  }
-}
-
-/** Notes that the player has been told. */
-export function markNoticeSeen(store: HandStore): void {
-  try {
-    store.write(NOTICE_KEY, '1');
-  } catch {
-    // They are told again next time.
-  }
-}

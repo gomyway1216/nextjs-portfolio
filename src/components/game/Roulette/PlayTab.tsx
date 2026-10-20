@@ -7,6 +7,8 @@ import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
+import { RefillWords } from '../MedalCenter/KeysHint';
+import { lookUp, type Glance } from '../MedalCenter/lookUp';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
 import { HistoryBoard } from './HistoryBoard';
@@ -62,16 +64,8 @@ interface Outcome {
 
 const sumOf = (bets: Record<BetKey, PlacedBet>): number => Object.values(bets).reduce((sum, b) => sum + b.amount, 0);
 
-/** Brings the wheel on screen (single-column mobile layout) so the spin is visible. */
-function revealWheel(el: HTMLElement | null) {
-  if (!el || typeof window === 'undefined') return;
-  const rect = el.getBoundingClientRect();
-  const viewport = window.innerHeight || document.documentElement.clientHeight;
-  const visible = Math.min(rect.bottom, viewport) - Math.max(rect.top, 0);
-  if (visible >= rect.height * 0.6) return;
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-}
+/** How long the result stays in view under the wheel before the view goes back down to the felt, in ms. */
+const RESULT_GLANCE = 2000;
 
 /** This device's storage for the table: a spin on record, under the player's name. Every call may throw. */
 const browserStorage = {
@@ -123,6 +117,18 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setLastBets(copy);
   }, []);
   const wheelAreaRef = useRef<HTMLDivElement>(null);
+  const spinButtonRef = useRef<HTMLButtonElement>(null);
+  // On a phone the wheel is above the felt: SPIN lifts the view to it, and once the result has been seen it goes back
+  // down to the felt, where the winning number is lit (MedalCenter/lookUp.ts).
+  const glance = useRef<Glance | null>(null);
+  const glanceTimer = useRef<number | null>(null);
+  const dropGlance = useCallback(() => {
+    if (glanceTimer.current !== null) window.clearTimeout(glanceTimer.current);
+    glanceTimer.current = null;
+    glance.current?.drop();
+    glance.current = null;
+  }, []);
+  useEffect(() => dropGlance, [dropGlance]);
 
   // Refs guard against state-lag races: setSpinning(true) doesn't take effect
   // until the next render, so a fast second click would otherwise schedule a
@@ -148,8 +154,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const canBet = mine && here && !spinning;
 
   const totalWagered = useMemo(() => sumOf(bets), [bets]);
+  // What a spin still rolling won, when it was paid before its ball stopped: the card went for a moment (the medal
+  // center taking the day's bonus, say) and the spin was settled as it went. The medals are in, and the counter does
+  // not show them before the ball has stopped on the number that won them.
+  const [hiddenWin, setHiddenWin] = useState(0);
   // The medals not on the felt: while the ball rolls, the bets on the felt have been taken out of them already.
-  const medalsShown = mine ? Math.max(0, bankState.balance - (spinning ? 0 : totalWagered)) : null;
+  const medalsShown = mine ? Math.max(0, bankState.balance - hiddenWin - (spinning ? 0 : totalWagered)) : null;
   // On the counter's LEDs a win runs into the medals, as a medal machine pays it (countUp.ts).
   // The table's sound, off until the player switches it on; each medal of a win chirps as it is counted in.
   const sound = useMachineSound();
@@ -244,7 +254,6 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setWinning(null);
     setResult(spun.record.result);
     setSpinId((id) => id + 1);
-    revealWheel(wheelAreaRef.current);
   }, []);
 
   const doSpin = () => {
@@ -261,6 +270,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     rememberBets(staked.record.bets);
     setAnnouncement(t.sayStake(staked.record.wagered));
     roll(Object.assign(staked, { boarded: false }));
+    dropGlance();
+    glance.current = lookUp(wheelAreaRef.current, spinButtonRef.current);
     // The ball is launched round the wheel.
     play('launch');
   };
@@ -271,8 +282,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (!spun) return;
     inFlight.current = null;
     if (!spun.void) {
-      // What it won runs into the medals on the counter (paid now, or as the card went for a moment).
+      // What it won runs into the medals on the counter (paid now, or as the card went for a moment, and kept off the
+      // counter until now).
       if (spun.record.won > 0) payMedals();
+      setHiddenWin(0);
       // The ball drops into its pocket; a win is played over the medals coming in.
       play('drop');
       if (spun.record.won > 0) play(spun.record.won >= spun.record.wagered * 10 ? 'big' : 'win', 0.2);
@@ -293,6 +306,15 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setFelt({});
     spinningRef.current = false;
     setSpinning(false);
+    // The number and what it paid have been seen under the wheel: the view goes back down to the felt.
+    if (glance.current) {
+      const seen = glance.current;
+      glanceTimer.current = window.setTimeout(() => {
+        glanceTimer.current = null;
+        if (glance.current === seen) glance.current = null;
+        seen.back();
+      }, RESULT_GLANCE);
+    }
   }, [setFelt, payMedals, play]);
 
   /** The medals have been reset at the medal center: the table starts over, and so does this device's copy of it. */
@@ -305,6 +327,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       // The number under the wheel goes too; a ball still rolling is left to stop (taking its number away would stop
       // the wheel's animation before it could say that it has stopped).
       else setResult(null);
+      // A win paid as the card went before the reset went with every other medal: nothing of it is held back now.
+      setHiddenWin(0);
       table.current?.clear();
       shownLast.current = null;
       setFelt({});
@@ -335,6 +359,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (!spun || spun.void || !table.current) return;
       // Settled already when the card went for a moment, perhaps; it may still have to go on the board.
       const settled = spun.paid ? 'already' : table.current.settle(spun);
+      // Paid now, before the ball has stopped: what it won stays off the counter until it has (`settleSpin`).
+      if (settled === 'paid' && spun.record.won > 0) setHiddenWin(spun.record.won);
       // A page that is hidden or left will not show the number when the ball stops: it goes on the board now.
       if ((settled === 'paid' || settled === 'already') && why !== 'moment' && !spun.boarded) {
         resultsStore.record(spun.record.result);
@@ -473,7 +499,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             idleLabel={t.wheelIdle}
           />
 
-          <div className={styles.resultBadge} aria-live="polite" data-testid="roulette-result">
+          {/* Shown, not said: the announcement below says the number, its colour and what it paid, once. */}
+          <div className={styles.resultBadge} data-testid="roulette-result">
             {spinning ? (
               <span className={styles.noMoreBets}>{t.noMoreBets}</span>
             ) : (
@@ -513,7 +540,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <MedalMeter medals={medalsShown} medalsShown={medalMeter.shown} bet={totalWagered} win={outcome && !spinning ? outcome.won : 0} t={t}>
           {outOfMedals && (
             <button type="button" className={styles.refill} data-testid="roulette-refill" onClick={() => medalBank().refill()}>
-              {t.refill(REFILL)}
+              <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
         </MedalMeter>
@@ -544,7 +571,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
                 grid, laid out as a casino table (numbers running across) where the felt is wide, and turned upright (0 on
                 top, three columns running down) where it is a phone's width. Every piece carries its place in both, so
                 the hit zones sit on the borders of the numbers they name either way (feltLayout.ts). */}
-            <div className={styles.feltBoard}>
+            <div className={styles.feltBoard} data-testid="roulette-felt">
               <BetCell
                 label="0"
                 variant="green"
@@ -699,6 +726,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           <div className={styles.actions}>
             <button
               type="button"
+              ref={spinButtonRef}
               onClick={doSpin}
               disabled={!canBet || totalWagered === 0}
               className={`${styles.btn} ${styles.btnPrimary}`}

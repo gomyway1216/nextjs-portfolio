@@ -1,6 +1,7 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
+import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { availableLanguages, type PostTranslations } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
@@ -11,7 +12,12 @@ import type { DetailPost } from '@/services/postsService';
 // Public posts only: private posts keep their existing client-side fetch
 // path, which sends the admin's auth token.
 async function fetchPublicPost(id: string): Promise<DetailPost | null> {
-  const doc = await getFirestore().collection(POSTS_COLLECTION).doc(id).get();
+  // Rejects on failure or timeout (never null), so a failed revalidation
+  // keeps the cached post instead of caching "not found".
+  const doc = await withReadDeadline(
+    getFirestore().collection(POSTS_COLLECTION).doc(id).get(),
+    'blog post read',
+  );
   if (!doc.exists) return null;
 
   const data = doc.data()!;

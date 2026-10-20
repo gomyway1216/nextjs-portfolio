@@ -7,8 +7,14 @@ import { getStrings } from '../../src/components/game/Roulette/i18n';
 import { ROULETTE_RESULTS_STORAGE_KEY } from '../../src/components/game/Roulette/resultsStore';
 import { NOTICE_KEY, ROULETTE_GAME, SPIN_KEY, parseSpin, winningsOf, type SpinRecord } from '../../src/components/game/Roulette/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
 import { boardNumbers, openRoulette, placeFirstBet, settledResult, shownBet, shownMedals, spinButton } from './roulettePage';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
+import { quietFloor } from './quietFloor';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Roulette on the medal center's floor: it plays with the player's medals, the ones every game there shares. A bet
 // is taken when the wheel spins and what it wins goes back when the ball stops, once each, through reloads, a page
@@ -29,6 +35,18 @@ async function coverTheWheel(page: Page) {
 }
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
+
+/** Stops the pages' clock (installed with `page.clock.install`) a moment from now: time moves on while the page is asked, so a moment that has gone by is asked again. */
+async function stopClock(page: Page): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 300);
+      return;
+    } catch (error) {
+      if (attempt >= 4 || !String(error).includes('past')) throw error;
+    }
+  }
+}
 
 test('a bet takes medals when the wheel spins, a win puts medals back, and the medal center shows the same count after a reload', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -65,16 +83,12 @@ test('a bet takes medals when the wheel spins, a win puts medals back, and the m
   await expect(page.locator('[data-machine="roulette"]')).toHaveAttribute('data-open', 'true');
 });
 
-/** The next spin comes up `n`. */
-const comeUp = (page: Page, n: number) =>
-  page.evaluate((pocket) => {
-    const w = window as unknown as { __random: () => number };
-    w.__random = Math.random;
-    Math.random = () => {
-      Math.random = w.__random;
-      return (pocket + 0.5) / 37;
-    };
-  }, n);
+/**
+ * The next spin comes up `n`: the number SPIN draws, served only to the press that spins (rigPresses). The page's other
+ * callers of Math.random get real ones; a number handed to the first caller, whoever it was, went to the floor's live
+ * strip on the live site whenever it drew first.
+ */
+const comeUp = (page: Page, n: number) => rigPresses(page, [(n + 0.5) / 37]);
 
 test('Rebet puts the last spin’s bets back on the felt, after a reload too, and only when the medals cover them', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -212,6 +226,57 @@ test('a spin settled while the medal center borrowed the medals still goes on th
   await expect.poll(() => boardNumbers(page)).toEqual([staked!.result]);
 });
 
+test('a win paid while the medal center borrowed the medals is not shown before the ball stops, and runs in once it has', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  // The pages' clock is the test's: it runs as usual until it is stopped, and then the ball stays where it is while the
+  // medal center borrows the medals, however long that takes.
+  await page.clock.install();
+  // The medal center is open in another tab first, so that the day's bonus is there to take while the ball rolls.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openRoulette(page);
+  await coverTheWheel(page);
+  // Zero comes up: the medal on it wins 36 (35 and the medal back).
+  await page.evaluate(() => {
+    const w = window as unknown as { __random: () => number };
+    w.__random = Math.random;
+    Math.random = () => 0.5 / 37;
+  });
+  await spinButton(page).click();
+  await page.evaluate(() => {
+    Math.random = (window as unknown as { __random: () => number }).__random;
+  });
+  const wheel = page.locator('[data-spinning]');
+  await expect(wheel).toHaveAttribute('data-spinning', 'true');
+  await stopClock(page);
+  // The bonus is taken at the medal center while the ball rolls: it borrows the medals for a moment, and the spin is
+  // settled as they go. The 36 are the player's at once, and once only.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+  const bonus = (await bankBalance(page)) - (WELCOME - 3 + 36);
+  expect(bonus).toBeGreaterThan(0);
+  // Still rolling: the counter has the bonus, which is no win of the table's, and not the 36, which the ball has not
+  // stopped on yet.
+  const led = () => page.getByTestId('roulette-medals-led').evaluate((el) => Number((el as HTMLElement).dataset.shown));
+  await expect.poll(() => shownMedals(page)).toBe(WELCOME - 3 + bonus);
+  await expect.poll(led).toBe(WELCOME - 3 + bonus);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '0');
+  await expect(wheel).toHaveAttribute('data-spinning', 'true');
+  // Time goes on, and the ball stops on zero: the 36 show, and run into the medals on the counter.
+  await page.clock.resume();
+  expect(await settledResult(page)).toBe(0);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-win', '36');
+  expect(await shownMedals(page)).toBe(WELCOME - 3 + bonus + 36);
+  expect(await led()).toBeLessThan(WELCOME - 3 + bonus + 36);
+  await expect.poll(led, { timeout: 4_000 }).toBe(WELCOME - 3 + bonus + 36);
+  // Paid once: what the medal center borrowed the medals for put the 36 in, and the ball stopping put nothing more.
+  expect(await bankBalance(page)).toBe(WELCOME - 3 + bonus + 36);
+  await hub.close();
+});
+
 test('a reset at the medal center while the ball rolls: once it stops, the table shows nothing of before', async ({ page, context }) => {
   test.setTimeout(60_000);
   await openRoulette(page);
@@ -231,8 +296,19 @@ test('a reset at the medal center while the ball rolls: once it stops, the table
   await expect(page.getByText('No spins yet.')).toBeVisible();
 });
 
-test('a page that dies mid-spin: the next one spins the wheel again to the same number and pays it once', async ({ page, context }) => {
+test('a page that dies mid-spin: the next one spins the wheel again to the same number and pays it once', async ({ page, context, browserName }) => {
   test.setTimeout(60_000);
+  // Only Chromium can have a tab's renderer crash (by its DevTools protocol). Elsewhere the page dies the same way to
+  // itself: from the moment it is dead, the events a page is told as it goes (hidden, hide, unload) stop at the window,
+  // before anything of the page's hears them, and the page is closed.
+  if (browserName !== 'chromium') {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __dead?: boolean };
+      for (const type of ['visibilitychange', 'pagehide', 'beforeunload', 'unload', 'freeze']) {
+        window.addEventListener(type, (event) => w.__dead && event.stopImmediatePropagation(), true);
+      }
+    });
+  }
   await openRoulette(page);
   await placeFirstBet(page, /^Red \(1:1\)$/);
   await page.getByRole('button', { name: /^Black \(1:1\)$/ }).click();
@@ -241,10 +317,15 @@ test('a page that dies mid-spin: the next one spins the wheel again to the same 
   const staked = await spinOnRecord(page);
   expect(staked).toMatchObject({ wagered: 2, paid: false });
   // The tab's renderer dies: no pagehide, nothing settled.
-  const cdp = await context.newCDPSession(page);
-  const crashed = page.waitForEvent('crash');
-  void cdp.send('Page.crash').catch(() => undefined);
-  await crashed;
+  if (browserName === 'chromium') {
+    const cdp = await context.newCDPSession(page);
+    const crashed = page.waitForEvent('crash');
+    void cdp.send('Page.crash').catch(() => undefined);
+    await crashed;
+  } else {
+    await page.evaluate(() => ((window as unknown as { __dead?: boolean }).__dead = true));
+    await page.close();
+  }
 
   const next = await context.newPage();
   await openRoulette(next);
@@ -324,7 +405,7 @@ test('the medal center’s reset starts the table over; the winning numbers, whi
 
 test('old saved state: the board is kept, the chips are retired, and the note that says so is shown once', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // What a player of the chip-era table has on this device: the results board (the chips were never saved), and,
   // where the table now writes its spin, text it cannot read.
   await page.addInitScript(

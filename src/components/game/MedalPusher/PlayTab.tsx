@@ -39,6 +39,7 @@ import { PUSHER, bank as medalBank, useBank, type Seat } from '../MedalCenter/ba
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { floorReport } from '../MedalCenter/floor/reporter';
+import { RefillWords } from '../MedalCenter/KeysHint';
 import { SoundSettingsButton, SoundSettingsPanel, useSoundSettings } from './SoundControls';
 import { hush, playSound, setAmbience, setMusic, turnMotor, unlockAudio } from './sounds';
 import { GUEST, slotFor, type AccountStore, type Player, type Status, type Sync, type Why } from './account';
@@ -787,6 +788,8 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
       if (session.inserted !== fedSeen) {
         const rolling = session.machine.rolling;
         fedNow = rolling.slice(Math.max(0, rolling.length - (session.inserted - fedSeen))).map((medal) => (medal.arm === 0 ? -1 : 1));
+        // The medals fed are the medals played: they feed the floor jackpot (it adds them up, and is told about once a minute).
+        if (session.inserted > fedSeen) floorReport(PUSHER.game, { played: session.inserted - fedSeen });
         fedSeen = session.inserted;
         wake.current?.played();
       }
@@ -1494,7 +1497,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
             <SoundSettingsButton control={soundControl} strings={t} />
             <MakersPlate strings={t} />
           </div>
-          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} />
+          <FeelControls strings={t} sweep={feel.prefs.sweep} onSweep={onSweep} vibration={feel.motor ? feel.vibrating : null} onVibration={feel.setVibration} ready={feel.known} />
           <SoundSettingsPanel control={soundControl} strings={t} />
           <FeelNote strings={t} sweep={feel.prefs.sweep} />
           <PanelWarning strings={t} />
@@ -1506,7 +1509,7 @@ export const PlayTab = ({ active = true, player = GUEST, store = null, signInHre
 
         {hud.credits === 0 && bankState.out.length === 0 && (
           <button type="button" className={`${styles.refill} ${look.attendant}`} data-testid="pusher-refill" onClick={onRefill}>
-            {t.refill(START_CREDITS)}
+            <RefillWords text={t.refill(START_CREDITS)} />
           </button>
         )}
         {/* None left here, and some still out on a round at another machine: no cupful until they are back. */}

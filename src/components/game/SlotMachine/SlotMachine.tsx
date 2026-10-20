@@ -4,15 +4,18 @@ import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank } from '../MedalCenter/bank';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import type { AccountStore } from '../MedalPusher/account';
 import { analyzeMachine } from './engine';
 import { getStrings } from './i18n';
-import { browserStorage, markNoticeRead, noticeRead } from './medals';
+import { NOTICE_KEY, browserStorage, markNoticeRead, noticeRead } from './medals';
 import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import floorTabs from '../MedalCenter/tabs.module.css';
 import styles from './SlotMachine.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -28,7 +31,8 @@ export interface SlotMachineProps {
 }
 
 // Whether the one-time note has been read on this device: kept in storage, and on this page too, for a browser whose
-// storage keeps nothing. Nothing is known of the device on the server, which draws the page as though it had been read.
+// storage keeps nothing. Nothing is known of the device on the server, which draws the note, and its gate hides it
+// before the page is painted where it has been read (MedalCenter/onceNote.tsx): the machine never moves for it.
 const noticeHeard = new Set<() => void>();
 let readHere = false;
 const subscribeNotice = (listener: () => void) => {
@@ -38,7 +42,7 @@ const subscribeNotice = (listener: () => void) => {
   };
 };
 const noticeIsRead = () => readHere || noticeRead(browserStorage());
-const readOnServer = () => true;
+const readOnServer = () => false;
 
 /** The one-time note that the machine plays with the player's medals now, until they have read it on this device. */
 const MedalsNotice = () => {
@@ -54,20 +58,23 @@ const MedalsNotice = () => {
     document.querySelector<HTMLElement>('[role="tab"][id^="slot-tab-"][aria-selected="true"]')?.focus();
   };
   return (
-    <section className={styles.notice} aria-labelledby="slot-notice-title" data-testid="slot-notice">
-      <h2 id="slot-notice-title" className={styles.noticeTitle}>
-        {t.noticeTitle}
-      </h2>
-      <p>{t.noticeBody}</p>
-      <div className={styles.noticeActions}>
-        <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="slot-notice-link">
-          {t.noticeLink}
-        </a>
-        <button type="button" className={styles.btn} data-testid="slot-notice-dismiss" onClick={dismiss}>
-          {t.noticeDismiss}
-        </button>
-      </div>
-    </section>
+    <>
+      <NoteGate name="slot-machine" storageKey={NOTICE_KEY} readValue="1" />
+      <section className={styles.notice} aria-labelledby="slot-notice-title" data-testid="slot-notice" {...noteAttributes('slot-machine')}>
+        <h2 id="slot-notice-title" className={styles.noticeTitle}>
+          {t.noticeTitle}
+        </h2>
+        <p>{t.noticeBody}</p>
+        <div className={styles.noticeActions}>
+          <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="slot-notice-link">
+            {t.noticeLink}
+          </a>
+          <button type="button" className={styles.btn} data-testid="slot-notice-dismiss" onClick={dismiss}>
+            {t.noticeDismiss}
+          </button>
+        </div>
+      </section>
+    </>
   );
 };
 
@@ -114,7 +121,10 @@ export const SlotMachine = ({ player, bankStore = null, legacyStores }: SlotMach
 
         <MedalsNotice />
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip game="slot-machine" />
+
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -123,7 +133,7 @@ export const SlotMachine = ({ player, bankStore = null, legacyStores }: SlotMach
               id={`slot-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`slot-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}
@@ -139,6 +149,8 @@ export const SlotMachine = ({ player, bankStore = null, legacyStores }: SlotMach
         </div>
         <div role="tabpanel" id="slot-panel-odds" aria-labelledby="slot-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote game="slot-machine" />
         </div>
         <div role="tabpanel" id="slot-panel-sim" aria-labelledby="slot-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

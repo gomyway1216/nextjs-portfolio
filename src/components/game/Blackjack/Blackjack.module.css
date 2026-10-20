@@ -52,6 +52,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 .subtitle {
   margin: 0.4rem 0 0;
@@ -175,8 +185,37 @@
   .morePart {
     order: 3;
   }
-  .buttonsPart > .betRow {
+  .buttonsPart .betArea > .betRow {
     margin-top: 0;
+  }
+  /*
+   * The bet and the moves in one place, one over the other: between hands the bet and DEAL, during a hand HIT / STAND /
+   * DOUBLE / SPLIT, right where DEAL was pressed, so a hand's cards and the buttons that play them are on the screen
+   * together. The one not in use keeps its room out of sight (and out of a screen reader's way): nothing under them
+   * moves as a hand begins and ends.
+   */
+  .playSpot {
+    display: grid;
+    align-items: start;
+  }
+  .playSpot > .betArea,
+  .playSpot > .moveArea {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+  .playSpot[data-phase='bet'] > .moveArea,
+  .playSpot[data-phase='hand'] > .betArea {
+    visibility: hidden;
+  }
+  /* The moves' two rows take the room of the bet buttons' two rows, so DOUBLE and SPLIT are where CLEAR and DEAL were. */
+  .playSpot .actionRow {
+    margin-top: 0;
+    gap: 0.45rem;
+  }
+  .playSpot .actionBtn {
+    height: 44px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
   .morePart > .hintRow:first-child {
     margin-top: 0;
@@ -373,18 +412,24 @@
   height: 28px;
   padding: 3px 6px;
 }
+/* What the medals are, said after the buttons on the page's own panel (no longer on the cabinet's dark): as baccarat
+   says it, a note with the table's gold at its edge. */
 .notMoney {
-  margin: 0;
-  font-size: 0.78rem;
+  margin: 0 0 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border-left: 3px solid var(--bj-gold);
+  border-radius: 4px;
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-size: 0.82rem;
   line-height: 1.5;
-  color: #ddd6ff;
 }
 .notKept {
-  margin: 0;
+  margin: 0 0 0.35rem;
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.5;
-  color: #ffd65c;
+  color: var(--games-route-fg);
 }
 .refill {
   appearance: none;
@@ -851,7 +896,8 @@
   pointer-events: none;
 }
 .feltPays {
-  color: var(--bj-gold);
+  /* A paler gold than the rail's: --bj-gold is 4.0:1 on the felt. */
+  color: #f5d995;
   font-weight: 900;
   letter-spacing: 0.18em;
   font-size: clamp(0.7rem, 2.4vw, 0.95rem);
@@ -971,13 +1017,14 @@
   letter-spacing: 0.04em;
   background: rgba(0, 0, 0, 0.45);
 }
+/* Darker than --bj-win and --bj-lose, so that the white word on them is at least 4.5:1 (3.3:1 and 3.8:1 before). */
 .outcomeTag[data-outcome='win'],
 .outcomeTag[data-outcome='blackjack'] {
-  background: var(--bj-win);
+  background: #15803d;
 }
 .outcomeTag[data-outcome='lose'],
 .outcomeTag[data-outcome='bust'] {
-  background: var(--bj-lose);
+  background: #b91c1c;
 }
 .waitingCircle {
   align-self: center;
@@ -1234,15 +1281,47 @@
   outline: 2px solid var(--a);
   outline-offset: 2px;
 }
+/* The room of the four move buttons: the insurance offer is laid over them while it is asked, in the same room. */
+.moveArea {
+  position: relative;
+}
+/* The move buttons keep their room under the offer, out of sight (and out of a screen reader's way) while it is asked. */
+.actionRowAway {
+  visibility: hidden;
+}
 .insuranceBox {
-  display: flex;
-  flex-direction: column;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
   gap: 0.5rem;
-  padding: 0.7rem;
+  padding: 0 0.6rem;
   border-radius: 12px;
   border: 1px solid var(--games-route-border);
   background: var(--games-route-surface-raised);
   font-size: 0.88rem;
+}
+.insuranceAsk {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* On a phone the four buttons are two rows: the question over YES and NO. */
+@media (max-width: 520px) {
+  .insuranceBox {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    align-content: center;
+    padding: 0.35rem 0.5rem;
+    gap: 0.35rem 0.5rem;
+  }
+  .insuranceAsk {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
 }
 .message {
   margin: 0.6rem 0 0;
@@ -1463,7 +1542,7 @@
   font-size: 0.86rem;
   min-height: 3rem;
 }
-.cellInfo h4 {
+.cellInfo h3 {
   margin: 0 0 0.4rem;
   font-size: 0.92rem;
 }
@@ -1538,5 +1617,119 @@
 @media (hover: none) and (pointer: coarse) {
   .keysHint {
     display: none;
+  }
+}
+
+/* The call-out is one line on every phone, in either language, so nothing under it moves as it changes: the question
+   while insurance is offered is short, and the longest result (a dealer blackjack, a bust with a big win) scales down
+   with a narrow screen instead of wrapping. (After the rules they adjust, which they would otherwise lose to.) */
+.callout {
+  font-size: clamp(0.85rem, 4.3vw, 1.05rem);
+}
+.calloutIdle {
+  font-size: clamp(0.8rem, 3.9vw, 0.95rem);
+}
+
+/* The shoe line keeps the same room before a shoe's first deal (a sentence that takes two lines on a narrow phone) and
+   after it (one line): two lines of a set height, beside the sound switch, so the table under it does not move. */
+.shoeBar {
+  align-items: center;
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+
+/* The insurance answers side by side, the same width, as a machine's YES and NO. */
+.insuranceChoices {
+  display: contents;
+}
+.insuranceChoices .btn {
+  min-width: 0;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+/* On the narrowest phones the bet buttons' words fit inside them (「MAXベット」 ran over its edge at 320 px). */
+@media (max-width: 360px) {
+  .betButtons .btn {
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+    font-size: 0.82rem;
+  }
+}
+
+/* "Clear record" beside the session's title keeps its words on one line; the title wraps instead. */
+.statsHead .linkButton {
+  white-space: nowrap;
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.soundToggle,
+.hintToggle {
+  min-height: 44px;
+}
+
+/*
+ * On a phone (one column) the counter is the machine's credit meter on its panel, right under the table and over the
+ * buttons, as at the other machines of the floor: one row of windows, the medals, the bet and the win, each with its
+ * name over it. The medals written in type stay for a screen reader; the note that medals are not money follows the
+ * buttons. A row of a set height, so nothing under it moves as the medals are read.
+ */
+@media (max-width: 900px) {
+  .buttonsPart > .cabinet {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.5rem;
+    row-gap: 0.15rem;
+    position: relative;
+    margin: 0 0 0.55rem;
+    padding: 0.3rem 0.55rem 0.35rem;
+  }
+  .buttonsPart > .cabinet .cabinetHead {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .buttonsPart > .cabinet .cabinetLabel,
+  .buttonsPart > .cabinet .smallLedLabel {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .buttonsPart > .cabinet .cabinetCount {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .buttonsPart > .cabinet .cabinetBody {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .buttonsPart > .cabinet .cabinetStack {
+    display: none;
+  }
+  .buttonsPart > .cabinet .cabinetLed > span {
+    max-width: none;
+    height: 26px;
+    padding: 3px 6px;
+  }
+  .buttonsPart > .cabinet .smallLeds {
+    display: contents;
+  }
+  .buttonsPart > .cabinet .smallLed {
+    grid-row: 1 / span 2;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.15rem;
+  }
+  .buttonsPart > .cabinet .smallLed > span:last-child {
+    height: 26px;
+    padding: 3px 5px;
   }
 }

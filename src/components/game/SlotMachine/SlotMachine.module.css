@@ -40,10 +40,21 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* The machine's name is never broken inside a word (「スロットマシ｜ン」): its words are kept whole, and 遊び方
+     moves under it when they do not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* On the narrowest phones the name is a size smaller, so the longest (「スリーカードポーカー」) fits a line. */
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.4rem;
+  }
 }
 
 .centerLink {
   display: inline-flex;
+  gap: 0.3em;
   align-items: center;
   min-height: 44px;
   margin-bottom: 0.1rem;
@@ -598,7 +609,8 @@
   padding: 0.8rem 1.6rem;
   border-radius: 999px;
   border: 3px solid #fcd34d;
-  background: radial-gradient(circle at 50% 30%, #f87171, #dc2626 55%, #991b1b);
+  /* White SPIN at least 4.5:1 all over the button: the old highlight (#f87171) was 2.8:1. */
+  background: radial-gradient(circle at 50% 30%, #dc2626, #b91c1c 55%, #7f1d1d);
   color: #fff;
   font-size: 1.15rem;
   font-weight: 900;
@@ -1125,6 +1137,10 @@
   font-variant-numeric: tabular-nums;
   color: var(--games-route-muted);
 }
+/* On the dark gold of a reel's stop the dark theme's muted grey is 3.4:1. */
+:global(html.dark) .stopWeight {
+  color: #d4d4d8;
+}
 @media (max-width: 560px) {
   .reelStrip li {
     grid-template-columns: 24px minmax(0, 1fr) 14px;
@@ -1244,7 +1260,17 @@
   .leverKnob,
   .btn,
   .spinButton,
-  .betMedal {
+  .betMedal,
+  .rtpBarObserved {
     transition: none;
   }
+}
+
+/* ---------- 44 px to hit ----------
+   Every control on a phone is at least 44 px to hit (tests/e2e/medal-tap-targets.spec.ts). Last in the sheet, so
+   that it holds over the narrower rules above. */
+.noticeLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }

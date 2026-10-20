@@ -241,6 +241,7 @@ const CategoryPostPage = ({
                 image={item.image}
                 language={item.language}
                 index={index + 1}
+                eagerImage={index === 0}
                 handleClick={handleClickPost}
               />
             );

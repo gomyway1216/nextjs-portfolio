@@ -9,6 +9,7 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { REFILL } from '../MedalCenter/ledger';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
+import { RefillWords } from '../MedalCenter/KeysHint';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { PAY_RULES, analyzeMachine, isJackpotNearMiss, resolveSpin, spinReels, winningReels, type SpinResult, type Stops } from './engine';
 import { getStrings } from './i18n';
@@ -107,7 +108,12 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   // The cabinet's sound: off until the player switches it on. Each medal of a win chirps as it is counted in.
   const sound = useMachineSound();
   const { play, tick } = sound;
-  const medalMeter = useCountUp(medals.loaded ? medals.balance : null, tick);
+  // What a round still on the reels paid before they stopped: the card went for a moment as they spun (the medal
+  // center taking the day's bonus, say), or the page was reloaded while they spun, and the round was paid as the card
+  // went. The medals are in; the meters do not show them before the reels stop on the line that won them.
+  const [hiddenWin, setHiddenWin] = useState(0);
+  const shownMedals = Math.max(0, medals.balance - hiddenWin);
+  const medalMeter = useCountUp(medals.loaded ? shownMedals : null, tick);
   const winMeter = useCountUp(last ? last.win : 0);
   const { pay: payMedals } = medalMeter;
   const { pay: payWin } = winMeter;
@@ -163,11 +169,12 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     // A round the reset at the medal center made void is shown as nothing.
     if (!pending) return;
     const { result } = pending;
-    // The win runs into the medals on the meters.
+    // The win runs into the medals on the meters (paid now, or as the card went, and kept off them until now).
     if (result.win > 0) {
       payMedals();
       payWin();
     }
+    setHiddenWin(0);
     // Paid now, if the card going had not paid it already (medals.ts).
     table.current?.finish(pending.round);
     setLast(result);
@@ -197,12 +204,17 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
       name: randomName,
       events: {
         yielding: (why) => {
+          // The round on the reels has been paid as the card goes: what it won stays off the meters until they stop.
+          const pending = pendingRef.current;
+          const kept = pending ? mine.current() : null;
+          if (pending && pending.result.win > 0 && kept?.id === pending.round.id && kept.paid) setHiddenWin(pending.result.win);
           // A moment's lending (the day's bonus taken at the hub, say) gives the card straight back: auto-spin waits it out.
           if (why !== 'moment') setAutoLeft(0);
         },
         restart: () => {
           // Every medal of the era before the reset is gone, the ones on the reels with them.
           pendingRef.current = null;
+          setHiddenWin(0);
           setStats(EMPTY_STATS);
           setRecent([]);
           setLast(null);
@@ -236,6 +248,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     const round = mine.leftover();
     if (!round || shown.current.has(round.id)) return;
     shown.current.add(round.id);
+    // Paid already, as the page before this one went: what it won stays off the meters until the reels stop again.
+    if (round.paid) setHiddenWin(resolveSpin(round.stops, round.bet).win);
     roll(round, true);
   }, [medals.card, medals.loaded, medals.owner, era, roll]);
 
@@ -335,7 +349,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
               {t.medals}
             </span>
             <span className={styles.meterValue} data-testid="slot-medals" data-loaded={medals.loaded}>
-              {medals.loaded ? fmt(medals.balance) : '—'}
+              {medals.loaded ? fmt(shownMedals) : '—'}
             </span>
             <span className={styles.led} data-testid="slot-medals-led" data-shown={medalMeter.shown ?? ''}>
               <SegmentDisplay value={medalMeter.shown ?? ''} places={MEDAL_PLACES} />
@@ -421,7 +435,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         {/* The attendant's free cupful, the medal center's own, for a player with no medals left. */}
         {outOfMedals && (
           <button type="button" className={styles.refill} data-testid="slot-refill" onClick={() => medalBank().refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
 

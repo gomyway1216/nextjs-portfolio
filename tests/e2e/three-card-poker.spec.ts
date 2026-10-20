@@ -8,8 +8,14 @@ import { handOdds } from '../../src/components/game/ThreeCardPoker/analysis';
 import { decide, evaluate, settle, type Bets, type Card, type Decision, type Rank, type Suit } from '../../src/components/game/ThreeCardPoker/engine';
 import { NOTICE_KEY, TABLE_KEY, TCP_GAME, parseHand, serializeHand, tableKey } from '../../src/components/game/ThreeCardPoker/medalTable';
 import { bankBalance, openCenter, resetAtCenter, storedBank } from './medalCenterPage';
+import { onPageError } from './pageErrors';
+import { pressUntil } from './pressUntil';
 import { arrived } from './streamedPage';
+import { quietFloor } from './quietFloor';
 import { bringUnderTopBar, ledNumbers, screenBox, topBarBottom, watchLed, watchedLed } from './tableScreen';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI hold up navigation from the hub to a machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // Hands are random: the tests read the dealt cards off the table, settle them
 // with the engine and check the table against it. The table plays with the
@@ -73,12 +79,9 @@ async function chooseStep(page: Page, n: number) {
   }).toPass({ timeout: 20_000 });
 }
 
-/** Clicks the Ante until hydration has attached handlers and the table holds the member's card. */
+/** Clicks the Ante until hydration has attached handlers and the table holds the member's card: one Ante, never two. */
 async function firstAnte(page: Page) {
-  await expect(async () => {
-    await anteSpot(page).click({ timeout: 1_000 });
-    await expect(onTable(page)).not.toHaveText('0', { timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  await pressUntil(anteSpot(page), async () => (await onTable(page).textContent()) !== '0');
 }
 
 async function cardsOf(page: Page, side: 'player' | 'dealer'): Promise<Card[]> {
@@ -441,6 +444,9 @@ test('leaving for another page while the dealer turns over pays the hand as the 
   const leftAt = Date.now();
   await page.locator('a[href="/games"]').first().click();
   await page.waitForURL(/\/games$/);
+  // The address can change a moment before the table is taken down (WebKit shows the new one first): the hand is read
+  // once the table is gone.
+  await expect(page.getByTestId('tcp-counter')).toHaveCount(0);
   const tookMs = Date.now() - leftAt;
   const dealer = await (async () => {
     const hand = parseHand(await storedHand(page));
@@ -504,7 +510,7 @@ test('after the Medal Game Center’s reset the table starts over: a hand from b
 
 test('old saved state crashes nothing, an old Medal Pusher purse is the medals, and the notice is shown once', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // What the table might find: nothing it ever wrote (it kept its chips in memory), so a text it cannot read under
   // its own name; and a Medal Pusher saved before the medal center, with 1,234 medals in its own purse.
   const session = createSession(5, { balls: 0 });
@@ -544,7 +550,7 @@ test('old saved state crashes nothing, an old Medal Pusher purse is the medals, 
 test('the medal counter, its note and the table fit a phone in both languages, light and dark', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   await openGame(page);
   await expect(page.getByTestId('tcp-not-money')).toHaveText(
     'Medals are for playing the games on this site only. They are not money: they cannot be bought, cashed out or exchanged for anything.',
@@ -637,7 +643,7 @@ test('on a phone the cards and PLAY / FOLD are on the screen together when the p
 test('the last hand stays on the felt, a win paid beside its stake, and the counter counts the medals back, with the sound on', async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  onPageError(page, (error) => errors.push(error.message));
   // A headless browser has nothing to listen with: every sound the page starts is counted instead (as in
   // medal-machine-sound.spec.ts).
   await page.addInitScript(() => {

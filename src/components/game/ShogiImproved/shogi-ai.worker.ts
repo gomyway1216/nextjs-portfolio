@@ -61,6 +61,7 @@ import { buildPosition, type SerializedKyokumenImproved, type SerializedTeImprov
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
 import type { HelperRequest, HelperResponse, MainThreadsInitMessage } from './smpProtocol';
 import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
+import { NNUE_WEIGHTS_FILE, NNUE_WEIGHTS_REMOTE_URL, NNUE_WEIGHTS_SHA256 } from './weightsAsset';
 import {
   clearWasmTT,
   clearWasmRootPolicyRank,
@@ -210,8 +211,13 @@ const ponder = new PonderController({
  * comes from the opening book anyway); once loaded, NNUE kicks in from the
  * next NNUE-gated search. Any failure (network, size mismatch, missing WASM)
  * silently keeps the V3 path.
+ *
+ * A build made on Vercel has no copy of the file in its deployment (it filled
+ * the free plan's deployment storage) and fetches the same bytes from the
+ * public asset bucket instead: see weightsAsset.ts.
  */
-const NNUE_WEIGHTS_PATH = '/shogi-halfkp81-production-weights.bin';
+const NNUE_WEIGHTS_PATH = `/${NNUE_WEIGHTS_FILE}`;
+const NNUE_WEIGHTS_REMOTE = process.env.NEXT_PUBLIC_SHOGI_WEIGHTS_REMOTE === '1';
 
 /**
  * Cache Storage bucket for the weights body, and the build identity it is
@@ -227,12 +233,15 @@ const NNUE_WEIGHTS_PATH = '/shogi-halfkp81-production-weights.bin';
  * session that never gets NNUE.
  *
  * Cache Storage has no such per-entry ceiling, is available in workers, and
- * survives reloads. Keyed by the build sha so a deploy that ships different
- * weights can never be served the old bytes; stale keys are pruned on hit or
- * store, so at most one 94.7MB body is retained.
+ * survives reloads. Keyed by the weights' own SHA-256 (weightsAsset.ts), so a
+ * deploy that ships different weights can never be served the old bytes, and
+ * one that doesn't keeps the stored body: a returning player downloads 94.7MB
+ * once per set of weights, not once per deploy. Stale keys (other weights, or
+ * the build-tagged keys this replaced) are pruned on hit or store, so at most
+ * one 94.7MB body is retained.
  */
 const NNUE_WEIGHTS_CACHE_NAME = 'shogi-nnue-weights-v1';
-const NNUE_WEIGHTS_BUILD = process.env.NEXT_PUBLIC_APP_BUILD_SHA || 'dev';
+const NNUE_WEIGHTS_TAG = NNUE_WEIGHTS_SHA256;
 
 /**
  * Absolute weights URL. Workers loaded via a blob: URL (some bundler worker
@@ -241,22 +250,23 @@ const NNUE_WEIGHTS_BUILD = process.env.NEXT_PUBLIC_APP_BUILD_SHA || 'dev';
  * anchor the path there when available ('null' = opaque origin, fall back).
  */
 function nnueWeightsUrl(): string {
+  if (NNUE_WEIGHTS_REMOTE) return NNUE_WEIGHTS_REMOTE_URL;
   const origin = typeof self !== 'undefined' ? self.location?.origin : undefined;
   if (origin && origin !== 'null') return new URL(NNUE_WEIGHTS_PATH, origin).toString();
   return NNUE_WEIGHTS_PATH;
 }
 
 /**
- * Cache Storage key: the weights URL tagged with the build that shipped them.
+ * Cache Storage key: the weights URL tagged with the weights' SHA-256.
  *
  * A key only — the network fetch keeps using the bare URL, because `Cache.put`
  * keys on the request you hand it and does not care that the stored response
  * came from a different URL. A query string rather than a fragment, since
- * Request construction strips fragments and every build would then collapse
- * onto one entry.
+ * Request construction strips fragments and every set of weights would then
+ * collapse onto one entry.
  */
 function nnueWeightsCacheKey(): string {
-  return `${nnueWeightsUrl()}?build=${encodeURIComponent(NNUE_WEIGHTS_BUILD)}`;
+  return `${nnueWeightsUrl()}?weights=${encodeURIComponent(NNUE_WEIGHTS_TAG)}`;
 }
 
 /**

@@ -118,3 +118,27 @@ describe('blog dates do not depend on the viewer’s time zone', () => {
     expect(render(item('ja'), 'ja')).toContain('2026年7月18日');
   });
 });
+
+describe('PostListItem thumbnail', () => {
+  const image = 'https://storage.googleapis.com/yudai-portfolio.appspot.com/blog/p1/cover.png';
+  const card = (eagerImage?: boolean) =>
+    render(
+      <PostListItem id="p1" slug="first-post" title="First post" summary="Summary" lastUpdated="2026-07-18T02:00:00.000Z" category="system-design" image={image} eagerImage={eagerImage} handleClick={() => {}} />,
+    );
+  const img = (markup: string) => markup.match(/<img [^>]*>/)?.[0] ?? '';
+
+  // The top card's thumbnail is the blog list's largest paint on a phone. Lazy, it was only requested once the
+  // page was laid out (after every render-blocking stylesheet), about a second after everything else.
+  it('fetches the top card’s thumbnail at once, at high priority', () => {
+    const tag = img(card(true));
+    expect(tag).toContain('loading="eager"');
+    expect(tag).toContain('fetchPriority="high"');
+  });
+
+  it('leaves the other cards’ thumbnails lazy', () => {
+    for (const tag of [img(card(false)), img(card())]) {
+      expect(tag).toContain('loading="lazy"');
+      expect(tag).not.toMatch(/fetchPriority/i);
+    }
+  });
+});

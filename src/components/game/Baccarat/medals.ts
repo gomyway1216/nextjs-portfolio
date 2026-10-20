@@ -637,6 +637,9 @@ export function createMedalTable(purse: Purse, store: TableStore, hooks: TableHo
           store.remove(key);
           return null;
         }
+        // The medal floor hears of the medals played, once, as the stake goes in. (Baccarat is not linked to the floor
+        // jackpot: lib/medalFloor/jackpot.ts.)
+        floorReport(GAME, { played: stake });
       }
       open = coup;
       return coup;

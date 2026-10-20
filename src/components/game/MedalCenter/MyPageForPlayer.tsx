@@ -31,7 +31,7 @@ export const MyPageForPlayer = () => {
     records.attend(player, PUSHER_BOOK);
     medalBank().attend(player, BANK, { machines: PUSHER_MACHINE, books: PUSHER_BOOK });
   }, [uid, settled, presumedSignedIn]);
-  return <MyPage signInHref={SIGN_IN} />;
+  return <MyPage signInHref={SIGN_IN} presumedMember={presumedSignedIn} />;
 };
 
 export default MyPageForPlayer;

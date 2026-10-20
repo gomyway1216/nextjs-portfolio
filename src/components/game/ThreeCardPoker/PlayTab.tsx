@@ -4,15 +4,17 @@ import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { DottedParts, KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { useCountUp } from '../MedalCenter/countUp';
 import { FACE_STAR, MEDAL_PAINT, SCREEN_STACK } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
-import { DEALER_HANDS, HAND_COUNT, handOdds, qualifyingHands, strategyOdds } from './analysis';
+import { DEALER_HANDS, HAND_COUNT, handOdds, qualifyingHands } from './analysis';
 import {
   HAND_SIZE,
   NO_BETS,
@@ -44,6 +46,7 @@ import {
   type TableMedals,
   type TableStore,
 } from './medalTable';
+import { PUBLISHED_STRATEGIES } from './published';
 import styles from './ThreeCardPoker.module.css';
 
 /** How many digits the medal counter has, as the Medal Game Center's own. */
@@ -231,7 +234,9 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const medals = useBank();
   const seat = useRef<Seat | null>(null);
   const table = useRef<Table | null>(null);
-  const notice = useSyncExternalStore(hearNotice, noticeDue, () => false);
+  // The server draws the notice, and its gate hides it before the page is painted where it has been read
+  // (MedalCenter/onceNote.tsx), so the table never moves for it.
+  const notice = useSyncExternalStore(hearNotice, noticeDue, () => true);
 
   const [step, setStep] = useState<number>(BET_STEPS[0]);
   const [bets, setBets] = useState<Bets>(NO_BETS);
@@ -604,7 +609,8 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const hintDecision = deciding && round ? decide('optimal', round.player) : null;
 
   const exactQualify = qualifyingHands() / HAND_COUNT;
-  const exactPlayRate = strategyOdds('optimal').playRate;
+  // As published (published.ts): working it out builds every hand's value against the dealer.
+  const exactPlayRate = PUBLISHED_STRATEGIES.optimal.playRate;
 
   const calloutText = !round
     ? t.placeBets
@@ -702,20 +708,23 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   return (
     <div className={styles.playGrid}>
       {notice && (
-        <section className={styles.notice} aria-labelledby={noticeId} data-testid="tcp-medals-notice">
-          <h2 id={noticeId} className={styles.noticeTitle}>
-            <MedalIcon className={styles.noticeMedal} /> {t.noticeTitle}
-          </h2>
-          <p className={styles.noticeBody}>{t.noticeBody}</p>
-          <div className={styles.noticeActions}>
-            <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="tcp-notice-center">
-              {t.noticeLink}
-            </a>
-            <button type="button" className={styles.btn} data-testid="tcp-notice-ok" onClick={readNotice}>
-              {t.noticeOk}
-            </button>
-          </div>
-        </section>
+        <>
+          <NoteGate name="three-card-poker" storageKey={NOTICE_KEY} />
+          <section className={styles.notice} aria-labelledby={noticeId} data-testid="tcp-medals-notice" {...noteAttributes('three-card-poker')}>
+            <h2 id={noticeId} className={styles.noticeTitle}>
+              <MedalIcon className={styles.noticeMedal} /> {t.noticeTitle}
+            </h2>
+            <p className={styles.noticeBody}>{t.noticeBody}</p>
+            <div className={styles.noticeActions}>
+              <a className={styles.noticeLink} href={MEDAL_CENTER_PATH} data-testid="tcp-notice-center">
+                {t.noticeLink}
+              </a>
+              <button type="button" className={styles.btn} data-testid="tcp-notice-ok" onClick={readNotice}>
+                {t.noticeOk}
+              </button>
+            </div>
+          </section>
+        </>
       )}
       {/*
         The table's side: the cards, then the results of the hand. On a desk it is one panel. On a phone its parts are
@@ -767,7 +776,9 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
 
             <div className={styles.feltPrint} aria-hidden="true">
               <span className={styles.feltQualify}>{t.feltQualify}</span>
-              <span className={styles.feltBonus}>{t.feltBonus}</span>
+              <span className={styles.feltBonus}>
+                <DottedParts text={t.feltBonus} />
+              </span>
             </div>
 
             <div
@@ -829,10 +840,10 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
         )}
       </div>
 
-      {/* The machine's front: the counter, the felt and its buttons, then the strategy. On a phone the felt and the buttons come first. */}
+      {/* The machine's front: the counter over the felt and its buttons, then what the medals are, then the strategy. */}
       <div className={styles.front}>
-        <div className={`${styles.part} ${styles.counterPart}`}>
-          {/* The medal counter: the player's medals on LED digits, as a medal cabinet shows them, and what they are. */}
+        <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="tcp-buttons">
+          {/* The medal counter: the player's medals on LED digits, as a medal cabinet shows them over its buttons. */}
           <section className={styles.counter} aria-labelledby={counterId} data-testid="tcp-counter" data-loaded={medals.loaded}>
             <div className={styles.counterHead}>
               <MedalIcon className={styles.counterMedal} />
@@ -862,39 +873,11 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
                 </span>
               </span>
             </div>
-            <p className={styles.notMoney} data-testid="tcp-not-money">
-              {NOT_MONEY[language]}
-            </p>
-            <p className={styles.counterNote}>
-              {t.medalsFrom[0]}
-              <a className={styles.counterLink} href={MEDAL_CENTER_PATH} data-testid="tcp-counter-center">
-                {t.centerLink}
-              </a>
-              {t.medalsFrom[1]}
-            </p>
           </section>
-
-          <div className={styles.pillRow}>
-            <div className={styles.pill}>
-              <span className={styles.pillLabel}>{t.onTable}</span>
-              <span className={styles.pillValue} data-testid="tcp-on-table">
-                {onTable}
-              </span>
-            </div>
-            <div className={styles.pill}>
-              <span className={styles.pillLabel}>{t.net}</span>
-              <span className={`${styles.pillValue} ${stats.net > 0 ? styles.pos : stats.net < 0 ? styles.neg : ''}`} data-testid="tcp-net">
-                {stats.net === 0 ? '0' : signedCount(stats.net)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className={`${styles.part} ${styles.buttonsPart}`} data-testid="tcp-buttons">
           {/* Out of medals: the medal center's free refill, right by the felt it lets the player bet on again. */}
           {refillDue && (
             <button type="button" className={styles.refill} data-testid="tcp-refill" onClick={() => medalBank().refill()}>
-              {t.refill(REFILL)}
+              <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
           <div className={styles.chipRow} role="radiogroup" aria-label={t.step}>
@@ -967,9 +950,35 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
               {t.rebet}
             </button>
           </div>
-          <p className={styles.keysHint} data-testid="tcp-keys">
-            {t.keysHint}
+          <KeysHint text={t.keysHint} className={styles.keysHint} testId="tcp-keys" />
+        </div>
+
+        <div className={`${styles.part} ${styles.counterPart}`}>
+          <p className={styles.notMoney} data-testid="tcp-not-money">
+            {NOT_MONEY[language]}
           </p>
+          <p className={styles.counterNote}>
+            {t.medalsFrom[0]}
+            <a className={styles.counterLink} href={MEDAL_CENTER_PATH} data-testid="tcp-counter-center">
+              {t.centerLink}
+            </a>
+            {t.medalsFrom[1]}
+          </p>
+
+          <div className={styles.pillRow}>
+            <div className={styles.pill}>
+              <span className={styles.pillLabel}>{t.onTable}</span>
+              <span className={styles.pillValue} data-testid="tcp-on-table">
+                {onTable}
+              </span>
+            </div>
+            <div className={styles.pill}>
+              <span className={styles.pillLabel}>{t.net}</span>
+              <span className={`${styles.pillValue} ${stats.net > 0 ? styles.pos : stats.net < 0 ? styles.neg : ''}`} data-testid="tcp-net">
+                {stats.net === 0 ? '0' : signedCount(stats.net)}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className={`${styles.part} ${styles.morePart}`}>

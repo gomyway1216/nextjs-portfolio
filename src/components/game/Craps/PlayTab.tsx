@@ -6,10 +6,13 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
+import { NoteGate, noteAttributes } from '../MedalCenter/onceNote';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { useCountUp } from '../MedalCenter/countUp';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
-import { TICK_GAP, createSpeaker, type MachineSound, type Speaker } from '../MedalCenter/machineSounds';
+import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
+import { useMachineSound, type MachineSound } from '../MedalCenter/machineSounds';
+import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { FACE_STAR, MEDAL_PAINT } from '../MedalPusher/medalLook';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { rollDice, type BetId, type RollResolution } from './engine';
@@ -44,7 +47,11 @@ const Medal = ({ className }: { className?: string }) => (
 
 /** Written once the note has been shown on this device. */
 export const NOTICE_KEY = 'craps-medals-note';
-/** Whether this page shows the note: decided the first time it is asked, and kept for the page's life. */
+/**
+ * Whether this page shows the note: decided the first time it is asked, and kept for the page's life. The server draws
+ * it, and its gate hides it before the page is painted where it has been seen (MedalCenter/onceNote.tsx), so the table
+ * never moves for it.
+ */
 let noticeShown: boolean | null = null;
 const noticeListeners = new Set<() => void>();
 const noticeStore = {
@@ -63,22 +70,25 @@ const noticeStore = {
     }
     return noticeShown;
   },
-  server: (): boolean => false,
+  server: (): boolean => true,
   close: () => {
     noticeShown = false;
     for (const listener of [...noticeListeners]) listener();
   },
 };
 
-// ── How the dice are thrown: with sound or not, and watched or quick ────────
+// ── How the dice are thrown: watched or quick ───────────────────────────────
 
-/** The player's choices for the throw, kept on this device: they belong to it and its speakers, not to the table. */
+/**
+ * The player's choice for the throw, kept on this device: it belongs to it, not to the table. (The sound is not kept:
+ * as on every machine on the floor it is off on every visit, and on with a press of its switch. A `sound` an older
+ * page kept here is no longer read.)
+ */
 export const THROW_KEY = 'craps-throw';
 interface ThrowChoices {
-  sound: boolean;
   quick: boolean;
 }
-const PLAIN: ThrowChoices = { sound: false, quick: false };
+const PLAIN: ThrowChoices = { quick: false };
 let choices: ThrowChoices | null = null;
 const choiceListeners = new Set<() => void>();
 const choiceStore = {
@@ -91,7 +101,7 @@ const choiceStore = {
       try {
         const kept = JSON.parse(window.localStorage.getItem(THROW_KEY) ?? 'null') as unknown;
         const record = typeof kept === 'object' && kept !== null ? (kept as Record<string, unknown>) : {};
-        choices = { sound: record.sound === true, quick: record.quick === true };
+        choices = { quick: record.quick === true };
       } catch {
         choices = PLAIN;
       }
@@ -207,9 +217,10 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
     crapsTable().sync();
   }, [settled, bankState.loaded, bankState.owner, bankState.where]);
 
-  // The note that the table plays with medals now is written down as seen the first time it is shown.
+  // The note that the table plays with medals now is written down as seen the first time it is shown. (The page's own
+  // answer is asked first: the server's drawing shows the note to everyone, and the page keeps the answer it was given.)
   useEffect(() => {
-    if (!noticeOpen) return;
+    if (!noticeOpen || !noticeStore.snapshot()) return;
     try {
       window.localStorage.setItem(NOTICE_KEY, '1');
     } catch {
@@ -237,31 +248,19 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
   const canPlay = bankState.loaded && settled && bankState.where !== 'checking' && bankState.card === 'here' && !rolling;
   const medals = Math.max(0, bankState.balance - (held?.returned ?? 0));
 
-  // The floor's medal sounds (MedalCenter/machineSounds.ts), under this table's own switch, beside the throw's: a medal
-  // set down on the felt, the fanfare as the dice land on a win, and the chirp of each medal counted in. The switch is
-  // kept on this device, but a browser lets a page make a noise only after a press: the speaker is woken by the next one.
-  const speaker = useRef<Speaker | null>(null);
-  const lastTick = useRef(-Infinity);
-  useEffect(() => {
-    const made = createSpeaker();
-    speaker.current = made;
-    return () => {
-      made.close();
-      if (speaker.current === made) speaker.current = null;
-    };
-  }, []);
-  useEffect(() => {
-    if (!chosen.sound) speaker.current?.set(false);
-  }, [chosen.sound]);
-  const wake = () => {
-    if (chosen.sound && speaker.current && !speaker.current.on()) speaker.current.set(true);
+  // The floor's sound (MedalCenter/machineSounds.ts), off on every visit and on with its switch, as on every machine on
+  // the floor: a medal set down on the felt, the fanfare as the dice land on a win, and the chirp of each medal counted
+  // in. The throw's own sounds (throwSounds.ts) follow the same switch.
+  const sound = useMachineSound();
+  const { play, tick } = sound;
+  const soundSwitch = {
+    ...sound,
+    toggle: () => {
+      // The press that switches the sound on is the one a browser asks for before the throw may be heard too.
+      if (!sound.on) void unlockThrowSounds();
+      sound.toggle();
+    },
   };
-  const tick = useCallback(() => {
-    const now = performance.now() / 1000;
-    if (now - lastTick.current < TICK_GAP) return;
-    lastTick.current = now;
-    speaker.current?.play('tick');
-  }, []);
   // The counter does not jump to a win: the medals run in one by one as the dice settle (MedalCenter/countUp.ts).
   const medalMeter = useCountUp(bankState.loaded ? medals : null, tick);
   const { pay: payMedals } = medalMeter;
@@ -291,13 +290,12 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
       setMessage(t.tableError(wanted.error, spotLimit(id, now.point, now.bets)));
       return;
     }
-    wake();
     const done = machine.place(id, wanted.amount);
     if (!done.ok) {
       setMessage(errorText(done.error, id));
       return;
     }
-    speaker.current?.play('chip');
+    play('chip');
     const step = stakeStep(id, now.point);
     if (wanted.amount < size) setMessage(t.upTo(t.betName[id], spotLimit(id, now.point, now.bets)));
     else if (wanted.amount > size) setMessage(t.stepped(t.betName[id], step));
@@ -321,10 +319,9 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
   };
   const repeat = () => {
     if (rollingRef.current) return;
-    wake();
     const done = crapsTable().repeat();
     setMessage(done.ok ? null : errorText(done.error));
-    if (done.ok) speaker.current?.play('chip');
+    if (done.ok) play('chip');
   };
 
   const roll = () => {
@@ -338,8 +335,7 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
       return;
     }
     const { resolution, before } = done.value;
-    if (chosen.sound) void unlockThrowSounds();
-    wake();
+    if (sound.on) void unlockThrowSounds();
     landing.current = { fanfare: fanfareOf(resolution) };
     rollingRef.current = true;
     setRolling(true);
@@ -359,20 +355,12 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
       landing.current = null;
       if (landed?.fanfare) {
         payMedals();
-        speaker.current?.play(landed.fanfare);
+        play(landed.fanfare);
       }
       setHeld(null);
     },
-    [payMedals],
+    [payMedals, play],
   );
-
-  const toggleSound = () => {
-    const next = !chosen.sound;
-    if (next) void unlockThrowSounds();
-    speaker.current?.set(next);
-    if (next) speaker.current?.play('button');
-    choiceStore.set({ sound: next });
-  };
 
   // On a desktop, as on a machine's panel: Space or Enter rolls, R puts the last roll's bets back and U takes the last
   // medal off. Each does what its button does, and nothing while the button could not be pressed.
@@ -390,23 +378,26 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
   return (
     <div className={styles.playLayout}>
       {noticeOpen && (
-        <section className={styles.notice} aria-labelledby="craps-notice-title" data-testid="craps-notice">
-          <Medal className={styles.noticeMedal} />
-          <div className={styles.noticeText}>
-            <h2 id="craps-notice-title" className={styles.noticeTitle}>
-              {t.noticeTitle}
-            </h2>
-            <p>{t.noticeBody}</p>
-            <div className={styles.noticeActions}>
-              <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="craps-notice-center">
-                {t.noticeLink}
-              </Link>
-              <button type="button" className={styles.btn} data-testid="craps-notice-close" onClick={noticeStore.close}>
-                {t.noticeClose}
-              </button>
+        <>
+          <NoteGate name="craps" storageKey={NOTICE_KEY} />
+          <section className={styles.notice} aria-labelledby="craps-notice-title" data-testid="craps-notice" {...noteAttributes('craps')}>
+            <Medal className={styles.noticeMedal} />
+            <div className={styles.noticeText}>
+              <h2 id="craps-notice-title" className={styles.noticeTitle}>
+                {t.noticeTitle}
+              </h2>
+              <p>{t.noticeBody}</p>
+              <div className={styles.noticeActions}>
+                <Link href={MEDAL_CENTER_PATH} className={styles.noticeLink} data-testid="craps-notice-center">
+                  {t.noticeLink}
+                </Link>
+                <button type="button" className={styles.btn} data-testid="craps-notice-close" onClick={noticeStore.close}>
+                  {t.noticeClose}
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </>
       )}
 
       {/* The medal counter, as a medal machine shows it: the player's medals on LED digits, and what is on the table. */}
@@ -450,7 +441,7 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
         </dl>
         {bankState.loaded && medals === 0 && staked === 0 && bankState.card === 'here' && !rolling && bankState.out.length === 0 && (
           <button type="button" className={styles.refill} data-testid="craps-refill" onClick={() => medalBank().refill()}>
-            {t.refill(REFILL)}
+            <RefillWords text={t.refill(REFILL)} />
           </button>
         )}
         {/* Out of medals here, and some still out on a round at another machine: no refill until they are back. */}
@@ -480,7 +471,8 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
           language={language === 'ja' ? 'ja' : 'en'}
           shown={onFelt}
           onSettled={settle}
-          sound={chosen.sound}
+          sound={sound.on}
+          holding={medalMeter.counting}
         />
         <p className={styles.printedNote}>{t.printedNote}</p>
 
@@ -532,8 +524,9 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
             ))}
           </div>
 
-          <p className={styles.message} role="status" data-testid="craps-message">
-            {message ?? (point === null ? t.comeOut : t.pointIs(point))}
+          <p className={styles.message} data-testid="craps-message">
+            <span role="status">{message ?? ''}</span>
+            {message === null && (point === null ? t.comeOut : t.pointIs(point))}
           </p>
 
           <div className={styles.actions}>
@@ -554,16 +547,12 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
             </button>
           </div>
           <div className={styles.throwChoices}>
-            <button type="button" className={styles.toggle} aria-pressed={chosen.sound} onClick={toggleSound} data-testid="craps-sound">
-              {chosen.sound ? t.soundOn : t.soundOff}
-            </button>
+            <SoundSwitch control={soundSwitch} language={language === 'ja' ? 'ja' : 'en'} className={styles.toggle} testId="craps-sound" />
             <button type="button" className={styles.toggle} aria-pressed={chosen.quick} onClick={() => choiceStore.set({ quick: !chosen.quick })} data-testid="craps-quick">
               {t.quickRoll}
             </button>
           </div>
-          <p className={styles.keysHint} data-testid="craps-keys">
-            {t.keysHint}
-          </p>
+          <KeysHint text={t.keysHint} className={styles.keysHint} testId="craps-keys" />
         </div>
 
         {/* The medals are in a machine in another tab: this table waits, with its bets on it, until it is played here again. */}

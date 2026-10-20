@@ -1,11 +1,12 @@
 /**
  * The checks every report to the floor goes through, as plain functions: what
- * shape a report may have, how many medals won the floor believes, and how
- * often a player may report or be shown. The server applies them (store.ts);
- * the browser keeps to them so that it is never refused for playing.
+ * shape a report may have, how many medals won and played the floor believes,
+ * and how often a player may report or be shown. The server applies them
+ * (store.ts); the browser keeps to them so that it is never refused for playing.
  */
 
 import { DAILY_WON_MOST, FLOOR_RULES, isFloorGame, labelPays } from './games';
+import { DAILY_PLAYED_MOST } from './jackpot';
 import type { FloorReport } from './types';
 
 /** How many reports one player may make in a minute (each machine reports about once a minute, and big wins at once). */
@@ -24,15 +25,16 @@ export type ReportCheck = { ok: true; report: FloorReport } | { ok: false; error
 /**
  * A report as the browser sent it, checked against the machine's rules: a
  * known machine, whole medals, no win bigger than the machine can pay at all,
- * a named win only in an amount that win pays, and no more medals won in one
- * report than the floor would believe at once.
+ * a named win only in an amount that win pays, and no more medals won or
+ * played in one report than the floor would believe at once.
  */
 export function checkReport(body: unknown): ReportCheck {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'Report must be an object' };
-  const { game, won = 0, best, moment } = body as Record<string, unknown>;
+  const { game, won = 0, played = 0, best, moment } = body as Record<string, unknown>;
   if (!isFloorGame(game)) return { ok: false, error: 'Unknown machine' };
   const rule = FLOOR_RULES[game];
   if (!whole(won, 0, rule.burst)) return { ok: false, error: 'Medals won out of range' };
+  if (!whole(played, 0, rule.playBurst)) return { ok: false, error: 'Medals played out of range' };
   if (best !== undefined && !whole(best, 1, rule.most)) return { ok: false, error: 'Biggest win out of range' };
   let checkedMoment: FloorReport['moment'];
   if (moment !== undefined) {
@@ -45,8 +47,9 @@ export function checkReport(body: unknown): ReportCheck {
     } else checkedMoment = { medals };
   }
   const biggest = Math.max(typeof best === 'number' ? best : 0, checkedMoment?.medals ?? 0);
-  if (won === 0 && biggest === 0) return { ok: false, error: 'Nothing to report' };
+  if (won === 0 && biggest === 0 && played === 0) return { ok: false, error: 'Nothing to report' };
   const report: FloorReport = { game, won };
+  if (played > 0) report.played = played;
   if (biggest > 0) report.best = biggest;
   if (checkedMoment) report.moment = checkedMoment;
   return { ok: true, report };
@@ -72,6 +75,22 @@ export function allowanceAt(game: FloorReport['game'], allowance: Allowance | un
  */
 export function countable(won: number, allowance: number, wonToday: number): number {
   return Math.max(0, Math.min(won, Math.floor(allowance), DAILY_WON_MOST - wonToday));
+}
+
+/** One machine's allowance of medals played at `now`: refilled at the machine's `perMinute`, up to its `playBurst`. A new player starts full. */
+export function playAllowanceAt(game: FloorReport['game'], allowance: Allowance | undefined, now: number): number {
+  const rule = FLOOR_RULES[game];
+  if (!allowance || !Number.isFinite(allowance.level) || !Number.isFinite(allowance.at)) return rule.playBurst;
+  const minutes = Math.max(0, now - allowance.at) / 60_000;
+  return Math.min(rule.playBurst, Math.max(0, allowance.level) + minutes * rule.perMinute);
+}
+
+/**
+ * How many of `played` medals take part in the floor jackpot: no more than the
+ * machine's allowance holds, and no more than is left of the player's day.
+ */
+export function countablePlayed(played: number, allowance: number, playedToday: number): number {
+  return Math.max(0, Math.min(played, Math.floor(allowance), DAILY_PLAYED_MOST - playedToday));
 }
 
 /** A player's report count in the current minute: `minute` is the minute since the epoch the count is for. */

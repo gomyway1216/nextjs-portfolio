@@ -10,6 +10,8 @@ import { OddsTab } from './OddsTab';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 import styles from './Blackjack.module.css';
+import { FloorJackpotOddsNote, FloorJackpotStrip } from '../MedalCenter/floor/FloorJackpot';
+import floorTabs from '../MedalCenter/tabs.module.css';
 
 type Tab = 'play' | 'odds' | 'sim';
 
@@ -45,7 +47,10 @@ export const Blackjack = () => {
           </button>
         </div>
 
-        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+        {/* The floor jackpot, live, over the machine: every medal played here by a player on the floor feeds it. */}
+        <FloorJackpotStrip game="blackjack" />
+
+        <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
           {tabs.map((tb) => (
             <button
               key={tb.id}
@@ -54,7 +59,7 @@ export const Blackjack = () => {
               id={`bj-tab-${tb.id}`}
               aria-selected={tab === tb.id}
               aria-controls={`bj-panel-${tb.id}`}
-              className={styles.tab}
+              className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
             >
               {tb.label}
@@ -69,6 +74,8 @@ export const Blackjack = () => {
         </div>
         <div role="tabpanel" id="bj-panel-odds" aria-labelledby="bj-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
+          {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          <FloorJackpotOddsNote game="blackjack" />
         </div>
         <div role="tabpanel" id="bj-panel-sim" aria-labelledby="bj-tab-sim" hidden={tab !== 'sim'}>
           <SimTab />

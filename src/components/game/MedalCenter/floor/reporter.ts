@@ -1,34 +1,40 @@
 /**
- * The one way a machine tells the medal floor about its wins: `floorReport`.
+ * The one way a machine tells the medal floor about its play: `floorReport`.
  *
+ *   floorReport('slot-machine', { played: 3 });                                             // a stake taken
  *   floorReport('slot-machine', { won: 3000, prize: { medals: 3000, label: 'seven3' } });   // a round's payout
+ *   floorReport('medal-pusher', { played: 1 });                                             // a medal fed
  *   floorReport('medal-pusher', { won: 4 });                                                // medals into the tray
  *   floorReport('medal-pusher', { prize: { medals: 523, label: 'jackpot' } });              // a prize, before its medals land
  *
  * `won` is medals paid back to the player (they count toward "medals won");
- * `prize` is one win, for the biggest-win boards and, when it is big enough,
- * for the floor's feed. A machine calls it where it pays, and nothing else.
+ * `played` is medals the player put in to play (at a machine linked to the
+ * floor jackpot they feed it and are its tickets: lib/medalFloor/jackpot.ts);
+ * `prize` is one win, for the
+ * biggest-win boards and, when it is big enough, for the floor's feed. A
+ * machine calls it where it takes a stake and where it pays, and nothing else.
  *
  * Nothing is sent unless the player is signed in with an account (not as a
  * guest) and has joined the floor, which they do on the medal center's front:
- * by default nobody is on it. Until then the wins are dropped where they are.
- * Small wins are added up and sent about once a minute; a big one at once (no
- * oftener than every few seconds a machine); whatever is left when the page is
- * hidden or closed, with the page's last token.
+ * by default nobody is on it. Until then the play is dropped where it is.
+ * Small amounts are added up and sent about once a minute; a big win at once
+ * (no oftener than every few seconds a machine); whatever is left when the page
+ * is hidden or closed, with the page's last token. A report that wins the
+ * floor jackpot comes back saying so, and the page's payer is told
+ * (`onJackpotDue`): the medals are paid in by it, not here.
  */
 
 import { FLOOR_RULES, feedWorthy, isFloorGame, labelPays, type FloorGame } from '@/lib/medalFloor/games';
+import { linked } from '@/lib/medalFloor/jackpot';
 import { FLOOR_API } from './api';
+import { pageAccount, type FloorAccount } from './pageAccount';
+
+export type { FloorAccount } from './pageAccount';
 
 export interface FloorWin {
   won?: number;
+  played?: number;
   prize?: { medals: number; label?: string };
-}
-
-/** A signed-in account, as the reporter sees it: its id, and a way to get one of its tokens. */
-export interface FloorAccount {
-  uid: string;
-  token(): Promise<string>;
 }
 
 export interface ReporterDeps {
@@ -42,9 +48,11 @@ export interface ReporterDeps {
   remembered?(uid: string): boolean | null;
   /** Keeps what this page found out, so that the next page need not ask. */
   remember?(uid: string, joined: boolean): void;
+  /** The floor says this account has a floor jackpot to be paid: one just won, or one waiting. */
+  jackpot?(uid: string): void;
 }
 
-/** Small wins are sent this often. */
+/** Small amounts are sent this often. */
 export const FLUSH_MS = 60_000;
 /** A big win is sent at once, but not sooner than this after the machine's last report. */
 export const QUICKEST_MS = 5_000;
@@ -54,13 +62,15 @@ const RECHECK_MS = 60_000;
 type Moment = { medals: number; label?: string };
 interface Pending {
   won: number;
+  played: number;
   best: number;
   moment: Moment | null;
 }
 
-const empty = (): Pending => ({ won: 0, best: 0, moment: null });
+const empty = (): Pending => ({ won: 0, played: 0, best: 0, moment: null });
 const weight = (game: FloorGame, moment: Moment): number => (feedWorthy(game, moment.medals, moment.label) ? 1e9 : 0) + moment.medals;
 const better = (game: FloorGame, a: Moment | null, b: Moment | null): Moment | null => (!a ? b : !b ? a : weight(game, b) > weight(game, a) ? b : a);
+const whole = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0);
 
 export function createFloorReporter(deps: ReporterDeps) {
   let owner: string | null = null;
@@ -90,8 +100,10 @@ export function createFloorReporter(deps: ReporterDeps) {
 
   const putBack = (game: FloorGame, sent: Pending) => {
     const now = pending.get(game) ?? empty();
+    const rule = FLOOR_RULES[game];
     pending.set(game, {
-      won: Math.min(FLOOR_RULES[game].burst, now.won + sent.won),
+      won: Math.min(rule.burst, now.won + sent.won),
+      played: Math.min(rule.playBurst, now.played + sent.played),
       best: Math.max(now.best, sent.best),
       moment: better(game, now.moment, sent.moment),
     });
@@ -99,23 +111,26 @@ export function createFloorReporter(deps: ReporterDeps) {
 
   const take = (game: FloorGame): Pending | null => {
     const waiting = pending.get(game);
-    if (!waiting || (waiting.won === 0 && waiting.best === 0 && !waiting.moment)) return null;
-    const won = Math.min(waiting.won, FLOOR_RULES[game].burst);
-    const sent: Pending = { won, best: waiting.best, moment: waiting.moment };
-    const left = waiting.won - won;
-    if (left > 0) pending.set(game, { won: left, best: 0, moment: null });
+    if (!waiting || (waiting.won === 0 && waiting.played === 0 && waiting.best === 0 && !waiting.moment)) return null;
+    const rule = FLOOR_RULES[game];
+    const won = Math.min(waiting.won, rule.burst);
+    const played = Math.min(waiting.played, rule.playBurst);
+    const sent: Pending = { won, played, best: waiting.best, moment: waiting.moment };
+    const left = { won: waiting.won - won, played: waiting.played - played };
+    if (left.won > 0 || left.played > 0) pending.set(game, { ...left, best: 0, moment: null });
     else pending.delete(game);
     return sent;
   };
 
   const bodyOf = (game: FloorGame, sent: Pending): string => {
     const body: Record<string, unknown> = { game, won: sent.won };
+    if (sent.played > 0) body.played = sent.played;
     if (sent.best > 0) body.best = sent.best;
     if (sent.moment) body.moment = sent.moment;
     return JSON.stringify(body);
   };
 
-  /** Sends what one machine has waiting, as the account it was won by. */
+  /** Sends what one machine has waiting, as the account it was played by. */
   async function send(game: FloorGame): Promise<void> {
     const account = deps.account();
     if (!account || account.uid !== owner || place !== 'joined') return;
@@ -123,6 +138,7 @@ export function createFloorReporter(deps: ReporterDeps) {
     if (!sent) return;
     lastSent.set(game, deps.now());
     let status = 0;
+    let won = false;
     try {
       const token = await account.token();
       // Signed out, or somebody else, while the token was on its way: none of it is theirs to send.
@@ -130,10 +146,18 @@ export function createFloorReporter(deps: ReporterDeps) {
       inHand = { uid: account.uid, token };
       const response = await deps.fetch(`${FLOOR_API}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: bodyOf(game, sent) });
       status = response.status;
+      if (response.ok && sent.played > 0) {
+        try {
+          won = ((await response.json()) as { jackpot?: unknown }).jackpot !== undefined;
+        } catch {
+          // Counted; what it said cannot be read. A win would still be waiting on the floor for the next page.
+        }
+      }
     } catch {
       status = 0;
     }
     if (owner !== account.uid) return;
+    if (won) deps.jackpot?.(account.uid);
     if (status === 403) {
       // Not on the floor (left on another tab or device), or taken off it: nothing more is sent.
       place = 'out';
@@ -166,15 +190,21 @@ export function createFloorReporter(deps: ReporterDeps) {
     place = 'checking';
     checkedAt = deps.now();
     let joined: boolean | null = null;
+    let due = false;
     try {
       const token = await account.token();
       const response = await deps.fetch(`${FLOOR_API}/me`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
-      if (response.ok) joined = ((await response.json()) as { joined?: unknown }).joined === true;
-      else if (response.status === 403 || response.status === 401) joined = false;
+      if (response.ok) {
+        const me = (await response.json()) as { joined?: unknown; due?: unknown };
+        joined = me.joined === true;
+        due = typeof me.due === 'number' && me.due > 0;
+      } else if (response.status === 403 || response.status === 401) joined = false;
     } catch {
       joined = null;
     }
     if (owner !== account.uid) return;
+    // A floor jackpot won before is paid whether or not the player is on the floor now: it is theirs.
+    if (due) deps.jackpot?.(account.uid);
     if (joined === null) {
       // Could not be asked: what is waiting stays, and is sent once it is known.
       place = 'unknown';
@@ -182,7 +212,7 @@ export function createFloorReporter(deps: ReporterDeps) {
     }
     deps.remember?.(account.uid, joined);
     place = joined ? 'joined' : 'out';
-    // On the floor: a big win waiting goes now, small ones with the minute's.
+    // On the floor: a big win waiting goes now, the rest with the minute's.
     if (joined) wait('all', [...pending.values()].some((waiting) => waiting.moment) ? 0 : FLUSH_MS);
     else forget();
   }
@@ -194,16 +224,19 @@ export function createFloorReporter(deps: ReporterDeps) {
       meet(account?.uid ?? null);
       if (!account || place === 'out') return;
       const rule = FLOOR_RULES[game];
-      const won = typeof win.won === 'number' && Number.isFinite(win.won) ? Math.max(0, Math.floor(win.won)) : 0;
+      const won = whole(win.won);
+      // Medals played are sent only from a machine linked to the floor jackpot: elsewhere they take no part in it.
+      const played = linked(game) ? whole(win.played) : 0;
       let moment: Moment | null = null;
       if (win.prize && Number.isSafeInteger(win.prize.medals) && win.prize.medals >= 1 && win.prize.medals <= rule.most) {
         // A name the floor does not know the amount for is left off; the win itself still counts.
         moment = win.prize.label && labelPays(game, win.prize.label, win.prize.medals) ? { medals: win.prize.medals, label: win.prize.label } : { medals: win.prize.medals };
       }
-      if (won === 0 && !moment) return;
+      if (won === 0 && played === 0 && !moment) return;
       const waiting = pending.get(game) ?? empty();
       pending.set(game, {
         won: Math.min(rule.burst, waiting.won + won),
+        played: Math.min(rule.playBurst, waiting.played + played),
         best: Math.max(waiting.best, moment?.medals ?? 0),
         moment: moment && feedWorthy(game, moment.medals, moment.label) ? better(game, waiting.moment, moment) : waiting.moment,
       });
@@ -213,11 +246,12 @@ export function createFloorReporter(deps: ReporterDeps) {
       }
       if (place !== 'joined') return;
       const now = deps.now();
-      if (pending.get(game)?.moment) {
+      const after = pending.get(game);
+      if (after?.moment) {
         const since = now - (lastSent.get(game) ?? -Infinity);
         if (since >= QUICKEST_MS) void send(game);
         else wait(game, QUICKEST_MS - since);
-      } else if ((pending.get(game)?.won ?? 0) >= rule.burst / 2) void send(game);
+      } else if ((after?.won ?? 0) >= rule.burst / 2 || (after?.played ?? 0) >= rule.playBurst / 2) void send(game);
       else wait('all', FLUSH_MS);
     },
 
@@ -232,7 +266,9 @@ export function createFloorReporter(deps: ReporterDeps) {
     /**
      * Sends what is waiting as the page is hidden or closed, with the token this
      * page last had for the player, so nothing is waited for. Only while that
-     * player is still the one signed in.
+     * player is still the one signed in. What these reports say back is not
+     * heard: a floor jackpot one of them wins waits on the floor for the next
+     * page to pay.
      */
     leaving(): void {
       const account = deps.account();
@@ -266,9 +302,9 @@ export const PLACE_KEY = 'medal-floor:place';
 /** What is remembered is trusted for this long; after that the page asks again. */
 const PLACE_FRESH_MS = 60 * 60_000;
 
-type AuthModule = typeof import('@/lib/firebaseConnect');
-let authModule: AuthModule | null = null;
 let page: FloorReporter | null = null;
+const dueHearers = new Set<(uid: string) => void>();
+const placeHearers = new Set<(uid: string, joined: boolean) => void>();
 
 function remembered(uid: string): boolean | null {
   try {
@@ -282,32 +318,68 @@ function remembered(uid: string): boolean | null {
   }
 }
 
+/** What this device last heard of an account's place on the floor, however long ago: for what a page shows, not for what it sends. */
+export function lastKnownPlace(uid: string): boolean | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PLACE_KEY) ?? 'null') as { uid?: unknown; joined?: unknown } | null;
+    return value && value.uid === uid && typeof value.joined === 'boolean' ? value.joined : null;
+  } catch {
+    return null;
+  }
+}
+
 function remember(uid: string, joined: boolean): void {
   try {
     window.localStorage.setItem(PLACE_KEY, JSON.stringify({ uid, joined, at: Date.now() }));
   } catch {
     // Not kept: the next page asks for itself.
   }
+  for (const hearer of [...placeHearers]) hearer(uid, joined);
+}
+/** Hears where the signed-in player stands on the floor whenever this page or another tab finds out. */
+export function onFloorPlace(hearer: (uid: string, joined: boolean) => void): () => void {
+  placeHearers.add(hearer);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== PLACE_KEY || !event.newValue) return;
+    try {
+      const value = JSON.parse(event.newValue) as { uid?: unknown; joined?: unknown };
+      if (typeof value.uid === 'string' && typeof value.joined === 'boolean') hearer(value.uid, value.joined);
+    } catch {
+      // Not ours to read.
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  return () => {
+    placeHearers.delete(hearer);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
+/** Hears that an account has a floor jackpot to be paid. */
+export function onJackpotDue(hearer: (uid: string) => void): () => void {
+  dueHearers.add(hearer);
+  return () => {
+    dueHearers.delete(hearer);
+  };
+}
+
+/** Says, on this page, that an account has a floor jackpot to be paid (the medal center heard so from the floor). */
+export function jackpotDue(uid: string): void {
+  for (const hearer of [...dueHearers]) hearer(uid);
 }
 
 function pageReporter(): FloorReporter | null {
   if (typeof window === 'undefined') return null;
   if (page) return page;
-  // Firebase's own module, which the site has loaded already: who is signed in is read from it without waiting.
-  void import('@/lib/firebaseConnect').then((module) => {
-    authModule = module;
-  });
   page = createFloorReporter({
-    account: () => {
-      const user = authModule?.auth.currentUser;
-      return user && !user.isAnonymous ? { uid: user.uid, token: () => user.getIdToken() } : null;
-    },
+    account: pageAccount,
     fetch: (...args) => window.fetch(...args),
     now: () => Date.now(),
     later: (run, ms) => window.setTimeout(run, ms),
     cancel: (handle) => window.clearTimeout(handle as number),
     remembered,
     remember,
+    jackpot: jackpotDue,
   });
   const reporter = page;
   window.addEventListener('pagehide', () => reporter.leaving());
@@ -326,7 +398,7 @@ function pageReporter(): FloorReporter | null {
   return page;
 }
 
-/** Tells the floor about a machine's win. Does nothing for a guest, or a player who has not joined the floor. */
+/** Tells the floor about a machine's play. Does nothing for a guest, or a player who has not joined the floor. */
 export function floorReport(game: FloorGame, win: FloorWin): void {
   try {
     pageReporter()?.report(game, win);

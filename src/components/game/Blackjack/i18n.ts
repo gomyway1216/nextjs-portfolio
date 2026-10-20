@@ -64,9 +64,15 @@ export interface BlackjackStrings {
   blackjack: string;
   bust: string;
   outcome: Record<HandOutcome, string>;
-  insuranceQuestion: (cost: string) => string;
+  /** The call-out while insurance is offered: one line on the narrowest phone. */
+  insuranceAsked: string;
+  /** What insurance costs, over its two buttons. */
+  insuranceFor: (cost: string) => string;
+  /** The two answers, short enough to sit side by side on the narrowest phone, and what each says to a screen reader. */
   insuranceYes: string;
+  insuranceYesAria: string;
   insuranceNo: string;
+  insuranceNoAria: string;
   insuranceAdvice: string;
   noMedals: string;
   placeBet: string;
@@ -111,6 +117,8 @@ export interface BlackjackStrings {
   chartHard: string;
   chartSoft: string;
   chartPairs: string;
+  /** The chart's corner cell, said to a screen reader: what the rows and the columns are. */
+  chartCorner: string;
   chartLegend: Record<AnalysisAction, string>;
   chartDiffers: string;
   cellDetail: (hand: string, up: string) => string;
@@ -221,9 +229,12 @@ const en: BlackjackStrings = {
   blackjack: 'Blackjack',
   bust: 'Bust',
   outcome: { blackjack: 'Blackjack 3:2', win: 'Win', push: 'Push', lose: 'Lose', bust: 'Bust' },
-  insuranceQuestion: (cost) => `The dealer shows an ace. Insurance for ${cost}?`,
-  insuranceYes: 'Take insurance',
-  insuranceNo: 'No insurance',
+  insuranceAsked: 'The dealer shows an ace.',
+  insuranceFor: (cost) => `Insurance for ${cost}?`,
+  insuranceYes: 'Yes',
+  insuranceYesAria: 'Yes, take insurance',
+  insuranceNo: 'No',
+  insuranceNoAria: 'No insurance',
   insuranceAdvice: 'Basic strategy: never. It pays 2:1 but only wins 4 times in 13 — a 7.7% house edge.',
   noMedals: 'Not enough medals for that.',
   placeBet: 'Place a bet and deal.',
@@ -276,6 +287,7 @@ const en: BlackjackStrings = {
   chartHard: 'Hard totals',
   chartSoft: 'Soft totals (with an ace counted as 11)',
   chartPairs: 'Pairs',
+  chartCorner: 'Your hand, against the dealer’s up card',
   chartLegend: { hit: 'H = hit', stand: 'S = stand', double: 'D = double', split: 'P = split', surrender: 'R = surrender' },
   chartDiffers:
     '* The standard six-deck chart (the table’s hint) doubles here instead. These are close calls — less than a hundredth of a bet apart — that the removal of the cards in play tips the other way in a real shoe.',
@@ -405,9 +417,12 @@ const ja: BlackjackStrings = {
   blackjack: 'ブラックジャック',
   bust: 'バスト',
   outcome: { blackjack: 'ブラックジャック 3:2', win: '勝ち', push: '引き分け', lose: '負け', bust: 'バスト' },
-  insuranceQuestion: (cost) => `ディーラーのアップカードはA。${cost}でインシュランスを掛けますか？`,
-  insuranceYes: 'インシュランスを掛ける',
+  insuranceAsked: 'ディーラーのアップカードはA。',
+  insuranceFor: (cost) => `インシュランスは${cost}です。`,
+  insuranceYes: '掛ける',
+  insuranceYesAria: 'インシュランスを掛ける',
   insuranceNo: '掛けない',
+  insuranceNoAria: '掛けない',
   insuranceAdvice: 'ベーシックストラテジーでは掛けません。配当は2:1ですが勝つのは13回に4回、ハウスエッジは7.7%です。',
   noMedals: 'メダルが足りません。',
   placeBet: 'ベットしてディールしてください。',
@@ -423,7 +438,7 @@ const ja: BlackjackStrings = {
   feltRules: 'ディーラーはすべての17でスタンド・インシュランスは2対1',
   holeCard: 'ディーラーの伏せ札',
   hintToggle: 'ベーシックストラテジーのヒントを表示',
-  keysHint: 'キー: Space か Enter でディール・H ヒット・S スタンド・D ダブル・P スプリット・I / N インシュランス・B 1枚ベット・M MAXベット',
+  keysHint: 'キー：Space か Enter でディール・H でヒット・S でスタンド・D でダブル・P でスプリット・I / N でインシュランス・B で1枚ベット・M でMAXベット',
   hintSays: (action) => `ベーシックストラテジー：${action}`,
   evTitle: '各選択肢の期待値',
   evNote:
@@ -459,6 +474,7 @@ const ja: BlackjackStrings = {
   chartHard: 'ハード',
   chartSoft: 'ソフト（Aを11と数えている手）',
   chartPairs: 'ペア',
+  chartCorner: 'あなたの手とディーラーのアップカード',
   chartLegend: { hit: 'H = ヒット', stand: 'S = スタンド', double: 'D = ダブル', split: 'P = スプリット', surrender: 'R = サレンダー' },
   chartDiffers:
     '* 標準的な6デッキの表（テーブルのヒント）ではここはダブルです。ベット1単位あたり0.01にも満たない僅差で、実際のシューではすでに出ているカードの分だけ逆に傾きます。',

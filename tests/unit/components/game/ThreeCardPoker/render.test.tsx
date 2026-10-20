@@ -17,6 +17,9 @@ import { createI18nInstance } from '@/lib/i18n';
 const render = (node: React.ReactNode, lang: 'en' | 'ja' = 'en') =>
   renderToStaticMarkup(<I18nextProvider i18n={createI18nInstance(lang)}>{node}</I18nextProvider>);
 
+/** The words of the keys line the markup shows, its parts' tags taken out. */
+const keysLine = (markup: string, testId: string) => markup.match(new RegExp(`data-testid="${testId}">(.*?)</p>`))?.[1].replace(/<[^>]+>/g, '');
+
 describe('cards', () => {
   it('labels a face-up card by rank and suit, writing tens as 10', () => {
     const markup = renderToStaticMarkup(<PlayingCard card={{ rank: 'T', suit: '♥' }} />);
@@ -90,10 +93,8 @@ describe('PlayTab', () => {
   });
 
   it('names its keys for a desk, in both languages', () => {
-    expect(render(<PlayTab />)).toContain('data-testid="tcp-keys">Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo<');
-    expect(render(<PlayTab />, 'ja')).toContain(
-      'data-testid="tcp-keys">キー：Space か Enter でディール・A でアンティ・P でプレイ・F でフォールド・R で同じベット・U で取り消し<',
-    );
+    expect(keysLine(render(<PlayTab />), 'tcp-keys')).toBe('Keys: Space or Enter deals · A ante · P play · F fold · R rebet · U undo');
+    expect(keysLine(render(<PlayTab />, 'ja'), 'tcp-keys')).toBe('キー：Space か Enter でディール・A でアンティ・P でプレイ・F でフォールド・R で同じベット・U で取り消し');
   });
 
   it('paces the deal and the reveal, and drops every delay for reduced motion', () => {
@@ -178,8 +179,9 @@ describe('the words', () => {
     const markup = render(<ThreeCardPoker />);
     expect(markup).toMatch(new RegExp(`<a[^>]*href="${MEDAL_CENTER_PATH}"[^>]*data-testid="tcp-center"[^>]*>`));
     expect(markup).toContain('data-testid="tcp-not-money"');
-    // The notice that the table plays with medals now is shown in the browser, once it is known that it has not been read.
-    expect(markup).not.toContain('tcp-medals-notice');
+    // The notice that the table plays with medals now is in the server's drawing, with its gate, which hides it before
+    // the first paint where it has been read: the table never moves for it (MedalCenter/onceNote.tsx).
+    expect(markup).toMatch(/<script>[^<]*three-card-poker-medals-notice[^<]*<\/script><section[^>]*data-testid="tcp-medals-notice"[^>]*data-once-note="three-card-poker"/);
     const ja = render(<ThreeCardPoker />, 'ja');
     expect(ja).toContain('メダルゲームセンター');
     for (const language of ['en', 'ja'] as const) {

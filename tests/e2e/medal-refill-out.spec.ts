@@ -2,8 +2,15 @@ import { test, expect, type Page } from '@playwright/test';
 
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
+import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter, storedBank } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
+import { quietFloor } from './quietFloor';
 import { arrived } from './streamedPage';
+
+// The floor's API answers at once (quietFloor.ts): its 6 s waits on CI held up the hub's navigation to the machine.
+test.beforeEach(async ({ context }) => quietFloor(context));
 
 // No free refill while medals are out on a round ("Medals out" in MedalCenter/ledger.ts): a player whose last medals
 // are on a video poker double-up still waiting for its pick has none to play with, and has not run out of them either.
@@ -36,15 +43,8 @@ const firstNumbers = (dealer: string, card: string) => {
   return [(deck.indexOf(c(card)) + 0.5) / 51, 0.5, 0.5, 0.5];
 };
 
-/** Queues random numbers for the next presses; once they are used, Math.random is itself again. */
-async function rig(page: Page, numbers: number[]) {
-  await page.evaluate((queue) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const left = [...queue];
-    Math.random = () => (left.length > 0 ? left.shift()! : w.__random!());
-  }, numbers);
-}
+/** Queues random numbers for the next presses (and only for them: tests/e2e/rigPresses.ts); once used, Math.random is itself again. */
+const rig = (page: Page, numbers: number[]) => rigPresses(page, numbers);
 
 /** A guest with five medals left: one five-medal hand, and everything it wins on a double-up. */
 async function fiveMedalsLeft(page: Page) {
@@ -68,10 +68,8 @@ async function lastMedalsOnADouble(page: Page) {
   await openVideoPoker(page);
   await expect(page.getByTestId('vp-medals')).toHaveText('5');
   await rig(page, dealNumbers(FULL_HOUSE));
-  await expect(async () => {
-    await page.getByRole('button', { name: 'DEAL', exact: true }).click({ timeout: 1_000 });
-    await expect(page.getByRole('button', { name: 'DRAW', exact: true })).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  // Pressed until the hand is dealt, and never again once it is: a deal that has landed takes DEAL away.
+  await pressUntil(page.getByRole('button', { name: 'DEAL', exact: true }), () => page.getByRole('button', { name: 'DRAW', exact: true }).isVisible());
   for (let i = 0; i < 5; i++) {
     const slot = page.locator(`[data-slot="${i}"]`);
     if ((await slot.getAttribute('aria-pressed')) !== 'true') await slot.click();
@@ -94,6 +92,9 @@ async function loseTheDouble(page: Page) {
 }
 
 const OUT_EN = 'Some of your medals are still on a round at Video Poker. Finish it there and they come back to you; the free refill is for when none are left anywhere.';
+
+// The page scrolls at once, not smoothly: see instantScroll.
+test.beforeEach(async ({ context }) => instantScroll(context));
 
 test('no refill at the hub while the last medals are on a double-up: it says where they are, and gives the refill once they are lost', async ({ page }) => {
   await page.context().addCookies([{ name: 'i18nextLng', value: 'en', url: 'http://localhost:3000' }]);

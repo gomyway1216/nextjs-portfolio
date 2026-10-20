@@ -145,6 +145,8 @@ describe('the first drawing, on the server and in the browser', () => {
     expect(shown(html, 'pusher-bonus-status')).toBe('Looking at your stamp card…');
     expect(count(html, /data-on="false" data-today="false"/g)).toBe(BONUS_CARD.length);
     expect(html).not.toContain('<button');
+    // The first day's button holds its place, unseen, so the line beside it wraps as it will once the book is read.
+    expect(html).toMatch(new RegExp(`<span class="[^"]*unseen[^"]*" aria-hidden="true">TAKE \\+${BONUS_CARD[0]}</span></section>`));
     expect(render(<BonusDot />)).toBe('');
     expect(render(<BonusStrip />, 'ja')).toContain('デイリーボーナス');
   });
@@ -213,7 +215,7 @@ describe('the bonus plate beside the cabinet', () => {
     expect(shown(html, 'pusher-bonus-status')).toBe(`Day 4 is ready: ${BONUS_CARD[3]} medals.`);
     expect(count(html, /data-on="true"/g)).toBe(3);
     expect(html).toContain(`aria-label="3 of ${BONUS_CARD.length} stamped"`);
-    expect(render(<BonusStripView state={banking(three)} />, 'ja')).toContain(`4日目のボーナスを受け取れます: ${BONUS_CARD[3]}枚`);
+    expect(render(<BonusStripView state={banking(three)} />, 'ja')).toContain(`4日目のボーナス、${BONUS_CARD[3]}枚を受け取れます。`);
   });
 
   it('shows today’s stamp once it is taken, and what tomorrow gives', () => {
@@ -615,7 +617,7 @@ describe('the words', () => {
     }
     // Change a number and the words follow.
     expect(getRecordStrings('en').achievement({ ...ACHIEVEMENT_NUMBERS, run: 6 }).fullRun.how).toBe('Hit 6 numbers in a row on the roulette.');
-    expect(getRecordStrings('ja').achievement({ ...ACHIEVEMENT_NUMBERS, days: 10 }).week.how).toBe('10日続けて遊ぶ。');
+    expect(getRecordStrings('ja').achievement({ ...ACHIEVEMENT_NUMBERS, days: 10 }).week.how).toBe('この台で10日続けて遊ぶ。');
   });
 
   it('have a name for every row and every heading of the board, in both languages', () => {
@@ -641,7 +643,7 @@ describe('the words', () => {
 
   it('announce the bonus in the cabinet’s own words', () => {
     expect(getStrings('en').sayBonus(30)).toBe('Daily bonus: 30 medals added to your medals.');
-    expect(getStrings('ja').sayBonus(30)).toBe('デイリーボーナス: メダルが30枚増えました。');
+    expect(getStrings('ja').sayBonus(30)).toBe('デイリーボーナス：メダルが30枚増えました。');
   });
 
   it('turn no two neighbouring stamps the same way, and none far', () => {
@@ -659,8 +661,9 @@ describe('the styles', () => {
 
   it('keep everything that moves still for a player who asks for less motion', () => {
     const calm = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-    const moving = [...css.matchAll(/^(\.[a-zA-Z]+(?:\[[^\]]+\])?) \{[^}]*animation: mp-/gm)].map((match) => match[1]);
-    expect(moving.sort()).toEqual([".pip[data-today='true']", ".square[data-today='true']", ".stamp[data-fresh='true']", '.toast']);
+    const moving = [...css.matchAll(/^(\.[a-zA-Z]+(?:\[[^\]]+\])?(?:::[a-z]+)?) \{[^}]*animation: mp-/gm)].map((match) => match[1]);
+    // Today's lamp breathes by the opacity of its two glows, not by its own shadow.
+    expect(moving.sort()).toEqual([".pip[data-today='true']::after", ".pip[data-today='true']::before", ".square[data-today='true']", ".stamp[data-fresh='true']", '.toast']);
     for (const selector of moving) expect(calm, selector).toContain(selector);
     expect(calm).toMatch(/animation: none/);
   });

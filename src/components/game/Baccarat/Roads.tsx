@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { ROAD_ROWS, beadPosition, bigRoad, type RoadEntry, type Winner } from './engine';
 import styles from './Baccarat.module.css';
+import { ScrollArea } from '../common/ScrollArea';
 
 const COLOR: Record<Winner, string> = {
   banker: 'var(--bc-banker)',
@@ -49,7 +50,7 @@ export const BeadPlate = ({ entries, name, ariaLabel, letters }: RoadProps & { l
   return (
     <div className={styles.road}>
       <div className={styles.roadName}>{name}</div>
-      <div className={styles.roadScroll} ref={ref}>
+      <ScrollArea className={styles.roadScroll} ref={ref} label={name}>
         <svg
           width={cols * BEAD + 1}
           height={ROAD_ROWS * BEAD + 1}
@@ -74,7 +75,7 @@ export const BeadPlate = ({ entries, name, ariaLabel, letters }: RoadProps & { l
             );
           })}
         </svg>
-      </div>
+      </ScrollArea>
     </div>
   );
 };
@@ -91,7 +92,7 @@ export const BigRoad = ({ entries, name, ariaLabel }: RoadProps) => {
   return (
     <div className={styles.road}>
       <div className={styles.roadName}>{name}</div>
-      <div className={styles.roadScroll} ref={ref}>
+      <ScrollArea className={styles.roadScroll} ref={ref} label={name}>
         <svg width={cols * BIG + 1} height={ROAD_ROWS * BIG + 1} role="img" aria-label={ariaLabel} data-road="big">
           <Grid cols={cols} cell={BIG} />
           {cells.length === 0 && leadingTies > 0 && (
@@ -118,7 +119,7 @@ export const BigRoad = ({ entries, name, ariaLabel }: RoadProps) => {
             );
           })}
         </svg>
-      </div>
+      </ScrollArea>
     </div>
   );
 };

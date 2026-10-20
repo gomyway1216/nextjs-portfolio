@@ -1,7 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { instantScroll } from './instantScroll';
 import { bankBalance } from './medalCenterPage';
+import { pressUntil } from './pressUntil';
+import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // The double-up of video poker (doubleUp.ts): after a win the player may TAKE it, or DOUBLE UP: the dealer's card is
@@ -34,15 +37,8 @@ const firstNumbers = (dealer: string, card: string) => {
   return [(deck.indexOf(c(card)) + 0.5) / 51, 0.5, 0.5, 0.5];
 };
 
-/** Queues random numbers for the next presses; once they are used, Math.random is itself again. */
-async function rig(page: Page, numbers: number[]) {
-  await page.evaluate((queue) => {
-    const w = window as unknown as { __random?: () => number };
-    w.__random ??= Math.random;
-    const left = [...queue];
-    Math.random = () => (left.length > 0 ? left.shift()! : w.__random!());
-  }, numbers);
-}
+/** Queues random numbers for the next presses (and only for them: tests/e2e/rigPresses.ts); once used, Math.random is itself again. */
+const rig = (page: Page, numbers: number[]) => rigPresses(page, numbers);
 
 async function openVideoPoker(page: Page, language: 'en' | 'ja' = 'en') {
   await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
@@ -58,10 +54,8 @@ const drawButton = (page: Page) => page.getByRole('button', { name: 'DRAW', exac
 /** Deals the full house at five medals, holds it whole and draws: 45 medals won, and in the medals. */
 async function winFullHouse(page: Page) {
   await rig(page, dealNumbers(FULL_HOUSE));
-  await expect(async () => {
-    await dealButton(page).click({ timeout: 1_000 });
-    await expect(drawButton(page)).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 20_000 });
+  // Pressed until the hand is dealt, and never again once it is: a deal that has landed takes DEAL away.
+  await pressUntil(dealButton(page), () => drawButton(page).isVisible());
   for (let i = 0; i < 5; i++) {
     const slot = page.locator(`[data-slot="${i}"]`);
     if ((await slot.getAttribute('aria-pressed')) !== 'true') await slot.click();
@@ -92,6 +86,9 @@ async function pick(page: Page, dealer: string, card: string) {
   await page.locator('[data-pick="0"]').click();
   await expect(page.locator('[data-pick="0"]')).toHaveAttribute('data-picked', 'true');
 }
+
+// The page scrolls at once, not smoothly: see instantScroll.
+test.beforeEach(async ({ context }) => instantScroll(context));
 
 test('a double-up won: the 45 go out as the dealer’s card turns, and 90 come back for a higher card', async ({ page }) => {
   await openVideoPoker(page);

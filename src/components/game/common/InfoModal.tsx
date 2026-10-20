@@ -1,11 +1,19 @@
 /**
- * Reusable info modal
+ * Reusable info modal.
+ *
+ * While it is open, the keyboard stays in it: focus moves to its close button
+ * when it opens, Tab and Shift+Tab go round its own controls, Escape closes it,
+ * and focus goes back to whatever opened it (the How to play button) when it
+ * closes, so that a keyboard or screen reader user is never left behind it.
  */
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { X as XIcon } from 'lucide-react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getUITranslation } from '../constants/gameTranslations';
+
+/** What Tab can reach inside the dialog. */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 interface InfoModalProps {
   isOpen: boolean;
@@ -25,19 +33,57 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   const titleId = useId();
   const { language } = useGameLanguage();
   const [isCloseHovered, setIsCloseHovered] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // The latest onClose, so that a parent drawing again (a new function each time) does not move focus.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  // The control the last click was on, noted before the page's own handlers hear it. Safari does not give a button
+  // the focus when it is clicked or tapped, so there the focus is still on the page when the dialog opens, and this is
+  // what opened it. (A click, not the press before it: a page that comes to life between the two has heard only the
+  // click. It is listened for as the dialog is put in the page, in the same step as the button's own handler.)
+  const pressed = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const note = (event: MouseEvent) => {
+      pressed.current = event.target instanceof Element ? event.target.closest<HTMLElement>(FOCUSABLE) : null;
+    };
+    document.addEventListener('click', note, true);
+    return () => document.removeEventListener('click', note, true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement && active !== document.body ? active : pressed.current;
+    closeRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        close.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const stops = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((element) => element.getClientRects().length > 0);
+      if (stops.length === 0) return;
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      const at = document.activeElement;
+      if (event.shiftKey ? at === first || !dialog.contains(at) : at === last || !dialog.contains(at)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -58,6 +104,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -77,6 +124,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <button
+          ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label={closeLabel ?? getUITranslation(language).closeDialog}

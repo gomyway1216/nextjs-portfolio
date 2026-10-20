@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'plunger', 'marble', 'rattle', 'hole'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -402,6 +402,21 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     clink(t, 0.19, 0.18, 273);
     return t;
   },
+  // A keno ball coming out on the screen: the cabinet's short electronic blip, a fifth up at its end.
+  ball: (rate) => {
+    const t = take(0.12, rate);
+    note(t, 0.002, pitch('E5'), 0.028, 0.3);
+    note(t, 0.032, pitch('B5'), 0.03, 0.26);
+    return t;
+  },
+  // A keno spot caught: a bright double ding with a ring under it.
+  catch: (rate) => {
+    const t = take(0.4, rate);
+    note(t, 0.004, pitch('C6'), 0.045, 0.3);
+    note(t, 0.06, pitch('G6'), 0.06, 0.28);
+    ping(t, 0.06, pitch('G6'), 0.22, 0.08);
+    return t;
+  },
   // The smart ball's plunger taken hold of and drawn back: the coil stretching with a rising squeak, and the rod's knock.
   plunger: (rate) => {
     const t = take(0.3, rate);
@@ -482,7 +497,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, marble: 0.55, rattle: 0.7, plunger: 0.7 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7 };
 
 export interface Speaker {
   on: () => boolean;

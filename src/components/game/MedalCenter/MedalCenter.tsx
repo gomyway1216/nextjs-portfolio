@@ -45,6 +45,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'sic-bo', path: '/games/sic-bo' },
   { id: 'sugoroku', path: '/games/sugoroku' },
   { id: 'coin-maze', path: '/games/coin-maze' },
+  { id: 'keno', path: '/games/keno' },
   { id: 'smart-ball', path: '/games/smart-ball' },
 ];
 

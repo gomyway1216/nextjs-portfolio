@@ -73,6 +73,9 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   sugoroku: 'big',
   // A flick-a-medal maze stands in the candy shop corner, as the 10-yen flick games stood outside a candy shop.
   'coin-maze': 'kids',
+  // A video keno cabinet stands with the video machines: a screen of numbers and a row of lit buttons, as on a casino's
+  // floor, where video keno stands among the video poker and slot machines.
+  keno: 'video',
   // A smart ball table stands in the candy shop corner, as the smart ball of the hot-spring towns' game rooms stood with
   // the shooting gallery and the candy counter.
   'smart-ball': 'kids',
@@ -82,7 +85,7 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'smart-ball']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -103,6 +106,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   'sic-bo': { en: 'Three dice in a glass dome; a triple pays 180:1.', ja: 'ドームで振る3つのサイコロ。ゾロ目は180:1' },
   sugoroku: { en: 'Roll the die, sail the isle, ride the whale.', ja: 'サイコロで島をめぐり、くじらに乗ろう' },
   'coin-maze': { en: 'Flick one medal through four gates to WIN.', ja: 'レバーではじいて4つのゲートを抜けよう' },
+  keno: { en: 'Mark 1 to 10 of 80; a last-ball catch pays ×5.', ja: '80の数字から1〜10個。最後の球なら×5' },
   'smart-ball': { en: 'Pull the plunger; light four holes in a row.', ja: 'バネで玉を打ち、穴を4つそろえてビンゴ' },
 };
 
@@ -122,6 +126,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   'sic-bo': ['月夜の', 'シックボー'],
   sugoroku: ['くじら島', 'すごろく'],
   'coin-maze': ['駄菓子屋', 'メダル', 'めいろ'],
+  keno: ['ビデオ', 'キノ'],
   'smart-ball': ['湯けむり', 'スマートボール'],
 };
 

@@ -49,6 +49,7 @@ export const FLOOR_GAMES = [
   'sic-bo',
   'sugoroku',
   'coin-maze',
+  'keno',
   'smart-ball',
 ] as const;
 
@@ -226,6 +227,15 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   'coin-maze': rule(5, 600, 5, 1, 0.9253, {
     'maze-big': { amounts: [5], feed: true },
     'maze-win': { amounts: [2], feed: false },
+  }),
+  // Video Keno: the top of the 10-spot table caught on the last ball, 2,000 × 5 = 10,000 a medal bet, on a bet of up
+  // to 10: 100,000. A game every second or so at the quickest (DRAW, then skip): 6,000 a minute, as the other quick
+  // machines. Taken: one game at its biggest bet, 10.
+  // Best return: 9/10 (90%) on one spot, exactly: the hypergeometric chances of every catch, the last ball's ×5
+  // included. Every ticket of 1 to 10 spots brings back between 89.68% (two spots) and 90%.
+  // Named: every spot caught on a ticket of five spots or more, its whole win on any bet, the last ball's ×5 or not.
+  keno: rule(100_000, 6_000, 500, 10, 0.9, {
+    'keno-all': { amounts: times(times([250, 400, 800, 1_000, 1_500, 2_000], [1, 5]), [1, 2, 3, 5, 10]), feed: true },
   }),
   // Hot Spring Smart Ball: a play takes 5 medals for 10 marbles; when the tenth has been shot, the lines of four lit holes
   // pay, one line 7, two 20, three 100 (ten marbles light ten holes at most, and four lines need eleven: 100 is the

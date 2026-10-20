@@ -507,6 +507,15 @@ export const games: Game[] = [
     category: 'Arcade',
   },
   {
+    id: 'keno',
+    title: 'Video Keno',
+    description: 'The video & slots corner’s keno cabinet: mark 1 to 10 of the 80 numbers, bet, and watch 20 balls drawn one by one — a paytable for every number of spots, a catch on the last ball paying ×5, and every ticket’s return worked out exactly from the hypergeometric odds, at about 90% for each.',
+    thumbnail: '🔵',
+    path: '/games/keno',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
+  {
     id: 'smart-ball',
     title: 'Hot Spring Smart Ball',
     description: 'The hot-spring town’s smart ball: pull the plunger, shoot ten glass marbles round the rail and down through the pins into sixteen numbered holes, and light four in a row for BINGO — with perfect play, an everyday hand and blind shots each worked out exactly, so that no pull beats the machine.',

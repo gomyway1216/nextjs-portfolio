@@ -3,6 +3,10 @@ import type { BrowserContext } from '@playwright/test';
 import type { FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { emptyFloor } from './layoutShift';
 
+/** The live database, the sign-in (Google's sign-in frame with it) and the store: every request for them is cut off. */
+const SIGN_IN_AND_STORE =
+  /firebaseio\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|firestore\.googleapis\.com|googleapis\.com\/identitytoolkit\/|apis\.google\.com|\.firebaseapp\.com\/__\/auth\//;
+
 /**
  * The floor's API answered at once, for every page of `context`: a quiet floor and its jackpot, with the live database
  * and the sign-in cut off. Nothing reaches a real server. The suite's `test` (fixtures.ts) does this for every context
@@ -15,10 +19,15 @@ import { emptyFloor } from './layoutShift';
  * longer than an expectation waits: a click from the hub to a machine then "did not navigate" (video-poker.spec.ts and
  * medal-refill-out.spec.ts, failing or flaky on CI). Production speaks HTTP/2 and reaches its store, so a player never
  * meets it.
+ *
+ * The sign-in cut off includes the Google sign-in frame. In Safari (WebKit), Firebase Auth loads it as every page
+ * starts, so that a sign-in popup can open within the click: Google's frame loader (apis.google.com), the auth
+ * domain's frame (…firebaseapp.com/__/auth/) and, from that frame, the project's settings from Google's API
+ * (www.googleapis.com/identitytoolkit/…). Chromium and Firefox on a desk ask for none of them before a sign-in.
  */
 export async function quietFloor(context: BrowserContext): Promise<void> {
   await context.routeWebSocket(/firebaseio\.com/, (socket) => socket.close());
-  await context.route(/firebaseio\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|firestore\.googleapis\.com/, (route) => route.abort());
+  await context.route(SIGN_IN_AND_STORE, (route) => route.abort());
   await context.route(/\/api\/game\/medal-floor(\?|$)/, (route) => route.fulfill({ json: emptyFloor() }));
   await context.route(/\/api\/game\/medal-floor\/jackpot(\?|$)/, (route) => {
     const jackpot: FloorJackpotView = { now: Date.now(), available: true, amount: 1_000, seq: 1, v: 7, wins: [] };

@@ -153,7 +153,9 @@ test('every machine shows the floor jackpot over it; a linked one’s Odds tab s
     await arrived(page);
     const strip = page.getByTestId('floor-jackpot-strip');
     await expect(strip, path).toHaveAttribute('data-linked', String(linked));
-    await expect(strip.getByTestId('floor-jackpot-strip-amount'), path).toHaveAttribute('data-amount', '2718');
+    // The pool comes once the page has asked for it: on a slow macOS runner the Medal Pusher's page, busy drawing its
+    // first frame, took longer than 5 s to.
+    await expect(strip.getByTestId('floor-jackpot-strip-amount'), path).toHaveAttribute('data-amount', '2718', { timeout: 15_000 });
     await expect(strip.getByTestId('floor-jackpot-strip-amount'), path).toContainText('2,718');
     if (linked) {
       // A guest is shown the way to sign in and join the floor.

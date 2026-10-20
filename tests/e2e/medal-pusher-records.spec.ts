@@ -336,10 +336,13 @@ test('a stamp that is earned is shown once, in a toast that keeps off the contro
   await expect(toast).toHaveAttribute('role', 'status');
 
   // Wherever the page is scrolled to, the toast lies over none of the controls, nor the line above them, and takes no press.
+  // Each scroll is made at once: the site scrolls smoothly, and in WebKit and Firefox a glide was still under way when the
+  // boxes were read, and on past the feed button after Playwright had found it on screen (it was under the toolbar by
+  // the time elementFromPoint looked: 1 run in 4 in WebKit, 1 in 12 in Firefox).
   for (const id of ['pusher-jackpot', 'pusher-field', 'pusher-legend', 'pusher-controls', 'pusher-bonus']) {
     await machine(page)
       .getByTestId(id)
-      .evaluate((element) => element.scrollIntoView({ block: 'start' }));
+      .evaluate((element) => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
     const over = await page.evaluate(() => {
       const box = (query: string) => document.querySelector(`#pusher-panel-machine ${query}`)?.getBoundingClientRect();
       const shown = box('[data-testid="pusher-toast"] > div');

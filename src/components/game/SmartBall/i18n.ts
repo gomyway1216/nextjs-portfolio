@@ -95,7 +95,7 @@ const en = {
   /** The flash over the board as a line lights. */
   flash: (lines: number) => (lines >= 2 ? `${lines} LINES!` : 'BINGO!'),
   outcome: enOutcome,
-  notEnough: `Not medals enough: a play takes ${STAKE}.`,
+  notEnough: `Not enough medals: a play takes ${STAKE}.`,
   unsaved: 'This browser’s storage is full: the play cannot be kept, so no medals were taken.',
   unfinished: 'A play from before is being finished first.',
   cardAway: 'Your medals are in a machine in another tab.',

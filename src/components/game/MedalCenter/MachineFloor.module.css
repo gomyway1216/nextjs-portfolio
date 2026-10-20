@@ -413,14 +413,27 @@
 }
 .pitch {
   margin: 0;
+  /* As the cabinet's name: Japanese breaks between phrases, never inside a word. Chromium's auto-phrase finds them;
+     Safari and Firefox have none, and broke a line anywhere in its kana (「メ｜ダル」, a lone 「ぶ」): keep-all keeps
+     its phrases whole there, breaking it only between the phrases the floor marks (zero-width spaces, floorPlan.ts
+     PITCH_WORDS, MachineFloor.tsx `plateLine`) and at its 、 and 。. A phrase longer than the line still breaks rather
+     than spill out. */
+  word-break: keep-all;
   word-break: auto-phrase;
+  overflow-wrap: break-word;
   color: var(--mf-ink-soft);
   font-size: 0.8rem;
   line-height: 1.4;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  /* Four lines at most: on the narrowest phone a line holds nine or ten Japanese characters, and a line broken only
+     between its phrases may need a fourth (「三毛ねこと｜じゃんけん。｜ランプが当たりを｜決める。」 at 320 px). */
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+/* A thousand kept on one line on a plate: keeping Japanese words whole, WebKit breaks 「1,｜000」 after its comma. */
+.number {
+  white-space: nowrap;
 }
 .foot {
   margin: auto 0 0;

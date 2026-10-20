@@ -9,7 +9,7 @@
  * wherever the bulge comes round; the player throws a medal into the gap the
  * pusher has just left. Its extra game starts from win holes in the field, each
  * under a lamp, and pays from the hopper straight into the player's tray. A
- * Sega-era design (JP H09-135962A) put a turntable on a raised stage in the
+ * Japanese design of 1997 (JP H09-135962A) put a turntable on a raised stage in the
  * middle of a pusher's field, a heap of medals on it held in by pins, a three-
  * digit seven-segment counter that rolls and stops for the lottery, and, for
  * the jackpot, the turntable spun up fast with its gates open so that the heap

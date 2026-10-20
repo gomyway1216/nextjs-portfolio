@@ -5,7 +5,7 @@
  * is measured, not reckoned: each figure is the medals back over the medals fed, with the half-width of its 95%
  * confidence interval from the spread of 5,000-medal batches.
  *
- * The page shows these, so that opening it never plays a medal. `tests/unit/components/game/CarouselPusher/published.test.ts`
+ * The page shows these, so that opening it never plays a medal. `tests/unit/components/game/CarouselPusher/published.test.tsx`
  * pins the machine they were measured on (every number of the field, the carousel, the holes, the rail, the dish and
  * the counter), so that a change to any of them fails until the measurement is made again and written out here; and it
  * plays a short seeded run of each way, which must come out exactly as it did when these were measured.

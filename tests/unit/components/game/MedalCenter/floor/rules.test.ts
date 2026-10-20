@@ -52,6 +52,7 @@ import { BET_IDS as SIC_BO_AREAS, MOST_BACK_PER_MEDAL as SIC_BO_MOST_BACK, PAYTA
 import { ROLL_STAKE_MOST as SIC_BO_STAKE_MOST, SPOT_MAX as SIC_BO_SPOT_MAX } from '@/components/game/SicBo/medalTable';
 import { BETS as SUGOROKU_BETS, BET_MOST as SUGOROKU_BET_MOST, BOARD_SIZE as SUGOROKU_SQUARES, analyzeBoard, labelOf as sugorokuLabel, medalsFor as sugorokuMedals, outcomesFrom as sugorokuOutcomes, valueOf as sugorokuValue } from '@/components/game/Sugoroku/engine';
 import { MOST_WIN as MAZE_MOST, PAYS as MAZE_PAYS, STAGES as MAZE_GATES, STAKE as MAZE_STAKE, analyze as mazeOdds, drawPlay as mazeDraw, labelOf as mazeLabel, playOf as mazePlay, seeded as mazeSeeded, valueOf as mazeValue } from '@/components/game/CoinMaze/engine';
+import { ALL_CAUGHT_FROM as KENO_ALL_FROM, BETS as KENO_BETS, BET_MOST as KENO_BET_MOST, LAST_BALL_TIMES as KENO_TIMES, MOST_WIN as KENO_MOST, PAYS as KENO_PAYS, SPOT_COUNTS as KENO_SPOTS, analyze as kenoOdds, drawBalls as kenoDraw, labelOf as kenoLabel, quickPick as kenoPick, seeded as kenoSeeded, valueOf as kenoValue, winOf as kenoWin } from '@/components/game/Keno/engine';
 import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
@@ -158,6 +159,9 @@ describe('the most each machine can take from the player at once, for the medals
     // Candy Shop Medal Maze: one medal a play, the one that rolls.
     expect(FLOOR_RULES['coin-maze'].stakeMost).toBe(MAZE_STAKE);
     expect(MAZE_STAKE).toBe(1);
+    // Video Keno: one game at its biggest bet.
+    expect(FLOOR_RULES.keno.stakeMost).toBe(KENO_BET_MOST);
+    expect(KENO_BET_MOST).toBe(Math.max(...KENO_BETS));
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -212,6 +216,9 @@ describe('which machines are linked to the floor jackpot', () => {
       // Perfect timing at every gate (dynamic programming down the four gates and the pins, exact): no way of playing
       // brings back more.
       'coin-maze': mazeValue(mazeOdds().perfect.back),
+      // The best ticket (one spot: 9/10 exactly), the hypergeometric chances of every catch and the last ball's ×5:
+      // the player chooses the ticket, so the floor is told the best of the ten.
+      keno: kenoValue(kenoOdds().best),
     };
   };
 
@@ -227,7 +234,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -461,6 +468,37 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(mazeValue(odds.blind.back)).toBeLessThan(mazeValue(odds.typical.back));
   });
 
+  it('Video Keno: the 10-spot top on the last ball on the biggest bet, every spot caught named on every bet, and the best ticket as the best return', () => {
+    expect(FLOOR_RULES.keno.most).toBe(KENO_MOST);
+    expect(FLOOR_RULES.keno.most).toBe(100_000);
+    for (const n of KENO_SPOTS) for (const pay of KENO_PAYS[n]) expect(pay * KENO_TIMES * KENO_BET_MOST).toBeLessThanOrEqual(FLOOR_RULES.keno.most);
+    // Every spot caught, on five spots or more: its whole win on every bet, with the last ball's ×5 or without.
+    const all = KENO_SPOTS.filter((n) => n >= KENO_ALL_FROM).flatMap((n) => KENO_BETS.flatMap((bet) => [1, KENO_TIMES].map((times) => KENO_PAYS[n][n] * times * bet)));
+    expect(FLOOR_RULES.keno.labels['keno-all'].amounts).toEqual(sorted(all));
+    expect(FLOOR_RULES.keno.labels['keno-all'].feed).toBe(true);
+    // Every named win a game can make is one the floor believes.
+    const random = kenoSeeded(4);
+    for (let g = 0; g < 2_000; g++) {
+      const spots = kenoPick(5 + (g % 6), random);
+      const balls = kenoDraw(random);
+      // Every spot caught, now and then: the ticket is made of the balls drawn.
+      const ticket = g % 3 === 0 ? [...balls.slice(0, spots.length - 1), balls[19]].sort((a, b) => a - b) : spots;
+      const bet = KENO_BETS[g % KENO_BETS.length];
+      const won = kenoWin(ticket, balls, bet);
+      const label = kenoLabel(ticket, balls);
+      if (label) expect(labelPays('keno', label, won), `${ticket} ${won}`).toBe(true);
+      expect(won).toBeLessThanOrEqual(FLOOR_RULES.keno.most);
+    }
+    // The rule is the best ticket, one spot, at 9/10 exactly; every other ticket brings back less, and none less than 89.6%.
+    const odds = kenoOdds();
+    expect(`${odds.best.num}/${odds.best.den}`).toBe('9/10');
+    expect(FLOOR_RULES.keno.bestReturn).toBe(0.9);
+    for (const ticket of odds.tickets) {
+      expect(kenoValue(ticket.back)).toBeLessThanOrEqual(FLOOR_RULES.keno.bestReturn);
+      expect(kenoValue(ticket.back)).toBeGreaterThan(0.896);
+    }
+  });
+
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {
     const prizes = BOWLS.flat().filter((hole): hole is number => typeof hole === 'number');
     expect(FLOOR_RULES['medal-pusher'].labels.bowl.amounts).toEqual(sorted(prizes));
@@ -510,6 +548,9 @@ describe('named wins and the feed', () => {
     expect(labelPays('coin-maze', 'maze-big', 2)).toBe(false);
     expect(labelPays('coin-maze', 'maze-win', 2)).toBe(true);
     expect(labelPays('coin-maze', 'maze-win', 5)).toBe(false);
+    expect(labelPays('keno', 'keno-all', 250)).toBe(true);
+    expect(labelPays('keno', 'keno-all', 100_000)).toBe(true);
+    expect(labelPays('keno', 'keno-all', 251)).toBe(false);
   });
 
   it('the floor is shown jackpots, three sevens and royal flushes whatever their size, and other wins from a size', () => {
@@ -540,5 +581,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('sugoroku', 300)).toBe(true);
     expect(feedWorthy('coin-maze', 5, 'maze-big')).toBe(true);
     expect(feedWorthy('coin-maze', 2, 'maze-win')).toBe(false);
+    expect(feedWorthy('keno', 250, 'keno-all')).toBe(true);
+    expect(feedWorthy('keno', 400)).toBe(false);
+    expect(feedWorthy('keno', 590)).toBe(true);
   });
 });

@@ -59,7 +59,7 @@ describe('the medal center’s front, as the server sends it', () => {
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
     // The casino games on the medals, the janken, fishing, horse-racing, ball bingo, big wheel, high & low and Sic Bo machines: open, and each Play link goes to its own page in the catalog.
-    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze'];
+    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno'];
     for (const id of open) {
       expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
       const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
@@ -69,7 +69,7 @@ describe('the medal center’s front, as the server sends it', () => {
     for (const id of open) expect(soon).not.toContain(id);
     // With nothing still to come, the coming-soon shelf is not there at all.
     if (soon.length === 0) expect(html).not.toContain('data-testid="center-soon"');
-    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze']);
+    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno']);
     // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
     for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
@@ -154,9 +154,11 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).toMatch(/data-machine="high-low" data-zone="video" data-wide="false"/);
     expect(html).toMatch(/data-machine="sugoroku" data-zone="big" data-wide="true"/);
     expect(html).toMatch(/data-machine="coin-maze" data-zone="kids" data-wide="false"/);
-    // On the widest floor the three video machines stand beside the pusher, two columns of them, as a pair of corners
-    // does, and the pusher's cabinet stands as tall as their two rows; the big machines, the candy shop and the tables
-    // each start a row of their own.
+    expect(html).toMatch(/data-machine="keno" data-zone="video" data-wide="false"/);
+    // On the widest floor the four video machines stand beside the pusher, two columns of two rows, as a pair of
+    // corners does, and the pusher's cabinet stands as tall as their two rows; the big machines, the candy shop and the
+    // tables each start a row of their own.
+    expect(cornersOf(FLOOR).find(({ zone }) => zone === 'video')?.machines.map(({ id }) => id)).toEqual(['slot-machine', 'video-poker', 'high-low', 'keno']);
     const spans = spansOf(cornersOf(FLOOR));
     expect(cornersOf(FLOOR).map(({ zone }, i) => `${zone} ${spans[i].span}${spans[i].squeezed ? ' squeezed' : ''}${spans[i].tall ? ' tall' : ''}`)).toEqual(['pusher 2 tall', 'video 2 squeezed', 'big 4', 'kids 3', 'table 4']);
     expect(html).toContain('data-zone="video" data-width="2" data-squeezed="true" data-tall="false"');

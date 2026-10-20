@@ -8,7 +8,9 @@ import {
 import {
   FieldValue,
   getFirestore as getAdminFirestore,
+  initializeFirestore,
   type Firestore,
+  type FirestoreSettings,
 } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth, type Auth } from 'firebase-admin/auth';
 import { getStorage as getAdminStorage, type Storage } from 'firebase-admin/storage';
@@ -44,6 +46,35 @@ function parseServiceAccountKey(serviceAccount: string): ServiceAccount {
   }
 }
 
+// Firestore over HTTP/1.1 REST instead of one long-lived gRPC channel.
+// The channel lives as long as the serverless instance, frozen periods
+// included, and runs without keepalive; production reads spent 170-236 s
+// just waiting for a usable connection ("LB pick"). Over REST each call is
+// its own HTTP request, so there is no channel to reconnect. Neither
+// transport bounds a read on a connection that never answers, so callers
+// that must not hang need their own deadline. The SDK switches to gRPC by
+// itself for the one thing that needs it (onSnapshot listeners), which
+// this server does not use.
+//
+// When FIRESTORE_PREFER_REST is set, it wins (the SDK reads it), so
+// FIRESTORE_PREFER_REST=false brings gRPC back without a code change.
+export function adminFirestoreSettings(
+  env: Record<string, string | undefined> = process.env,
+): FirestoreSettings {
+  return env.FIRESTORE_PREFER_REST === undefined ? { preferRest: true } : {};
+}
+
+function initAdminFirestore(firebaseApp: App): Firestore {
+  try {
+    return initializeFirestore(firebaseApp, adminFirestoreSettings());
+  } catch (error) {
+    // Only when another copy of this module already set Firestore up with
+    // other settings: keep using that instance rather than failing.
+    console.warn('[Firebase Admin] Firestore already initialized with other settings; reusing it:', error);
+    return getAdminFirestore(firebaseApp);
+  }
+}
+
 export function getAdminSDK() {
   if (!app) {
     try {
@@ -53,7 +84,7 @@ export function getAdminSDK() {
       if (initializedApps.length > 0 && initializedApps[0]) {
         console.log('[Firebase Admin] Using existing initialized app');
         app = initializedApps[0];
-        db = getAdminFirestore(app);
+        db = initAdminFirestore(app);
         auth = getAdminAuth(app);
         storage = getAdminStorage(app);
         realtimeDb = getAdminDatabase(app);
@@ -110,7 +141,7 @@ export function getAdminSDK() {
         });
       }
 
-      db = getAdminFirestore(app);
+      db = initAdminFirestore(app);
       auth = getAdminAuth(app);
       storage = getAdminStorage(app);
       realtimeDb = getAdminDatabase(app);

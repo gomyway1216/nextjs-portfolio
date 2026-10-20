@@ -54,13 +54,15 @@ export const test = base.extend<object, { imageRunner: { request: APIRequestCont
       const request = await playwright.request.newContext();
       const inFlight = new Set<Promise<unknown>>();
       await use({ request, inFlight });
-      // Every image asked for is read to its end before the runner goes: none is let go half-read.
-      await Promise.allSettled([...inFlight]);
+      // Every image asked for is read to its end before the runner goes: none is let go half-read. But a read that has
+      // not ended in 20 s will not end (the optimizer is stuck on that image, which letting it go cannot make worse):
+      // on a slow macOS runner one held the worker's end past 30 s, then past 60, and failed a run whose every test
+      // had passed ("Fixture imageRunner timeout … exceeded during teardown"). The runner goes then.
+      let giveUp: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([Promise.allSettled([...inFlight]), new Promise((resolve) => (giveUp = setTimeout(resolve, 20_000)))]);
+      clearTimeout(giveUp);
       await request.dispose();
     },
-    // Time for that last read: a request of the runner's gives up after its own 30 s at most, and this teardown had
-    // only the test's 30 s too, so on a slow macOS runner, with an image still being made, the worker's end itself
-    // failed the run ("Fixture imageRunner timeout … exceeded during teardown").
     { scope: 'worker', timeout: 60_000 },
   ],
   browser: [

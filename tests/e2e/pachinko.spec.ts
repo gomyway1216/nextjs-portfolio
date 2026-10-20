@@ -2,7 +2,8 @@ import { test, expect, type Page } from './fixtures';
 
 import { BEST_LEFT, FATE_SLOTS, LEND_BALLS, LEND_MEDALS, numbersForBall, spinUnit, type BallDraw } from '../../src/components/game/Pachinko/engine';
 import { SESSION_KEY, parseSession } from '../../src/components/game/Pachinko/medalTable';
-import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
@@ -125,6 +126,22 @@ test('pachinko: four holds full, a fifth ball into the ヘソ starts nothing, an
   await page.evaluate(() => document.querySelector('[data-testid="pk-handle"]')!.dispatchEvent(new PointerEvent('pointerup', { pointerId: 22, isPrimary: true, button: 0, bubbles: true })));
 });
 
+test('pachinko: with fewer medals than a lend takes, LEND is off, the status says where the last ones can go, and a press says why', async ({ page }) => {
+  test.setTimeout(60_000);
+  const three = take(createLedger('testdevice01'), WELCOME - 3)!;
+  await page.addInitScript(
+    ([key, text]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+    },
+    [BANK_KEY, serializeLedger(three)],
+  );
+  await openMachine(page);
+  await expect(page.getByTestId('pk-lend')).toBeDisabled();
+  await expect(page.getByTestId('pk-status')).toHaveText(`A lend takes ${LEND_MEDALS} medals: play your last 3 on another machine.`);
+  await page.keyboard.press('l');
+  await expect(page.getByTestId('pk-message')).toHaveText(`Not enough medals: a lend takes ${LEND_MEDALS}.`);
+});
+
 test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右打ち, a round played at 6, the rest played out as the page is left, then ST and a hit in it', async ({ page }) => {
   test.setTimeout(120_000);
   await openMachine(page);
@@ -219,6 +236,8 @@ test('pachinko: the clock stops while the Odds tab is open, and a held handle is
   await expect(page.getByTestId('pk-typical')).toHaveText('78.24%');
   await expect(page.getByTestId('pk-blind')).toHaveText('25.78%');
   await expect(page.getByTestId('pk-strengths-table').locator('tbody tr')).toHaveCount(7);
+  // 保留短縮 is a plain spin's in normal play only: a reach's phases keep their chances however many holds wait.
+  await expect(page.locator('#pk-panel-odds')).toContainText('in normal play, a plain spin runs faster the more holds wait');
   await expect(page.getByTestId('pk-sources').locator('a')).toHaveCount(8);
   await page.locator('#pk-tab-machine').click();
   await expect(machine(page)).toHaveAttribute('data-held', 'false');

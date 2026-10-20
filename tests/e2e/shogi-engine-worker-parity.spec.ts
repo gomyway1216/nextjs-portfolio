@@ -28,7 +28,12 @@ test("ordinary Shogi never mounts the unlinked parity harness", async ({
 
 test("explicit local weights traverse the real browser Worker/WASM/NNUE path", async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName === "webkit",
+    "In Safari the site's Firebase Auth loads Google's sign-in iframe as the page starts (apis.google.com and the auth domain), so that a sign-in popup can open within the click; this harness refuses any request off 127.0.0.1:3000",
+  );
   test.setTimeout(60_000);
   const result = await runBrowserWorkerParityWithPageForTests(
     page,

@@ -440,7 +440,10 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     // A 6 from START, its LAMP CHANCE stopping on ×5: the line that says how the roll ended.
     await rigPresses(page, [numberForFace(6), 0.1, 0.1, 0.1, numberForLamp(3), 0.1]);
     await pressUntil(page.getByTestId('sg-roll'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
-    await page.getByTestId('sg-skip').click();
+    // Pressed until the show has ended: ROLL lifts the view to the board with a smooth scroll (lookUp.ts), and a Skip
+    // pressed as the page starts to glide came down on Skip and up on what had moved under it, which is no click
+    // (Firefox, once in a full run).
+    await pressUntil(page.getByTestId('sg-skip'), async () => (await machine.getAttribute('data-phase')) === 'idle');
     await expect(machine).toHaveAttribute('data-phase', 'idle');
     await expect(status).toContainText('ランプチャンス');
     if (safari) await asSafariBreaks(page);
@@ -534,7 +537,9 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     said.push(...(await brokenIn(status, KN_WORDS)));
     await rigPresses(page, kenoNumbers([3, 12, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 70]));
     await pressUntil(page.getByTestId('kn-draw'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
-    await page.getByTestId('kn-skip').click();
+    // Pressed until the draw has ended: DRAW lifts the view with a smooth scroll, which can take a Skip's click away (as
+    // Sugoroku's ROLL, above).
+    await pressUntil(page.getByTestId('kn-skip'), async () => (await machine.getAttribute('data-phase')) === 'done');
     await expect(machine).toHaveAttribute('data-phase', 'done', { timeout: 10_000 });
     await expect(status).toContainText('最後の球で×5');
     expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);

@@ -52,6 +52,7 @@ export const FLOOR_GAMES = [
   'keno',
   'smart-ball',
   'pachinko',
+  'carousel-pusher',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -81,6 +82,8 @@ const times = (values: readonly number[], by: readonly number[]): number[] => [.
 
 /** The Medal Pusher's jackpot starts at 500 and grows a medal for every 20 played, with no top. The floor believes up to this. */
 export const PUSHER_JACKPOT_MOST = 10_000;
+/** Cherry Blossom Carousel's treasure dish: its stock starts at 60, grows a medal for every 8 fed, and stops at this. */
+export const CAROUSEL_STOCK_MOST = 9_999;
 /** Calico Janken's lamps (1, 2, 3, 5, 10) doubled one to four times: what a double-up can pay. */
 const JANKEN_DOUBLE_UPS = times([1, 2, 3, 5, 10], [2, 4, 8, 16]);
 /**
@@ -264,6 +267,20 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
     'pachinko-rush': { min: 200, max: 10_000, feed: true },
     'pachinko-10r': { amounts: [100], feed: false },
     'pachinko-4r': { amounts: [40], feed: false },
+  }),
+  // Cherry Blossom Carousel: a medal is fed at a time (a handful of 10 goes into its slot first, and comes back with
+  // RETURN: not played). The counter pays 1, 5 or 20 straight into the tray; 7-7-7 throws the treasure dish's stock
+  // (from 60, a medal more for every 8 fed, up to CAROUSEL_STOCK_MOST) across the field, where the carousel pushes it
+  // off: the jackpot is named with the stock thrown. The tray is counted in a handful at a time, every 0.3 s or so;
+  // after a big jackpot the field pours for a while, and 1,500 a minute leaves room, as for the Medal Pusher.
+  // Best return: every medal dropped as a hole passes the mark, one a hole, none while four spins wait, as the
+  // machine's own simulation measures it over 6,000,000 medals on twelve seeded machines: 90.60% (±0.30 at 95%),
+  // rounded up. A medal a second at no moment in particular brings back 80.39% (±0.48); the button held down, 69.77%
+  // (±0.61), each over 4,000,008 medals.
+  // Named: the jackpot, shown to the floor; three alike.
+  'carousel-pusher': rule(CAROUSEL_STOCK_MOST, 1_500, 100, 1, 0.9061, {
+    'carousel-jackpot': { min: 60, max: CAROUSEL_STOCK_MOST, feed: true },
+    'carousel-triple': { amounts: [20], feed: false },
   }),
 };
 

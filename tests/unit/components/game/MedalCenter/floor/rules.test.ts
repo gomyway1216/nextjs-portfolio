@@ -58,7 +58,10 @@ import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published
 import { valueOf as pachinkoValue } from '@/components/game/Pachinko/analysis';
 import { BALLS_PER_MEDAL as PACHINKO_BALLS_PER_MEDAL, COUNT as PACHINKO_COUNT, LEND_MEDALS as PACHINKO_LEND, PAY_ATTACKER as PACHINKO_PAY_ATTACKER, RUSH_MOST as PACHINKO_RUSH_MOST, RUSH_NAMED as PACHINKO_RUSH_NAMED, SPLIT_DENCHU as PACHINKO_SPLIT_DENCHU, SPLIT_HESO as PACHINKO_SPLIT_HESO, SLOT_MS as PACHINKO_SLOT_MS, hitLabel as pachinkoHitLabel, hitMedals as pachinkoHitMedals, rushPrize as pachinkoRushPrize } from '@/components/game/Pachinko/engine';
 import { PUBLISHED_PACHINKO_ODDS } from '@/components/game/Pachinko/published';
-import { CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
+import { CAROUSEL_STOCK_MOST, CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
+import { STOCK as CAROUSEL_STOCK } from '@/components/game/CarouselPusher/engine';
+import { PRIZES as CAROUSEL_PRIZES } from '@/components/game/CarouselPusher/lottery';
+import { PUBLISHED_CAROUSEL } from '@/components/game/CarouselPusher/published';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
 // change to a game's payouts that the floor has not heard of fails this test instead of refusing a real win.
@@ -173,6 +176,8 @@ describe('the most each machine can take from the player at once, for the medals
     // Goldfish Lantern Pachinko: one lend, five medals for fifty balls.
     expect(FLOOR_RULES.pachinko.stakeMost).toBe(PACHINKO_LEND);
     expect(PACHINKO_LEND).toBe(5);
+    // Cherry Blossom Carousel: a medal fed at a time (the handful put into its slot is played only as it is fed).
+    expect(FLOOR_RULES['carousel-pusher'].stakeMost).toBe(1);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -248,10 +253,12 @@ describe('which machines are linked to the floor jackpot', () => {
     }
     // The Medal Pusher's is measured by its simulation, not worked out: the slowest feed down the middle, about 90%.
     expect(FLOOR_RULES['medal-pusher'].bestReturn).toBe(0.902);
+    // Cherry Blossom Carousel's too: its timed play over six million medals (published.ts), rounded up.
+    expect(FLOOR_RULES['carousel-pusher'].bestReturn).toBe(Math.ceil(PUBLISHED_CAROUSEL.ways.timed.return * 10_000) / 10_000);
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -562,6 +569,26 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(pachinkoValue(odds.perfect.back)).toBeGreaterThan(0.9345);
     expect(pachinkoValue(odds.typical.back)).toBeLessThan(rule.bestReturn);
     expect(pachinkoValue(odds.blind.back)).toBeLessThan(pachinkoValue(odds.typical.back));
+  });
+
+  it('Cherry Blossom Carousel: the dish’s jackpot from its start to its top, three alike by name, and its measured best play', () => {
+    const rule = FLOOR_RULES['carousel-pusher'];
+    expect(CAROUSEL_STOCK_MOST).toBe(CAROUSEL_STOCK.most);
+    expect(rule.most).toBe(CAROUSEL_STOCK.most);
+    expect(rule.labels['carousel-jackpot']).toEqual({ min: CAROUSEL_STOCK.start, max: CAROUSEL_STOCK.most, feed: true });
+    expect(rule.labels['carousel-triple']).toEqual({ amounts: [CAROUSEL_PRIZES.triple], feed: false });
+    expect(labelPays('carousel-pusher', 'carousel-jackpot', CAROUSEL_STOCK.start)).toBe(true);
+    expect(labelPays('carousel-pusher', 'carousel-jackpot', CAROUSEL_STOCK.start - 1)).toBe(false);
+    expect(labelPays('carousel-pusher', 'carousel-triple', CAROUSEL_PRIZES.triple)).toBe(true);
+    expect(labelPays('carousel-pusher', 'carousel-triple', CAROUSEL_PRIZES.sevens)).toBe(false);
+    // Every prize the counter pays straight into the tray is under the most the floor believes.
+    for (const medals of Object.values(CAROUSEL_PRIZES)) expect(medals).toBeLessThanOrEqual(rule.most);
+    // Best play, about 90%, never over 100% even at the top of its interval, and linked: the floor jackpot keeps it under.
+    const { timed, steady, held } = PUBLISHED_CAROUSEL.ways;
+    expect(timed.return + timed.half).toBeLessThan(1);
+    expect(rule.bestReturn + EXPECTED_PER_MEDAL).toBeLessThanOrEqual(1);
+    expect(steady.return).toBeLessThan(rule.bestReturn);
+    expect(held.return).toBeLessThan(steady.return);
   });
 
   it('Medal Pusher: the bowls’ prizes, and a jackpot that starts where the machine’s does', () => {

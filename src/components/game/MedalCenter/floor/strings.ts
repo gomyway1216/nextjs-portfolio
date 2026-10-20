@@ -164,6 +164,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `hit a 10-round big hit at Goldfish Lantern Pachinko: ${medals} medals’ worth`;
     case 'pachinko-4r':
       return `hit a big hit at Goldfish Lantern Pachinko: ${medals} medals’ worth`;
+    case 'carousel-jackpot':
+      return `tipped the treasure dish at Cherry Blossom Carousel: ${medals} medals across the field`;
+    case 'carousel-triple':
+      return `rolled three alike at Cherry Blossom Carousel: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -228,6 +232,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `金魚ちょうちんパチンコで10R大当たり！${medals}枚分`;
     case 'pachinko-4r':
       return `金魚ちょうちんパチンコで大当たり！${medals}枚分`;
+    case 'carousel-jackpot':
+      return `さくらメリーゴーランドでジャックポット！${medals}枚がフィールドへ`;
+    case 'carousel-triple':
+      return `さくらメリーゴーランドでゾロ目！${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

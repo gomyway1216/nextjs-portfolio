@@ -579,16 +579,21 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const rows = n > 0 ? Array.from({ length: n + 1 }, (_, c) => n - c).filter((c) => payOf(n, c) > 0) : [];
   const ticketBack = n > 0 ? valueOf(odds.tickets[n - 1].back) : null;
 
+  // DRAW is off while the medals cannot cover the bet, and the status says so before anything else, the last game's
+  // result included (as every machine on the floor says it): a DRAW gone grey with the last result under it says nothing
+  // of why. The result is still on the board, the paytable, the WIN counter and the list of last games.
+  const short = mine && n > 0 && bankState.balance < bet;
   const statusText = (() => {
     if (running) {
       if (shown === 0) return t.status.drawing(0, 0);
       if (lastCalled && !skipped) return t.status.lastBall;
       return t.status.drawing(shown, caught);
     }
-    if (outcome && !cleared) return t.result(outcome).status;
     if (outOfMedals) return t.outOfMedals;
+    if (short) return t.status.short(bet);
+    if (outcome && !cleared) return t.result(outcome).status;
     if (n === 0) return t.status.empty;
-    return mine && bankState.balance < bet ? t.status.short(bet) : t.status.ready(n, bet);
+    return t.status.ready(n, bet);
   })();
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;

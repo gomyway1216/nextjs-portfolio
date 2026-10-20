@@ -15,9 +15,10 @@ import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { CardBack, CardFace, MiniCard } from './Cards';
-import { BETS, TOP, analyzeLadder, drawCard, ladderFor, rankOf, ranksFor, suitOf, valueOf, type Bet, type Card, type Guess } from './engine';
+import { BETS, TOP, drawCard, ladderFor, rankOf, ranksFor, suitOf, valueOf, type Bet, type Card, type Guess } from './engine';
 import { getStrings, type HighLowStrings } from './i18n';
 import { HIGH_LOW_GAME, createTable, inPlay, lostOf, offerOf, overOf, roundId, rungOf, shownOf, wonOf, type RoundRecord, type Table } from './medalTable';
+import { PUBLISHED_LADDER } from './published';
 import styles from './HighLow.module.css';
 
 /** How many digits each LED counter has: the medals up to 9,999,999 (the medal center's own), the bet (50) and the ladder (2,000). */
@@ -564,7 +565,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const shownBet = record && (inPlay(record) || animating) ? record.bet : bet;
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;
-  const best = valueOf(analyzeLadder().best);
+  const best = valueOf(PUBLISHED_LADDER.best);
   const leftLabel = leftCard === null || show === 'deal' ? (leftCard === null ? t.noCard : t.faceDown) : t.cardName(rankOf(leftCard), suitOf(leftCard));
   const rightLabel = rightCard === null || show === 'turn' ? t.faceDown : t.cardName(rankOf(rightCard), suitOf(rightCard));
 

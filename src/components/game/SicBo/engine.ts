@@ -243,8 +243,15 @@ export function* everyRoll(): Generator<Dice> {
 
 const ALL_ROLLS: readonly Dice[] = [...everyRoll()];
 
-/** The most one medal on every area at once can bring back on one roll (a triple 2 or 5): what the floor believes a roll can pay, per medal an area. */
-export const MOST_BACK_PER_MEDAL = Math.max(...ALL_ROLLS.map((dice) => BET_IDS.reduce((sum, id) => sum + backOf(id, dice), 0)));
+/** The most one medal on every area at once can bring back on one roll, worked out over every roll. */
+export const mostBackPerMedal = (): number => Math.max(...ALL_ROLLS.map((dice) => BET_IDS.reduce((sum, id) => sum + backOf(id, dice), 0)));
+
+/**
+ * The most one medal on every area at once can bring back on one roll (a triple 2 or 5): what the floor believes a roll
+ * can pay, per medal an area. Written out, so that loading the page does not add every area up over every roll;
+ * `tests/unit/components/game/SicBo/published.test.tsx` checks it is `mostBackPerMedal()`.
+ */
+export const MOST_BACK_PER_MEDAL = 245;
 
 // ── Exact odds ──────────────────────────────────────────────────────────────
 

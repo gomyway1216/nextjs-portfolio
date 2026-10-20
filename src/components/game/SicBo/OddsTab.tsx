@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { ScrollArea } from '../common/ScrollArea';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { CHECK_AREAS, PAYTABLE, ROLLS, analyze, betInfo, checkRolls, fraction, seeded, valueOf, type AreaOdds, type BetId, type CheckResult, type Fraction } from './engine';
+import { CHECK_AREAS, PAYTABLE, ROLLS, betInfo, checkRolls, fraction, seeded, valueOf, type AreaOdds, type BetId, type CheckResult, type Fraction } from './engine';
 import { getStrings, type SicBoStrings } from './i18n';
 import { paysLabel } from './Layout';
+import { PUBLISHED_ODDS } from './published';
 import styles from './SicBo.module.css';
 
-const ODDS = analyze();
+// Written out in published.ts: nothing is added up as the tab loads or is drawn.
+const ODDS = PUBLISHED_ODDS;
 /** How many rolls the check makes. */
 export const CHECK_ROLLS = 100_000;
 

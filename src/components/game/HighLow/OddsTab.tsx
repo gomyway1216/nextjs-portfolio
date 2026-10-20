@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ScrollArea } from '../common/ScrollArea';
-import { LADDER, RANKS, RANK_NAMES, TOP, UNIT, analyzeLadder, checkGames, likelier, ranksFor, seeded, valueOf, type CheckResult, type Fraction } from './engine';
+import { LADDER, RANKS, RANK_NAMES, TOP, UNIT, checkGames, likelier, ranksFor, seeded, valueOf, type CheckResult, type Fraction } from './engine';
 import { getStrings } from './i18n';
+import { PUBLISHED_LADDER } from './published';
 import styles from './HighLow.module.css';
 
 /** How many games the check plays. */
@@ -17,7 +18,8 @@ export const OddsTab = () => {
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const fmt = (n: number, digits = 0) => n.toLocaleString(locale, { maximumFractionDigits: digits, minimumFractionDigits: digits });
   const pct = (v: number, digits = 2) => `${fmt(v * 100, digits)}%`;
-  const odds = analyzeLadder();
+  // Written out in published.ts: nothing is worked out as the tab is drawn (it is drawn, hidden, as the page opens).
+  const odds = PUBLISHED_LADDER;
   const best = valueOf(odds.best);
   const inEvery = (f: Fraction) => fmt(1 / valueOf(f));
   /** A small chance to four significant figures, so that the rare endings still say something. */

@@ -11,10 +11,11 @@ export * from '@playwright/test';
  * Why: `next start`'s image optimizer reads a local image by serving it to itself over the requesting browser's own
  * socket, and a browser that lets go of the request while the file is being read (a test that ends, or navigates away,
  * with covers still coming in) leaves the optimizer waiting for ever on that image at that width: every later request
- * for it hangs, the page that shows it never fires `load`, and its `page.goto` times out. In a 25-minute run the hung
- * images pile up, and the medal center's pages time out late in the run. Production is not affected (Vercel optimizes
- * the images itself). Asked for by the runner, through a request context that lives as long as the worker, the server
- * always sees the whole request; the page gets the same answer, or nothing if it has gone.
+ * for it hangs until the server restarts, and a page that shows it never fires `load` (seen in a local run of the
+ * suite: two covers hung from its sixth minute, and medal-a11y's and medal-center's cover tests failed every attempt).
+ * Production is not affected (Vercel optimizes the images itself). Asked for by the runner, through a request context
+ * that lives as long as the worker, the server always sees the whole request; the page gets the same answer, or
+ * nothing if it has gone.
  */
 async function wholeImages(context: BrowserContext, runner: APIRequestContext, inFlight: Set<Promise<unknown>>): Promise<void> {
   await context.route(/\/_next\/image\?/, async (route) => {

@@ -115,3 +115,118 @@ body {
 button[data-slot="select-trigger"] {
   border-radius: var(--radius-md, 0.375rem);
 }
+
+/*
+ * Geist's fallbacks (src/app/layout.tsx: adjustFontFallback: false, fallback: these two families).
+ *
+ * "Geist Metric Fallback": text paints in it until the Geist web font arrives (display: swap), so it is
+ * sized to keep lines from re-wrapping when Geist replaces it. Each weight band uses the Arial face the
+ * browser would pick (regular below 550, bold from 550) at the size that gives Geist's width at that weight:
+ * the ratio of the widths of the site's own Latin text (420 strings from 17 pages) set in Geist and in
+ * Arial. Geist widens steadily with weight while Arial has two widths, so next/font's single size (104.76%)
+ * matches weight 500 only; regular text ran 2.5% wider, which moved the medal center's page by 24 px when
+ * its lead paragraph went from 3 lines to 2. The ascent/descent overrides are Geist's (1.005 / 0.295 em)
+ * divided by the size-adjust, as next/font computes them. unicode-range is that of Geist's preloaded
+ * latin subset, so everything else falls through to the next family.
+ *
+ * "Geist Fallback": next/font's own fallback face, unchanged. Characters outside Geist's latin subset
+ * (arrows such as U+2190) are drawn in it for good, so it must not change.
+ */
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial"), local("ArialMT");
+  font-weight: 1 149;
+  size-adjust: 97.4%;
+  ascent-override: 103.18%;
+  descent-override: 30.29%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial"), local("ArialMT");
+  font-weight: 150 249;
+  size-adjust: 99%;
+  ascent-override: 101.52%;
+  descent-override: 29.8%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial"), local("ArialMT");
+  font-weight: 250 349;
+  size-adjust: 100.6%;
+  ascent-override: 99.9%;
+  descent-override: 29.32%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial"), local("ArialMT");
+  font-weight: 350 449;
+  size-adjust: 102.3%;
+  ascent-override: 98.24%;
+  descent-override: 28.84%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial"), local("ArialMT");
+  font-weight: 450 549;
+  size-adjust: 104.7%;
+  ascent-override: 95.99%;
+  descent-override: 28.18%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 550 649;
+  size-adjust: 99.7%;
+  ascent-override: 100.8%;
+  descent-override: 29.59%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 650 749;
+  size-adjust: 101.9%;
+  ascent-override: 98.63%;
+  descent-override: 28.95%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 750 849;
+  size-adjust: 104.2%;
+  ascent-override: 96.45%;
+  descent-override: 28.31%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Metric Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 850 1000;
+  size-adjust: 106.4%;
+  ascent-override: 94.45%;
+  descent-override: 27.73%;
+  line-gap-override: 0%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial");
+  ascent-override: 95.94%;
+  descent-override: 28.16%;
+  line-gap-override: 0%;
+  size-adjust: 104.76%;
+}

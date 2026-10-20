@@ -642,3 +642,49 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     await context.close();
   });
 }
+
+// ── The medal center's plates ───────────────────────────────────────────────
+
+test.describe('the medal center’s plates, laid out as Safari and Firefox break them', () => {
+  // Each cabinet's line on its plate (floorPlan.ts MACHINE_PITCHES) was on auto-phrase alone: Chromium broke it between
+  // phrases, Safari and Firefox anywhere in its kana (「1/99.9の甘デジ。メ｜ダルで玉を借りて遊｜ぶ」 at 320 px). Laid out
+  // here as they lay it out, it breaks only between the phrases the plate marks (a zero-width space) and at its 、 and
+  // 。, and no line of it is cut off by the plate or runs out of it.
+  for (const width of WIDTHS) {
+    test(`every cabinet's line on its plate breaks only between its phrases, and shows whole, in Japanese at ${width} px`, async ({ browser }) => {
+      const { context, page } = await phone(browser, width);
+      await page.goto('/games/medal-center');
+      await arrived(page);
+      await asSafariBreaks(page);
+      const plates = page.locator('[data-testid^="center-pitch-"]');
+      await expect(plates).toHaveCount(FLOOR_GAMES.length);
+      for (const plate of await plates.all()) {
+        const id = (await plate.getAttribute('data-testid'))!.replace('center-pitch-', '');
+        // Where the line may break, as an offset into its words as they are read: at each zero-width space, and after a 、
+        // or 。. The marks themselves (a zero-width space, a word joiner) take no room and are not read.
+        const { text, ends, whole } = await plate.evaluate((el) => {
+          const marks: number[] = [];
+          let words = '';
+          for (const character of el.textContent ?? '') {
+            if (character === '\u200B') marks.push(words.length);
+            else if (character !== '\u2060') {
+              words += character;
+              if ('、。'.includes(character)) marks.push(words.length);
+            }
+          }
+          return { text: words, ends: marks, whole: el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1 };
+        });
+        const lines = await linesOf(plate);
+        expect(lines.join(''), id).toBe(text);
+        let done = 0;
+        for (const line of lines.slice(0, -1)) {
+          done += line.length;
+          expect(ends.includes(done), `${id} at ${width} px: 「${lines.join('｜')}」`).toBe(true);
+        }
+        expect(whole, `${id} at ${width} px: 「${lines.join('｜')}」 cut off or spilling out of its plate`).toBe(true);
+      }
+      expect(await sideways(page), `the medal center at ${width} px`).toBe(0);
+      await context.close();
+    });
+  }
+});

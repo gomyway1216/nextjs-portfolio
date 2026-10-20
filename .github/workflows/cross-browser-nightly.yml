@@ -4,10 +4,12 @@ name: Cross-browser nightly
 # The PR CI (ci.yml, "E2E smoke tests") runs Chromium only; this catches the regressions that only Safari or Firefox
 # show (line breaks, select heights, focus, cross-tab hand-overs) within a day, without slowing a PR.
 #
-# On macOS, not Linux: Playwright's WebKit on Linux is another port of WebKit than Safari's (its own fonts, media and
-# graphics), and on the Ubuntu runner 38 of the 430 tests it reached failed (sound, the pusher's renderer, Japanese
-# widths) before the job ran out of time; on macOS it is Safari's engine with Safari's fonts. Firefox on Ubuntu laid
-# Japanese out in the runner's fallback fonts, not the ones the Japanese layout checks were measured in.
+# Where each engine runs:
+# - WebKit on macOS. Playwright's WebKit on Linux is another port of WebKit than Safari's (its own fonts, sound and
+#   graphics): on the Ubuntu runner 38 of the 430 tests it reached failed (sound, the pusher's renderer, Japanese
+#   widths) before the job ran out of time. On macOS it is Safari's engine with Safari's fonts, and it passes.
+# - Firefox on Ubuntu. On the macOS runner Firefox could not run the Medal Pusher's renderer (most of its specs
+#   failed, and the job ran out of time); on Ubuntu it does, given what a Japanese reader's machine has (below).
 
 on:
   schedule:
@@ -28,12 +30,16 @@ permissions:
 jobs:
   e2e:
     name: E2E (${{ matrix.browser }})
-    runs-on: macos-latest
-    timeout-minutes: 60
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        browser: [webkit, firefox]
+        include:
+          - browser: webkit
+            os: macos-latest
+          - browser: firefox
+            os: ubuntu-latest
     env:
       NEXT_PUBLIC_API_KEY: ci-placeholder
       NEXT_PUBLIC_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
@@ -59,7 +65,33 @@ jobs:
         run: npm ci
 
       - name: Install Playwright ${{ matrix.browser }}
-        run: npx playwright install ${{ matrix.browser }}
+        run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} ${{ matrix.browser }}
+
+      # Japanese in Noto Sans CJK JP, as on Android and a Japanese Linux desktop. Playwright's own fonts left Japanese to
+      # WenQuanYi Zen Hei, a Chinese face with no bold, which Firefox widens by drawing it bold itself: 「ブラックジャック」
+      # came out 120.1 px for 117.5, and five checks of Japanese fitting a phone failed by a pixel or a line.
+      # And a sound device (a null sink): with none, Firefox's sound never starts, and the craps throw is never played.
+      - name: Japanese fonts and a sound device (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk pulseaudio
+          sudo tee /etc/fonts/conf.d/99-japanese-in-noto-sans-cjk.conf > /dev/null <<'EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <match target="pattern">
+              <test name="lang" compare="contains"><string>ja</string></test>
+              <test qual="any" name="family"><string>sans-serif</string></test>
+              <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK JP</string></edit>
+            </match>
+          </fontconfig>
+          EOF
+          sudo fc-cache -f
+          fc-match 'sans-serif:lang=ja'
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=nightly
+          pactl set-default-sink nightly
 
       - name: Build production app
         run: npm run build

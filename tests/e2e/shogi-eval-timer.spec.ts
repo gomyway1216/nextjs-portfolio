@@ -15,17 +15,32 @@ test('a book reply reads as 定跡 (label + eval), not a frozen timer', async ({
   await page.getByTestId('cell-7-6').click();
 
   const status = page.getByTestId('shogi-engine-status');
-  const evaluation = page.getByTestId('shogi-engine-eval');
-  // Wait for the AI effect to enter its book state before waiting for idle;
-  // otherwise the pre-effect "your turn" text can win the race.
-  await expect(status).toHaveAttribute('data-search-path', 'book', { timeout: 5_000 });
-  await expect(status).toHaveAttribute('data-thinking', 'true');
-  await expect(status).toContainText('定跡どおりに指しています');
-  await expect(status).not.toContainText('AIが考えています');
-  await expect(evaluation).toContainText('定跡');
-  await expect(status).toHaveAttribute('data-score-cp', '');
-  await expect(status).toHaveAttribute('data-search-depth', '');
-  await expect(status).toHaveAttribute('data-main-thread-blocked-ms', '0');
+  // The book reply is shown for its 250 ms courtesy pause (ShogiImproved.tsx), and then played. What the page shows
+  // during the pause is read in one go, at the frame the book state is drawn, not by one check after another: the
+  // pre-effect "your turn" text must not win the race, and on the Ubuntu runner's Firefox five checks in a row
+  // outlasted the pause (the evaluation read 評価値 — by the time it was asked).
+  const during = await page.waitForFunction(
+    () => {
+      const shown = document.querySelector('[data-testid="shogi-engine-status"]');
+      if (shown?.getAttribute('data-search-path') !== 'book' || shown.getAttribute('data-thinking') !== 'true') return null;
+      return {
+        status: shown.textContent ?? '',
+        evaluation: document.querySelector('[data-testid="shogi-engine-eval"]')?.textContent ?? '',
+        scoreCp: shown.getAttribute('data-score-cp'),
+        searchDepth: shown.getAttribute('data-search-depth'),
+        blockedMs: shown.getAttribute('data-main-thread-blocked-ms'),
+      };
+    },
+    undefined,
+    { timeout: 5_000, polling: 'raf' },
+  );
+  const book = await during.jsonValue();
+  expect(book.status).toContain('定跡どおりに指しています');
+  expect(book.status).not.toContain('AIが考えています');
+  expect(book.evaluation).toContain('定跡');
+  expect(book.scoreCp).toBe('');
+  expect(book.searchDepth).toBe('');
+  expect(book.blockedMs).toBe('0');
 
   await expect(status).toHaveAttribute('data-thinking', 'false', { timeout: 15_000 });
   await expect(page.getByText('あなたの番です')).toBeVisible();

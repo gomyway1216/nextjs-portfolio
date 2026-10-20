@@ -733,6 +733,13 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     window.addEventListener('keyup', up);
     return () => window.removeEventListener('keyup', up);
   });
+  // A handle held as the window loses the keyboard and the pointer (another window brought in front, the address bar
+  // clicked) is let go: the key or the button comes up where this page never hears it, and the machine would go on
+  // firing the tray with nobody at it, as the medal pusher's rails would stream on (MedalPusher/PlayTab.tsx).
+  useEffect(() => {
+    window.addEventListener('blur', letGo);
+    return () => window.removeEventListener('blur', letGo);
+  }, [letGo]);
 
   // ── The handle's own presses: a finger or the mouse holds it; Space or Enter on it does the same ──
   const onHandleDown = (event: ReactPointerEvent<HTMLButtonElement>) => {

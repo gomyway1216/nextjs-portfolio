@@ -37,6 +37,11 @@ test('the slot machine is silent until its sound is switched on; then a jackpot 
   // A spin with the sound off: nothing is heard.
   await spin.click();
   await expect(page.locator('[role="img"][data-spinning="false"]')).toBeVisible({ timeout: 10_000 });
+  // Whatever it won has been counted in, in silence too: the meter's digits show the medals as they are. (Switched on
+  // while a win was still counting in, the medals left to count chirp: two sounds, not the switch's one.)
+  await expect
+    .poll(async () => (await page.getByTestId('slot-medals-led').getAttribute('data-shown')) === ((await page.getByTestId('slot-medals').textContent()) ?? '').replace(/,/g, ''), { timeout: 10_000 })
+    .toBe(true);
   expect(await heard(page)).toEqual([]);
 
   await toggle.click();

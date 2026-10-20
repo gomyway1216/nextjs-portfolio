@@ -2,7 +2,8 @@ import { test, expect, type Browser, type Page } from './fixtures';
 
 import { numbersFor } from '../../src/components/game/Keno/engine';
 import { GAME_KEY, TICKET_KEY, parseGame } from '../../src/components/game/Keno/medalTable';
-import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
+import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
+import { WELCOME, createLedger, serializeLedger, take } from '../../src/components/game/MedalCenter/ledger';
 import { NOT_MONEY } from '../../src/components/game/MedalCenter/strings';
 import { instantScroll } from './instantScroll';
 import { bankBalance, openCenter } from './medalCenterPage';
@@ -313,5 +314,42 @@ test.describe('with less motion', () => {
     await expect(page.getByTestId('kn-last-lamp')).toHaveAttribute('data-lit', 'true');
     // One spot caught on the last ball: 3 × 5.
     await expect.poll(() => bankBalance(page)).toBe(WELCOME - 1 + 15);
+  });
+
+  test('DRAW off for the medals says why, after a game as before one; out of medals says so', async ({ page }) => {
+    test.setTimeout(60_000);
+    // A guest with 12 medals.
+    const twelve = take(createLedger('testdevice01'), WELCOME - 12)!;
+    await page.addInitScript(
+      ([key, text]) => {
+        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, text);
+      },
+      [BANK_KEY, serializeLedger(twelve)],
+    );
+    await openKeno(page);
+    await expect(page.getByTestId('kn-medals')).toHaveText('12');
+    await mark(page, [11]);
+    await page.getByTestId('kn-bet-10').click();
+    await expect(page.getByTestId('kn-status')).toHaveText('1 spot on a bet of 10: press DRAW.');
+    await draw(page, ballsWith([], 80, [11]));
+    await ended(page);
+    await expect.poll(() => bankBalance(page)).toBe(2);
+    // Two medals left: DRAW goes off, and the status says why rather than how the last game went.
+    await expect(page.getByTestId('kn-draw')).toBeDisabled();
+    await expect(page.getByTestId('kn-same')).toBeDisabled();
+    await expect(page.getByTestId('kn-status')).toHaveText('Not enough medals for a bet of 10: choose a smaller bet.');
+    // A bet they cover: the last game's result again.
+    await page.getByTestId('kn-bet-2').click();
+    await expect(page.getByTestId('kn-draw')).toBeEnabled();
+    await expect(page.getByTestId('kn-status')).toHaveText('Caught 0 of 1. No win this time.');
+    await page.getByTestId('kn-bet-3').click();
+    await expect(page.getByTestId('kn-status')).toHaveText('Not enough medals for a bet of 3: choose a smaller bet.');
+    // The last two played: out of medals, and the refill offered.
+    await page.getByTestId('kn-bet-2').click();
+    await draw(page, ballsWith([], 80, [11]));
+    await ended(page);
+    await expect.poll(() => bankBalance(page)).toBe(0);
+    await expect(page.getByTestId('kn-status')).toHaveText('Out of medals.');
+    await expect(page.getByTestId('kn-refill')).toBeVisible();
   });
 });

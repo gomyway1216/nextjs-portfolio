@@ -34,7 +34,8 @@ test('a book reply reads as 定跡 (label + eval), not a frozen timer', async ({
     undefined,
     { timeout: 5_000, polling: 'raf' },
   );
-  const book = await during.jsonValue();
+  // waitForFunction resolves on a truthy value only: this is the snapshot.
+  const book = (await during.jsonValue())!;
   expect(book.status).toContain('定跡どおりに指しています');
   expect(book.status).not.toContain('AIが考えています');
   expect(book.evaluation).toContain('定跡');

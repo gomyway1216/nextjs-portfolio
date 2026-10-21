@@ -248,6 +248,40 @@ test('a spin settled while the medal center borrowed the medals still goes on th
   await expect.poll(() => boardNumbers(page)).toEqual([staked!.result]);
 });
 
+test('a spin settled while the medal center borrowed the medals goes on the board even when the page is left without the card, before the ball stops', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  // As the test above, but the card does not come back before the page is left: another tab's table takes it. No yield
+  // tells this page it is going then, and no other page puts the number on the board: it goes on as the page goes.
+  await page.clock.install();
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  const other = await context.newPage();
+  await page.bringToFront();
+  await openRoulette(page);
+  await placeFirstBet(page, /^Red \(1:1\)$/);
+  await spinButton(page).click();
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  await stopClock(page);
+  const staked = await spinOnRecord(page);
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await expect.poll(async () => (await spinOnRecord(page))?.paid).toBe(true);
+  await hub.close();
+  // The table in the other tab takes the card: this one waits, its ball still rolling.
+  await other.goto('/games/roulette');
+  await expect(page.locator('[data-card]').first()).toHaveAttribute('data-card', 'away', { timeout: 20_000 });
+  await expect(page.locator('[data-spinning]')).toHaveAttribute('data-spinning', 'true');
+  await other.close();
+  await page.clock.resume();
+  await page.reload();
+  await arrived(page);
+  await expect(page.getByTestId('roulette-meter')).toHaveAttribute('data-loaded', 'true');
+  await expect.poll(() => boardNumbers(page)).toEqual([staked!.result]);
+  // Paid once, as it was when the medal center borrowed the medals.
+  expect(await spinOnRecord(page)).toMatchObject({ id: staked!.id, paid: true });
+});
+
 test('a win paid while the medal center borrowed the medals is not shown before the ball stops, and runs in once it has', async ({ page, context }) => {
   test.setTimeout(60_000);
   // The pages' clock is the test's: it runs as usual until it is stopped, and then the ball stays where it is while the

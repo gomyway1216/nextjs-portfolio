@@ -227,6 +227,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const pressedAt = useRef(-Infinity);
   const historyId = useRef(0);
   const thrownSound = useRef(0);
+  /** The digits of the spin the counter's stops and pay are heard for: the last one begun. */
+  const spinDigits = useRef<[number, number, number]>([7, 7, 7]);
   const playAreaRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef(active);
   const live = useRef({ t, player, calm });
@@ -261,7 +263,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     showSession();
     if (m) {
       stage.current?.field(m);
-      if (m.spin) setCounter({ digits: m.spin.digits, rolling: [true, true, true], reach: false, result: null });
+      if (m.spin) {
+        spinDigits.current = m.spin.digits;
+        setCounter({ digits: m.spin.digits, rolling: [true, true, true], reach: false, result: null });
+      }
     }
   }, [showSession]);
 
@@ -314,6 +319,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             break;
           case 'spin': {
             const spin: Spin = e.spin;
+            spinDigits.current = spin.digits;
             play('reel');
             setCounter({ digits: spin.digits, rolling: [true, true, true], reach: false, result: null });
             setStats((st) => ({ ...st, spins: st.spins + 1 }));
@@ -322,7 +328,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             break;
           }
           case 'stop': {
-            const spin = m.spin;
+            // The spin these stops are of (a frame of several steps can end one spin and begin the next).
+            const digits = spinDigits.current;
             play('tick');
             setCounter((c) => {
               const rolling = [...c.rolling] as CounterView['rolling'];
@@ -330,7 +337,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               const reach = e.place === 1 && c.digits[0] === c.digits[1];
               return { ...c, rolling, reach: c.reach || reach };
             });
-            if (e.place === 1 && spin && spin.digits[0] === spin.digits[1]) {
+            if (e.place === 1 && digits[0] === digits[1]) {
               play('reach');
               setAnnouncement(words.status.reach.replace(/​/g, ''));
             }
@@ -348,8 +355,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               if (id === 'triple') floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-triple' } });
             }
             setMessage(words.outcome(id, e.medals));
-            const spin = m.spin;
-            setAnnouncement(words.sayResult((spin?.digits ?? [0, 0, 0]).join(' '), id, e.medals));
+            setAnnouncement(words.sayResult(spinDigits.current.join(' '), id, e.medals));
             saveNow = true;
             break;
           }

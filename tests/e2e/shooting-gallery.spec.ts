@@ -284,7 +284,7 @@ test('shooting-gallery: a play finished while the player was away says so when t
   await shoot(page, 0, AIMS[0]);
   await inGun(page, 1);
   await expect(page.getByTestId('sht-message')).toHaveText('');
-  // The medals are played in another tab: this page gives them up, and finishes its play first.
+  // The medals are played in another tab: this page gives them up, and the page that takes them finishes the play.
   const other = await context.newPage();
   await other.goto('/games/shooting-gallery');
   await arrived(other);
@@ -301,6 +301,34 @@ test('shooting-gallery: a play finished while the player was away says so when t
   // The next play clears it.
   await start(page, SWEEP);
   await expect(page.getByTestId('sht-message')).toHaveText('');
+});
+
+test('shooting-gallery: the day’s bonus taken at the medal center in another tab while a cork waits leaves the play the player’s: every cork theirs, none blind', async ({ context, page }) => {
+  test.setTimeout(60_000);
+  // The medal center is open in another tab first, so that the day's bonus is there to take in the middle of a play.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openStall(page);
+  await start(page, SWEEP);
+  await shoot(page, 0, AIMS[0]);
+  await inGun(page, 1);
+  // Taken there, the bonus borrows the medals for a moment: the play stays as it was, the next cork still in the gun.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await hub.close();
+  await expect(machine(page)).toHaveAttribute('data-card', 'here');
+  await expect(machine(page)).toHaveAttribute('data-phase', 'aim');
+  expect(await record(page)).toMatchObject({ shots: [AIMS[0]], paid: false });
+  // The rest are the player's own: aimed, and all six knock their figures off.
+  for (let c = 1; c < CORKS; c++) await shoot(page, c, AIMS[c]);
+  await ended(page);
+  const played = (await record(page))!;
+  expect(played).toMatchObject({ shots: AIMS, paid: true });
+  expect(played.own).toBeUndefined();
+  await expect(machine(page)).toHaveAttribute('data-won', String(SWEEP_WON));
+  await expect(page.getByTestId('sht-message')).not.toHaveText('The play was finished while you were away: the corks left were fired blind.');
 });
 
 /** A phone, in a language, with the floor faked; with less motion asked for when `calm`. */

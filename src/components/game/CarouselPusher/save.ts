@@ -60,14 +60,20 @@ function parseAir(value: unknown, step: number): Air | null {
   const { id, from, at } = value;
   // A medal on its way arrives after it set off, and no later than its longest leg from now (a rail behind the slot's queue).
   if (at < from || from > step + 4 * TIMES.rail || at > step + 8 * TIMES.rail + 400) return null;
+  // The press's draw for the way a miss glances off the deck. Saves from before the machine drew it have none: such a
+  // medal takes one of its own from its number, so the save still plays on.
+  const w = value.w === undefined ? (id * 0.6180339887498949) % 1 : value.w;
+  if ((value.k === 'rail' || value.k === 'drop') && !isNumber(w, 0, 1)) return null;
   switch (value.k) {
     case 'rail':
       if (!isNumber(value.dx, -3, 3) || !isNumber(value.dy, -3, 3)) return null;
-      return { k: 'rail', id, from, at, dx: value.dx, dy: value.dy };
+      return { k: 'rail', id, from, at, dx: value.dx, dy: value.dy, w: w as number };
     case 'drop':
+      if (!isNumber(value.x, ...X_RANGE) || !isNumber(value.y, ...Y_RANGE)) return null;
+      return { k: 'drop', id, from, at, x: value.x, y: value.y, w: w as number };
     case 'fling':
       if (!isNumber(value.x, ...X_RANGE) || !isNumber(value.y, ...Y_RANGE)) return null;
-      return { k: value.k, id, from, at, x: value.x, y: value.y };
+      return { k: 'fling', id, from, at, x: value.x, y: value.y };
     case 'slide': {
       for (const key of ['qx', 'qy', 'ex', 'ey'] as const) if (!isNumber(value[key], -DECK_RANGE, DECK_RANGE)) return null;
       if (!isWhole(value.pocket, -1, 2) || typeof value.direct !== 'boolean') return null;

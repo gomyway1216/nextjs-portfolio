@@ -14,6 +14,7 @@ import {
   PRESS_TO_DECK,
   REACH,
   RING,
+  SHED,
   SIN,
   STOCK,
   TIMES,
@@ -34,6 +35,8 @@ import {
   insideWalls,
   nextPocketUnderDrop,
   pocketAt,
+  rimAt,
+  shedHeading,
   slideOf,
   step,
   type Machine,
@@ -133,21 +136,75 @@ describe('a medal on the deck', () => {
     // On a hole: in.
     const s = 0;
     const hole = pocketAt(0, s);
-    expect(slideOf(hole.x, hole.y, s)).toMatchObject({ pocket: 0, direct: true });
+    expect(slideOf(hole.x, hole.y, s, 0.5)).toMatchObject({ pocket: 0, direct: true });
     // Inside the ring, in line with a hole: rolls in.
     const inside = deckToField(0.5 * RING * COS[POCKETS[1]], 0.5 * RING * SIN[POCKETS[1]], s);
-    expect(slideOf(inside.x, inside.y, s)).toMatchObject({ pocket: 1, direct: false });
-    // Between holes, outside the ring: off the edge, on the rim.
+    expect(slideOf(inside.x, inside.y, s, 0.5)).toMatchObject({ pocket: 1, direct: false });
+    // Between holes, outside the ring: off the edge, on the rim, at the heading the press drew, when it gets there.
     const between = deckToField(4.6 * COS[150], 4.6 * SIN[150], s);
-    const off = slideOf(between.x, between.y, s);
+    const off = slideOf(between.x, between.y, s, 0.2);
     expect(off.pocket).toBe(-1);
+    expect(off.steps).toBe(SHED.steps);
     expect(Math.hypot(off.ex - CAROUSEL.offset, off.ey)).toBeCloseTo(CAROUSEL.radius, 9);
+    const rim = rimAt(shedHeading(0.2), s + SHED.steps);
+    const there = deckToField(off.ex, off.ey, s + SHED.steps);
+    expect(there.x).toBeCloseTo(rim.x, 9);
+    expect(there.y).toBeCloseTo(rim.y, 9);
+    // The headings: every whole degree within the spread either side of straight ahead, the ends included.
+    expect(shedHeading(0)).toBe(90 - SHED.spread);
+    expect(shedHeading(0.5)).toBe(90);
+    expect(shedHeading(1 - 1e-12)).toBe(90 + SHED.spread);
+  });
+
+  it("sends a medal that misses the holes to the field at the heading its press drew, after the same time, whatever the carousel's angle", () => {
+    // A press's draw, not the moment: at every one of the carousel's angles as it comes down, a miss lands on the field
+    // straight out from the pole at its heading, just beyond the skirt's farthest swing wherever the bulge is, the same
+    // steps after it came down.
+    for (const w of [0, 0.3, 0.77, 1 - 1e-12]) {
+      const heading = shedHeading(w);
+      let misses = 0;
+      for (let angle = 0; angle < TURN_STEPS; angle++) {
+        const m = emptyMachine(20 + angle);
+        // Pressed so that it comes down at `angle`, a little to the side of the drop spot.
+        m.step = angle - PRESS_TO_DECK + TURN_STEPS;
+        feed(m, 0, 0.6, ticketFor('miss'), w);
+        let deckAt = -1;
+        let landAt = -1;
+        let pocket = false;
+        let landed: { x: number; y: number } | null = null;
+        for (let i = 0; i < PRESS_TO_DECK + SHED.steps + TIMES.off + 2; i++) {
+          const events: MachineEvent[] = [];
+          step(m, LOTTERY, events);
+          for (const e of events) {
+            if (e.type === 'deck') deckAt = m.step;
+            if (e.type === 'pocket') pocket = true;
+            if (e.type === 'land') {
+              landAt = m.step;
+              landed = e;
+            }
+          }
+        }
+        if (pocket) continue;
+        misses += 1;
+        expect(deckAt).toBe(angle + TURN_STEPS);
+        expect(landed).not.toBeNull();
+        if (!landed) continue;
+        const dx = landed.x - AXIS.x;
+        const dy = landed.y - AXIS.y;
+        expect(dx * SIN[heading] - dy * COS[heading]).toBeCloseTo(0, 9);
+        expect(dx * COS[heading] + dy * SIN[heading]).toBeCloseTo(REACH + MEDAL_RADIUS * 1.15, 9);
+        expect(insideWalls(landed.x, landed.y)).toBe(true);
+        // On the field the same steps after it came down: the slide, then the drop past the skirt.
+        expect(landAt - deckAt).toBe(SHED.steps + TIMES.off);
+      }
+      expect(misses).toBeGreaterThan(TURN_STEPS / 2);
+    }
   });
 
   it('pressed at the moment, with no scatter, comes down in the hole that is under the drop spot', () => {
     const m = emptyMachine(1);
     toTheMoment(m);
-    feed(m, 0, 0, ticketFor('miss'));
+    feed(m, 0, 0, ticketFor('miss'), 0.5);
     const events = run(m, PRESS_TO_DECK + TIMES.pocket + 2);
     expect(events.find((e) => e.type === 'pocket')).toMatchObject({ direct: true, held: true });
     expect(events.find((e) => e.type === 'spin')).toBeTruthy();
@@ -157,7 +214,7 @@ describe('a medal on the deck', () => {
     const m = emptyMachine(2);
     toTheMoment(m);
     run(m, 60);
-    feed(m, 0, 0, ticketFor('miss'));
+    feed(m, 0, 0, ticketFor('miss'), 0.5);
     const events = run(m, PRESS_TO_DECK + 80);
     expect(events.some((e) => e.type === 'pocket')).toBe(false);
     const landed = events.find((e) => e.type === 'land');
@@ -167,7 +224,7 @@ describe('a medal on the deck', () => {
 
   it('takes a medal into the slot every quarter second at most, and waits its turn behind the others', () => {
     const m = emptyMachine(3);
-    for (let i = 0; i < 3; i++) feed(m, 0.5, 0.5, 0.5);
+    for (let i = 0; i < 3; i++) feed(m, 0.5, 0.5, 0.5, 0.5);
     const rail = m.air.filter((a) => a.k === 'rail').map((a) => a.from);
     expect(rail).toEqual([0, TIMES.gap, 2 * TIMES.gap]);
     expect(m.slotAt).toBe(3 * TIMES.gap);
@@ -207,7 +264,7 @@ describe('the counter', () => {
   it('uses the numbers the presses kept, the first first, and pays a prize straight into the tray', () => {
     const m = emptyMachine(4);
     toTheMoment(m);
-    feed(m, 0, 0, ticketFor('triple', 3));
+    feed(m, 0, 0, ticketFor('triple', 3), 0.5);
     const events = run(m, PRESS_TO_DECK + TIMES.pocket + STOPS.reach + STOPS.after + 30);
     const spin = events.find((e) => e.type === 'spin');
     expect(spin?.type === 'spin' && OUTCOME_IDS[spin.spin.outcome]).toBe('triple');
@@ -220,7 +277,7 @@ describe('the counter', () => {
     m.spin = spinFrom(ticketFor('miss'), m.step);
     m.holds = HOLD_MAX;
     toTheMoment(m);
-    feed(m, 0, 0, 0.5);
+    feed(m, 0, 0, 0.5, 0.5);
     const events = run(m, PRESS_TO_DECK + TIMES.pocket + 1);
     expect(events.find((e) => e.type === 'pocket')).toMatchObject({ held: false });
     expect(m.holds).toBeLessThanOrEqual(HOLD_MAX);
@@ -232,8 +289,8 @@ describe('the treasure dish', () => {
     const m = freshMachine(6);
     const before = m.ids.length;
     toTheMoment(m);
-    feed(m, 0, 0, ticketFor('jackpot'));
-    for (let i = 1; i < STOCK.every; i++) feed(m, 0.25, 1, ticketFor('miss'));
+    feed(m, 0, 0, ticketFor('jackpot'), 0.5);
+    for (let i = 1; i < STOCK.every; i++) feed(m, 0.25, 1, ticketFor('miss'), 0.5);
     expect(m.stock).toBe(STOCK.start + 1);
     const events = run(m, 2_000);
     const jackpot = events.find((e) => e.type === 'jackpot');
@@ -273,7 +330,7 @@ describe('the field', () => {
   it('turned unplayed at rest, nothing on it moves: turning it on without the steps is the same as working them out', () => {
     const played = freshMachine(12);
     for (let i = 0; i < 20; i++) {
-      feed(played, (i * 0.37) % 1, (i * 0.61) % 1, 0.9);
+      feed(played, (i * 0.37) % 1, (i * 0.61) % 1, 0.9, (i * 0.29) % 1);
       run(played, 40);
     }
     run(played, 6 * TURN_STEPS);
@@ -295,7 +352,7 @@ describe('the field', () => {
     let fed = 0;
     const events: MachineEvent[] = [];
     for (let i = 0; i < 300; i++) {
-      feed(m, (i * 0.618) % 1, (i * 0.414) % 1, (i * 0.271) % 1, events);
+      feed(m, (i * 0.618) % 1, (i * 0.414) % 1, (i * 0.271) % 1, (i * 0.733) % 1, events);
       fed += 1;
       for (let s = 0; s < 30; s++) step(m, LOTTERY, events);
     }

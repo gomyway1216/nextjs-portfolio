@@ -1,6 +1,6 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import { NOT_MONEY } from '../MedalCenter/strings';
-import { HOLD_MAX, STOCK } from './engine';
+import { FIELD, HOLD_MAX, SHED, STOCK } from './engine';
 import { PRIZES, type OutcomeId } from './lottery';
 import { LEND } from './credit';
 
@@ -160,6 +160,21 @@ const en = {
     colPockets: 'Into a hole',
     colShare: 'Field’s share',
     colJackpots: 'Jackpots per 1,000',
+    scanTitle: 'Every other moment',
+    scanNote:
+      'Could another moment do better than best play? The machine was also played every other way of choosing the moment, each on twelve machines: every hole timed but dropped early or late, from 40 steps (⅔ s) late to 20 early, and every step near the hole; one medal a turn at a single angle of the carousel, every 12°; DROP held through one part of the skirt’s swing; and the holes timed only while the dish holds plenty. The highest of each family is below. None comes out clearly above best play: each one’s interval reaches down to it.',
+    againNote: (play: string, value: string, half: string, medals: string) =>
+      `The plays that came out highest were played again on twelve other machines for many more medals, where being picked for coming out high cannot lift them. The highest of everything measured: ${play}, ${value} ±${half} over ${medals} medals. The medal center counts this as the machine’s best.`,
+    colFamily: 'Moment',
+    colPlays: 'Plays',
+    colHighest: 'Highest',
+    colAt: 'At',
+    familyName: { leads: 'Early or late', angles: 'One angle a turn', swings: 'DROP held through part of the swing', dishes: 'By the dish' },
+    scanLead: (steps: number) => (steps === 0 ? 'as the hole passes' : `${Math.abs(steps)} ${Math.abs(steps) === 1 ? 'step' : 'steps'} ${steps < 0 ? 'late' : 'early'}`),
+    scanAngle: (angle: number) => `at ${angle}°`,
+    scanSwing: (from: number, to: number) => `${from}° to ${to}°`,
+    scanDish: (stock: number) => `timed from ${stock} in the dish`,
+    scanNamed: (family: string, play: string) => `${family} (${play})`,
     counterTitle: 'The counter',
     counterNote: (value: string) =>
       `Each spin is drawn from one number: a number one of your presses drew and kept, the first still waiting, or the machine’s own when none is left. Every chance below is exact (out of 65,536). A spin pays ${value} medals into the tray on average, the jackpot left out: it pays through the field.`,
@@ -178,8 +193,8 @@ const en = {
     rules: [
       'The carousel turns once every 6 seconds on a pole 2 medal radii off its centre, so its skirt swings out and back by a medal’s width as it turns, and pushes whatever has come to lie against it outwards, along the field’s side walls, which run straight out from the pole.',
       `A medal takes 0.9 seconds from DROP to the deck: in at the slot, down the rail and off its tip. It comes down within about a medal’s width of the tip, wherever chance puts it: that is drawn at the press.`,
-      'A medal that misses the holes slides off the deck’s edge at the foot of the skirt, where the next swing pushes it into the heap. Medals pushed over the front edge drop into the tray; over the front within 3 medal radii of either corner, down a side hole.',
-      'Every random number the machine uses comes from a press (where a medal comes down, and a number kept for a spin) or from its own seeded generator, and it keeps time in steps of 1/60 s with no sine or cosine but its own: the same presses play out the same in every browser, and in the measurement.',
+      `A medal that misses the holes glances off the domed deck and goes over its rim at a heading drawn at the press, anywhere within ${SHED.spread}° either side of straight ahead, and lands on the heap just beyond the farthest the skirt swings out, wherever the bulge is, where the skirt works it on through the medals between. So the moment you drop a medal chooses only whether it meets a hole, never where a miss goes. Medals pushed over the front edge drop into the tray; over the front within ${FIELD.sideReach} medal radii of either corner, down a side hole.`,
+      'Every random number the machine uses comes from a press (where a medal comes down, a number kept for a spin, and the way it glances off the deck if it misses) or from its own seeded generator, and it keeps time in steps of 1/60 s with no sine or cosine but its own: the same presses play out the same in every browser, and in the measurement.',
       'The field, the medals in the air, the counter and the dish are written down as the machine plays: a reload finds them where they were, and the medals that came back are counted once.',
     ],
     sourcesTitle: 'What it is built from',
@@ -289,6 +304,20 @@ const ja: Strings = {
     colPockets: '入賞',
     colShare: `フィールドの${B}割合`,
     colJackpots: `1,000枚${B}あたりの${B}ジャックポット`,
+    scanTitle: `ほかの${B}タイミングも${B}すべて`,
+    scanNote: `ほかの${B}タイミングなら${B}もっと${B}戻るのでは？${B}ほかの${B}タイミングの${B}選び方も${B}すべて、${B}それぞれ${B}12台で${B}試しました。${B}穴に${B}合わせつつ${B}早めや${B}遅めに${B}投入する${B}（40ステップ＝⅔秒${B}遅くから${B}20ステップ${B}早くまで、${B}穴の${B}近くは${B}1ステップ${B}ごと）、${B}1回転に${B}1枚、${B}メリーゴーランドが${B}決まった${B}角度の${B}ときだけ${B}（12°ごと）、${B}すその${B}ふりの${B}一部の${B}あいだだけ${B}投入ボタンを${B}押しっぱなし、${B}宝の皿に${B}たくさん${B}あるときだけ${B}穴に${B}合わせる。${B}それぞれの${B}いちばん${B}高かった${B}ものが${B}下の${B}表で、${B}いちばん${B}上手な${B}遊び方を${B}はっきり${B}上回る${B}ものは${B}ありません${B}（どれも${B}区間が${B}重なります）。`,
+    againNote: (play: string, value: string, half: string, medals: string) =>
+      `高く${B}出た${B}ものは、${B}別の${B}12台で${B}ずっと${B}多くの${B}メダルを${B}使って${B}測り直しました${B}（高く${B}出たから${B}選んだ${B}分の${B}かさ上げが${B}入りません）。${B}測った${B}すべての${B}中で${B}いちばん${B}高かった${B}もの：${B}${play}、${B}${value}${B}±${half}${B}（${medals}枚）。${B}メダルセンターは${B}これを${B}この${B}マシンの${B}いちばん${B}高い${B}戻りと${B}して${B}数えます。`,
+    colFamily: 'タイミング',
+    colPlays: `試した${B}数`,
+    colHighest: `いちばん${B}高い`,
+    colAt: 'そのとき',
+    familyName: { leads: `早め・${B}遅め`, angles: `1回転に${B}1枚、${B}決まった${B}角度`, swings: `ふりの${B}一部だけ${B}押しっぱなし`, dishes: `宝の皿${B}しだい` },
+    scanLead: (steps: number) => (steps === 0 ? `穴が${B}通る${B}ちょうど` : `${Math.abs(steps)}ステップ${steps < 0 ? '遅く' : '早く'}`),
+    scanAngle: (angle: number) => `${angle}°`,
+    scanSwing: (from: number, to: number) => `${from}°〜${to}°`,
+    scanDish: (stock: number) => `皿が${B}${stock}枚${B}から`,
+    scanNamed: (family: string, play: string) => `${family}（${play}）`,
     counterTitle: 'カウンター',
     counterNote: (value: string) =>
       `1回ごとに${B}1つの${B}数で${B}決まります。${B}投入の${B}ときに${B}引いて${B}ためておいた${B}数の${B}最初の${B}もの、${B}なければ${B}マシン自身の${B}数です。${B}下の${B}確率は${B}すべて${B}正確な${B}値です${B}（65,536分の）。${B}ジャックポットを${B}除くと、${B}1回あたり${B}平均${value}枚が${B}トレイに${B}出ます${B}（ジャックポットは${B}フィールドを${B}通して${B}戻ります）。`,
@@ -307,8 +336,8 @@ const ja: Strings = {
     rules: [
       `メリーゴーランドは${B}6秒に${B}1回、${B}中心から${B}メダル半径${B}2つ分${B}ずれた${B}軸で${B}回ります。${B}回るたびに${B}すそが${B}メダル${B}1枚分${B}張り出し、${B}そこに${B}寄ってきた${B}メダルを、${B}軸から${B}まっすぐ${B}伸びる${B}両側の${B}壁にそって${B}外へ${B}押し出します。`,
       `投入から${B}デッキまで${B}0.9秒：${B}投入口に${B}入り、${B}レールを${B}転がり、${B}先から${B}落ちます。${B}落ちる${B}場所は${B}レールの${B}先から${B}メダル${B}1枚分ほどの${B}範囲で、${B}投入した${B}瞬間に${B}決まります。`,
-      `穴に${B}入らなかった${B}メダルは${B}デッキの${B}ふちから${B}すその${B}足もとに${B}すべり落ち、${B}次の${B}張り出しで${B}山に${B}押し込まれます。${B}手前の${B}ふちを${B}越えた${B}メダルは${B}トレイへ、${B}両隅から${B}メダル半径${B}3つ分${B}以内は${B}横穴へ${B}落ちます。`,
-      `マシンが${B}使う${B}乱数は、${B}投入の${B}瞬間に${B}引いた${B}数${B}（メダルの${B}落ちる${B}場所と、${B}カウンター用に${B}ためておく${B}数）と、${B}マシン自身の${B}シードつき${B}乱数だけです。${B}時間は${B}1/60秒の${B}刻みで${B}進み、${B}三角関数も${B}自前なので、${B}同じ${B}投入は${B}どの${B}ブラウザでも${B}計測でも${B}同じ${B}結果に${B}なります。`,
+      `穴に${B}入らなかった${B}メダルは${B}丸い${B}デッキに${B}はねて、${B}投入の${B}瞬間に${B}決まった${B}向き${B}（正面から${B}左右${B}${SHED.spread}°${B}以内）に${B}デッキの${B}ふちを${B}越え、${B}すそが${B}いちばん${B}張り出す${B}ところの${B}すぐ${B}外の${B}山に${B}落ち、${B}すそに${B}押される${B}メダルに${B}押されて${B}進みます${B}（すその${B}向きに${B}よらず${B}同じ${B}場所）。${B}投入の${B}タイミングで${B}決まるのは${B}穴に${B}入るか${B}どうか${B}だけで、${B}外れた${B}メダルの${B}行き先は${B}変わりません。${B}手前の${B}ふちを${B}越えた${B}メダルは${B}トレイへ、${B}両隅から${B}メダル半径${B}${FIELD.sideReach}つ分${B}以内は${B}横穴へ${B}落ちます。`,
+      `マシンが${B}使う${B}乱数は、${B}投入の${B}瞬間に${B}引いた${B}数${B}（メダルの${B}落ちる${B}場所、${B}カウンター用に${B}ためておく${B}数、${B}外れたときに${B}デッキから${B}落ちる${B}向き）と、${B}マシン自身の${B}シードつき${B}乱数だけです。${B}時間は${B}1/60秒の${B}刻みで${B}進み、${B}三角関数も${B}自前なので、${B}同じ${B}投入は${B}どの${B}ブラウザでも${B}計測でも${B}同じ${B}結果に${B}なります。`,
       `フィールド、${B}空中の${B}メダル、${B}カウンター、${B}宝の皿は${B}プレイ中に${B}記録されます。${B}再読み込みしても${B}元の${B}場所に${B}あり、${B}戻った${B}メダルは${B}一度だけ${B}数えられます。`,
     ],
     sourcesTitle: '参考にした実機のしくみ',

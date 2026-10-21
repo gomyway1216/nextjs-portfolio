@@ -560,7 +560,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
   /**
    * One medal from the slot into the machine; when the slot is empty, a handful of the player's medals into it first.
-   * Its three random numbers are drawn here, in the press (a test chooses them by queueing the numbers).
+   * Its four random numbers are drawn here, in the press (a test chooses them by queueing the numbers).
    */
   function feedOne(): boolean {
     const tab = table.current;
@@ -589,7 +589,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const u = Math.random();
     const v = Math.random();
     const ticket = Math.random();
-    if (!tab.feed(s, u, v, ticket)) return false;
+    const w = Math.random();
+    if (!tab.feed(s, u, v, ticket, w)) return false;
     dirty.current = true;
     play('medal');
     setStats((st) => ({ ...st, fed: st.fed + 1 }));

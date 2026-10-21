@@ -67,8 +67,9 @@ test('a medal timed to a hole rolls the counter, and 7-7-7 tips the treasure dis
   let d = Math.ceil((now - since) / STEP_MS) + 1;
   while (nextPocketUnderDrop(step + d + PRESS_TO_DECK).steps !== 0) d += 1;
   await page.clock.runFor(Math.ceil(since + (d + 0.25) * STEP_MS - now));
-  // The press: no scatter (it comes down on the drop spot itself), and the number kept for its spin draws 7-7-7.
-  await rigPresses(page, [0.5, 0, ticketFor('jackpot')]);
+  // The press: no scatter (it comes down on the drop spot itself), the number kept for its spin draws 7-7-7, and a
+  // miss would glance off straight ahead.
+  await rigPresses(page, [0.5, 0, ticketFor('jackpot'), 0.5]);
   await tapDrop(page);
   await expect(machine(page)).toHaveAttribute('data-fed', '1');
   // Down the rail, into the hole, the counter's reach and its fanfare, the dish's stock thrown.

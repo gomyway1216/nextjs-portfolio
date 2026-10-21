@@ -28,11 +28,14 @@
  *   always at the same spot in front of the pole (`DROP`). Three holes ride
  *   round on a ring about the pole (`POCKETS`): a medal that comes down in one
  *   of them, or rolls into one as it slides off the deck, starts the counter.
- *   The deck slopes down from the pole, so a medal that misses slides off its
- *   edge onto the field, at the foot of the skirt, where the next swing of the
- *   bulge pushes it into the heap. The holes come round under the rail three
- *   times a turn: the skill of the machine is timing, a medal dropped as a hole
- *   comes round.
+ *   The deck is domed, so a medal that misses glances off it, over the rim
+ *   and out onto the heap just beyond the skirt's farthest swing, where the
+ *   skirt works it on through the medals between. The holes come round under
+ *   the rail three times a turn: the skill of the machine is timing, a medal
+ *   dropped as a hole comes round. Timing chooses the holes and nothing else:
+ *   which way a miss glances off is the press's own draw (`SHED`), not the
+ *   carousel's angle, and it lands clear of the skirt wherever the bulge is,
+ *   so no moment sends the misses anywhere better.
  * - **The pole** carries the treasure dish, where the machine keeps its stock
  *   of medals: it starts at `STOCK.start` and the hopper adds one for every
  *   `STOCK.every` medals fed. 7-7-7 on the counter tips the dish, and the stock
@@ -149,7 +152,7 @@ export const FIELD = {
    * within this of either corner goes down the side hole there. It sets what the field gives back (lottery.ts says how
    * the machine's return is made up), as the width of the side holes does on a real machine.
    */
-  sideReach: 4.5,
+  sideReach: 8.4,
 } as const;
 
 /** The pole the carousel turns about: in the middle, near the back of the cabinet. */
@@ -184,6 +187,22 @@ export const DROP = { x: AXIS.x, y: AXIS.y + RING } as const;
 /** How far from the drop spot a medal may come down: anywhere in a disc this wide, drawn at the press. */
 export const SCATTER = 2.1;
 
+/**
+ * A medal that misses the holes: it glances off the domed deck and leaves it over the rim straight out from the pole,
+ * at a heading anywhere within `spread` degrees either side of straight ahead (every whole degree as likely, drawn at
+ * the press), `steps` after it came down; then it lands on the heap on that heading just beyond the farthest the
+ * skirt ever swings out (`REACH`), wherever the bulge is.
+ *
+ * The heading is the press's own draw, never the carousel's angle, the time it takes is always the same, and where it
+ * lands does not depend on the bulge, so the misses reach the field the same whenever they are dropped. It used to be
+ * the line straight out from the pole on the turning deck: then the moment of a drop chose how far round the deck
+ * carried a miss before it went over the rim, and at some moments that sent the misses past a side wall into the
+ * cabinet and at others onto the open field, which a player timing the holes could learn to choose (up to about ten
+ * points of return). And a miss dropped at the foot of the skirt was dragged about by it more or less as the bulge
+ * came round, a few points of the field's share either way for medals dropped through one part of its swing.
+ */
+export const SHED = { spread: 30, steps: 20 } as const;
+
 /** Times, in steps. */
 export const TIMES = {
   /** From the press to the medal leaving the rail's tip: in at the slot, and along the rail. */
@@ -203,7 +222,7 @@ export const TIMES = {
   /** A medal landing on the field takes this long to take its full room among the others. */
   grow: 18,
 } as const;
-/** How fast a medal slides off the deck, in medal radii a second. */
+/** How fast a medal that comes down inside the ring of holes slides out to the hole in line with it, in medal radii a second. */
 export const SLIDE_SPEED = 10;
 
 /** The press to the deck, in steps: what a player times a medal by. */
@@ -232,10 +251,13 @@ const GROW_FROM = 0.3;
 
 /** A medal in the air: on the rail, falling to the deck, sliding off it, down a hole, falling to the field, or thrown. */
 export type Air =
-  /** On its way down the rail, to leave the tip at `at`, and come down `dx`, `dy` from the drop spot. */
-  | { k: 'rail'; id: number; from: number; at: number; dx: number; dy: number }
-  /** Falling from the tip to the deck, onto `x`, `y`, at `at`. */
-  | { k: 'drop'; id: number; from: number; at: number; x: number; y: number }
+  /**
+   * On its way down the rail, to leave the tip at `at`, and come down `dx`, `dy` from the drop spot. `w`: the press's
+   * draw for the way it glances off the deck if it misses the holes (`SHED`).
+   */
+  | { k: 'rail'; id: number; from: number; at: number; dx: number; dy: number; w: number }
+  /** Falling from the tip to the deck, onto `x`, `y`, at `at`; `w` as on the rail. */
+  | { k: 'drop'; id: number; from: number; at: number; x: number; y: number; w: number }
   /**
    * Sliding on the deck from `qx`, `qy` to `ex`, `ey` (on the deck: about the pole, turned back by the carousel's
    * angle), arriving at `at`; into hole `pocket` there, or off the edge when it is -1. `direct`: it came down in the
@@ -384,16 +406,17 @@ export function nextPocketUnderDrop(step: number): { pocket: number; steps: numb
 
 /**
  * A medal into the slot. `u`, `v` are random numbers drawn at the press: where on the deck it comes down, off the drop
- * spot (anywhere in a disc `SCATTER` wide, every spot as likely). `ticket` is a third, kept for a coming spin. The slot
- * takes a medal every `TIMES.gap` steps: a press sooner is taken when the slot is free (the medal waits its turn).
+ * spot (anywhere in a disc `SCATTER` wide, every spot as likely). `ticket` is a third, kept for a coming spin, and `w`
+ * a fourth, the way it glances off the deck if it misses the holes (`SHED`). The slot takes a medal every `TIMES.gap`
+ * steps: a press sooner is taken when the slot is free (the medal waits its turn).
  */
-export function feed(m: Machine, u: number, v: number, ticket: number, events?: MachineEvent[]): number {
+export function feed(m: Machine, u: number, v: number, ticket: number, w: number, events?: MachineEvent[]): number {
   const id = m.nextId++;
   const at = Math.max(m.step, m.slotAt);
   m.slotAt = at + TIMES.gap;
   const deg = Math.min(359, Math.floor(u * 360));
   const r = SCATTER * Math.sqrt(Math.min(1, Math.max(0, v)));
-  m.air.push({ k: 'rail', id, from: at, at: at + TIMES.rail, dx: r * COS[deg], dy: r * SIN[deg] });
+  m.air.push({ k: 'rail', id, from: at, at: at + TIMES.rail, dx: r * COS[deg], dy: r * SIN[deg], w: Math.min(1, Math.max(0, w)) });
   if (m.tickets.length < 16) m.tickets.push(ticket);
   m.toStock += 1;
   if (m.toStock >= STOCK.every) {
@@ -410,8 +433,24 @@ export function feed(m: Machine, u: number, v: number, ticket: number, events?: 
 /** Whether the slot would take a medal at once. */
 export const slotFree = (m: Machine): boolean => m.slotAt <= m.step;
 
-/** Where a medal that came down on the deck at `x`, `y` (field) at `step` goes: into a hole, or off the edge. */
-export function slideOf(x: number, y: number, step: number): { qx: number; qy: number; ex: number; ey: number; pocket: number; direct: boolean; steps: number } {
+/** The heading (degrees on the field, from the pole) a medal that misses the holes leaves the deck at, for its `w`. */
+export const shedHeading = (w: number): number => 90 - SHED.spread + Math.min(2 * SHED.spread, Math.floor(Math.min(1, Math.max(0, w)) * (2 * SHED.spread + 1)));
+
+/** Where the carousel's rim is at `step`, straight out from the pole at `heading` (whole degrees on the field). */
+export function rimAt(heading: number, step: number): { x: number; y: number } {
+  // The centre is `offset` from the pole at the carousel's angle: the rim's distance out along the heading.
+  const off = (((heading - angleAt(step)) % 360) + 360) % 360;
+  const along = CAROUSEL.offset * COS[off];
+  const across = CAROUSEL.offset * SIN[off];
+  const s = along + Math.sqrt(CAROUSEL.radius * CAROUSEL.radius - across * across);
+  return { x: AXIS.x + s * COS[heading], y: AXIS.y + s * SIN[heading] };
+}
+
+/**
+ * Where a medal that came down on the deck at `x`, `y` (field) at `step` goes: into a hole, or off the edge at the
+ * heading its press drew (`w`, `SHED`).
+ */
+export function slideOf(x: number, y: number, step: number, w: number): { qx: number; qy: number; ex: number; ey: number; pocket: number; direct: boolean; steps: number } {
   const { qx, qy } = fieldToDeck(x, y, step);
   // Came down in a hole.
   for (let k = 0; k < POCKETS.length; k++) {
@@ -437,15 +476,11 @@ export function slideOf(x: number, y: number, step: number): { qx: number; qy: n
       }
     }
   }
-  // Off the edge of the deck: where the line out from the pole meets the carousel's rim, whose centre is
-  // `CAROUSEL.offset` along the deck's x axis from the pole.
-  const ox = qx - CAROUSEL.offset;
-  const b = ox * ux + qy * uy;
-  const c = ox * ox + qy * qy - CAROUSEL.radius * CAROUSEL.radius;
-  const s = -b + Math.sqrt(Math.max(0, b * b - c));
-  const ex = qx + s * ux;
-  const ey = qy + s * uy;
-  return { qx, qy, ex, ey, pocket: -1, direct: false, steps: Math.max(1, Math.round((s / SLIDE_SPEED) * STEP_RATE)) };
+  // Off the edge of the deck, at its heading: where the rim will be there when it gets there, on the deck.
+  const at = step + SHED.steps;
+  const rim = rimAt(shedHeading(w), at);
+  const e = fieldToDeck(rim.x, rim.y, at);
+  return { qx, qy, ex: e.qx, ey: e.qy, pocket: -1, direct: false, steps: SHED.steps };
 }
 
 // ── The physics of the field ────────────────────────────────────────────────
@@ -698,7 +733,7 @@ export function step(m: Machine, lottery: Lottery, events?: MachineEvent[]): voi
       }
       switch (a.k) {
         case 'rail': {
-          still.push({ k: 'drop', id: a.id, from: now, at: now + TIMES.drop, x: DROP.x + a.dx, y: DROP.y + a.dy });
+          still.push({ k: 'drop', id: a.id, from: now, at: now + TIMES.drop, x: DROP.x + a.dx, y: DROP.y + a.dy, w: a.w });
           break;
         }
         case 'drop': {
@@ -706,15 +741,13 @@ export function step(m: Machine, lottery: Lottery, events?: MachineEvent[]): voi
           const ox = a.x - centre.x;
           const oy = a.y - centre.y;
           const o = Math.sqrt(ox * ox + oy * oy);
-          if (o > CAROUSEL.radius) {
-            // Past the deck's edge (the bulge had swung away): straight down beside the skirt.
-            const out = (CAROUSEL.radius + MEDAL_RADIUS * 1.15) / o;
-            still.push({ k: 'off', id: a.id, from: now, at: now + TIMES.off, sx: a.x, sy: a.y, x: centre.x + ox * out, y: centre.y + oy * out });
-            events?.push({ type: 'off', id: a.id });
-            break;
-          }
-          events?.push({ type: 'deck', id: a.id, x: a.x, y: a.y });
-          const s = slideOf(a.x, a.y, now);
+          // Past the deck's edge (the bulge had swung away), it catches the rim and glances off like any other miss.
+          // (The holes lie well inside the nearest the rim ever comes to the drop spot.)
+          const keep = o > CAROUSEL.radius - 0.05 ? (CAROUSEL.radius - 0.05) / o : 1;
+          const x = centre.x + ox * keep;
+          const y = centre.y + oy * keep;
+          events?.push({ type: 'deck', id: a.id, x, y });
+          const s = slideOf(x, y, now, a.w);
           still.push({ k: 'slide', id: a.id, from: now, at: now + s.steps, qx: s.qx, qy: s.qy, ex: s.ex, ey: s.ey, pocket: s.pocket, direct: s.direct });
           break;
         }
@@ -724,14 +757,13 @@ export function step(m: Machine, lottery: Lottery, events?: MachineEvent[]): voi
             if (held) m.holds += 1;
             events?.push({ type: 'pocket', id: a.id, pocket: a.pocket, direct: a.direct, held });
           } else {
-            // Over the rim and down the skirt, a little out from it.
+            // Over the rim and out on its heading from the pole, clear of the skirt wherever the bulge is.
             const rim = deckToField(a.ex, a.ey, now);
-            const centre = carouselCentre(now);
-            const ox = rim.x - centre.x;
-            const oy = rim.y - centre.y;
+            const ox = rim.x - AXIS.x;
+            const oy = rim.y - AXIS.y;
             const o = Math.sqrt(ox * ox + oy * oy) || 1;
-            const out = MEDAL_RADIUS * 1.15;
-            still.push({ k: 'off', id: a.id, from: now, at: now + TIMES.off, sx: rim.x, sy: rim.y, x: rim.x + (ox / o) * out, y: rim.y + (oy / o) * out });
+            const out = REACH + MEDAL_RADIUS * 1.15;
+            still.push({ k: 'off', id: a.id, from: now, at: now + TIMES.off, sx: rim.x, sy: rim.y, x: AXIS.x + (ox / o) * out, y: AXIS.y + (oy / o) * out });
             events?.push({ type: 'off', id: a.id });
           }
           break;

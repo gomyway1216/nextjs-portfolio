@@ -10,13 +10,25 @@
  *   starts nothing). Every medal is fed at the best moment there is.
  * - **steady** (an everyday hand): a medal about every second, at no moment in particular.
  * - **held** (the button held down): a medal every time the slot takes one, four a second.
+ *
+ * And the ways a player might try to choose the moment some other way, measured to show that none of them beats the
+ * timed hand (scripts/carousel-pusher-scan.ts):
+ *
+ * - **timed** with a `lead`: every hole timed, but the medal let go `lead` steps early (late when negative), so that
+ *   it comes down a little before or after the hole passes the drop spot.
+ * - **phase**: medals only while they will come down at the carousel's angles `angle` to `angle + width` (as fast as
+ *   the slot takes them, none while all four lamps are lit): one angle a turn, one hole at one lead, or DROP held
+ *   through a part of the bulge's swing.
+ * - **dish**: the holes timed only while the treasure dish holds at least `stockAt` medals, DROP held otherwise.
  */
 
-import { HOLD_MAX, PRESS_TO_DECK, STOCK, TIMES, atRest, feed, freshMachine, nextPocketUnderDrop, nextRandom, step, type Machine, type MachineEvent } from './engine';
+import { HOLD_MAX, PRESS_TO_DECK, STOCK, TIMES, angleAt, atRest, feed, freshMachine, nextPocketUnderDrop, nextRandom, step, type Machine, type MachineEvent } from './engine';
 import { LOTTERY, OUTCOME_IDS } from './lottery';
 
+/** The ways the Odds tab publishes. */
 export const STRATEGIES = ['timed', 'steady', 'held'] as const;
-export type Strategy = (typeof STRATEGIES)[number];
+/** Every way the simulation plays. */
+export type Strategy = (typeof STRATEGIES)[number] | 'phase' | 'dish';
 
 export interface Tally {
   /** Medals fed, and every medal that came back for them: off the front edge, thrown into the tray, and prizes. */
@@ -49,17 +61,35 @@ export function addTally(into: Tally, more: Tally): Tally {
   return into;
 }
 
-/** A medal's two random numbers and its ticket, drawn from the run's own generator, as a press draws them. */
+/** A medal's random numbers (where it comes down, its ticket, the way it glances off), drawn as a press draws them. */
 function press(m: Machine, draw: { rng: number }, events: MachineEvent[]): void {
-  feed(m, nextRandom(draw), nextRandom(draw), nextRandom(draw), events);
+  feed(m, nextRandom(draw), nextRandom(draw), nextRandom(draw), nextRandom(draw), events);
+}
+
+export interface SimulateOptions {
+  strategy: Strategy;
+  medals: number;
+  seed: number;
+  warmup?: number;
+  batch?: number;
+  onBatch?: (t: Tally) => void;
+  machine?: Machine;
+  /** timed (and dish): steps early the medal is let go (late when negative). */
+  lead?: number;
+  /** phase: the carousel's angles the medals come down at, `angle` to `angle + width - 1` (degrees, a degree a step). */
+  angle?: number;
+  width?: number;
+  /** dish: the stock from which the holes are timed. */
+  stockAt?: number;
 }
 
 /**
  * Plays `medals` medals the given way, after `warmup` medals that are not counted, on a machine set up from `seed`.
  * `onBatch` is told the tally of each `batch` medals as it is played (for spreads), and `tally` is the whole.
  */
-export function simulate(options: { strategy: Strategy; medals: number; seed: number; warmup?: number; batch?: number; onBatch?: (t: Tally) => void; machine?: Machine; lead?: number }): { tally: Tally; machine: Machine } {
-  const { strategy, medals, seed, warmup = 200, batch = 0, onBatch, lead = 0 } = options;
+export function simulate(options: SimulateOptions): { tally: Tally; machine: Machine } {
+  const { strategy, medals, seed, warmup = 200, batch = 0, onBatch, lead = 0, angle = 0, width = 1, stockAt = 0 } = options;
+  const timed = (m: Machine): boolean => m.holds < HOLD_MAX && m.slotAt <= m.step && nextPocketUnderDrop(m.step + PRESS_TO_DECK + lead).steps === 0;
   const m = options.machine ?? freshMachine(seed);
   const draw = { rng: (seed * 2654435761) | 0 };
   const events: MachineEvent[] = [];
@@ -74,7 +104,13 @@ export function simulate(options: { strategy: Strategy; medals: number; seed: nu
     if (fed < total) {
       let go = false;
       if (strategy === 'timed') {
-        go = m.holds < HOLD_MAX && m.slotAt <= m.step && nextPocketUnderDrop(m.step + PRESS_TO_DECK + lead).steps === 0;
+        go = timed(m);
+      } else if (strategy === 'phase') {
+        // The slot takes the medal at once (it is free), so it comes down `PRESS_TO_DECK` steps from now.
+        const into = (((angleAt(m.step + PRESS_TO_DECK) - angle) % 360) + 360) % 360;
+        go = m.holds < HOLD_MAX && m.slotAt <= m.step && into < width;
+      } else if (strategy === 'dish') {
+        go = m.stock >= stockAt ? timed(m) : m.slotAt <= m.step;
       } else if (strategy === 'steady') {
         go = m.step >= next;
       } else {

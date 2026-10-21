@@ -297,12 +297,15 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   // (from 60, a medal more for every 8 fed, up to CAROUSEL_STOCK_MOST) across the field, where the carousel pushes it
   // off: the jackpot is named with the stock thrown. The tray is counted in a handful at a time, every 0.3 s or so;
   // after a big jackpot the field pours for a while, and 1,500 a minute leaves room, as for the Medal Pusher.
-  // Best return: every medal dropped as a hole passes the mark, one a hole, none while four spins wait, as the
-  // machine's own simulation measures it over 6,000,000 medals on twelve seeded machines: 90.60% (±0.30 at 95%),
-  // rounded up. A medal a second at no moment in particular brings back 80.39% (±0.48); the button held down, 69.77%
-  // (±0.61), each over 4,000,008 medals.
+  // Best return: the highest of everything the machine's own simulation measured (published.ts `best`), rounded up.
+  // Every medal dropped as a hole passes the mark, one a hole, none while four spins wait, brings back 90.72% (±0.26
+  // at 95%) over 6,000,000 medals on twelve seeded machines; every other moment of dropping was scanned (early or
+  // late, one angle a turn, DROP held through part of the swing, by the dish's fill), and the highest of them,
+  // measured again on twelve other machines, is one hole timed alone: 90.84% (±0.57) over 1,200,000 medals. A medal
+  // a second at no moment in particular brings back 80.10% (±0.39); the button held down, 69.15% (±0.49), each over
+  // 4,000,008 medals.
   // Named: the jackpot, shown to the floor; three alike.
-  'carousel-pusher': rule(CAROUSEL_STOCK_MOST, 1_500, 100, 1, 0.9061, {
+  'carousel-pusher': rule(CAROUSEL_STOCK_MOST, 1_500, 100, 1, 0.9085, {
     'carousel-jackpot': { min: 60, max: CAROUSEL_STOCK_MOST, feed: true },
     'carousel-triple': { amounts: [20], feed: false },
   }),

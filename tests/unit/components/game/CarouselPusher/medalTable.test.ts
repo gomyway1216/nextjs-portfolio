@@ -3,7 +3,7 @@ import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LOTTERY } from '@/components/game/CarouselPusher/lottery';
-import { atRest, busy, freshMachine, step } from '@/components/game/CarouselPusher/engine';
+import { TIMES, atRest, busy, feed, freshMachine, step } from '@/components/game/CarouselPusher/engine';
 import { CAROUSEL_GAME, LEND, SESSION_KEY, createTable, live, parseSession, roundId, seedFor, serializeSession, sessionKey, type SessionRecord, type Table } from '@/components/game/CarouselPusher/medalTable';
 import { BANK_KEY, ledgerKey } from '@/components/game/MedalCenter/bank';
 import { recordsOf } from '@/components/game/MedalCenter/history';
@@ -71,8 +71,8 @@ function machineOn(page: FakePage) {
       now = done.record;
       return done.outcome;
     },
-    feed(u = 0.5, v = 0.5, ticket = 0.9) {
-      return table.feed(machine.now()!, u, v, ticket);
+    feed(u = 0.5, v = 0.5, ticket = 0.9, w = 0.5) {
+      return table.feed(machine.now()!, u, v, ticket, w);
     },
     /** The machine stepped on until nothing more is on its way to the player. */
     settle(limit = 4_000) {
@@ -155,7 +155,7 @@ describe('the slot, the tray and the medals', () => {
     machineOn(browser.open());
     await quiet(browser);
     expect(one.table.lend(one.now()!).outcome).toBe('away');
-    expect(one.table.feed(one.now()!, 0.5, 0.5, 0.5)).toBe(false);
+    expect(one.table.feed(one.now()!, 0.5, 0.5, 0.5, 0.5)).toBe(false);
     expect(one.table.collect(one.now()!)).toBeNull();
   });
 
@@ -466,6 +466,27 @@ describe('reading a session back', () => {
       JSON.stringify({ ...good, machine: { ...machine, air: [{ k: 'teleport', id: 99_999, from: 0, at: 1 }] } }),
     ];
     for (const text of bad) expect(parseSession(text)).toBeNull();
+  });
+
+  it('reads back a session written before a press drew the way a miss glances off the deck, and plays it on', () => {
+    // The medals on the rail and falling to the deck, as the machine wrote them before they carried `w`.
+    const machine = freshMachine(4);
+    feed(machine, 0.1, 0.9, 0.5, 0.25);
+    feed(machine, 0.6, 0.8, 0.5, 0.75);
+    for (let s = 0; s < TIMES.rail + 1; s++) step(machine, LOTTERY);
+    expect(machine.air.map((a) => a.k).sort()).toEqual(['drop', 'rail']);
+    const record: SessionRecord = { v: 1, owner: null, ledger: 'device00001', era: 0, credit: 3, machine, pending: null, lent: 'abc' };
+    const old = JSON.parse(serializeSession(record)) as { machine: { air: Record<string, unknown>[] } };
+    for (const a of old.machine.air) delete a.w;
+    const read = parseSession(JSON.stringify(old));
+    expect(read).not.toBeNull();
+    for (const a of read!.machine.air) if (a.k === 'rail' || a.k === 'drop') expect(a.w).toBeGreaterThanOrEqual(0);
+    for (let s = 0; s < 200; s++) step(read!.machine, LOTTERY);
+    expect(read!.machine.air).toEqual([]);
+    // A draw out of its range is not one the machine could have written.
+    const wrong = JSON.parse(serializeSession(record)) as { machine: { air: Record<string, unknown>[] } };
+    wrong.machine.air[0].w = 2;
+    expect(parseSession(JSON.stringify(wrong))).toBeNull();
   });
 });
 

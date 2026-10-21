@@ -533,4 +533,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Arcade',
   },
+  {
+    id: 'carousel-pusher',
+    title: 'Cherry Blossom Carousel',
+    description: 'The pusher corner’s second cabinet: a single-station medal pusher whose pusher turns. A carousel on a pole a little off its centre swings its skirt round the field and shoves the medals towards the edge; drop a medal as a hole on its deck comes round to roll the counter, and 7-7-7 tips the treasure dish across the field — its returns measured over millions of medals, best play about 90%.',
+    thumbnail: '🎠',
+    path: '/games/carousel-pusher',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
 ];

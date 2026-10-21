@@ -1414,6 +1414,10 @@
     "pachinko": {
       "title": "Goldfish Lantern Pachinko",
       "description": "The game center’s pachinko corner: a light-odds digital pachinko (1 in 99.9) whose balls are lent for medals. Turn the handle, shoot the balls through the nails into the start pocket, line up three lanterns for a big hit and ride ST — with perfect play (stopping while four holds wait), an everyday hand and an untouched handle each worked out exactly, so that no hand beats the machine."
+    },
+    "carousel-pusher": {
+      "title": "Cherry Blossom Carousel",
+      "description": "The pusher corner’s second cabinet: a single-station medal pusher whose pusher turns. A carousel on a pole a little off its centre swings its skirt round the field and shoves the medals towards the edge; drop a medal as a hole on its deck comes round to roll the counter, and 7-7-7 tips the treasure dish across the field — its returns measured over millions of medals, best play about 90%."
     }
   },
   "home": {

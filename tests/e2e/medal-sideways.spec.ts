@@ -10,7 +10,7 @@ import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // A phone held sideways (844 × 390, 667 × 375): the tall machines (Hot Spring Smart Ball, Candy Shop Medal Maze,
-// Goldfish Lantern Pachinko) lay out in two columns, the board at the left as tall as the screen allows under the
+// Goldfish Lantern Pachinko, Cherry Blossom Carousel) lay out in two columns, the board at the left as tall as the screen allows under the
 // site's toolbar, and the badge, the status line, the counters and the controls in a column at the right, all on the
 // screen at once. Narrowed over its controls as on a phone held upright, the Smart Ball's board and the Maze's case
 // came to 85 to 139 px wide, their numbers 3 to 5 px; the pachinko's board, the cabinet's full width, was taller than
@@ -190,6 +190,32 @@ async function pachinkoPlay(page: Page, seen: () => Promise<void>) {
   await seen();
 }
 
+// ── Cherry Blossom Carousel ──
+
+/** DROP pressed until a medal is fed (the slot filled from the medals first): the press brings the field and its column on screen itself. */
+async function dropCarousel(page: Page) {
+  const machine = page.getByTestId('cp-machine');
+  const fed = async () => Number(await machine.getAttribute('data-fed'));
+  const before = await fed();
+  await pressUntil(page.getByTestId('cp-drop'), async () => (await fed()) > before);
+  await page.waitForTimeout(300);
+}
+
+/** Three more medals dropped, the machine played on while they come down. */
+async function carouselPlay(page: Page, seen: () => Promise<void>) {
+  const machine = page.getByTestId('cp-machine');
+  await seen();
+  for (let i = 0; i < 3; i++) {
+    await page.getByTestId('cp-drop').click();
+    await page.waitForTimeout(400);
+    await seen();
+  }
+  await expect(machine).toHaveAttribute('data-resting', 'false');
+  await seen();
+  await page.waitForTimeout(1_500);
+  await seen();
+}
+
 const MACHINES: Machine[] = [
   {
     name: 'smart-ball',
@@ -225,6 +251,20 @@ const MACHINES: Machine[] = [
     afterReload: async (page) => {
       await expect(page.getByTestId('pk-machine')).toHaveAttribute('data-mode', 'st', { timeout: 20_000 });
       await expect(page.getByTestId('pk-machine')).toHaveAttribute('data-stage', '');
+    },
+  },
+  {
+    name: 'carousel-pusher',
+    path: '/games/carousel-pusher',
+    board: 'cp-stage',
+    // The counter over the field and the dish's jackpot, the status line, DROP and RETURN, and the counters.
+    column: ['cp-drop', 'cp-return', 'cp-panel', 'cp-status', 'cp-medals-led'],
+    bring: (page) => dropCarousel(page),
+    play: carouselPlay,
+    // The slot's medals and the field are where they were.
+    afterReload: async (page) => {
+      await expect(page.getByTestId('cp-machine')).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+      await expect(page.getByTestId('cp-machine')).not.toHaveAttribute('data-credit', '0');
     },
   },
 ];

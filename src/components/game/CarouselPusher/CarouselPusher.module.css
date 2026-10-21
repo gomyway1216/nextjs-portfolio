@@ -1,0 +1,939 @@
+/* Cherry Blossom Carousel. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette
+   of its own — a plum cabinet with gold trim and a blossom-pink sign, the carousel and its field under glass inside it
+   (canvases: draw.ts, Stage.tsx), the counter on a back panel over it — that reads on both. Nothing here uses 3D
+   transforms (WebKit flattens them): the stage is a parallel projection drawn flat, depth in shadows. */
+
+.root {
+  --cp-plum: #6e1d44;
+  --cp-plum-dark: #2e0a1d;
+  --cp-gold: #e8b84a;
+  --cp-pink: #ff9ec0;
+  --cp-focus: #ffd34d;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --cp-accent-text: #a3245a;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --cp-accent-text: #ff9ec0;
+}
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.28rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleIcon {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: var(--cp-plum);
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.7rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 460px);
+}
+@media (min-width: 900px) {
+  .machine {
+    grid-template-columns: minmax(0, 480px) minmax(0, 320px);
+    align-items: start;
+  }
+}
+
+/* The cabinet: plum lacquer with a gold trim, the carousel's window in it. */
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.8rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #8f2a5a 0%, var(--cp-plum) 34%, var(--cp-plum-dark) 100%);
+  border: 3px solid #1d0512;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 214, 140, 0.35),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.3),
+    0 14px 28px rgba(0, 0, 0, 0.3);
+}
+.sign {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.25rem 0.5rem 0.4rem;
+  color: #fff4d6;
+  text-align: center;
+}
+.signMain {
+  font-size: clamp(0.95rem, 4vw, 1.2rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffd2e2;
+  text-shadow:
+    0 0 6px rgba(255, 120, 170, 0.75),
+    0 1px 0 #3a0a1d;
+}
+.signSub {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffe9c4;
+}
+
+.playArea {
+  scroll-margin-top: 64px;
+}
+
+/* The back panel over the field: the counter with its hold lamps, the dish's jackpot, and what the counter pays. */
+.backPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'counter jackpot'
+    'pays pays';
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  padding: 0.45rem 0.5rem 0.4rem;
+  border-radius: 12px 12px 4px 4px;
+  background: linear-gradient(180deg, #2a0b1c, #170510);
+  border: 2px solid var(--cp-gold);
+  border-bottom: none;
+}
+.counterBox {
+  grid-area: counter;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.counter {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #0b0207;
+  box-shadow: inset 0 0 0 1px rgba(255, 158, 192, 0.35);
+}
+.counterPlace {
+  display: block;
+  height: clamp(34px, 10vw, 44px);
+}
+.counterPlace > span {
+  height: 100%;
+  padding: 3px 4px;
+}
+.counter[data-reach='true'] {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 158, 192, 0.35),
+    0 0 10px rgba(255, 120, 170, 0.8);
+}
+.counter[data-result='jackpot'] {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 211, 77, 0.6),
+    0 0 14px rgba(255, 211, 77, 0.9);
+}
+.holdLamps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 12px);
+  gap: 5px;
+}
+.holdLamp {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3a1426;
+  box-shadow: inset 0 0 0 1px rgba(255, 158, 192, 0.45);
+}
+.holdLamp[data-lit='true'] {
+  background: #ffd34d;
+  box-shadow: 0 0 6px rgba(255, 211, 77, 0.9);
+}
+.jackpotBox {
+  grid-area: jackpot;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.jackpotLabel {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #ffd34d;
+}
+.jackpotLed > span {
+  height: 22px;
+}
+.paytable {
+  grid-area: pays;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+.payRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 0;
+  border-radius: 4px;
+  background: rgba(255, 158, 192, 0.12);
+  min-width: 0;
+}
+.payShows {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #ffe1ec;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.payPays {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #ffd34d;
+  white-space: nowrap;
+}
+
+/* The window onto the field: the stage's layers, one over another. */
+.stageBox {
+  position: relative;
+  width: 100%;
+  border: 3px solid var(--cp-gold);
+  border-radius: 4px 4px 14px 14px;
+  overflow: hidden;
+  background: #140a1e;
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+  /* No double-tap zoom and no text selection on the glass: a finger on it is a finger on the machine. */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.turning {
+  display: block;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+.deckTurn {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- The status line and the controls ---------- */
+.phrase {
+  white-space: nowrap;
+}
+.status {
+  margin: 0.4rem 0 0.35rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.status > span {
+  min-width: 0;
+}
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.dropButton,
+.returnButton {
+  appearance: none;
+  min-height: 56px;
+  padding: 0.3rem 0.4rem;
+  border-radius: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.dropButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 2px solid #3a2500;
+  background: linear-gradient(180deg, #ffe08a, #e0a325);
+  color: #2a1600;
+  box-shadow: 0 4px 0 #6b4400;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.dropButton[data-held='true'] {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 #6b4400,
+    0 0 0 4px rgba(255, 211, 77, 0.6);
+}
+.dropWords {
+  font-size: 1.15rem;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+}
+.dropSmall {
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.returnButton {
+  border: 2px solid #ffd98a;
+  background: #3a0a1d;
+  color: #fff;
+  font-size: 0.95rem;
+}
+.dropButton:disabled,
+.returnButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dropButton:focus-visible,
+.returnButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--cp-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- The counters and the notes under them ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem 0.35rem;
+  border-radius: 10px;
+  background: #1a0410;
+  border: 2px solid #6b1a3f;
+  min-width: 0;
+}
+.meterMedals {
+  border-color: var(--cp-gold);
+}
+.meterLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffe2b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(18px, 5.4vw, 24px);
+}
+.message {
+  margin: 0.4rem 0 0;
+  /* Two lines held, so that nothing under it moves when a message comes and goes. */
+  min-height: 2.8em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1ec;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cabinet .btn {
+  background: #3a0a1d;
+  color: #fff;
+  border-color: #ffd98a;
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill,
+.cardAwayButton {
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.refill {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #3a0a1d;
+  color: #fff;
+  font-weight: 800;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #ffe1ec;
+  text-align: center;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #ffe9f0;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(255, 210, 122, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #fff3f6;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+.odds .link {
+  color: var(--cp-accent-text);
+}
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: rgba(30, 5, 18, 0.94);
+  text-align: center;
+  color: #fff;
+}
+.cardAwayButton {
+  min-height: 44px;
+  padding: 0.5rem 1.2rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: var(--cp-plum);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ---------- A phone held sideways: the field at the left, the counter, words, controls and counters at the right ---------- */
+/* Too short a screen for the field over its controls (a phone held sideways, 320 to 500 px tall): the window onto the
+   field is as tall as the screen allows under the site's toolbar (64 px, and 16 px of room), and the back panel, the
+   status line, DROP and RETURN, and the counters stand in a column beside it, all on the screen at once. The play
+   area's own box gives way to its parts (`display: contents`; PlayTab.tsx's bringIntoView then brings the box round
+   its parts on screen). The notes under the machine go under both columns. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .machine {
+    grid-template-columns: minmax(0, 720px);
+  }
+  .cabinet {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto 1fr;
+    grid-template-areas:
+      'sign sign'
+      'stage panel'
+      'stage status'
+      'stage controls'
+      'stage meters'
+      'stage .'
+      'message message'
+      'out out'
+      'sound sound'
+      'keys keys'
+      'notes notes';
+    column-gap: 12px;
+  }
+  .sign {
+    grid-area: sign;
+  }
+  .playArea {
+    display: contents;
+  }
+  .backPanel {
+    grid-area: panel;
+    border-radius: 12px;
+    border-bottom: 2px solid var(--cp-gold);
+  }
+  .stageBox {
+    grid-area: stage;
+    align-self: start;
+    width: calc((100vh - 80px) * 1.3871);
+    width: calc((100svh - 80px) * 1.3871);
+    border-radius: 14px;
+  }
+  .counterPlace {
+    height: 30px;
+  }
+  /* Three lines held in the narrow column, at whole pixels, so that nothing under it moves when the words change. */
+  .status {
+    grid-area: status;
+    margin: 0.2rem 0;
+    min-height: 60px;
+    line-height: 20px;
+  }
+  .controls {
+    grid-area: controls;
+  }
+  .dropButton,
+  .returnButton {
+    min-height: 48px;
+  }
+  .meters {
+    grid-area: meters;
+    margin-top: 0.35rem;
+  }
+  .led > span {
+    height: 20px;
+  }
+  .message {
+    grid-area: message;
+  }
+  .outRow {
+    grid-area: out;
+  }
+  .secondaryRow {
+    grid-area: sound;
+  }
+  .keysHint {
+    grid-area: keys;
+  }
+  .medalNotes {
+    grid-area: notes;
+  }
+}
+
+/* ---------- The panels beside the machine ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-fg);
+  white-space: nowrap;
+}
+.historyChip[data-outcome='jackpot'] {
+  background: #f6c343;
+  color: #2a1600;
+}
+.historyChip[data-outcome='triple'] {
+  background: #ffd2e2;
+  color: #4a0c25;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+  min-width: 0;
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.45rem;
+  font-weight: 850;
+  color: var(--cp-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.statFraction {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.ruleList,
+.sourceList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.sourceList a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.3rem 0;
+  overflow-wrap: anywhere;
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 0.4rem;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable tbody th {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+}
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the figures and the Odds tab's tables (as the other
+ * machines' do): where the browser can tell phrases apart, at them; elsewhere at the zero-width spaces, 、。： and
+ * spaces the words carry. A word longer than its line still breaks. The status line keeps its phrases whole itself
+ * (PlayTab.tsx).
+ */
+.statLabel,
+.statNote,
+.statList dt,
+.ruleList li,
+.note,
+.intro p,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .ruleList li,
+  .note,
+  .intro p,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

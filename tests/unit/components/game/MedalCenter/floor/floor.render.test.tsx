@@ -249,7 +249,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku, Candy Shop Medal Maze, Video Keno, Hot Spring Smart Ball, Goldfish Lantern Pachinko.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku, Candy Shop Medal Maze, Video Keno, Hot Spring Smart Ball, Goldfish Lantern Pachinko, Cherry Blossom Carousel.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -333,6 +333,7 @@ describe('the floor jackpot', () => {
       keno: ['Keno/Keno.tsx', 'OddsTab'],
       'smart-ball': ['SmartBall/SmartBall.tsx', 'OddsTab'],
       pachinko: ['Pachinko/Pachinko.tsx', 'OddsTab'],
+      'carousel-pusher': ['CarouselPusher/CarouselPusher.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
     const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');
@@ -369,7 +370,7 @@ describe('the floor’s words', () => {
       if (typeof value === 'string') out.push(value);
       else if (typeof value === 'function') {
         out.push(String(value('x', '9')));
-        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sicbo-triple', 'sicbo-any-triple', 'sugoroku-jp', 'whale-ride', 'maze-big', 'maze-win', 'keno-all', 'smart-triple', 'smart-double', 'smart-line', 'pachinko-rush', 'pachinko-10r', 'pachinko-4r', null]) out.push(String(value(label, '9')));
+        for (const label of ['jackpot', 'bowl', 'seven3', 'bar3', 'double-up', 'royal', 'straight-flush', 'four-kind', 'floor-jackpot', 'harbor-lord', 'treasure', 'wheel-400', 'wheel-bonus', 'ladder-top', 'sicbo-triple', 'sicbo-any-triple', 'sugoroku-jp', 'whale-ride', 'maze-big', 'maze-win', 'keno-all', 'smart-triple', 'smart-double', 'smart-line', 'pachinko-rush', 'pachinko-10r', 'pachinko-4r', 'carousel-jackpot', 'carousel-triple', null]) out.push(String(value(label, '9')));
       } else if (value && typeof value === 'object') out.push(...Object.values(value as Record<string, string>));
     }
     return out;

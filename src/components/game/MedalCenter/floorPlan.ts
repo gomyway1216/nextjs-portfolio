@@ -82,13 +82,16 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   // A medal pachinko stands in the video & slots corner, as a game center's pachinko and pachislot corner stands its
   // pachinko beside the pachislot.
   pachinko: 'video',
+  // A second pusher stands beside the first in the pusher corner, as a real floor lines up pushers of different kinds
+  // side by side: a single-station pusher whose pusher turns.
+  'carousel-pusher': 'pusher',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -112,6 +115,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   keno: { en: 'Mark 1 to 10 of 80; a last-ball catch pays ×5.', ja: '80の数字から1〜10個。最後の球なら×5' },
   'smart-ball': { en: 'Pull the plunger; light four holes in a row.', ja: 'バネで玉を打ち、穴を4つそろえてビンゴ' },
   pachinko: { en: 'A 1-in-99.9 pachinko; balls lent for medals.', ja: '1/99.9の甘デジ。メダルで玉を借りて遊ぶ' },
+  'carousel-pusher': { en: 'A turning carousel pushes; drop into its holes.', ja: '回るメリーゴーランドが押す。穴をねらって投入' },
 };
 
 /**
@@ -133,6 +137,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   keno: ['ビデオ', 'キノ'],
   'smart-ball': ['湯けむり', 'スマートボール'],
   pachinko: ['金魚ちょうちん', 'パチンコ'],
+  'carousel-pusher': ['さくら', 'メリーゴーランド'],
 };
 
 /**
@@ -165,6 +170,7 @@ export const PITCH_WORDS: Readonly<Record<string, readonly string[]>> = {
   keno: ['80の', '数字から', '1〜10個。', '最後の', '球なら×5'],
   'smart-ball': ['バネで', '玉を', '打ち、', '穴を', '4つそろえて', 'ビンゴ'],
   pachinko: ['1/99.9の', '甘デジ。', 'メダルで', '玉を', '借りて', '遊ぶ'],
+  'carousel-pusher': ['回る', 'メリーゴーランドが', '押す。', '穴を', 'ねらって', '投入'],
 };
 
 /** `text` in the words `table` gives machine `id`, where it knows them and they still make up `text`; else whole. */
@@ -231,7 +237,9 @@ const rowsOf = (zone: ZoneId, width: number, span: number): number => {
 
 /**
  * How many of the floor's columns each corner takes on its widest layout, the corners laid in order as a row fills:
- * as many as its machines need, up to a whole row. A corner of small cabinets too wide for the columns left beside the
+ * as many as its machines need, up to a whole row; a corner of no more big cabinets than a squeezed corner has rows,
+ * with a corner of small ones after it that fits beside one big cabinet, stands its cabinets one above another in two
+ * columns (the two pushers), so that the two corners still stand side by side. A corner of small cabinets too wide for the columns left beside the
  * corner before it, but that fits in up to `SQUEEZED_ROWS` rows of them, takes those columns (`squeezed`), its cabinets
  * on two or three rows, so that the pair still stands side by side (the video machines and the pachinko beside the
  * pusher) rather than half a row being left empty. The corner beside it, on fewer rows, stands as tall (`tall`).
@@ -242,6 +250,12 @@ export function spansOf(corners: readonly { zone: ZoneId; width: number }[]): Co
   const laid: CornerSpan[] = [];
   corners.forEach(({ zone, width }, index) => {
     let span = Math.min(width, PLAN_COLUMNS);
+    // A corner of a few big cabinets at the start of a row, with a corner of small ones after it that fits beside one
+    // big cabinet's columns: it stands its cabinets one above another in those columns (the two pushers), so that the
+    // small corner still stands beside it (the video machines) rather than on a row of its own. A corner of more big
+    // cabinets than a squeezed corner has rows (the big machines) takes its row as before.
+    const next = corners[index + 1];
+    if (used === 0 && WIDE_ZONES.has(zone) && span > 2 && width / 2 <= SQUEEZED_ROWS && next && !WIDE_ZONES.has(next.zone) && next.width <= SQUEEZED_ROWS * (PLAN_COLUMNS - 2)) span = 2;
     let squeezed = false;
     const rest = PLAN_COLUMNS - used;
     if (used > 0 && span > rest) {

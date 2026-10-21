@@ -648,6 +648,38 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
   });
 }
 
+const CP_WORDS = ['投入', 'メダル', '持ちメダル', 'クレジット', 'デッキ', '保留', 'カウンター', 'ジャックポット', 'フィールド', 'メリーゴーランド', '宝の皿', '飛び散ります', '押し出します', '戻り', '割合', 'いちばん', '上手な', '遊び方', 'ふつうの', '押しっぱなし', '横穴', 'トレイ', '手前の', '入賞', '当たり', 'タイミング', '区間', '何回に', '直接'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Cherry Blossom Carousel's (carousel-pusher) status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/carousel-pusher');
+    await arrived(page);
+    const machine = page.getByTestId('cp-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('cp-status');
+    // The slot empty: the line that says what DROP does; then, with medals in the slot, the one that says when to drop.
+    await expect(status).toContainText('クレジット');
+    const said = await brokenIn(status, CP_WORDS);
+    await pressUntil(page.getByTestId('cp-drop'), async () => (await machine.getAttribute('data-fed')) === '1');
+    await expect(status).toContainText('▼');
+    said.push(...(await brokenIn(status, CP_WORDS)));
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(page.locator('#cp-session-title ~ dl dt'), CP_WORDS)));
+    await page.locator('#cp-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('cp-where-table')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"], [class*="note"]'), CP_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
 // ── The medal center's plates ───────────────────────────────────────────────
 
 test.describe('the medal center’s plates, laid out as Safari and Firefox break them', () => {

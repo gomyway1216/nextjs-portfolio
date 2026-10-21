@@ -30,6 +30,9 @@ const MACHINES = [
   // COUNT is named for a screen reader with what it does (its name begins with the word on it). LEND is a coin plate
   // of two lines on purpose, its word over what it lends.
   { game: 'pachinko', tabs: 2, buttons: { en: ['Count the balls back into medals, 10 to a medal', 'Skip'], ja: ['計数（10玉でメダル1枚）', 'スキップ'] } },
+  // RETURN is named for a screen reader by what it does (its name begins with the word on it). DROP is a plate of two
+  // lines on purpose, its word over "hold for more".
+  { game: 'carousel-pusher', tabs: 2, buttons: { en: ['Return the medals in the slot to your medals'], ja: ['返却：クレジットのメダルを持ちメダルに戻す'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

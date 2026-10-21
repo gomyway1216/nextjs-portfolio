@@ -1,5 +1,5 @@
 import 'server-only';
-import { unstable_cache } from 'next/cache';
+import { cacheWithWaitUntil } from '@/lib/cache/cacheWithWaitUntil';
 import { getFirestore } from '@/lib/firebase-admin';
 import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
@@ -49,7 +49,7 @@ async function fetchSlugIndex(): Promise<SlugEntry[]> {
   }));
 }
 
-export const getSlugIndexCached = unstable_cache(fetchSlugIndex, ['blog-slug-index'], {
+export const getSlugIndexCached = cacheWithWaitUntil(fetchSlugIndex, ['blog-slug-index'], {
   revalidate: 300,
   tags: [BLOG_POST_LIST_CACHE_TAG],
 });

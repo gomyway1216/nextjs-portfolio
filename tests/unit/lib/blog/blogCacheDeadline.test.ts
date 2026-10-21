@@ -23,15 +23,21 @@ type Posts = typeof import('@/lib/blog/getPostsServer');
 type Post = typeof import('@/lib/blog/getPostServer');
 type Deadline = typeof import('@/lib/firestoreDeadline');
 type WorkStorage = typeof import('next/dist/server/app-render/work-async-storage.external');
+type WorkUnitStorage = typeof import('next/dist/server/app-render/work-unit-async-storage.external');
+type After = typeof import('next/dist/server/after/after-context');
 
 let slugs: Slugs;
 let posts: Posts;
 let post: Post;
 let deadline: Deadline;
 let workAsyncStorage: WorkStorage['workAsyncStorage'];
+let workUnitAsyncStorage: WorkUnitStorage['workUnitAsyncStorage'];
+let AfterContext: After['AfterContext'];
 
 beforeAll(async () => {
   ({ workAsyncStorage } = await import('next/dist/server/app-render/work-async-storage.external'));
+  ({ workUnitAsyncStorage } = await import('next/dist/server/app-render/work-unit-async-storage.external'));
+  ({ AfterContext } = await import('next/dist/server/after/after-context'));
   slugs = await import('@/lib/blog/getSlugIndexServer');
   posts = await import('@/lib/blog/getPostsServer');
   post = await import('@/lib/blog/getPostServer');
@@ -45,6 +51,8 @@ type ReadKind = 'slugIndex' | 'postsPage' | 'post';
 const firestore = {
   hanging: new Set<ReadKind>(),
   failing: new Set<ReadKind>(),
+  /** How long a read takes, on the (fake) clock: 0 answers at once. */
+  latencyMs: 0,
   reads: { slugIndex: 0, postsPage: 0, post: 0 } as Record<ReadKind, number>,
 };
 
@@ -80,6 +88,9 @@ function read<T>(kind: ReadKind, value: () => T): Promise<T> {
   // A read on a dead connection: it never settles at all.
   if (firestore.hanging.has(kind)) return new Promise<never>(() => {});
   if (firestore.failing.has(kind)) return Promise.reject(new Error('14 UNAVAILABLE: fake outage'));
+  if (firestore.latencyMs > 0) {
+    return new Promise<T>((resolve) => setTimeout(() => resolve(value()), firestore.latencyMs));
+  }
   return Promise.resolve(value());
 }
 
@@ -159,9 +170,13 @@ class MemoryIncrementalCache {
 
 let cache: MemoryIncrementalCache;
 
-// One page render. `background` is what Next waits for after the response:
-// the cache writes and stale-entry revalidations the request started.
+// One page render. `background` is everything the request started behind
+// its response: the cache writes and stale-entry revalidations. `handed` is
+// what was given to the platform's waitUntil: on Vercel, all that keeps
+// running once the response is done. Next itself hands nothing over for an
+// RSC request, which is what this models.
 function request<T>(render: () => Promise<T>) {
+  const handed: Promise<unknown>[] = [];
   const workStore = {
     route: '/blog',
     incrementalCache: cache,
@@ -171,10 +186,24 @@ function request<T>(render: () => Promise<T>) {
     fetchCache: undefined,
     nextFetchId: 1,
     pendingRevalidates: undefined as Record<string, Promise<unknown>> | undefined,
+    afterContext: new AfterContext({
+      waitUntil: (promise: Promise<unknown>) => void handed.push(promise),
+      onClose: () => {},
+      onTaskError: undefined,
+    }),
   };
-  const result = workAsyncStorage.run(workStore as never, render);
+  const requestStore = {
+    type: 'request',
+    phase: 'render',
+    url: { pathname: '/blog', search: '' },
+    implicitTags: { tags: [], expirationsByCacheKind: new Map() },
+  };
+  const result = workAsyncStorage.run(workStore as never, () =>
+    workUnitAsyncStorage.run(requestStore as never, render),
+  );
   return {
     result,
+    handed,
     async background() {
       await result.catch(() => undefined);
       await Promise.all(Object.values(workStore.pendingRevalidates ?? {}));
@@ -208,6 +237,7 @@ beforeEach(() => {
   cache = new MemoryIncrementalCache();
   firestore.hanging.clear();
   firestore.failing.clear();
+  firestore.latencyMs = 0;
   firestore.reads = { slugIndex: 0, postsPage: 0, post: 0 };
   mocks.getFirestore.mockReset();
   mocks.getFirestore.mockImplementation(fakeFirestore);
@@ -288,6 +318,68 @@ describe('a background revalidation that times out', () => {
     const third = request(render);
     expect(await third.result).toEqual(good);
     void third.background();
+  });
+});
+
+describe('a background revalidation is handed to waitUntil', () => {
+  const cases: Array<[string, ReadKind, number, () => Promise<unknown>, string]> = [
+    ['slug index', 'slugIndex', 300, () => slugs.getSlugIndexCached(), SLUG_INDEX_KEY],
+    ['posts page', 'postsPage', 60, () => posts.getInitialPostsCached('all', 5, 'en'), POSTS_PAGE_KEY],
+    ['single post', 'post', 300, () => post.getPublicPostCached(IDS[0]), POST_KEY],
+  ];
+  const original = POSTS[0].data.translations.en.title;
+
+  afterEach(() => {
+    POSTS[0].data.translations.en.title = original;
+  });
+
+  async function warmThenStale(render: () => Promise<unknown>, revalidateSeconds: number) {
+    const first = request(render);
+    await first.result;
+    await first.background();
+    await vi.advanceTimersByTimeAsync(revalidateSeconds * 1000 + 1_000);
+  }
+
+  it.each(cases)('so the %s is refreshed before the function is frozen', async (_name, _kind, revalidateSeconds, render, key) => {
+    await warmThenStale(render, revalidateSeconds);
+    const before = cache.values(key);
+    POSTS[0].data.translations.en.title = 'Faster Routes';
+    // A read on a new connection, still in flight when the stale response is done.
+    firestore.latencyMs = 800;
+
+    const second = request(render);
+    await second.result;
+    expect(cache.values(key)).toEqual(before);
+    // Only what was handed to waitUntil runs once the response is done: it must not settle before the refresh has.
+    const keptAlive = track(Promise.all(second.handed));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(keptAlive.settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(firestore.latencyMs);
+    await Promise.all(second.handed);
+    expect(cache.values(key)).not.toEqual(before);
+    expect(JSON.stringify(cache.values(key))).toContain(key === SLUG_INDEX_KEY ? 'faster-routes' : 'Faster Routes');
+  });
+
+  it.each(cases)('and a %s read that hangs keeps it alive until the deadline, no longer', async (_name, kind, revalidateSeconds, render) => {
+    await warmThenStale(render, revalidateSeconds);
+    firestore.hanging.add(kind);
+
+    const second = request(render);
+    await second.result;
+    expect(second.handed.length).toBeGreaterThan(0);
+    const keptAlive = track(Promise.all(second.handed));
+
+    await vi.advanceTimersByTimeAsync(deadline.FIRESTORE_READ_DEADLINE_MS - 1);
+    expect(keptAlive.settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(keptAlive.settled).toBe(true);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining('revalidating cache with key'),
+      expect.objectContaining({
+        message: expect.stringMatching(/did not finish within 9000 ms$/),
+      }),
+    );
   });
 });
 

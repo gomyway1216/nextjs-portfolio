@@ -1,12 +1,12 @@
 import 'server-only';
 
-import { unstable_cache } from 'next/cache';
+import { cacheWithWaitUntil } from '@/lib/cache/cacheWithWaitUntil';
 import { HOME_PROJECTS_CACHE_TAG } from '@/lib/home/cacheTags';
 import { buildProjectSlugMap, resolveProjectRouteId, type ProjectSlugMap } from '@/lib/projectRoutes';
 import { getProjectsServer } from '@/lib/projects/getProjectsServer';
 import type { Project } from '@/services/projectsService';
 
-export const getProjectsCached = unstable_cache(
+export const getProjectsCached = cacheWithWaitUntil(
   getProjectsServer,
   ['public-projects'],
   { revalidate: 3600, tags: [HOME_PROJECTS_CACHE_TAG] },

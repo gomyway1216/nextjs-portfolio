@@ -6,7 +6,7 @@
 import '@/assets/scss/main/_home-modern.scss';
 import 'aos/dist/aos.css';
 import { cookies, headers } from 'next/headers';
-import { unstable_cache } from 'next/cache';
+import { cacheWithWaitUntil } from '@/lib/cache/cacheWithWaitUntil';
 import AOSInitializer from './AOSInitializer';
 import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
 import { getFirestore } from '@/lib/firebase-admin';
@@ -74,7 +74,7 @@ async function getInitialProfile(): Promise<Profile | null> {
 // The route itself is request-rendered (the root layout reads cookies for
 // locale detection), so cache the Firestore read instead: profile changes
 // rarely, and the profile PUT/photo routes bust the tag on save.
-const getInitialProfileCached = unstable_cache(getInitialProfile, ['home-profile'], {
+const getInitialProfileCached = cacheWithWaitUntil(getInitialProfile, ['home-profile'], {
   revalidate: 3600,
   tags: ['profile'],
 });
@@ -86,7 +86,7 @@ async function getInitialWritings(): Promise<Writing[]> {
 
 // Cached like the profile read; the /api/writing POST/PUT/DELETE routes bust
 // the 'writing' tag on save.
-const getInitialWritingsCached = unstable_cache(getInitialWritings, ['home-writings'], {
+const getInitialWritingsCached = cacheWithWaitUntil(getInitialWritings, ['home-writings'], {
   revalidate: 3600,
   tags: ['writing'],
 });
@@ -104,7 +104,7 @@ async function getInitialHomeGameIds(): Promise<string[]> {
   return normalizeHomeGameIds(doc.exists ? doc.data()?.gameIds : undefined);
 }
 
-const getInitialHomeGameIdsCached = unstable_cache(getInitialHomeGameIds, ['home-games-config'], {
+const getInitialHomeGameIdsCached = cacheWithWaitUntil(getInitialHomeGameIds, ['home-games-config'], {
   revalidate: 3600,
   tags: [HOME_GAMES_CACHE_TAG],
 });
@@ -134,7 +134,7 @@ async function getInitialJobs(): Promise<Job[]> {
   });
 }
 
-const getInitialJobsCached = unstable_cache(getInitialJobs, ['home-jobs'], {
+const getInitialJobsCached = cacheWithWaitUntil(getInitialJobs, ['home-jobs'], {
   revalidate: 3600,
   tags: [HOME_JOBS_CACHE_TAG],
 });
@@ -157,7 +157,7 @@ async function getInitialEducation(): Promise<Education[]> {
   });
 }
 
-const getInitialEducationCached = unstable_cache(getInitialEducation, ['home-education'], {
+const getInitialEducationCached = cacheWithWaitUntil(getInitialEducation, ['home-education'], {
   revalidate: 3600,
   tags: [HOME_EDUCATION_CACHE_TAG],
 });
@@ -171,7 +171,7 @@ async function getInitialResumeLink(): Promise<string | undefined> {
   return optionalString(snapshot.docs[0]?.data().value);
 }
 
-const getInitialResumeLinkCached = unstable_cache(getInitialResumeLink, ['home-resume'], {
+const getInitialResumeLinkCached = cacheWithWaitUntil(getInitialResumeLink, ['home-resume'], {
   revalidate: 3600,
   tags: [HOME_RESUME_CACHE_TAG],
 });

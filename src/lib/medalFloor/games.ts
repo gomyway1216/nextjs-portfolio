@@ -132,8 +132,14 @@ export const CRAPS_DECIDED_MOST = 4_496;
 export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   // Prizes come down the bowls: 50 or 100, or the jackpot (from 500, no top; believed to PUSHER_JACKPOT_MOST). Both
   // arms held feed 11 medals a second, and a jackpot is poured by the hopper at up to 36 a second. A medal is fed at a time.
-  // Best return: the slowest feed down the middle, as its simulation measures it (about 90%; tuned to stay so).
-  'medal-pusher': rule(PUSHER_JACKPOT_MOST, 1_500, 100, 1, 0.902, {
+  // Best return: measured by its simulation, not worked out. A medal every two seconds down the middle brings back
+  // 90.20% (±0.48 at 95%) over 400,000 medals on twenty seeded machines. scripts/medal-pusher-strategy-scan.ts scanned
+  // 102 ways of playing it (each rail's aim, the pace, bursts timed to the pusher's stroke and to the lucky lamp, feeding
+  // in part of the stroke, holding back while the hold is deep or a tower is on its way, pacing by the front edge,
+  // chance time, one rail, chasing the lamp, a still cabinet); the highest of them, measured again on twenty other
+  // machines, is a medal every five seconds: 90.44% (±0.50) over 400,000 medals. Rounded up
+  // (MedalPusher/fixtures/strategy-scan.json).
+  'medal-pusher': rule(PUSHER_JACKPOT_MOST, 1_500, 100, 1, 0.9044, {
     jackpot: { min: 500, max: PUSHER_JACKPOT_MOST, feed: true },
     bowl: { amounts: [50, 100], feed: false },
   }),

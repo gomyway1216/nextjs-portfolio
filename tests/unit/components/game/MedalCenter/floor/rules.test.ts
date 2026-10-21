@@ -20,6 +20,7 @@ import { MAX_DOUBLES, VALUES as JANKEN_LAMPS } from '@/components/game/Janken/en
 import { MOST_MEDALS as JANKEN_MOST } from '@/components/game/Janken/round';
 import { FLOOR } from '@/components/game/MedalCenter/MedalCenter';
 import { BOWLS, JACKPOT_START } from '@/components/game/MedalPusher/lottery';
+import PUSHER_SCAN from '../../MedalPusher/fixtures/strategy-scan.json';
 import { payoutMultiplier, type Bet } from '@/components/game/Roulette/engine';
 import { SPOT_MAX as ROULETTE_SPOT_MAX } from '@/components/game/Roulette/medalTable';
 import { PAY_RULES } from '@/components/game/SlotMachine/engine';
@@ -268,8 +269,10 @@ describe('which machines are linked to the floor jackpot', () => {
       expect(rule.bestReturn, game).toBeGreaterThanOrEqual(best!);
       expect(rule.bestReturn - best!, game).toBeLessThan(1e-4);
     }
-    // The Medal Pusher's is measured by its simulation, not worked out: the slowest feed down the middle, about 90%.
-    expect(FLOOR_RULES['medal-pusher'].bestReturn).toBe(0.902);
+    // The Medal Pusher's is measured by its simulation, not worked out: the highest return any way of playing it was
+    // measured at precisely (scripts/medal-pusher-strategy-scan.ts; MedalPusher/fixtures/strategy-scan.json), rounded up.
+    const pusherBest = Math.max(PUSHER_SCAN.best.return, ...PUSHER_SCAN.again.map((play) => play.return));
+    expect(FLOOR_RULES['medal-pusher'].bestReturn).toBe(Math.ceil(pusherBest * 10_000) / 10_000);
     // Cherry Blossom Carousel's too: the highest of its timed play over six million medals and every other moment of
     // dropping it was measured at (published.ts `best`), rounded up.
     expect(FLOOR_RULES['carousel-pusher'].bestReturn).toBe(Math.ceil(PUBLISHED_CAROUSEL.best.return * 10_000) / 10_000);

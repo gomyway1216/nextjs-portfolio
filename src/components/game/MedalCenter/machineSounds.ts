@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole', 'pachi', 'chucker', 'reach', 'tulip', 'payout', 'cock', 'cork', 'thud', 'topple', 'whiff'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole', 'pachi', 'chucker', 'reach', 'tulip', 'payout', 'cock', 'cork', 'thud', 'topple', 'whiff', 'lift', 'burst'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -532,6 +532,23 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     hiss(t, 0.0, 0.06, 0.6, 500, 391);
     knock(t, 0.002, 260, 0.4, 0.012);
     knock(t, 0.17, 1300, 0.25, 0.004);
+    return t;
+  },
+  // The ball tower's lift carrying a ball up (Firework Ball Tower): the lift's motor whirring up in pitch, and the
+  // little clicks of the ball passing each ring of the glass tube.
+  lift: (rate) => {
+    const t = take(1.25, rate);
+    bubble(t, 0.0, 180, 420, 1.2, 0.35);
+    hiss(t, 0.0, 1.2, 0.45, 1500, 401, true);
+    for (let i = 0; i < 8; i++) ping(t, 0.08 + i * 0.14, 3100 + i * 120, 0.16, 0.01);
+    return t;
+  },
+  // A firework bursting over the tower for a jackpot: the deep boom of the shell, and the crackle of its stars.
+  burst: (rate) => {
+    const t = take(1.2, rate);
+    knock(t, 0.002, 70, 1, 0.12);
+    hiss(t, 0.0, 0.3, 0.9, 400, 411);
+    for (let i = 0; i < 14; i++) hiss(t, 0.18 + ((i * 53) % 70) / 100, 0.03, 0.35, 4200 + ((i * 331) % 1800), 412 + i);
     return t;
   },
 };

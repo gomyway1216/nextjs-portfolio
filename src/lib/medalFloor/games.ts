@@ -54,6 +54,7 @@ export const FLOOR_GAMES = [
   'pachinko',
   'carousel-pusher',
   'shooting-gallery',
+  'ball-tower',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -337,6 +338,25 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
       'gallery-trio': { min: 6, max: 21, feed: false },
     },
     105,
+  ),
+  // Firework Ball Tower: a ball takes 1, 2, 3, 5 or 10 medals, and every pocket pays a multiple of the bet: the most is
+  // the jackpot, ×300, on a bet of 10, 3,000 (MOST_WIN). A run can be played in 0.6 seconds at the very quickest (START,
+  // with less motion asked for, and Skip the moment the ball is at the top of the tower): 100 a minute. Won: 6,000 a
+  // minute, as the other quick machines (the jackpot comes in on the burst). Taken: one ball at its biggest bet, 10;
+  // played, 10 a ball at that pace, 1,000 a minute, not the medals won's 6,000.
+  // Best return: 9/10 (90%), exactly, on every bet: the five discs' Markov chain worked out exactly, each bet on its own.
+  // Named: the jackpot, shown to the floor; any other win in the jackpot chance (the fourth and fifth discs), ×6 to ×50.
+  'ball-tower': rule(
+    3_000,
+    6_000,
+    500,
+    10,
+    0.9,
+    {
+      'tower-jackpot': { amounts: times([300], [1, 2, 3, 5, 10]), feed: true },
+      'tower-chance': { amounts: times([6, 8, 10, 12, 15, 20, 25, 30, 50], [1, 2, 3, 5, 10]), feed: false },
+    },
+    1_000,
   ),
 };
 

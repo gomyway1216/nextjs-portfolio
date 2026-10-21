@@ -551,4 +551,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Arcade',
   },
+  {
+    id: 'ball-tower',
+    title: 'Firework Ball Tower',
+    description: 'The festival floor’s big machine: a steel ball goes up the lift to the top of a glass tower and comes down five turning discs ringed with pockets. UP drops it to the disc below, OUT ends the run, every other pocket pays a multiple of the bet, and only a run that goes UP all the way reaches the jackpot — every pocket’s chances worked out exactly, every bet bringing back 90%.',
+    thumbnail: '🎆',
+    path: '/games/ball-tower',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

@@ -67,7 +67,7 @@ export const HISTORY_LIMITS = {
    * corner), which would have filled the 20 there were, and a history that kept no more would have let go of the
    * records of the machine played least long ago. 24 left room for four more after those: Goldfish Lantern Pachinko
    * (twenty machines and the jackpot: 21), Cherry Blossom Carousel (22) and Onsen Shooting Gallery (23) took three, so
-   * it is 32 now, room for nine more. A game's records are a row a device (`gameDevices`); at the very worst the
+   * it is 32 now, room for nine more; Firework Ball Tower took one of them (24), and eight are left. A game's records are a row a device (`gameDevices`); at the very worst the
    * account's copy still fits its budget, its oldest entries giving way first (`serializeHistory`, and the worst-case
    * test in history.test.ts).
    */

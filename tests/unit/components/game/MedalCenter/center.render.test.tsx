@@ -59,7 +59,7 @@ describe('the medal center’s front, as the server sends it', () => {
     const play = html.match(/<a[^>]*data-testid="center-play-medal-pusher"[^>]*>/)?.[0] ?? '';
     expect(play).toContain(`href="${MEDAL_PUSHER_PATH}"`);
     // The casino games on the medals, the janken, fishing, horse-racing, ball bingo, big wheel, high & low and Sic Bo machines: open, and each Play link goes to its own page in the catalog.
-    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery'];
+    const open = ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery', 'ball-tower'];
     for (const id of open) {
       expect(FLOOR.find((machine) => machine.id === id)?.path).toBe(games.find((game) => game.id === id)?.path);
       const link = html.match(new RegExp(`<a[^>]*data-testid="center-play-${id}"[^>]*>`))?.[0] ?? '';
@@ -69,7 +69,7 @@ describe('the medal center’s front, as the server sends it', () => {
     for (const id of open) expect(soon).not.toContain(id);
     // With nothing still to come, the coming-soon shelf is not there at all.
     if (soon.length === 0) expect(html).not.toContain('data-testid="center-soon"');
-    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery']);
+    expect(FLOOR.map(({ id }) => id)).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery', 'ball-tower']);
     // Each casino game comes onto the floor in a PR of its own, which opens its own line of FLOOR: this follows FLOOR.
     for (const { id, path } of FLOOR) {
       expect(html).toContain(`data-machine="${id}"`);
@@ -159,6 +159,9 @@ describe('the medal center’s front, as the server sends it', () => {
     expect(html).toMatch(/data-machine="pachinko" data-zone="video" data-wide="false"/);
     expect(html).toMatch(/data-machine="carousel-pusher" data-zone="pusher" data-wide="true"/);
     expect(html).toMatch(/data-machine="shooting-gallery" data-zone="kids" data-wide="false"/);
+    expect(html).toMatch(/data-machine="ball-tower" data-zone="big" data-wide="true"/);
+    // The big machines' corner: five big cabinets, two to a row on the widest floor, the ball tower last.
+    expect(cornersOf(FLOOR).find(({ zone }) => zone === 'big')?.machines.map(({ id }) => id)).toEqual(['horse-race', 'ball-bingo', 'big-wheel', 'sugoroku', 'ball-tower']);
     // On the widest floor the five video machines (the pachinko beside the pachislot among them) stand beside the
     // pushers, two columns of three rows, as a pair of corners does, and the two pushers stand one above the other in
     // their two columns, as tall as those rows together; the big machines, the candy shop and the tables each start a

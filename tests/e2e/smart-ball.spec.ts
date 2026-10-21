@@ -312,6 +312,36 @@ test('smart-ball: a play finished while the player was away says so when they co
   await expect(page.getByTestId('smb-message')).toHaveText('');
 });
 
+test('smart-ball: the day’s bonus taken at the medal center in another tab while a marble waits leaves the play the player’s: every marble theirs, none blind', async ({ context, page }) => {
+  test.setTimeout(60_000);
+  // The medal center is open in another tab first, so that the day's bonus is there to take in the middle of a play.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openTable(page);
+  // Three lines for the player's own shots; every blind shot at the softest strength, which makes none.
+  await start(page, play([at(0, 0), at(0, 1), at(0, 2), at(0, 3), at(1, 0), at(2, 0), at(3, 0), at(1, 2), at(2, 1)], Array.from({ length: MARBLES }, () => 0)));
+  await onPlunger(page, 0);
+  await shoot(page, AIM);
+  await onPlunger(page, 1);
+  // Taken there, the bonus borrows the medals for a moment: the play stays as it was, the next marble on the plunger.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await hub.close();
+  await expect(machine(page)).toHaveAttribute('data-card', 'here');
+  await expect(machine(page)).toHaveAttribute('data-phase', 'aim');
+  expect(await record(page)).toMatchObject({ shots: [AIM], paid: false });
+  // The rest are the player's own: three lines, 100.
+  await shootAll(page, 1);
+  await ended(page);
+  const played = (await record(page))!;
+  expect(played).toMatchObject({ shots: Array.from({ length: MARBLES }, () => AIM), paid: true });
+  expect(played.own).toBeUndefined();
+  await expect(machine(page)).toHaveAttribute('data-result', 'lines-3');
+  await expect(page.getByTestId('smb-message')).not.toHaveText('The play was finished while you were away: the marbles left were shot blind.');
+});
+
 /** A phone, in a language, with the floor faked; with less motion asked for when `calm`. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja', calm: boolean) {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true, reducedMotion: calm ? 'reduce' : 'no-preference' });

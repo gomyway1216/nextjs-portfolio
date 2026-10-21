@@ -863,13 +863,17 @@ export function createTable(purse: TablePurse, storage: TableStorage, may: () =>
         last: seed === undefined ? { point: before.point, bets: before.bets, dice } : { point: before.point, bets: before.bets, dice, seed: seed >>> 0 },
       };
       if (!giveBack(before, next, resolution.returned)) return fail('notKept');
-      // The medals' history counts the roll as one round: what the roll took off the table, and what it gave back.
+      // The medals' history counts the roll as one round: what the roll took off the table, and what it won back. A
+      // stake the roll took down undecided (come odds, off on the come-out) goes back into the medals, but was neither
+      // played nor won: counted as won, odds put up and taken down by every come-out would make wins out of nothing.
       const decided = resolution.results.reduce((sum, r) => sum + (r.outcome === 'lose' || (r.outcome === 'win' && !r.staysUp) ? r.stake : 0), 0);
-      if (decided > 0 || resolution.returned > 0) purse.rolled?.({ round: `${table.id ?? 'table'}-r${table.stats.rolls}`, bet: decided, won: resolution.returned });
-      // The medal floor hears of what the roll gave back, once, as it is given, and of the medals the roll decided: those
-      // are the medals played at the table (a bet put down and taken back again before a roll is not). Craps is not
-      // linked to the floor jackpot, so they take no part in it (lib/medalFloor/jackpot.ts).
-      if (resolution.returned > 0 || decided > 0) floorReport(CRAPS_GAME, { won: resolution.returned, played: decided, ...(resolution.returned > 0 ? { prize: { medals: resolution.returned } } : {}) });
+      const undecided = resolution.results.reduce((sum, r) => sum + (r.outcome === 'push' && !r.staysUp ? r.stake : 0), 0);
+      const won = resolution.returned - undecided;
+      if (decided > 0 || won > 0) purse.rolled?.({ round: `${table.id ?? 'table'}-r${table.stats.rolls}`, bet: decided, won });
+      // The medal floor hears of what the roll won, once, as it is given, and of the medals the roll decided: those are
+      // the medals played at the table (a bet put down and taken back again before a roll is not). Craps is not linked to
+      // the floor jackpot, so they take no part in it (lib/medalFloor/jackpot.ts).
+      if (won > 0 || decided > 0) floorReport(CRAPS_GAME, { won, played: decided, ...(won > 0 ? { prize: { medals: won } } : {}) });
       return { ok: true, value: { resolution, before } };
     },
   };

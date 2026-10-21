@@ -25,6 +25,7 @@ const TABLES = [
   ['smart-ball', 'smb-keys'],
   ['pachinko', 'pk-keys'],
   ['carousel-pusher', 'cp-keys'],
+  ['shooting-gallery', 'sht-keys'],
 ] as const;
 
 /** How far the keys line's widest part sticks out of its column, in px: 0 or less when every part fits. */

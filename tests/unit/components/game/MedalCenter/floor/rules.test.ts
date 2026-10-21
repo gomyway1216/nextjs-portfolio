@@ -56,12 +56,14 @@ import { ALL_CAUGHT_FROM as KENO_ALL_FROM, BETS as KENO_BETS, BET_MOST as KENO_B
 import { MARBLES as SMART_MARBLES, MOST_WIN as SMART_MOST, PAYS as SMART_PAYS, STAKE as SMART_STAKE, drawPlay as smartDraw, labelOf as smartLabel, playOf as smartPlay, seeded as smartSeeded, valueOf as smartValue } from '@/components/game/SmartBall/engine';
 import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published';
 import { valueOf as pachinkoValue } from '@/components/game/Pachinko/analysis';
-import { BALLS_PER_MEDAL as PACHINKO_BALLS_PER_MEDAL, COUNT as PACHINKO_COUNT, LEND_MEDALS as PACHINKO_LEND, PAY_ATTACKER as PACHINKO_PAY_ATTACKER, RUSH_MOST as PACHINKO_RUSH_MOST, RUSH_NAMED as PACHINKO_RUSH_NAMED, SPLIT_DENCHU as PACHINKO_SPLIT_DENCHU, SPLIT_HESO as PACHINKO_SPLIT_HESO, SLOT_MS as PACHINKO_SLOT_MS, hitLabel as pachinkoHitLabel, hitMedals as pachinkoHitMedals, rushPrize as pachinkoRushPrize } from '@/components/game/Pachinko/engine';
+import { BALLS_PER_MEDAL as PACHINKO_BALLS_PER_MEDAL, COUNT as PACHINKO_COUNT, PAY_ATTACKER as PACHINKO_PAY_ATTACKER, RUSH_MOST as PACHINKO_RUSH_MOST, RUSH_NAMED as PACHINKO_RUSH_NAMED, SPLIT_DENCHU as PACHINKO_SPLIT_DENCHU, SPLIT_HESO as PACHINKO_SPLIT_HESO, SLOT_MS as PACHINKO_SLOT_MS, hitLabel as pachinkoHitLabel, hitMedals as pachinkoHitMedals, rushPrize as pachinkoRushPrize } from '@/components/game/Pachinko/engine';
 import { PUBLISHED_PACHINKO_ODDS } from '@/components/game/Pachinko/published';
 import { CAROUSEL_STOCK_MOST, CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 import { STOCK as CAROUSEL_STOCK } from '@/components/game/CarouselPusher/engine';
 import { PRIZES as CAROUSEL_PRIZES } from '@/components/game/CarouselPusher/lottery';
 import { PUBLISHED_CAROUSEL } from '@/components/game/CarouselPusher/published';
+import { CORKS as GALLERY_CORKS, KINDS as GALLERY_KINDS, MOST_WIN as GALLERY_MOST, SHELF as GALLERY_SHELF, STAKE as GALLERY_STAKE, drawPlay as galleryDraw, labelOf as galleryLabel, playOf as galleryPlay, seeded as gallerySeeded, shotAs as galleryShot, valueOf as galleryValue } from '@/components/game/ShootingGallery/engine';
+import { PUBLISHED_SHOOTING_GALLERY_ODDS } from '@/components/game/ShootingGallery/published';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
 // change to a game's payouts that the floor has not heard of fails this test instead of refusing a real win.
@@ -124,7 +126,12 @@ function fullestCraps(point: PointNumber | null): CrapsBets {
 
 describe('the most each machine can take from the player at once, for the medals played', () => {
   it('sizes each allowance of medals played to hold the biggest stake on top of ten minutes at the fastest', () => {
-    for (const game of FLOOR_GAMES) expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].perMinute);
+    for (const game of FLOOR_GAMES) {
+      expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].playPerMinute);
+      // Refilled no faster than the medals won are: as fast, unless the machine says its play is slower (the pachinko).
+      expect(FLOOR_RULES[game].playPerMinute).toBeLessThanOrEqual(FLOOR_RULES[game].perMinute);
+      if (game !== 'pachinko') expect(FLOOR_RULES[game].playPerMinute).toBe(FLOOR_RULES[game].perMinute);
+    }
   });
 
   it('from each machine’s own limits', () => {
@@ -173,11 +180,16 @@ describe('the most each machine can take from the player at once, for the medals
     // Hot Spring Smart Ball: five medals a play, for its ten marbles.
     expect(FLOOR_RULES['smart-ball'].stakeMost).toBe(SMART_STAKE);
     expect(SMART_STAKE).toBe(5);
-    // Goldfish Lantern Pachinko: one lend, five medals for fifty balls.
-    expect(FLOOR_RULES.pachinko.stakeMost).toBe(PACHINKO_LEND);
-    expect(PACHINKO_LEND).toBe(5);
+    // Goldfish Lantern Pachinko: played is the balls fired, ten a medal, and a lend is not play. The most at once: a
+    // 10-round hit's rounds played out as the page is left, ten balls a round.
+    const roundsMost = Math.max(...[...PACHINKO_SPLIT_HESO, ...PACHINKO_SPLIT_DENCHU].map(({ kind }) => kind.rounds));
+    expect(FLOOR_RULES.pachinko.stakeMost).toBe((roundsMost * PACHINKO_COUNT) / PACHINKO_BALLS_PER_MEDAL);
+    expect(FLOOR_RULES.pachinko.stakeMost).toBe(10);
     // Cherry Blossom Carousel: a medal fed at a time (the handful put into its slot is played only as it is fed).
     expect(FLOOR_RULES['carousel-pusher'].stakeMost).toBe(1);
+    // Onsen Shooting Gallery: six medals a play, for its six corks.
+    expect(FLOOR_RULES['shooting-gallery'].stakeMost).toBe(GALLERY_STAKE);
+    expect(GALLERY_STAKE).toBe(6);
   });
 
   it('craps: the medals one roll decides, at most everything the fullest table can hold, and that many it can decide', () => {
@@ -241,6 +253,9 @@ describe('which machines are linked to the floor jackpot', () => {
       // Perfect play with 止め打ち: the best strength in each mode, no ball fired into full holds or between rounds
       // (the Markov reward process, exact): no way of playing the handle brings back more.
       pachinko: pachinkoValue(PUBLISHED_PACHINKO_ODDS.perfect.back),
+      // Perfect play: the best figure and band for every cork for the shelf as it stands (dynamic programming over every
+      // state of the shelf and every count of corks left, exact): no way of aiming brings back more.
+      'shooting-gallery': galleryValue(PUBLISHED_SHOOTING_GALLERY_ODDS.perfect.back),
     };
   };
 
@@ -260,7 +275,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -565,12 +580,55 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(pachinkoRushPrize({ hits: PACHINKO_RUSH_NAMED - 1, balls: 4_000 })).toBeNull();
     // The fastest medals come in: a ball every slot into the open attacker, ten balls back each.
     expect(rule.perMinute).toBe(((60_000 / PACHINKO_SLOT_MS) * PACHINKO_PAY_ATTACKER) / PACHINKO_BALLS_PER_MEDAL);
+    // The fastest medals are played: a ball every slot, ten balls a medal, 10 a minute. Not the medals won's 100, which
+    // would let ten times the play the handle can fire into the floor jackpot.
+    expect(rule.playPerMinute).toBe(60_000 / PACHINKO_SLOT_MS / PACHINKO_BALLS_PER_MEDAL);
+    expect(rule.playPerMinute).toBe(10);
+    expect(rule.playBurst).toBe(rule.stakeMost + 10 * 10);
     // The rule is perfect play, rounded up; an everyday hand and the handle left at its start bring back less.
     const odds = PUBLISHED_PACHINKO_ODDS;
     expect(rule.bestReturn).toBe(0.9346);
     expect(pachinkoValue(odds.perfect.back)).toBeGreaterThan(0.9345);
     expect(pachinkoValue(odds.typical.back)).toBeLessThan(rule.bestReturn);
     expect(pachinkoValue(odds.blind.back)).toBeLessThan(pachinkoValue(odds.typical.back));
+  });
+
+  it('Onsen Shooting Gallery: the most a play pays is what six corks can knock off, the cat named whatever else falls with it, three figures without it', () => {
+    const rule = FLOOR_RULES['shooting-gallery'];
+    const tag = (kind: (typeof GALLERY_SHELF)[number]) => GALLERY_KINDS[kind].medals;
+    expect(rule.most).toBe(GALLERY_MOST);
+    expect(GALLERY_MOST).toBe(41);
+    expect(rule.labels['gallery-cat']).toEqual({ min: tag('cat'), max: GALLERY_MOST, feed: true });
+    // Without the cat, the six figures worth most: everything six corks can knock off.
+    const others = GALLERY_SHELF.filter((kind) => kind !== 'cat')
+      .map(tag)
+      .sort((a, b) => b - a);
+    const smallest = [...others].sort((a, b) => a - b);
+    expect(rule.labels['gallery-trio']).toEqual({ min: smallest[0] + smallest[1] + smallest[2], max: others.slice(0, GALLERY_CORKS).reduce((a, b) => a + b, 0), feed: false });
+    expect(rule.feedFrom).toBe(tag('cat'));
+    // Every play's named win is one its label can pay, and no play pays more than the most.
+    const random = gallerySeeded(5);
+    let named = 0;
+    for (let n = 0; n < 2_000; n++) {
+      const draw = galleryDraw(random);
+      const shots: ReturnType<typeof galleryShot>[] = [];
+      let play = galleryPlay(draw, shots);
+      while (!play.complete) {
+        shots.push(galleryShot(n % 2 === 0 ? 'perfect' : 'blind', play.positions, GALLERY_CORKS - shots.length, random));
+        play = galleryPlay(draw, shots);
+      }
+      const label = galleryLabel(play);
+      if (label) {
+        named += 1;
+        expect(labelPays('shooting-gallery', label, play.won)).toBe(true);
+      }
+      expect(play.won).toBeLessThanOrEqual(rule.most);
+    }
+    expect(named).toBeGreaterThan(0);
+    const odds = PUBLISHED_SHOOTING_GALLERY_ODDS;
+    expect(rule.bestReturn).toBe(0.9196);
+    expect(galleryValue(odds.typical.back)).toBeLessThan(rule.bestReturn);
+    expect(galleryValue(odds.blind.back)).toBeLessThan(galleryValue(odds.typical.back));
   });
 
   it('Cherry Blossom Carousel: the dish’s jackpot from its start to its top, three alike by name, and its measured best play', () => {
@@ -650,6 +708,11 @@ describe('named wins and the feed', () => {
     expect(labelPays('smart-ball', 'smart-line', 7)).toBe(true);
     expect(labelPays('smart-ball', 'smart-line', 20)).toBe(false);
     expect(labelPays('smart-ball', 'smart-triple', 7)).toBe(false);
+    expect(labelPays('shooting-gallery', 'gallery-cat', 25)).toBe(true);
+    expect(labelPays('shooting-gallery', 'gallery-cat', 41)).toBe(true);
+    expect(labelPays('shooting-gallery', 'gallery-cat', 21)).toBe(false);
+    expect(labelPays('shooting-gallery', 'gallery-trio', 6)).toBe(true);
+    expect(labelPays('shooting-gallery', 'gallery-trio', 25)).toBe(false);
     expect(labelPays('pachinko', 'pachinko-4r', 40)).toBe(true);
     expect(labelPays('pachinko', 'pachinko-4r', 100)).toBe(false);
     expect(labelPays('pachinko', 'pachinko-rush', 199)).toBe(false);
@@ -690,6 +753,8 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('smart-ball', 100, 'smart-triple')).toBe(true);
     expect(feedWorthy('smart-ball', 20, 'smart-double')).toBe(false);
     expect(feedWorthy('smart-ball', 7, 'smart-line')).toBe(false);
+    expect(feedWorthy('shooting-gallery', 31, 'gallery-cat')).toBe(true);
+    expect(feedWorthy('shooting-gallery', 9, 'gallery-trio')).toBe(false);
     expect(feedWorthy('pachinko', 200, 'pachinko-rush')).toBe(true);
     expect(feedWorthy('pachinko', 100, 'pachinko-10r')).toBe(false);
     expect(feedWorthy('pachinko', 40, 'pachinko-4r')).toBe(false);

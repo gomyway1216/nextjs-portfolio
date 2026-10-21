@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LAMPS, MAX_DOUBLES } from '@/components/game/Janken/engine';
 import { JANKEN_GAME, createMachine, type Happening, type RoundStorage } from '@/components/game/Janken/machine';
@@ -8,6 +8,19 @@ import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf,
 import { BONUS_CARD } from '@/components/game/MedalPusher/records';
 import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
+
+// What the medal floor is told (reporter.ts), kept here instead of sent.
+const reports = vi.hoisted(() => [] as unknown[][]);
+vi.mock('@/components/game/MedalCenter/floor/reporter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/game/MedalCenter/floor/reporter')>()),
+  floorReport: (...args: unknown[]) => {
+    reports.push(args);
+  },
+}));
+beforeEach(() => {
+  reports.length = 0;
+});
+const played = () => reports.reduce((sum, [, win]) => sum + ((win as { played?: number }).played ?? 0), 0);
 
 // The machine with the medal center's real bank, in a browser that is all fakes (bankFakes.ts): one storage that every
 // page shares, the one card, a channel between the pages. Nothing is fetched and no account is named.
@@ -176,6 +189,44 @@ describe('a round at the machine', () => {
     expect(machine.refill()).toBe(true);
     expect(stored(browser)).toBe(100);
     expect(machine.refill()).toBe(false);
+  });
+});
+
+describe('a round and the medal floor', () => {
+  it('tells the floor a medal is played when a throw decides it, not as it goes in: one given back is no jackpot ticket', async () => {
+    const browser = new FakeBrowser();
+    const first = await opened(browser);
+    // Put in and given back as the page goes, again and again: nothing was ever at stake, so nothing was played.
+    first.machine.insert();
+    expect(played()).toBe(0);
+    first.page.close();
+    await quiet(browser);
+    expect(first.happened.at(-1)).toEqual({ type: 'returned', medals: 1 });
+    const second = await opened(browser);
+    second.machine.insert();
+    second.draws.push(CAT.gu);
+    expect(second.machine.press('gu')?.outcome).toBe('draw');
+    // A draw decides nothing either: the medal is still given back if the page goes.
+    expect(played()).toBe(0);
+    second.page.close();
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME);
+    expect(played()).toBe(0);
+
+    // Thrown and decided, it is played, once: a loss as a win.
+    const third = await opened(browser);
+    third.machine.insert();
+    third.draws.push(CAT.pa);
+    expect(third.machine.press('gu')?.outcome).toBe('lose');
+    expect(played()).toBe(1);
+    third.machine.insert();
+    third.draws.push(CAT.gu, CAT.gu, lamp(0));
+    expect(third.machine.press('gu')?.outcome).toBe('draw');
+    expect(third.machine.press('pa')?.outcome).toBe('win');
+    expect(played()).toBe(2);
+    // A double-up stakes what was won, not a medal put in: it plays nothing more.
+    third.machine.collect();
+    expect(played()).toBe(2);
   });
 });
 

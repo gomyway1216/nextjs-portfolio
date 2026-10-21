@@ -53,6 +53,7 @@ export const FLOOR_GAMES = [
   'smart-ball',
   'pachinko',
   'carousel-pusher',
+  'shooting-gallery',
 ] as const;
 
 export type FloorGame = (typeof FLOOR_GAMES)[number];
@@ -74,6 +75,8 @@ export interface FloorGameRule {
   feedFrom: number;
   labels: Readonly<Record<string, FloorLabelRule>>;
   stakeMost: number;
+  /** The medals played a minute the allowance refills by: `perMinute`, unless the machine plays slower than it pays. */
+  playPerMinute: number;
   playBurst: number;
   bestReturn: number;
 }
@@ -99,16 +102,27 @@ const VIDEO_POKER_DOUBLE_UPS = times(VIDEO_POKER_WINS, [2, 4, 8, 16]);
  * How the allowance is sized: a burst big enough for the machine's biggest win
  * on top of ten minutes' play at the fastest the machine can be played, and a
  * refill of a minute's fastest play. The medals played are sized the same way,
- * from the machine's biggest stake. See each line for where its numbers come from.
+ * from the machine's biggest stake, and refill as fast (`playPerMinute`, where a
+ * machine says how much slower its medals can be played). See each line for
+ * where its numbers come from.
  */
-const rule = (most: number, perMinute: number, feedFrom: number, stakeMost: number, bestReturn: number, labels: FloorGameRule['labels'] = {}): FloorGameRule => ({
+const rule = (
+  most: number,
+  perMinute: number,
+  feedFrom: number,
+  stakeMost: number,
+  bestReturn: number,
+  labels: FloorGameRule['labels'] = {},
+  playPerMinute = perMinute,
+): FloorGameRule => ({
   most,
   perMinute,
   burst: most + 10 * perMinute,
   feedFrom,
   labels,
   stakeMost,
-  playBurst: stakeMost + 10 * perMinute,
+  playPerMinute,
+  playBurst: stakeMost + 10 * playPerMinute,
   bestReturn,
 });
 
@@ -256,18 +270,28 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   }),
   // Goldfish Lantern Pachinko: 5 medals lend 50 balls; the counter gives a medal for every 10 balls. A hit's rounds are
   // worth 40 medals (4 rounds) or 100 (10 rounds) at the counter; a run of five hits or more is named to the floor with
-  // its rounds' worth, believed up to 10,000. The counter can turn a long session's tray into medals at once, so a win is
-  // a count, and the allowance is sized from the fastest balls come in: 100 balls a minute into the open attacker, ten
-  // back for each, 100 medals' worth a minute. Taken: one lend, 5.
+  // its rounds' worth, believed up to 10,000. A lend and a count are not play (a lend counted straight back is the
+  // same medals back): played is the balls fired and won the balls paid, ten balls a medal, as they go. Won comes in
+  // at most as fast as balls go into the open attacker, 100 balls a minute, ten back for each: 100 medals' worth a
+  // minute. Played, a ball a slot, 100 balls a minute: 10 medals' worth. Taken at once: a 10-round hit's rounds played
+  // out as the page is left, ten balls a round, 10.
   // Best return: perfect play with 止め打ち (the best strength in each mode, firing only while fewer than four holds
   // wait and never between rounds), as a Markov reward process worked out exactly: 93.46%, rounded up. An everyday hand
   // brings back 78.24%, the handle left at its start 25.78%.
   // Named: a run of five hits or more, shown to the floor; a hit of 10 rounds; a hit of 4.
-  pachinko: rule(10_000, 100, 10_000, 5, 0.9346, {
-    'pachinko-rush': { min: 200, max: 10_000, feed: true },
-    'pachinko-10r': { amounts: [100], feed: false },
-    'pachinko-4r': { amounts: [40], feed: false },
-  }),
+  pachinko: rule(
+    10_000,
+    100,
+    10_000,
+    10,
+    0.9346,
+    {
+      'pachinko-rush': { min: 200, max: 10_000, feed: true },
+      'pachinko-10r': { amounts: [100], feed: false },
+      'pachinko-4r': { amounts: [40], feed: false },
+    },
+    10,
+  ),
   // Cherry Blossom Carousel: a medal is fed at a time (a handful of 10 goes into its slot first, and comes back with
   // RETURN: not played). The counter pays 1, 5 or 20 straight into the tray; 7-7-7 throws the treasure dish's stock
   // (from 60, a medal more for every 8 fed, up to CAROUSEL_STOCK_MOST) across the field, where the carousel pushes it
@@ -284,6 +308,20 @@ export const FLOOR_RULES: Readonly<Record<FloorGame, FloorGameRule>> = {
   'carousel-pusher': rule(CAROUSEL_STOCK_MOST, 1_500, 100, 1, 0.9085, {
     'carousel-jackpot': { min: 60, max: CAROUSEL_STOCK_MOST, feed: true },
     'carousel-triple': { amounts: [20], feed: false },
+  }),
+  // Onsen Shooting Gallery: a play takes 6 medals for 6 corks; when the sixth has been fired, every figure off the shelf
+  // pays its tag (a sweet box 2, a daruma 3, a kokeshi 4, the manju box 5, the beckoning cat 25). Six corks knock six
+  // figures off at most, and the cat needs two of them at least: 25 + 5 + 4 + 4 + 3 = 41 is the most (MOST_WIN, worked
+  // out by the engine over every way the corks can go). A play takes some 4 seconds at the very quickest (START, each
+  // cork fired the moment it is in, with less motion asked for, the last one skipped): 15 a minute at 41 at most, 615;
+  // 700. Taken: one play, 6.
+  // Best return: 123,418,233/134,217,728 (91.95%), perfect play (the best figure and band for every cork, for the shelf
+  // as it stands: dynamic programming over every state the shelf can be in and every count of corks left, exact); an
+  // everyday hand brings back 65.23%, blind shots 31.11%. Rounded up.
+  // Named: the cat off the shelf (a play of 25 to 41), shown to the floor; three figures or more without it (6 to 21).
+  'shooting-gallery': rule(41, 700, 25, 6, 0.9196, {
+    'gallery-cat': { min: 25, max: 41, feed: true },
+    'gallery-trio': { min: 6, max: 21, feed: false },
   }),
 };
 

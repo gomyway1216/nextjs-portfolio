@@ -65,11 +65,13 @@ export const HISTORY_LIMITS = {
    * Games a history keeps records for: every machine on the floor and the floor jackpot, and room for a few more.
    * Nineteen with Video Keno; a twentieth machine was coming onto the floor beside it (a smart ball for the kids'
    * corner), which would have filled the 20 there were, and a history that kept no more would have let go of the
-   * records of the machine played least long ago. 24 left room for four more after those; Goldfish Lantern Pachinko
-   * is the first of them (twenty machines and the jackpot: 21), Cherry Blossom Carousel the second (22), and two are
-   * left.
+   * records of the machine played least long ago. 24 left room for four more after those: Goldfish Lantern Pachinko
+   * (twenty machines and the jackpot: 21), Cherry Blossom Carousel (22) and Onsen Shooting Gallery (23) took three, so
+   * it is 32 now, room for nine more. A game's records are a row a device (`gameDevices`); at the very worst the
+   * account's copy still fits its budget, its oldest entries giving way first (`serializeHistory`, and the worst-case
+   * test in history.test.ts).
    */
-  games: 24,
+  games: 32,
   /** Devices a game keeps the records of. Beyond that, the ones that played it least are left out. */
   gameDevices: 4,
   /** Any count of medals. Nobody plays near it. */
@@ -101,6 +103,17 @@ export const FLOOR_JACKPOT = 'floor-jackpot';
  * and a roll that loses every bet moves none.
  */
 export const REPORTS_ROUNDS: ReadonlySet<string> = new Set(['craps', 'sic-bo']);
+
+/**
+ * The games whose machine reports what it fed and paid as it goes (`machine`),
+ * as the Medal Pusher does, because their moves of medals are not bets:
+ * Goldfish Lantern Pachinko's lend and count turn medals into balls and back,
+ * and a lend counted straight back is no bet and no win. Only the balls fired
+ * are played, and the balls the pockets pay won. Cherry Blossom Carousel's
+ * handful into the slot is the player's still until it is fed, and RETURN
+ * gives it back: only the medals fed are played, and the tray's won.
+ */
+export const REPORTS_PLAY: ReadonlySet<string> = new Set(['pachinko', 'carousel-pusher']);
 
 /** What an entry is. */
 export type EntryKind =
@@ -332,7 +345,7 @@ function wholeRound(history: History, o: Extract<Observation, { type: 'round' }>
   return settle(next, entry);
 }
 
-/** The Medal Pusher fed and paying: its visit grows, its prizes raise its best, and a jackpot is an entry of its own. */
+/** The Medal Pusher (or a machine of `REPORTS_PLAY`) fed and paying: its visit grows, its prizes raise its best, and a jackpot is an entry of its own. */
 function machine(history: History, o: Extract<Observation, { type: 'machine' }>): History {
   if (!isGame(o.game) || !isCount(o.fed) || !isCount(o.won) || !isCount(o.prize)) return history;
   const jackpots = o.jackpots.filter(isCount);
@@ -389,7 +402,7 @@ export function record(history: History, o: Observation): History {
   const next = withClose(history, o.day, o.at, o.left);
   switch (o.type) {
     case 'move':
-      return REPORTS_ROUNDS.has(o.game) ? next : moved(next, o);
+      return REPORTS_ROUNDS.has(o.game) || REPORTS_PLAY.has(o.game) ? next : moved(next, o);
     case 'round':
       return wholeRound(next, o);
     case 'machine':

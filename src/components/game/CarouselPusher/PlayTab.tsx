@@ -70,6 +70,24 @@ const subscribeToMotion = (listener: () => void): (() => void) => {
   return () => query?.removeEventListener('change', listener);
 };
 
+/** The line the status says: the first of these that holds. */
+export type StatusLine = 'throwing' | 'reach' | 'full' | 'spinning' | 'out' | 'empty' | 'ready';
+
+/**
+ * Which line the status says. Four spins waiting comes before the counter rolling: with four waiting, one is nearly
+ * always rolling, and the player is to be told that a medal into a hole now starts nothing (止め打ち). A reach still
+ * comes first.
+ */
+export function statusLine(at: { throwing: boolean; rolling: boolean; reach: boolean; idleOut: boolean; holds: number; credit: number }): StatusLine {
+  if (at.throwing) return 'throwing';
+  if (at.rolling && at.reach) return 'reach';
+  if (at.holds >= HOLD_MAX) return 'full';
+  if (at.rolling) return 'spinning';
+  if (at.idleOut) return 'out';
+  if (at.credit === 0) return 'empty';
+  return 'ready';
+}
+
 /** Whether the machine may turn on its own: nothing on its way or to come, and the field still, to the last bit or to the eye for a whole turn. */
 export const standsStill = (m: Machine, stillFor: number): boolean => !busy(m) && (atRest(m) || stillFor >= TURN_STEPS);
 
@@ -352,7 +370,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               const entry = { id: historyId.current, outcome: id, medals: e.medals };
               setHistory((h) => [entry, ...h].slice(0, HISTORY_LIMIT));
               setStats((st) => ({ ...st, wins: st.wins + 1 }));
-              if (id === 'triple') floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-triple' } });
+              if (id === 'triple') {
+                floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-triple' } });
+                // The medals' history hears of the prize for its biggest; the medals themselves are won as the tray is counted in.
+                medalBank().played({ game: CAROUSEL_GAME, fed: 0, won: 0, prize: e.medals });
+              }
             }
             setMessage(words.outcome(id, e.medals));
             setAnnouncement(words.sayResult(spinDigits.current.join(' '), id, e.medals));
@@ -369,6 +391,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             setAnnouncement(words.sayJackpot(e.medals));
             setThrowing(true);
             floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-jackpot' } });
+            medalBank().played({ game: CAROUSEL_GAME, fed: 0, won: 0, jackpots: [e.medals] });
             saveNow = true;
             break;
           case 'thrown':
@@ -805,16 +828,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const idleOut = mine && here && known && bankState.balance === 0 && credit === 0 && !busyNow;
   const refillDue = idleOut && bankState.out.length === 0;
   const rollingNow = counter.rolling.some(Boolean);
-  const statusText = (() => {
-    const s = t.status;
-    if (throwing) return s.throwing;
-    if (rollingNow && counter.reach) return s.reach;
-    if (rollingNow) return s.spinning;
-    if (idleOut) return t.outOfMedals;
-    if (holds >= HOLD_MAX) return s.full;
-    if (credit === 0) return s.empty;
-    return s.ready;
-  })();
+  const line = statusLine({ throwing, rolling: rollingNow, reach: counter.reach, idleOut, holds, credit });
+  const statusText = line === 'out' ? t.outOfMedals : t.status[line];
   const observed = stats.fed > 0 ? stats.back / stats.fed : null;
   const stageLabel = t.stageLabel(onField, stock);
 

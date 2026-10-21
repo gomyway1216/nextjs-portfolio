@@ -1,0 +1,1215 @@
+/* Onsen Shooting Gallery. The page follows the --games-route-* theme (light and dark); the stall is a fixed palette of
+   its own — a wooden stall front, an indigo noren with the stall's name, red paper lanterns, three tiers of shelves under
+   red felt before a dark curtain, a worn wooden counter with the cork gun on it — that reads on both. Nothing here uses
+   3D transforms (WebKit flattens them): the shelves are drawn flat, their depth in shadows. What moves (each figure,
+   the gun, the sight, the cork, the puff) is a layer of its own, moved by its transform alone (PlayTab.tsx), which the
+   compositor does without painting; the lanterns sway by a CSS animation of their transforms, on the compositor too. */
+
+.root {
+  --sht-wood: #6b4226;
+  --sht-wood-dark: #3a2213;
+  --sht-wood-light: #9a6a43;
+  --sht-indigo: #22306b;
+  --sht-red: #a31f2a;
+  --sht-focus: #ffd34d;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --sht-accent-text: #8f1d25;
+  --sht-ahead: #15803d;
+  --sht-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --sht-accent-text: #ff9c94;
+  --sht-ahead: #4ade80;
+  --sht-behind: #f87171;
+}
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The machine's name is never broken inside a word: its words are kept whole, and 遊び方 moves under it when they do
+     not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.28rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleCork {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: var(--sht-red);
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 460px);
+}
+@media (min-width: 900px) {
+  .machine {
+    grid-template-columns: minmax(0, 460px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+
+/* The stall's front: its boards of old cedar, their grain in stripes, the edge worn smooth. */
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.8rem;
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 11px, rgba(255, 255, 255, 0.04) 11px 13px, transparent 13px 19px),
+    linear-gradient(180deg, var(--sht-wood-light) 0%, var(--sht-wood) 35%, var(--sht-wood-dark) 100%);
+  border: 3px solid #24150a;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.1),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.3),
+    0 14px 28px rgba(0, 0, 0, 0.3);
+  color: #fff8ec;
+}
+@media (max-width: 400px) {
+  .cabinet {
+    padding: 0.4rem 0.35rem 0.7rem;
+    border-radius: 14px;
+  }
+}
+
+/* ---------- The stall and what is under it: on a phone, the shelves, the gun, the words and FIRE on screen at once ---------- */
+.playArea {
+  display: flex;
+  flex-direction: column;
+  /* Brought into view on START (MedalCenter/lookUp.ts) clear of the site's sticky toolbar. */
+  scroll-margin-top: 62px;
+}
+.stageBox {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  /* On a short screen the stall is narrowed so that it, the status line and FIRE are all on the screen at once, under
+     the site's toolbar: the rest of the play area takes about 135 px, and the toolbar some 60 more. */
+  max-width: min(420px, calc((100vh - 212px) * 0.8 + 10px));
+  max-width: min(420px, calc((100svh - 212px) * 0.8 + 10px));
+  border-radius: 10px;
+  padding: 5px;
+  background: linear-gradient(180deg, #2a180b, #160c05);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.15);
+  box-sizing: border-box;
+}
+/* The stall itself: its sizes in units of its width (cqw), so that its words grow and shrink with it. */
+.stage {
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 360 / 450;
+  overflow: hidden;
+  border-radius: 6px;
+  /* Never what a browser keeps the page still by as it scrolls (scroll anchoring): Firefox measures an anchor with its
+     transform, and moved the page a pixel as a figure it had chosen slid back or fell. */
+  overflow-anchor: none;
+  /* Nothing on it is ever selected or dragged by a press. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.stageSvg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.norenText {
+  font-size: 26px;
+  font-weight: 900;
+  fill: #ffffff;
+  letter-spacing: 0.04em;
+}
+/* A moving thing's layer: its place over the stall in percent of it (Stage.tsx), and its picture filling it. */
+.layer {
+  position: absolute;
+  pointer-events: none;
+}
+.mover {
+  position: absolute;
+  inset: 0;
+  will-change: transform, opacity;
+}
+.layerSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.gunLayer,
+.sightLayer,
+.corkLayer,
+.puffLayer {
+  will-change: transform, opacity;
+}
+.lever,
+.loadedCork {
+  transition: none;
+}
+/* The words by the sight: which band it is on. */
+.sightLabel {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  margin-left: -4px;
+  transform: translateY(-50%);
+  padding: 0.05em 0.35em;
+  border-radius: 6px;
+  background: rgba(20, 10, 4, 0.82);
+  border: 1px solid rgba(255, 224, 102, 0.8);
+  color: #ffe066;
+  font-size: max(11px, 3.4cqw);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.sightLabel:empty {
+  display: none;
+}
+.sightLabel[data-side='left'] {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: -4px;
+}
+
+/* The paper lanterns at the corners, hung from the noren's rod, swaying a little. */
+.lantern {
+  position: absolute;
+  top: 0;
+  width: 8.9%;
+  height: 14.2%;
+  pointer-events: none;
+  transform-origin: 50% 0;
+  will-change: transform;
+}
+.lantern[data-side='left'] {
+  left: 3.2%;
+}
+.lantern[data-side='right'] {
+  right: 3.2%;
+}
+.lanternSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.lanternText {
+  font-size: 12px;
+  font-weight: 900;
+  fill: #2a0d06;
+}
+/* Four slow sways in one long round of the animation: the main thread is woken at the end of each round (for its
+   events), four times less often so. */
+@media (prefers-reduced-motion: no-preference) {
+  .lantern {
+    animation: sht-sway 18s ease-in-out infinite;
+  }
+  .lantern[data-side='right'] {
+    animation-delay: -2.1s;
+  }
+}
+@keyframes sht-sway {
+  0%,
+  25%,
+  50%,
+  75%,
+  100% {
+    transform: rotate(0deg);
+  }
+  6.25%,
+  56.25% {
+    transform: rotate(3deg);
+  }
+  18.75%,
+  68.75% {
+    transform: rotate(-3deg);
+  }
+  31.25%,
+  81.25% {
+    transform: rotate(2.2deg);
+  }
+  43.75%,
+  93.75% {
+    transform: rotate(-2.2deg);
+  }
+}
+
+/* The corks still to fire, in their tray on the counter. */
+.tray {
+  position: absolute;
+  left: 5.3%;
+  top: 70.6%;
+  width: 27.2%;
+  height: 2.6%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.trayCork {
+  width: 12.5%;
+  height: 80%;
+  border-radius: 30% 45% 45% 30% / 50%;
+  background: linear-gradient(90deg, #a87a45, #d7aa72 60%, #e9c592);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.3);
+}
+.trayCork[data-there='false'] {
+  visibility: hidden;
+}
+
+/* A figure's place on the shelf: a button over it, from over its top down to its tier's cloth, its tag on the cloth. */
+.spot {
+  position: absolute;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.spot[data-picked='true'] {
+  box-shadow: inset 0 0 0 2px rgba(255, 224, 102, 0.5);
+  background: radial-gradient(ellipse at 50% 60%, rgba(255, 224, 102, 0.12), transparent 70%);
+}
+.spot:disabled {
+  cursor: default;
+}
+.spot:focus-visible {
+  outline: 3px solid var(--sht-focus);
+  outline-offset: -3px;
+}
+.tag {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 0 0.3em;
+  border-radius: 3px;
+  background: #fffaf0;
+  border: 1px solid #c9b48a;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  color: #a31f2a;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.tagNum {
+  font-size: max(11px, 3.7cqw);
+}
+.tagUnit {
+  font-size: max(11px, 3cqw);
+}
+.spot[data-position='-1'] .tag {
+  background: #f6c343;
+  border-color: #8a5a10;
+  color: #3a1d00;
+}
+.spot[data-position='-1'] .tag::after {
+  content: '✓';
+  margin-left: 0.15em;
+  font-size: max(11px, 3cqw);
+}
+/* The plaque on the counter: how many figures are off the shelf this play. */
+.plaque {
+  position: absolute;
+  right: 3.6%;
+  top: 74.5%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 22%;
+  padding: 0.15em 0.4em 0.2em;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #e9d3a6, #c9a66b);
+  border: 2px solid #5a3418;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  color: #3a1d00;
+  pointer-events: none;
+}
+.plaqueLabel {
+  font-size: max(11px, 3.1cqw);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.plaqueCount {
+  font-size: max(18px, 7.5cqw);
+  font-weight: 900;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: #a31f2a;
+}
+.perPlay {
+  position: absolute;
+  left: 3.4%;
+  bottom: 2.4%;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(34, 48, 107, 0.92);
+  font-size: max(11px, 3.1cqw);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Under the noren, at the left, clear of the lantern. */
+.resumedBadge {
+  position: absolute;
+  top: calc(5px + 11%);
+  left: calc(5px + 13%);
+  z-index: 3;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sht-indigo);
+  border: 1px solid #ffd9a3;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* The badge beside the stall, on a phone held sideways only (below). */
+.sideBadge {
+  display: none;
+}
+
+/* The flash over the stall as a figure falls: big gold letters over the shelves, popping up and fading. */
+.flash {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+  padding: 0.15rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(122, 18, 25, 0.88);
+  border: 2px solid #ffe066;
+  font-size: clamp(1.5rem, 8vw, 2.1rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #ffe066;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: sht-flash 1.4s ease-out forwards;
+}
+@keyframes sht-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+  22% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+.phrase {
+  white-space: nowrap;
+}
+.status {
+  margin: 0.4rem 0 0.35rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- START, Skip and FIRE: always in the same place ---------- */
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(60px, auto) minmax(0, 1.45fr);
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 0.25rem;
+  min-height: 64px;
+}
+.startButton,
+.fireButton,
+.skipButton,
+.refill,
+.cardAwayButton {
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* START: a brass coin plate with its slot, and the word under it. */
+.startButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 0.3rem 0.35rem;
+  border-radius: 14px;
+  border: 2px solid #ffe3a3;
+  background: linear-gradient(180deg, #f3c55a 0%, #c48a1c 100%);
+  color: #2a1600;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.22),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.startButton::before {
+  content: '';
+  width: 26px;
+  height: 7px;
+  border-radius: 4px;
+  background: #2a1600;
+  box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.7);
+}
+.startWords {
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.startWords:lang(ja) {
+  letter-spacing: 0;
+}
+/* FIRE: the trigger, red lacquer, with the five bands of the sway beside the word, the one the sight is on lit. A press
+   is the trigger's alone: it never scrolls the page or selects anything. */
+.fireButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 64px;
+  padding: 0.3rem 0.45rem;
+  border-radius: 14px;
+  border: 2px solid #ffd2c4;
+  background: linear-gradient(180deg, #d8402f 0%, #8e1d12 100%);
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.3),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.fireButton[data-ready='true'] {
+  border-color: #ffe066;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(255, 224, 102, 0.55),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.fireButton[data-ready='true']:active {
+  transform: translateY(2px);
+}
+.fireButton[aria-disabled='true'] {
+  cursor: default;
+}
+.gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  width: 10px;
+  height: 46px;
+}
+.gaugeStep {
+  flex: 1;
+  border-radius: 2px;
+  background: #5c1a12;
+}
+.gaugeStep[data-step='0'] {
+  background: #3d2a26;
+}
+.gauge[data-level='0'] .gaugeStep[data-step='0'] {
+  background: #b9a7a2;
+}
+.gauge[data-level='1'] .gaugeStep[data-step='1'],
+.gauge[data-level='2'] .gaugeStep[data-step='2'],
+.gauge[data-level='3'] .gaugeStep[data-step='3'],
+.gauge[data-level='4'] .gaugeStep[data-step='4'] {
+  background: #ffe866;
+  box-shadow: 0 0 4px #ffe866;
+}
+.fireWords {
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.fireWords:lang(ja) {
+  letter-spacing: 0.02em;
+}
+.fireButton[aria-disabled='true'] .fireWords,
+.fireButton[aria-disabled='true'] .gauge {
+  opacity: 0.55;
+}
+.skipButton {
+  min-height: 64px;
+  padding: 0 0.55rem;
+  border-radius: 14px;
+  border: 2px solid #e8d2b4;
+  background: linear-gradient(180deg, #7a5230 0%, #4f3014 100%);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.startButton:active:not(:disabled),
+.skipButton:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+}
+.startButton:disabled,
+.skipButton:disabled {
+  filter: grayscale(0.65) brightness(0.75);
+  cursor: default;
+}
+.startButton:focus-visible,
+.fireButton:focus-visible,
+.skipButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--sht-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .controls {
+    gap: 6px;
+  }
+  .startWords {
+    font-size: 0.8rem;
+  }
+  .fireWords {
+    font-size: 0.92rem;
+    letter-spacing: 0.04em;
+  }
+  .fireButton {
+    gap: 6px;
+    padding: 0.3rem 0.3rem;
+  }
+  .skipButton {
+    padding: 0 0.4rem;
+    font-size: 0.82rem;
+  }
+}
+
+/* ---------- The counters ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem 0.35rem;
+  border-radius: 10px;
+  background: #140b03;
+  border: 2px solid #5a3a20;
+  min-width: 0;
+}
+.meterWin {
+  border-color: #ffd27a;
+}
+.meterLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffe2b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(18px, 5.4vw, 24px);
+}
+.message {
+  margin: 0.4rem 0 0;
+  /* Two lines held, so that nothing under it moves when a message comes and goes. */
+  min-height: 2.8em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cabinet .btn {
+  background: #3a2213;
+  color: #fff;
+  border-color: #d9b38c;
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #3a2213;
+  color: #fff;
+  font-weight: 800;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outNote a {
+  color: #ffe1a1;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #ffe9cc;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(255, 210, 122, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #fff3e0;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+
+/* The card in another tab's machine: this one waits. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 14px;
+  background: rgba(22, 12, 5, 0.94);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAwayButton {
+  min-height: 48px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: var(--sht-indigo);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ---------- A phone held sideways: the stall at the left, the words and the controls in a column at the right ---------- */
+/* Too short a screen for the stall over its controls (a phone held sideways, 320 to 500 px tall): the stall is as tall
+   as the screen allows under the site's toolbar (62 px, and 18 px of room), and the badge over a play from before, the
+   status line, START, Skip and FIRE stand in a column beside it, all on the screen at once. The badge's place is kept
+   while there is none, so the column never moves; on the stall it would cover the top tier, small as the stall is
+   here. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .machine {
+    grid-template-columns: minmax(0, 680px);
+  }
+  .playArea {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto auto auto 1fr;
+    column-gap: 12px;
+    align-items: center;
+  }
+  .stageBox {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: calc((100vh - 80px) * 0.8 + 10px);
+    width: calc((100svh - 80px) * 0.8 + 10px);
+    max-width: none;
+  }
+  .resumedBadge {
+    display: none;
+  }
+  .sideBadge {
+    display: block;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--sht-indigo);
+    border: 1px solid #ffd9a3;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .sideBadge[data-shown='false'] {
+    visibility: hidden;
+  }
+  .status {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .controls {
+    grid-column: 2;
+    grid-row: 4;
+  }
+}
+
+/* ---------- Beside the cabinet ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.historyChip[data-won='true'] {
+  color: var(--games-route-fg);
+  border-color: #d9a43a;
+}
+.historyChip[data-cat='true'] {
+  background: #f6c343;
+  color: #2a1600;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+  /* Free to be narrower than its longest word, so that a label with no room to break never pushes the page sideways
+     (Safari and Firefox keep Japanese words whole); its words carry their breaks (i18n.ts). */
+  min-width: 0;
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pos {
+  color: var(--sht-ahead);
+}
+.neg {
+  color: var(--sht-behind);
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.45rem;
+  font-weight: 850;
+  color: var(--sht-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.statFraction {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.ruleList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  /* A rule may be narrower than its longest phrase (Safari and Firefox keep Japanese words whole): it breaks inside it
+     rather than push the page sideways. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.kindBlock {
+  margin-top: 0.9rem;
+}
+.kindTitle {
+  margin: 0 0 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 850;
+}
+.placeCaption {
+  caption-side: top;
+  text-align: left;
+  padding: 0.2rem 0 0.1rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--games-route-muted);
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 0.4rem;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable tbody th {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+}
+
+/* ---------- Less motion: the lanterns hang still, and the flash does not pop ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation: none;
+  }
+}
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the figures and the Odds tab's tables (as the other
+ * machines' do): where the browser can tell phrases apart, at them; elsewhere at the zero-width spaces, 、。： and
+ * spaces the words carry. A word longer than its line still breaks. The status line keeps its phrases whole itself
+ * (PlayTab.tsx).
+ */
+.statLabel,
+.statNote,
+.statList dt,
+.ruleList li,
+.note,
+.intro p,
+.kindTitle,
+.placeCaption,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .ruleList li,
+  .note,
+  .intro p,
+  .kindTitle,
+  .placeCaption,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

@@ -95,11 +95,12 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-smart-ball')).toHaveAttribute('href', '/games/smart-ball');
   await expect(page.getByTestId('center-play-pachinko')).toHaveAttribute('href', '/games/pachinko');
   await expect(page.getByTestId('center-play-carousel-pusher')).toHaveAttribute('href', '/games/carousel-pusher');
-  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher']) {
+  await expect(page.getByTestId('center-play-shooting-gallery')).toHaveAttribute('href', '/games/shooting-gallery');
+  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
-  // Twenty-one machines on the floor: those open, and the rest shown as coming.
-  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(21);
+  // Twenty-two machines on the floor: those open, and the rest shown as coming.
+  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(22);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('center-reset')).toBeEnabled();
@@ -195,6 +196,47 @@ test('on a desk the two pushers stand one above the other as tall as the video m
   for (const tray of await trays.all()) await expect(tray).toBeHidden();
   await page.setViewportSize({ width: 375, height: 812 });
   for (const tray of await trays.all()) await expect(tray).toBeHidden();
+});
+
+test('the kids and candy shop corner stands its five cabinets in rows inside the corner at every width: four to a row on a desk, two on a phone, none overlapping', async ({ page }) => {
+  await openCenter(page);
+  const zone = page.getByTestId('center-zone-kids');
+  for (const [width, perRow] of [
+    [1280, 4],
+    [1024, 4],
+    [900, 4],
+    [768, 4],
+    [375, 2],
+    [320, 2],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    const where = `${width} px`;
+    expect(await sideways(page), where).toBeLessThanOrEqual(width);
+    const { corner, cabinets } = await zone.evaluate((el) => {
+      const box = (node: Element) => {
+        const r = node.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      };
+      return { corner: box(el), cabinets: [...el.querySelectorAll('li[data-machine]')].map((li) => ({ id: li.getAttribute('data-machine'), ...box(li) })) };
+    });
+    expect(cabinets.map(({ id }) => id), where).toEqual(['janken', 'fishing', 'coin-maze', 'smart-ball', 'shooting-gallery']);
+    for (const cabinet of cabinets) {
+      expect(cabinet.left, `${where} ${cabinet.id}`).toBeGreaterThanOrEqual(corner.left - 1);
+      expect(cabinet.right, `${where} ${cabinet.id}`).toBeLessThanOrEqual(corner.right + 1);
+      expect(cabinet.bottom, `${where} ${cabinet.id}`).toBeLessThanOrEqual(corner.bottom + 1);
+    }
+    for (let a = 0; a < cabinets.length; a++)
+      for (let b = a + 1; b < cabinets.length; b++) {
+        const across = Math.min(cabinets[a].right, cabinets[b].right) - Math.max(cabinets[a].left, cabinets[b].left);
+        const down = Math.min(cabinets[a].bottom, cabinets[b].bottom) - Math.max(cabinets[a].top, cabinets[b].top);
+        expect(across <= 1 || down <= 1, `${where} ${cabinets[a].id} ${cabinets[b].id}`).toBe(true);
+      }
+    // The first row holds `perRow` cabinets side by side; the shooting gallery starts a row of its own at the left.
+    const firstRow = cabinets.filter((cabinet) => Math.abs(cabinet.top - cabinets[0].top) < 2);
+    expect(firstRow, where).toHaveLength(perRow);
+    expect(Math.abs(cabinets[4].left - cabinets[0].left), where).toBeLessThan(2);
+    expect(cabinets[4].top, where).toBeGreaterThan(cabinets[3].bottom - 1);
+  }
 });
 
 test('every cabinet’s cover loads once it is scrolled into view, at a phone’s width', async ({ page }) => {

@@ -10,6 +10,7 @@ import { numbersFor as mazeNumbers } from '../../src/components/game/CoinMaze/en
 import { numbersFor as kenoNumbers } from '../../src/components/game/Keno/engine';
 import { numbersFor as smbNumbers, slotFor as smbSlot } from '../../src/components/game/SmartBall/engine';
 import { numbersForBall as pkNumbers } from '../../src/components/game/Pachinko/engine';
+import { numbersFor as shtNumbers, slotFor as shtSlot } from '../../src/components/game/ShootingGallery/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -607,6 +608,63 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(odds.locator('table th, table td, [class*="statLabel"], [class*="statNote"]'), SMB_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+// ── Onsen Shooting Gallery ──────────────────────────────────────────────────
+
+const SHT_WORDS = ['スタート', 'メダル', 'コルク', 'レバー', '詰めて', 'お菓子の箱', 'ねらって', '撃て', '揺れて', '止まった', '持ちメダル', '当たり', '回数', '差し引き', '落とした', '招き猫', '割合', 'いちばん', '上手な', '撃ち方', '戻り', 'ふつう', '腕前', '目をつぶって', '確率', 'まんじゅう箱', 'こけし', 'だるま', '上の角', '上半分', 'まん中', '足もと', 'そのまま', '奥へずれた', '棚のふち', '落ちる', 'ずれる', '揺れる'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Onsen Shooting Gallery's (shooting-gallery) status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/shooting-gallery');
+    await arrived(page);
+    const machine = page.getByTestId('sht-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('sht-status');
+    const said = await brokenIn(status, SHT_WORDS);
+    // A play whose first cork, at the sweet box's top edge, rocks it: the line that asks for FIRE, then the one that
+    // says what the cork did and asks for the next.
+    await rigPresses(page, shtNumbers({ slots: [shtSlot(7, 0, 1, 'rock'), 63, 63, 63, 63, 63], picks: [0, 0, 0, 0, 0, 0], bands: [1, 1, 1, 1, 1, 1] }));
+    await pressUntil(page.getByTestId('sht-start'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    await expect(machine).toHaveAttribute('data-phase', 'aim', { timeout: 10_000 });
+    said.push(...(await brokenIn(status, SHT_WORDS)));
+    // FIRE the moment the stall says the sight is on the top edge.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const stage = document.querySelector('[data-testid="sht-stage"]')!;
+          const fire = document.querySelector('[data-testid="sht-fire"]')!;
+          const press = () => {
+            fire.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 22, isPrimary: true, button: 0, bubbles: true }));
+            resolve();
+          };
+          if (stage.getAttribute('data-band') === '1') return press();
+          const observer = new MutationObserver(() => {
+            if (stage.getAttribute('data-band') !== '1') return;
+            observer.disconnect();
+            press();
+          });
+          observer.observe(stage, { attributes: true, attributeFilter: ['data-band'] });
+        }),
+    );
+    await expect(machine).toHaveAttribute('data-cork', '1', { timeout: 10_000 });
+    await expect(status).toContainText('揺れて');
+    expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(status, SHT_WORDS)));
+    said.push(...(await brokenIn(page.locator('#sht-session-title ~ dl dt'), SHT_WORDS)));
+    await page.locator('#sht-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('sht-chances-cat-2')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, caption, h3, [class*="statLabel"], [class*="statNote"]'), SHT_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

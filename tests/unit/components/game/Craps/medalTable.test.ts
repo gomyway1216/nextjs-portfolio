@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { type Seat } from '@/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, createLedger, give, medalsOutAt, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
@@ -27,6 +27,18 @@ import {
   type TableStorage,
 } from '@/components/game/Craps/medalTable';
 import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
+
+// What the medal floor is told (reporter.ts), kept here instead of sent.
+const reports = vi.hoisted(() => [] as unknown[][]);
+vi.mock('@/components/game/MedalCenter/floor/reporter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/game/MedalCenter/floor/reporter')>()),
+  floorReport: (...args: unknown[]) => {
+    reports.push(args);
+  },
+}));
+beforeEach(() => {
+  reports.length = 0;
+});
 
 // The craps table on the medal center's floor, played against the real medal bank in a fake browser (one storage the
 // pages share, the one card, the channel between the pages). Nothing is fetched and no account is named.
@@ -174,6 +186,23 @@ describe('bets come out of the medals and go back into them, once each', () => {
     // Repeat bets puts the Pass back; not the Come 4 (a Come bet gets there by moving), nor odds behind it.
     expect(table.repeat().ok).toBe(true);
     expect(table.table().bets).toEqual({ pass: 5 });
+  });
+
+  it('tells the floor odds taken down undecided on the come-out were neither played nor won: they cannot be made into wins', async () => {
+    const { table } = await opened();
+    table.place('pass', 5);
+    table.roll([2, 4]); // the point is 6
+    table.place('come', 5);
+    table.roll([2, 2]); // the Come goes to the 4
+    table.place('comeOdds4', 15);
+    table.roll([3, 3]); // the point is made: the come-out is next
+    reports.length = 0;
+    table.place('pass', 5);
+    const seven = table.roll([3, 4]);
+    // The roll gives 25 back: the Pass and its win (10), and the odds behind the 4, off on the come-out (15).
+    expect(seven.ok && seven.value.resolution.returned).toBe(25);
+    // Played: the Pass and the Come 4 the seven decided. Won: the Pass's 10. The odds were neither.
+    expect(reports).toEqual([[CRAPS_GAME, { won: 10, played: 10, prize: { medals: 10 } }]]);
   });
 
   it('gives back exactly what Undo, Clear and Take down take off the table, once', async () => {

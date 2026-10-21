@@ -4,13 +4,14 @@ import { numbersFor as mazeNumbers, type Draw as MazeDraw } from '../../src/comp
 import { BEST_LEFT, LEND_BALLS, numbersForBall, type BallDraw } from '../../src/components/game/Pachinko/engine';
 import { SESSION_KEY, parseSession } from '../../src/components/game/Pachinko/medalTable';
 import { MARBLES, numbersFor as smartNumbers, slotFor } from '../../src/components/game/SmartBall/engine';
+import { CORKS, numbersFor as galleryNumbers, type Draw as GalleryDraw } from '../../src/components/game/ShootingGallery/engine';
 import { instantScroll } from './instantScroll';
-import { pressUntil } from './pressUntil';
+import { pressOnce, pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // A phone held sideways (844 × 390, 667 × 375): the tall machines (Hot Spring Smart Ball, Candy Shop Medal Maze,
-// Goldfish Lantern Pachinko, Cherry Blossom Carousel) lay out in two columns, the board at the left as tall as the screen allows under the
+// Goldfish Lantern Pachinko, Cherry Blossom Carousel, Onsen Shooting Gallery) lay out in two columns, the board at the left as tall as the screen allows under the
 // site's toolbar, and the badge, the status line, the counters and the controls in a column at the right, all on the
 // screen at once. Narrowed over its controls as on a phone held upright, the Smart Ball's board and the Maze's case
 // came to 85 to 139 px wide, their numbers 3 to 5 px; the pachinko's board, the cabinet's full width, was taller than
@@ -42,6 +43,22 @@ interface Machine {
 /** The play area centred under the toolbar, where START (or DROP) brings it. */
 const centred = (board: string) => async (page: Page) => {
   await page.getByTestId(board).evaluate((el) => (el.parentElement as HTMLElement).scrollIntoView({ block: 'center', behavior: 'instant' }));
+  // Measured from where the page comes to rest: Firefox lands a centre on a half pixel at one whole pixel, and moves it to
+  // the other a frame later (the shooting gallery's play area, 305 px tall at 667 × 375, went from 349 to 348).
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let last = window.scrollY;
+        let still = 0;
+        const tick = () => {
+          still = window.scrollY === last ? still + 1 : 0;
+          last = window.scrollY;
+          if (still >= 3) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
 };
 
 /** The badge over a play from before, beside the board, not on it. */
@@ -206,7 +223,9 @@ async function carouselPlay(page: Page, seen: () => Promise<void>) {
   const machine = page.getByTestId('cp-machine');
   await seen();
   for (let i = 0; i < 3; i++) {
-    await page.getByTestId('cp-drop').click();
+    // DROP acts on pointerdown: in Playwright's Firefox on a touch screen a click sends no pointer events, so press as a
+    // finger does there (pressOnce), or no medal drops and the machine stays at rest.
+    await pressOnce(page.getByTestId('cp-drop'));
     await page.waitForTimeout(400);
     await seen();
   }
@@ -214,6 +233,42 @@ async function carouselPlay(page: Page, seen: () => Promise<void>) {
   await seen();
   await page.waitForTimeout(1_500);
   await seen();
+}
+
+// ── Onsen Shooting Gallery ──
+
+/** Shooting gallery: a play drawn so every cork misses, whatever it is fired at; six corks at the sight's top edge. */
+async function galleryPlay(page: Page, seen: () => Promise<void>) {
+  const machine = page.getByTestId('sht-machine');
+  const draw: GalleryDraw = { slots: Array.from({ length: CORKS }, () => 63), picks: Array.from({ length: CORKS }, () => 0), bands: Array.from({ length: CORKS }, () => 1) };
+  await rigPresses(page, galleryNumbers(draw));
+  await page.getByTestId('sht-start').click();
+  for (let c = 0; c < CORKS; c++) {
+    await expect(machine).toHaveAttribute('data-cork', String(c), { timeout: 10_000 });
+    await expect(machine).toHaveAttribute('data-phase', 'aim', { timeout: 10_000 });
+    await seen();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const stage = document.querySelector('[data-testid="sht-stage"]')!;
+          const fire = document.querySelector<HTMLButtonElement>('[data-testid="sht-fire"]')!;
+          const timer = window.setTimeout(() => reject(new Error('the top edge never came in 6 s')), 6_000);
+          const press = () => {
+            window.clearTimeout(timer);
+            fire.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 12, isPrimary: true, button: 0, bubbles: true }));
+            resolve();
+          };
+          if (stage.getAttribute('data-band') === '1') return press();
+          const observer = new MutationObserver(() => {
+            if (stage.getAttribute('data-band') !== '1') return;
+            observer.disconnect();
+            press();
+          });
+          observer.observe(stage, { attributes: true, attributeFilter: ['data-band'] });
+        }),
+    );
+  }
+  await expect(machine).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
 }
 
 const MACHINES: Machine[] = [
@@ -266,6 +321,17 @@ const MACHINES: Machine[] = [
       await expect(page.getByTestId('cp-machine')).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
       await expect(page.getByTestId('cp-machine')).not.toHaveAttribute('data-credit', '0');
     },
+  },
+  {
+    name: 'shooting-gallery',
+    path: '/games/shooting-gallery',
+    board: 'sht-stage',
+    column: ['sht-start', 'sht-skip', 'sht-fire', 'sht-status'],
+    side: 'sht-resumed-side',
+    onBoard: 'sht-resumed',
+    smallest: 7,
+    play: galleryPlay,
+    afterReload: badgeBeside('sht-resumed-side', 'sht-resumed'),
   },
 ];
 

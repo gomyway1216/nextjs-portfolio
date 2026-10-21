@@ -365,8 +365,6 @@ export function createMachine({ bank, storage, random, newId = randomId }: Machi
         write(null);
         return false;
       }
-      // The medal played feeds the floor jackpot, once, as it goes in.
-      floorReport(JANKEN_GAME, { played: 1 });
       // Any round before this one is struck out: nothing will try its moves again.
       bank.forget(JANKEN_GAME, [next.id!]);
       tell({ type: 'inserted' });
@@ -383,6 +381,10 @@ export function createMachine({ bank, storage, random, newId = randomId }: Machi
       const next = thrown(before, outcome, lamp);
       write(next);
       const result: Throw = { player, machine, outcome, lamp, kind: before.kind, draws: before.draws };
+      // The medal is played, and feeds the floor jackpot, once, when its first throw that is not a draw decides it.
+      // Not as it goes in: until then it is given back if the page goes (`settle`), and a medal put in, given back and
+      // put in again would otherwise be a jackpot ticket each time for nothing.
+      if (before.kind === 'play' && outcome !== 'draw') floorReport(JANKEN_GAME, { played: 1 });
       tell({ type: 'thrown', throw: result, round: next });
       // The last double-up there can be is paid at once.
       if (next && next.phase === 'offer' && !canDouble(next)) pay(false);

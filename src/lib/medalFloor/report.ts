@@ -77,12 +77,12 @@ export function countable(won: number, allowance: number, wonToday: number): num
   return Math.max(0, Math.min(won, Math.floor(allowance), DAILY_WON_MOST - wonToday));
 }
 
-/** One machine's allowance of medals played at `now`: refilled at the machine's `perMinute`, up to its `playBurst`. A new player starts full. */
+/** One machine's allowance of medals played at `now`: refilled at the machine's `playPerMinute`, up to its `playBurst`. A new player starts full. */
 export function playAllowanceAt(game: FloorReport['game'], allowance: Allowance | undefined, now: number): number {
   const rule = FLOOR_RULES[game];
   if (!allowance || !Number.isFinite(allowance.level) || !Number.isFinite(allowance.at)) return rule.playBurst;
   const minutes = Math.max(0, now - allowance.at) / 60_000;
-  return Math.min(rule.playBurst, Math.max(0, allowance.level) + minutes * rule.perMinute);
+  return Math.min(rule.playBurst, Math.max(0, allowance.level) + minutes * rule.playPerMinute);
 }
 
 /**

@@ -6,25 +6,25 @@
    compositor does without painting; the lanterns sway by a CSS animation of their transforms, on the compositor too. */
 
 .root {
-  --sg-wood: #6b4226;
-  --sg-wood-dark: #3a2213;
-  --sg-wood-light: #9a6a43;
-  --sg-indigo: #22306b;
-  --sg-red: #a31f2a;
-  --sg-focus: #ffd34d;
+  --sht-wood: #6b4226;
+  --sht-wood-dark: #3a2213;
+  --sht-wood-light: #9a6a43;
+  --sht-indigo: #22306b;
+  --sht-red: #a31f2a;
+  --sht-focus: #ffd34d;
   /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
-  --sg-accent-text: #8f1d25;
-  --sg-ahead: #15803d;
-  --sg-behind: #b91c1c;
+  --sht-accent-text: #8f1d25;
+  --sht-ahead: #15803d;
+  --sht-behind: #b91c1c;
 
   min-height: 100%;
   color: var(--games-route-fg);
   padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
 }
 :global(html.dark) .root {
-  --sg-accent-text: #ff9c94;
-  --sg-ahead: #4ade80;
-  --sg-behind: #f87171;
+  --sht-accent-text: #ff9c94;
+  --sht-ahead: #4ade80;
+  --sht-behind: #f87171;
 }
 
 .shell {
@@ -131,7 +131,7 @@
   color: var(--games-route-fg);
 }
 .tab[aria-selected='true'] {
-  background: var(--sg-red);
+  background: var(--sht-red);
   color: #fff;
 }
 .centerLink:focus-visible,
@@ -179,7 +179,7 @@
   border-radius: 16px;
   background:
     repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 11px, rgba(255, 255, 255, 0.04) 11px 13px, transparent 13px 19px),
-    linear-gradient(180deg, var(--sg-wood-light) 0%, var(--sg-wood) 35%, var(--sg-wood-dark) 100%);
+    linear-gradient(180deg, var(--sht-wood-light) 0%, var(--sht-wood) 35%, var(--sht-wood-dark) 100%);
   border: 3px solid #24150a;
   box-shadow:
     inset 0 0 0 2px rgba(255, 255, 255, 0.1),
@@ -327,13 +327,13 @@
    events), four times less often so. */
 @media (prefers-reduced-motion: no-preference) {
   .lantern {
-    animation: sg-sway 18s ease-in-out infinite;
+    animation: sht-sway 18s ease-in-out infinite;
   }
   .lantern[data-side='right'] {
     animation-delay: -2.1s;
   }
 }
-@keyframes sg-sway {
+@keyframes sht-sway {
   0%,
   25%,
   50%,
@@ -403,7 +403,7 @@
   cursor: default;
 }
 .spot:focus-visible {
-  outline: 3px solid var(--sg-focus);
+  outline: 3px solid var(--sht-focus);
   outline-offset: -3px;
 }
 .tag {
@@ -492,7 +492,7 @@
   z-index: 3;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  background: var(--sg-indigo);
+  background: var(--sht-indigo);
   border: 1px solid #ffd9a3;
   font-size: 0.72rem;
   font-weight: 800;
@@ -523,9 +523,9 @@
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
   white-space: nowrap;
   pointer-events: none;
-  animation: sg-flash 1.4s ease-out forwards;
+  animation: sht-flash 1.4s ease-out forwards;
 }
-@keyframes sg-flash {
+@keyframes sht-flash {
   0% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.6);
@@ -720,7 +720,7 @@
 .refill:focus-visible,
 .cardAwayButton:focus-visible,
 .cabinet .btn:focus-visible {
-  outline: 3px solid var(--sg-focus);
+  outline: 3px solid var(--sht-focus);
   outline-offset: 2px;
 }
 @media (max-width: 360px) {
@@ -891,7 +891,7 @@
   padding: 0.5rem 1.4rem;
   border-radius: 12px;
   border: 2px solid #ffd27a;
-  background: var(--sg-indigo);
+  background: var(--sht-indigo);
   color: #fff;
   font-weight: 800;
 }
@@ -930,7 +930,7 @@
     justify-self: center;
     padding: 0.1rem 0.5rem;
     border-radius: 999px;
-    background: var(--sg-indigo);
+    background: var(--sht-indigo);
     border: 1px solid #ffd9a3;
     font-size: 0.72rem;
     font-weight: 800;
@@ -1031,10 +1031,10 @@
   text-align: right;
 }
 .pos {
-  color: var(--sg-ahead);
+  color: var(--sht-ahead);
 }
 .neg {
-  color: var(--sg-behind);
+  color: var(--sht-behind);
 }
 
 /* ---------- The Odds tab ---------- */
@@ -1074,7 +1074,7 @@
 .statValue {
   font-size: 1.45rem;
   font-weight: 850;
-  color: var(--sg-accent-text);
+  color: var(--sht-accent-text);
   font-variant-numeric: tabular-nums;
 }
 .statNote {

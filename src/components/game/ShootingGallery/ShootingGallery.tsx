@@ -60,7 +60,7 @@ export const ShootingGallery = ({ player }: ShootingGalleryProps = {}) => {
         <div className={styles.header}>
           <div className={styles.headerText}>
             {/* The machine stands on the medal center's floor, whose front has the medals, the daily bonus and the reset. */}
-            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="sg-center">
+            <a className={styles.centerLink} href={MEDAL_CENTER_PATH} data-testid="sht-center">
               <span aria-hidden>← </span>
               {t.centerLink}
             </a>
@@ -74,7 +74,7 @@ export const ShootingGallery = ({ player }: ShootingGalleryProps = {}) => {
             </h1>
             <p className={styles.subtitle}>{t.subtitle}</p>
           </div>
-          <button type="button" className={styles.btn} aria-haspopup="dialog" data-testid="sg-how-to-play" onClick={() => setInfoOpen(true)}>
+          <button type="button" className={styles.btn} aria-haspopup="dialog" data-testid="sht-how-to-play" onClick={() => setInfoOpen(true)}>
             {t.howToPlay}
           </button>
         </div>
@@ -91,9 +91,9 @@ export const ShootingGallery = ({ player }: ShootingGalleryProps = {}) => {
               }}
               type="button"
               role="tab"
-              id={`sg-tab-${tb.id}`}
+              id={`sht-tab-${tb.id}`}
               aria-selected={tab === tb.id}
-              aria-controls={`sg-panel-${tb.id}`}
+              aria-controls={`sht-panel-${tb.id}`}
               tabIndex={tab === tb.id ? 0 : -1}
               className={`${styles.tab} ${floorTabs.tab}`}
               onClick={() => setTab(tb.id)}
@@ -105,10 +105,10 @@ export const ShootingGallery = ({ player }: ShootingGalleryProps = {}) => {
         </div>
 
         {/* Both panels stay mounted (the one not shown is hidden), so switching tabs never drops a play under way. */}
-        <div role="tabpanel" id="sg-panel-machine" aria-labelledby="sg-tab-machine" hidden={tab !== 'machine'}>
+        <div role="tabpanel" id="sht-panel-machine" aria-labelledby="sht-tab-machine" hidden={tab !== 'machine'}>
           <PlayTab player={player} active={tab === 'machine' && !infoOpen} />
         </div>
-        <div role="tabpanel" id="sg-panel-odds" aria-labelledby="sg-tab-odds" hidden={tab !== 'odds'}>
+        <div role="tabpanel" id="sht-panel-odds" aria-labelledby="sht-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
           {/* What the floor jackpot adds to the medals played here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
           <FloorJackpotOddsNote game="shooting-gallery" />

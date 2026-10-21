@@ -208,10 +208,16 @@ function stepPick(positions: readonly number[], from: number, step: 'left' | 'ri
   return there.reduce((best, t) => (Math.abs((t % PER_TIER) - across) < Math.abs((best % PER_TIER) - across) ? t : best), there[0]);
 }
 
+/** Each figure's layer, clipped as it falls behind its shelf, and the part of it that moves. */
+interface FigureLayers {
+  clips: (HTMLDivElement | null)[];
+  movers: (HTMLDivElement | null)[];
+}
+
 /** A figure's pose, put on its layer: the inner layer moved, the outer clipped once it is behind its shelf. */
-function applyPose(parts: StageParts, target: number, pose: FigurePose): void {
-  const mover = parts.movers[target];
-  const clip = parts.clips[target];
+function applyPose(layers: FigureLayers, target: number, pose: FigurePose): void {
+  const mover = layers.movers[target];
+  const clip = layers.clips[target];
   if (!mover || !clip) return;
   const box = figureLayer(target);
   const home = figureHome(target);
@@ -300,6 +306,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     live.current = { t, player, calm };
   }, [t, player, calm]);
 
+  const figures = useRef<FigureLayers>({ clips: new Array<HTMLDivElement | null>(TARGETS).fill(null), movers: new Array<HTMLDivElement | null>(TARGETS).fill(null) });
   const [parts] = useState<StageParts>(() => ({
     gun: createRef<HTMLDivElement>(),
     lever: createRef<SVGGElement>(),
@@ -308,8 +315,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     sightLabel: createRef<HTMLSpanElement>(),
     cork: createRef<HTMLDivElement>(),
     puff: createRef<HTMLDivElement>(),
-    clips: new Array<HTMLDivElement | null>(TARGETS).fill(null),
-    movers: new Array<HTMLDivElement | null>(TARGETS).fill(null),
+    figure: (target, part, el) => {
+      figures.current[part === 'clip' ? 'clips' : 'movers'][target] = el;
+    },
   }));
 
   const sound = useMachineSound();
@@ -338,7 +346,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     for (let target = 0; target < TARGETS; target++) {
       // The figure a cork is answering is the frame loop's to move until its answer ends.
       if (flight?.phase === 'fly' && flight.shot?.target === target) continue;
-      applyPose(parts, target, restPose(shown[target]));
+      applyPose(figures.current, target, restPose(shown[target]));
     }
   }, [shown, parts]);
 
@@ -743,7 +751,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       }
       // The lever and the cork in the muzzle, as the cork is loaded.
       const load = flight?.phase === 'load' ? loadPose(at - flight.loadAt, calmNow) : flight?.phase === 'aim' ? { lever: 0, cork: 1 } : { lever: 0, cork: 0 };
-      const leverText = `rotate(${(-38 * load.lever).toFixed(1)} 191 392)`;
+      const leverText = `rotate(${(-38 * load.lever).toFixed(1)} 193.5 377.5)`;
       if (leverText !== shown.lever) {
         shown.lever = leverText;
         parts.lever.current?.setAttribute('transform', leverText);
@@ -769,7 +777,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         parts.puff.current.style.opacity = puff ? puff.shown.toFixed(2) : '0';
         if (puff) parts.puff.current.style.transform = puffText.split('|')[0];
       }
-      if (scene && flight?.shot) applyPose(parts, flight.shot.target, scene.figure(ms));
+      if (scene && flight?.shot) applyPose(figures.current, flight.shot.target, scene.figure(ms));
       // On while a cork loads or flies, or the sight sways (and the clock runs), or the gun is still turning.
       const moving = !paused && flight !== null && (flight.phase === 'load' || flight.phase === 'aim' || flight.phase === 'fly');
       if (again || moving || !settled) frame = window.requestAnimationFrame(step);
@@ -882,7 +890,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   return (
     <div
       className={styles.machine}
-      data-testid="sg-machine"
+      data-testid="sht-machine"
       data-playable={canStart ? 'true' : 'false'}
       data-card={bankState.card}
       data-phase={phase}
@@ -895,15 +903,15 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     >
       <div className={styles.cabinet}>
         <div className={styles.playArea} ref={playAreaRef}>
-          <div className={styles.stageBox} ref={stageRef} data-testid="sg-stage" data-band="">
+          <div className={styles.stageBox} ref={stageRef} data-testid="sht-stage" data-band="">
             <Stage t={t} label={t.stageLabel(where)} parts={parts} positions={shown} picked={picked} corksLeft={phase === 'idle' ? 0 : CORKS - cork - 1} down={down} onPick={pick} picking />
             {(resumed || (outcome?.earlier && !running)) && (
-              <span className={styles.resumedBadge} data-testid="sg-resumed">
+              <span className={styles.resumedBadge} data-testid="sht-resumed">
                 {resumed ? t.resumed : t.lastPlay}
               </span>
             )}
             {flash && (
-              <span key={flash.key} className={styles.flash} data-testid="sg-flash" data-kind={flash.kind} aria-hidden="true">
+              <span key={flash.key} className={styles.flash} data-testid="sht-flash" data-kind={flash.kind} aria-hidden="true">
                 {t.flash(flash.kind)}
               </span>
             )}
@@ -911,11 +919,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
           {/* On a phone held sideways the badge stands beside the stall, over the status line (ShootingGallery.module.css);
               its place is kept while there is none, so that nothing moves. */}
-          <span className={styles.sideBadge} data-testid="sg-resumed-side" data-shown={badge ? 'true' : 'false'}>
+          <span className={styles.sideBadge} data-testid="sht-resumed-side" data-shown={badge ? 'true' : 'false'}>
             {badge ?? t.lastPlay}
           </span>
 
-          <p className={styles.status} data-testid="sg-status">
+          <p className={styles.status} data-testid="sht-status">
             <span>
               <Phrases text={statusText} />
             </span>
@@ -923,21 +931,21 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
           {/* START, Skip and FIRE: always in the same place, so nothing moves as a play goes on. */}
           <div className={styles.controls}>
-            <button type="button" className={styles.startButton} data-testid="sg-start" aria-label={t.startAria} onClick={() => start()} disabled={!canStart || bankState.balance < STAKE}>
+            <button type="button" className={styles.startButton} data-testid="sht-start" aria-label={t.startAria} onClick={() => start()} disabled={!canStart || bankState.balance < STAKE}>
               <span className={styles.startWords}>{t.start}</span>
             </button>
             {/* Skip only fast-forwards: it is there from the start, so that nothing moves, and can be pressed once the last
                 cork has been fired. It says why it waits. */}
-            <button type="button" className={styles.skipButton} data-testid="sg-skip" onClick={skip} disabled={!skippable} aria-describedby="sg-skip-why" title={skippable ? undefined : t.skipWhy}>
+            <button type="button" className={styles.skipButton} data-testid="sht-skip" onClick={skip} disabled={!skippable} aria-describedby="sht-skip-why" title={skippable ? undefined : t.skipWhy}>
               {t.skip}
             </button>
-            <span id="sg-skip-why" className={styles.srOnly}>
+            <span id="sht-skip-why" className={styles.srOnly}>
               {t.skipWhy}
             </span>
             <button
               type="button"
               className={styles.fireButton}
-              data-testid="sg-fire"
+              data-testid="sht-fire"
               data-ready={phase === 'aim' ? 'true' : 'false'}
               aria-label={t.fireAria}
               aria-disabled={phase !== 'aim'}
@@ -961,16 +969,16 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <div className={styles.meters}>
           <div className={`${styles.meterCell} ${styles.meterMedals}`}>
             <span className={styles.meterLabel}>{t.medals}</span>
-            <span className={styles.meterValue} data-testid="sg-medals" data-loaded={medalsShown !== null}>
+            <span className={styles.meterValue} data-testid="sht-medals" data-loaded={medalsShown !== null}>
               {medalsShown === null ? '—' : fmt(medalsShown)}
             </span>
-            <span className={styles.led} data-testid="sg-medals-led" data-shown={meter.shown ?? ''}>
+            <span className={styles.led} data-testid="sht-medals-led" data-shown={meter.shown ?? ''}>
               <SegmentDisplay value={meter.shown ?? ''} places={MEDAL_PLACES} />
             </span>
           </div>
           <div className={styles.meterCell}>
             <span className={styles.meterLabel}>{t.corks}</span>
-            <span className={styles.meterValue} data-testid="sg-corks">
+            <span className={styles.meterValue} data-testid="sht-corks">
               {corksLeft}
             </span>
             <span className={styles.led} aria-hidden="true">
@@ -979,38 +987,38 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           </div>
           <div className={`${styles.meterCell} ${won ? styles.meterWin : ''}`}>
             <span className={styles.meterLabel}>{t.win}</span>
-            <span className={styles.meterValue} data-testid="sg-win">
+            <span className={styles.meterValue} data-testid="sht-win">
               {winShown}
             </span>
-            <span className={styles.led} data-testid="sg-win-led" data-shown={winMeter.shown ?? 0}>
+            <span className={styles.led} data-testid="sht-win-led" data-shown={winMeter.shown ?? 0}>
               <SegmentDisplay value={winMeter.shown ?? 0} places={WIN_PLACES} tone="amber" />
             </span>
           </div>
         </div>
 
-        <p className={styles.message} role="status" data-testid="sg-message">
+        <p className={styles.message} role="status" data-testid="sht-message">
           {message}
         </p>
 
         <div className={styles.outRow}>
           {refillDue && (
-            <button type="button" className={styles.refill} data-testid="sg-refill" onClick={() => medalBank().refill()}>
+            <button type="button" className={styles.refill} data-testid="sht-refill" onClick={() => medalBank().refill()}>
               <RefillWords text={t.refill(REFILL)} />
             </button>
           )}
-          {outOfMedals && !refillDue && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="sg-out" />}
+          {outOfMedals && !refillDue && <MedalsOut games={bankState.out} language={language} className={styles.outNote} testId="sht-out" />}
         </div>
 
         <div className={styles.secondaryRow}>
-          <SoundSwitch control={sound} language={language} className={styles.btn} testId="sg-sound" />
+          <SoundSwitch control={sound} language={language} className={styles.btn} testId="sht-sound" />
         </div>
-        <KeysHint text={t.keysHint} className={styles.keysHint} testId="sg-keys" />
+        <KeysHint text={t.keysHint} className={styles.keysHint} testId="sht-keys" />
 
         <div className={styles.medalNotes}>
-          <p data-testid="sg-not-money">{t.notMoney}</p>
+          <p data-testid="sht-not-money">{t.notMoney}</p>
           <p>
             {t.centerNote}{' '}
-            <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="sg-center-note-link">
+            <a className={styles.link} href={MEDAL_CENTER_PATH} data-testid="sht-center-note-link">
               {t.centerNoteLink}
             </a>
           </p>
@@ -1018,9 +1026,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
         {/* The player's medals are in another tab's game: the machine stands still until it is played here again. */}
         {cardAway && (
-          <div className={styles.cardAway} role="status" data-testid="sg-card-away">
+          <div className={styles.cardAway} role="status" data-testid="sht-card-away">
             <p>{t.cardAway}</p>
-            <button type="button" className={styles.cardAwayButton} data-testid="sg-play-here" onClick={() => seat.current?.play()}>
+            <button type="button" className={styles.cardAwayButton} data-testid="sht-play-here" onClick={() => seat.current?.play()}>
               {t.playHere}
             </button>
           </div>
@@ -1028,14 +1036,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
-        <section className={styles.panel} aria-labelledby="sg-history-title">
-          <h2 id="sg-history-title" className={styles.panelTitle}>
+        <section className={styles.panel} aria-labelledby="sht-history-title">
+          <h2 id="sht-history-title" className={styles.panelTitle}>
             {t.historyTitle}
           </h2>
           {history.length === 0 ? (
             <p className={styles.muted}>{t.historyEmpty}</p>
           ) : (
-            <ol className={styles.historyList} data-testid="sg-history">
+            <ol className={styles.historyList} data-testid="sht-history">
               {history.map((entry) => (
                 <li key={entry.id} className={styles.historyChip} data-won={entry.play.won > 0 ? 'true' : 'false'} data-cat={catDown(entry.play) ? 'true' : 'false'} title={t.historyEntryLabel(entry.play)}>
                   {t.historyEntry(entry.play)}
@@ -1045,14 +1053,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           )}
         </section>
 
-        <section className={styles.panel} aria-labelledby="sg-session-title">
-          <h2 id="sg-session-title" className={styles.panelTitle}>
+        <section className={styles.panel} aria-labelledby="sht-session-title">
+          <h2 id="sht-session-title" className={styles.panelTitle}>
             {t.sessionTitle}
           </h2>
           <dl className={styles.statList}>
             <div>
               <dt>{t.plays}</dt>
-              <dd data-testid="sg-stat-plays">{fmt(stats.plays)}</dd>
+              <dd data-testid="sht-stat-plays">{fmt(stats.plays)}</dd>
             </div>
             <div>
               <dt>{t.played}</dt>
@@ -1089,7 +1097,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         </section>
       </div>
 
-      <p className={styles.srOnly} aria-live="polite" data-testid="sg-announcement">
+      <p className={styles.srOnly} aria-live="polite" data-testid="sht-announcement">
         {announcement}
       </p>
     </div>

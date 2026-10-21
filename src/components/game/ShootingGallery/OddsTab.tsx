@@ -35,9 +35,9 @@ export const OddsTab = () => {
   };
 
   const hands: { key: Player; label: string; note: string; column: string; testId: string }[] = [
-    { key: 'perfect', label: t.perfectLabel, note: t.perfectNote, column: t.colPerfect, testId: 'sg-perfect' },
-    { key: 'typical', label: t.typicalLabel, note: t.typicalNote, column: t.colTypical, testId: 'sg-typical' },
-    { key: 'blind', label: t.blindLabel, note: t.blindNote, column: t.colBlind, testId: 'sg-blind' },
+    { key: 'perfect', label: t.perfectLabel, note: t.perfectNote, column: t.colPerfect, testId: 'sht-perfect' },
+    { key: 'typical', label: t.typicalLabel, note: t.typicalNote, column: t.colTypical, testId: 'sht-typical' },
+    { key: 'blind', label: t.blindLabel, note: t.blindNote, column: t.colBlind, testId: 'sht-blind' },
   ];
 
   return (
@@ -73,7 +73,7 @@ export const OddsTab = () => {
       <section>
         <h2 className={styles.blockTitle}>{t.fellTitle}</h2>
         <ScrollArea className={styles.tableWrap}>
-          <table className={styles.oddsTable} data-testid="sg-fell-table">
+          <table className={styles.oddsTable} data-testid="sht-fell-table">
             <thead>
               <tr>
                 <th scope="col">{t.colFell}</th>
@@ -116,7 +116,7 @@ export const OddsTab = () => {
             <h3 className={styles.kindTitle}>{t.kindHeading(kind)}</h3>
             {KINDS[kind].rows.map((rows, position) => (
               <ScrollArea className={styles.tableWrap} key={position}>
-                <table className={styles.oddsTable} data-testid={`sg-chances-${kind}-${position}`}>
+                <table className={styles.oddsTable} data-testid={`sht-chances-${kind}-${position}`}>
                   {KINDS[kind].rows.length > 1 && <caption className={styles.placeCaption}>{t.placeHeading(position)}</caption>}
                   <thead>
                     <tr>
@@ -157,11 +157,11 @@ export const OddsTab = () => {
       <section>
         <h2 className={styles.blockTitle}>{t.checkTitle}</h2>
         <p className={styles.note}>{t.checkNote(fmt(CHECK_PLAYS))}</p>
-        <button type="button" className={styles.btn} onClick={runCheck} disabled={running} data-testid="sg-check">
+        <button type="button" className={styles.btn} onClick={runCheck} disabled={running} data-testid="sht-check">
           {running ? t.checkRunning : t.checkRun}
         </button>
         <ScrollArea className={styles.tableWrap}>
-          <table className={styles.oddsTable} data-testid="sg-check-table">
+          <table className={styles.oddsTable} data-testid="sht-check-table">
             <thead>
               <tr>
                 <th scope="col">{t.colHand}</th>

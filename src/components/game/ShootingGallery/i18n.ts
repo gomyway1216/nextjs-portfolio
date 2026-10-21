@@ -214,7 +214,7 @@ const ja: ShootingGalleryStrings = {
   perPlay: `1回${STAKE}枚・コルク${CORKS}発`,
   lastPlay: '前回のプレイ',
   medals: '持ちメダル',
-  corks: '残りコルク',
+  corks: 'コルク',
   win: '当たり',
   down: '落とした',
   start: 'スタート',

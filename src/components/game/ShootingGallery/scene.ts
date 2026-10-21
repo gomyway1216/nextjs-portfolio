@@ -106,7 +106,7 @@ export function figureLayer(target: number): LayerBox {
 /** The gun's layer (it turns about `GUN_PIVOT`, under the counter), the sight's, the cork's and the puff's. */
 export const GUN_BOX: LayerBox = { x: 120, y: 324, w: 120, h: 132 };
 export const SIGHT_BOX: LayerBox = { x: 0, y: 0, w: 40, h: 40 };
-export const CORK_BOX: LayerBox = { x: 0, y: 0, w: 16, h: 16 };
+export const CORK_BOX: LayerBox = { x: 0, y: 0, w: 22, h: 22 };
 export const PUFF_BOX: LayerBox = { x: 0, y: 0, w: 24, h: 24 };
 
 // ── The sight ───────────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ export function shotScene(cork: CorkPlay, muzzle: { x: number; y: number }, sigh
   const figure = figureAt(target, position);
   const side = slot % 2 === 0 ? -1 : 1;
   const rest = restPose(position);
-  const far = 0.42 + 0.14 * tierOf(target);
+  const far = 0.55 + 0.13 * tierOf(target);
   // Where the cork gets to: the sight on a hit; over the top, or beside the figure, on a miss.
   const to =
     outcome !== 'miss'

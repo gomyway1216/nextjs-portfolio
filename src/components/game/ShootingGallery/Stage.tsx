@@ -209,31 +209,31 @@ const StallScene = memo(function StallScene({ noren }: { noren: string }) {
   return (
     <svg className={styles.stageSvg} viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} focusable="false" aria-hidden="true">
       <defs>
-        <radialGradient id="sg-lamp" cx="50%" cy="8%" r="75%">
+        <radialGradient id="sht-lamp" cx="50%" cy="8%" r="75%">
           <stop offset="0" stopColor="#ffcf7a" stopOpacity="0.38" />
           <stop offset="0.55" stopColor="#ff9d4d" stopOpacity="0.08" />
           <stop offset="1" stopColor="#000" stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="sg-curtain" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="sht-curtain" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#1b1220" />
           <stop offset="1" stopColor="#0d0910" />
         </linearGradient>
-        <linearGradient id="sg-counter" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="sht-counter" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#d8a96c" />
           <stop offset="1" stopColor="#a8743e" />
         </linearGradient>
-        <linearGradient id="sg-front" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="sht-front" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#6e4424" />
           <stop offset="1" stopColor="#3d2410" />
         </linearGradient>
       </defs>
       {/* The wall round the stall, and the dark curtain behind the shelves, its folds. */}
       <rect x="0" y="0" width={STAGE_W} height={STAGE_H} fill="#3b2617" />
-      <rect x="8" y={NOREN_H - 4} width={STAGE_W - 16} height={COUNTER_Y - NOREN_H + 4} fill="url(#sg-curtain)" />
+      <rect x="8" y={NOREN_H - 4} width={STAGE_W - 16} height={COUNTER_Y - NOREN_H + 4} fill="url(#sht-curtain)" />
       {Array.from({ length: 15 }, (_, i) => (
         <path key={i} d={`M ${20 + i * 23} ${NOREN_H} L ${20 + i * 23} ${COUNTER_Y}`} stroke="#2a1d30" strokeWidth="5" strokeOpacity="0.7" />
       ))}
-      <rect x="8" y={NOREN_H - 4} width={STAGE_W - 16} height={COUNTER_Y - NOREN_H + 4} fill="url(#sg-lamp)" />
+      <rect x="8" y={NOREN_H - 4} width={STAGE_W - 16} height={COUNTER_Y - NOREN_H + 4} fill="url(#sht-lamp)" />
       {/* The posts either side. */}
       <rect x="0" y="0" width="10" height={STAGE_H} fill="#4a2e19" />
       <rect x={STAGE_W - 10} y="0" width="10" height={STAGE_H} fill="#4a2e19" />
@@ -241,10 +241,10 @@ const StallScene = memo(function StallScene({ noren }: { noren: string }) {
         <Tier key={tier} tier={tier} />
       ))}
       {/* The counter: its worn top, the boards of its front. */}
-      <rect x="0" y={COUNTER_Y} width={STAGE_W} height="20" fill="url(#sg-counter)" />
+      <rect x="0" y={COUNTER_Y} width={STAGE_W} height="20" fill="url(#sht-counter)" />
       <path d={`M 0 ${COUNTER_Y + 6} Q 90 ${COUNTER_Y + 3} 180 ${COUNTER_Y + 7} T 360 ${COUNTER_Y + 5} M 0 ${COUNTER_Y + 14} Q 120 ${COUNTER_Y + 16} 240 ${COUNTER_Y + 12} T 360 ${COUNTER_Y + 15}`} fill="none" stroke="#b9854a" strokeWidth="1" />
       <rect x="0" y={COUNTER_Y} width={STAGE_W} height="2" fill="#f0c48a" />
-      <rect x="0" y={COUNTER_Y + 20} width={STAGE_W} height={STAGE_H - COUNTER_Y - 20} fill="url(#sg-front)" />
+      <rect x="0" y={COUNTER_Y + 20} width={STAGE_W} height={STAGE_H - COUNTER_Y - 20} fill="url(#sht-front)" />
       {Array.from({ length: 7 }, (_, i) => (
         <path key={i} d={`M ${i * 60} ${COUNTER_Y + 20} L ${i * 60} ${STAGE_H}`} stroke="#2e1a0b" strokeWidth="2" />
       ))}
@@ -274,19 +274,24 @@ const GunArt = ({ lever, cork }: { lever: RefObject<SVGGElement | null>; cork: R
     <g>
       {/* The lever at the right of the receiver, swung back as it is pulled. */}
       <g ref={lever} className={styles.lever}>
-        <path d={`M 191 392 L 206 420 L 210 418 L 195 390 Z`} fill="#7b828c" stroke="#2c3036" strokeWidth="0.8" />
-        <circle cx="208" cy="420" r="4" fill="#3b2a1c" stroke="#160d06" strokeWidth="0.8" />
+        <path d="M 191 378 L 214 414 L 219 411 L 196 376 Z" fill="#8a929c" stroke="#2c3036" strokeWidth="1" />
+        <circle cx="216.5" cy="413" r="5.5" fill="#3b2a1c" stroke="#160d06" strokeWidth="1" />
+        <circle cx="193.5" cy="377.5" r="2.6" fill="#2c3036" />
       </g>
-      {/* The stock, dark wood, wide at the player's end. */}
-      <path d="M 162 454 L 198 454 L 194 404 L 166 404 Z" fill="#7a4a24" stroke="#3a210c" strokeWidth="1" />
-      <path d="M 170 450 L 172 410 M 186 450 L 185 410" stroke="#9a6236" strokeWidth="1" strokeOpacity="0.8" />
-      {/* The receiver. */}
-      <rect x="168" y="378" width="24" height="30" rx="3" fill="#3c4148" stroke="#1d2024" strokeWidth="1" />
-      <rect x="171" y="382" width="5" height="22" rx="1.5" fill="#5b626b" />
+      {/* The stock, old dark wood, wide at the player's end, its grain and its butt plate. */}
+      <path d="M 148 456 Q 180 462 212 456 L 199 404 L 161 404 Z" fill="#7a4a24" stroke="#3a210c" strokeWidth="1.2" />
+      <path d="M 160 452 L 167 410 M 178 455 L 179 408 M 196 452 L 192 410" stroke="#9a6236" strokeWidth="1.2" strokeOpacity="0.7" />
+      <path d="M 152 448 Q 180 453 208 448" fill="none" stroke="#2a1608" strokeWidth="3" strokeOpacity="0.6" />
+      {/* The fore-end under the barrel. */}
+      <path d="M 165 410 L 169 362 L 191 362 L 195 410 Z" fill="#8c5a2e" stroke="#3a210c" strokeWidth="1" />
+      {/* The cylinder with the spring and piston in it. */}
+      <rect x="166" y="370" width="28" height="34" rx="5" fill="#3c4148" stroke="#1d2024" strokeWidth="1.2" />
+      <rect x="170" y="374" width="6" height="26" rx="2" fill="#6b737d" />
+      <path d="M 166 386 L 194 386" stroke="#1d2024" strokeWidth="1" />
       {/* The barrel, narrowing to the muzzle, and the blade of its front sight. */}
-      <path d={`M 172 380 L 175.5 ${muzzle + 2} L 184.5 ${muzzle + 2} L 188 380 Z`} fill="#4b525b" stroke="#1d2024" strokeWidth="1" />
-      <path d={`M 177 378 L 178.5 ${muzzle + 4}`} stroke="#8c949e" strokeWidth="1.2" />
-      <rect x="174.5" y={muzzle} width="11" height="5" rx="1.5" fill="#2b2f35" />
+      <path d={`M 171.5 372 L 174.5 ${muzzle + 2} L 185.5 ${muzzle + 2} L 188.5 372 Z`} fill="#4b525b" stroke="#1d2024" strokeWidth="1.1" />
+      <path d={`M 176.5 370 L 177.8 ${muzzle + 4}`} stroke="#9aa2ac" strokeWidth="1.4" />
+      <rect x="173.5" y={muzzle} width="13" height="6" rx="2" fill="#2b2f35" />
       <rect x="179" y={muzzle - 3} width="2" height="4" fill="#2b2f35" />
       {/* The cork, pushed into the muzzle. */}
       <g ref={cork} className={styles.loadedCork} style={{ opacity: 0 }}>
@@ -306,57 +311,53 @@ export interface StageParts {
   sightLabel: RefObject<HTMLSpanElement | null>;
   cork: RefObject<HTMLDivElement | null>;
   puff: RefObject<HTMLDivElement | null>;
-  /** Each figure's layer (clipped as it falls behind its shelf) and the part of it that moves. */
-  clips: (HTMLDivElement | null)[];
-  movers: (HTMLDivElement | null)[];
+  /** Hands the page each figure's layer (clipped as it falls behind its shelf) and the part of it that moves. */
+  figure: (target: number, part: 'clip' | 'mover', el: HTMLDivElement | null) => void;
 }
 
 /** The layers that move, drawn once: the page moves them (PlayTab.tsx). */
-export const MovingLayers = memo(function MovingLayers({ parts }: { parts: StageParts }) {
+export const MovingLayers = memo(function MovingLayers({ parts: { gun, lever, loaded, sight, sightLabel, cork, puff, figure } }: { parts: StageParts }) {
   return (
     <>
       {Array.from({ length: TARGETS }, (_, target) => (
         <FigureLayerView
           key={target}
           target={target}
-          clip={(el) => {
-            parts.clips[target] = el;
-          }}
-          mover={(el) => {
-            parts.movers[target] = el;
-          }}
+          clip={(el) => figure(target, 'clip', el)}
+          mover={(el) => figure(target, 'mover', el)}
         />
       ))}
       <div
         className={`${styles.layer} ${styles.gunLayer}`}
         style={{ ...layerStyle(GUN_BOX), transformOrigin: `${((GUN_PIVOT.x - GUN_BOX.x) / GUN_BOX.w) * 100}% ${((GUN_PIVOT.y - GUN_BOX.y) / GUN_BOX.h) * 100}%` }}
-        ref={parts.gun}
-        data-testid="sg-gun"
+        ref={gun}
+        data-testid="sht-gun"
       >
         <svg className={styles.layerSvg} viewBox={viewOf(GUN_BOX)} focusable="false" aria-hidden="true">
-          <GunArt lever={parts.lever} cork={parts.loaded} />
+          <GunArt lever={lever} cork={loaded} />
         </svg>
       </div>
-      <div className={`${styles.layer} ${styles.puffLayer}`} style={{ ...layerStyle(PUFF_BOX), opacity: 0 }} ref={parts.puff} aria-hidden="true">
+      <div className={`${styles.layer} ${styles.puffLayer}`} style={{ ...layerStyle(PUFF_BOX), opacity: 0 }} ref={puff} aria-hidden="true">
         <svg className={styles.layerSvg} viewBox={viewOf(PUFF_BOX)} focusable="false">
           <defs>
-            <radialGradient id="sg-puff">
+            <radialGradient id="sht-puff">
               <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
               <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
             </radialGradient>
           </defs>
-          <circle cx={PUFF_BOX.x + PUFF_BOX.w / 2} cy={PUFF_BOX.y + PUFF_BOX.h / 2} r={PUFF_BOX.w / 2} fill="url(#sg-puff)" />
+          <circle cx={PUFF_BOX.x + PUFF_BOX.w / 2} cy={PUFF_BOX.y + PUFF_BOX.h / 2} r={PUFF_BOX.w / 2} fill="url(#sht-puff)" />
         </svg>
       </div>
-      <div className={`${styles.layer} ${styles.corkLayer}`} style={{ ...layerStyle(CORK_BOX), opacity: 0 }} ref={parts.cork} aria-hidden="true" data-testid="sg-cork">
+      <div className={`${styles.layer} ${styles.corkLayer}`} style={{ ...layerStyle(CORK_BOX), opacity: 0 }} ref={cork} aria-hidden="true" data-testid="sht-cork">
         <svg className={styles.layerSvg} viewBox={viewOf(CORK_BOX)} focusable="false">
           <g transform={`translate(${CORK_BOX.x + CORK_BOX.w / 2} ${CORK_BOX.y + CORK_BOX.h / 2})`}>
-            <path d="M -5 -3.4 L 5 -2.4 L 5 2.4 L -5 3.4 Z" fill="#c99a62" stroke="#7a5528" strokeWidth="0.9" />
-            <ellipse cx="5" cy="0" rx="1.3" ry="2.4" fill="#e2b984" />
+            <path d="M -7 -4.8 L 7 -3.4 L 7 3.4 L -7 4.8 Z" fill="#c99a62" stroke="#5e3f1c" strokeWidth="1.1" />
+            <ellipse cx="7" cy="0" rx="1.8" ry="3.4" fill="#e9c592" stroke="#5e3f1c" strokeWidth="0.6" />
+            <path d="M -3 -3.6 L -3 3.6 M 2 -3.2 L 2 3.2" stroke="#a87a45" strokeWidth="0.8" />
           </g>
         </svg>
       </div>
-      <div className={`${styles.layer} ${styles.sightLayer}`} style={{ ...layerStyle(SIGHT_BOX), opacity: 0 }} ref={parts.sight} aria-hidden="true" data-testid="sg-sight">
+      <div className={`${styles.layer} ${styles.sightLayer}`} style={{ ...layerStyle(SIGHT_BOX), opacity: 0 }} ref={sight} aria-hidden="true" data-testid="sht-sight">
         <svg className={styles.layerSvg} viewBox={viewOf(SIGHT_BOX)} focusable="false">
           <g transform={`translate(${SIGHT_BOX.x + SIGHT_BOX.w / 2} ${SIGHT_BOX.y + SIGHT_BOX.h / 2})`} fill="none" strokeLinecap="round">
             <circle r="9" stroke="#1a0f06" strokeWidth="4" strokeOpacity="0.6" />
@@ -366,7 +367,7 @@ export const MovingLayers = memo(function MovingLayers({ parts }: { parts: Stage
             <circle r="1.4" fill="#ff5a3c" stroke="none" />
           </g>
         </svg>
-        <span className={styles.sightLabel} ref={parts.sightLabel} data-side="right" />
+        <span className={styles.sightLabel} ref={sightLabel} data-side="right" />
       </div>
     </>
   );
@@ -380,7 +381,7 @@ const Lanterns = memo(function Lanterns() {
         <div key={side} className={styles.lantern} data-side={side === 0 ? 'left' : 'right'} aria-hidden="true">
           <svg viewBox="0 0 34 64" className={styles.lanternSvg} focusable="false">
             <defs>
-              <radialGradient id={`sg-lantern-${side}`} cx="45%" cy="45%" r="60%">
+              <radialGradient id={`sht-lantern-${side}`} cx="45%" cy="45%" r="60%">
                 <stop offset="0" stopColor="#ffd27a" />
                 <stop offset="0.55" stopColor="#e2452e" />
                 <stop offset="1" stopColor="#8e1d12" />
@@ -388,7 +389,7 @@ const Lanterns = memo(function Lanterns() {
             </defs>
             <path d="M 17 0 L 17 12" stroke="#1a120c" strokeWidth="1.4" />
             <rect x="9" y="11" width="16" height="5" rx="1.5" fill="#1a120c" />
-            <ellipse cx="17" cy="35" rx="15" ry="19" fill={`url(#sg-lantern-${side})`} />
+            <ellipse cx="17" cy="35" rx="15" ry="19" fill={`url(#sht-lantern-${side})`} />
             {[-12, -6, 0, 6, 12].map((dy) => (
               <path key={dy} d={`M ${17 - Math.sqrt(1 - (dy / 19) ** 2) * 15} ${35 + dy} Q 17 ${35 + dy + 2.5} ${17 + Math.sqrt(1 - (dy / 19) ** 2) * 15} ${35 + dy}`} fill="none" stroke="#8e1d12" strokeOpacity="0.55" strokeWidth="0.9" />
             ))}
@@ -448,7 +449,7 @@ export const Stage = memo(function Stage({ t, label, parts, positions, picked, c
             type="button"
             className={styles.spot}
             style={layerStyle(spot)}
-            data-testid={`sg-figure-${target}`}
+            data-testid={`sht-figure-${target}`}
             data-target={target}
             data-kind={kind}
             data-position={positions[target]}
@@ -465,7 +466,7 @@ export const Stage = memo(function Stage({ t, label, parts, positions, picked, c
       {/* The plaque on the counter: how many figures are off the shelf this play. */}
       <div className={styles.plaque} aria-hidden="true">
         <span className={styles.plaqueLabel}>{t.down}</span>
-        <span className={styles.plaqueCount} data-testid="sg-down">
+        <span className={styles.plaqueCount} data-testid="sht-down">
           {down}
         </span>
       </div>

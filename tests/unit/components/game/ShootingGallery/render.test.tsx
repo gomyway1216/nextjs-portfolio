@@ -42,19 +42,19 @@ const PLAYS = [
 describe('the machine', () => {
   it('starts with its counters dark until the medals are read, the stall set up, START, Skip and FIRE', () => {
     const markup = render(<PlayTab />);
-    expect(markup).toContain('data-testid="sg-medals" data-loaded="false">—<');
-    expect(markup).toMatch(/<button[^>]*data-testid="sg-start"[^>]*disabled=""/);
+    expect(markup).toContain('data-testid="sht-medals" data-loaded="false">—<');
+    expect(markup).toMatch(/<button[^>]*data-testid="sht-start"[^>]*disabled=""/);
     // FIRE and Skip are there from the start, so that nothing moves when a play begins; they do nothing until then.
-    expect(markup).toMatch(/<button[^>]*data-testid="sg-fire"[^>]*aria-disabled="true"/);
-    expect(markup).toMatch(/<button[^>]*data-testid="sg-skip"[^>]*disabled=""/);
+    expect(markup).toMatch(/<button[^>]*data-testid="sht-fire"[^>]*aria-disabled="true"/);
+    expect(markup).toMatch(/<button[^>]*data-testid="sht-skip"[^>]*disabled=""/);
     // Skip only fast-forwards, once the last cork has been fired, and says so.
-    const skipButton = markup.match(/<button[^>]*data-testid="sg-skip"[^>]*>/)?.[0] ?? '';
-    expect(skipButton).toContain('aria-describedby="sg-skip-why"');
+    const skipButton = markup.match(/<button[^>]*data-testid="sht-skip"[^>]*>/)?.[0] ?? '';
+    expect(skipButton).toContain('aria-describedby="sht-skip-why"');
     expect(skipButton).toContain('title="after the last cork"');
-    expect(render(<PlayTab />, 'ja')).toMatch(/<span id="sg-skip-why"[^>]*>コルクを全部撃ってから<\/span>/);
+    expect(render(<PlayTab />, 'ja')).toMatch(/<span id="sht-skip-why"[^>]*>コルクを全部撃ってから<\/span>/);
     expect(markup.match(/<polygon/g)).toHaveLength((MEDAL_PLACES + CORK_PLACES + WIN_PLACES) * 7);
     // The nine figures, each a button with its tag, every one standing; the sight on the middle of the bottom tier.
-    const figures = [...markup.matchAll(/<button[^>]*data-testid="sg-figure-(\d)"[^>]*>/g)];
+    const figures = [...markup.matchAll(/<button[^>]*data-testid="sht-figure-(\d)"[^>]*>/g)];
     expect(figures).toHaveLength(TARGETS);
     for (const [button, target] of figures) {
       expect(button).toContain(`data-kind="${SHELF[Number(target)]}"`);
@@ -65,17 +65,17 @@ describe('the machine', () => {
     expect(markup).toContain('aria-label="Beckoning cat, 25 medals: as set up"');
     // The five bands on FIRE's gauge, and the gun, the sight and the cork in layers of their own.
     expect(markup.match(/data-step="/g)).toHaveLength(BANDS);
-    for (const id of ['sg-gun', 'sg-sight', 'sg-cork']) expect(markup).toContain(`data-testid="${id}"`);
+    for (const id of ['sht-gun', 'sht-sight', 'sht-cork']) expect(markup).toContain(`data-testid="${id}"`);
     expect(markup.match(/data-figure="/g)).toHaveLength(TARGETS);
-    expect(markup).toContain('data-testid="sg-down">0<');
+    expect(markup).toContain('data-testid="sht-down">0<');
     expect(markup).toContain('>6 MEDALS · 6 CORKS<');
     expect(markup).toContain('>射</text>');
     expect(markup).toContain('>的</text>');
     expect(markup).toContain(NOT_MONEY.en);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}"`);
     // No refill of its own until there are no medals, and no reset: both are the medal center's.
-    expect(markup).not.toContain('sg-refill');
-    expect(markup).not.toContain('sg-card-away');
+    expect(markup).not.toContain('sht-refill');
+    expect(markup).not.toContain('sht-card-away');
   });
 
   it('says plainly when a play takes more medals than there are', () => {
@@ -125,11 +125,11 @@ describe('the stall’s motion', () => {
   it('moves nothing by a 3D transform (WebKit flattens them), and sways the lanterns only for a player who has not asked for less motion', () => {
     expect(css).not.toMatch(/perspective|rotate[XY]\(|translate3d|preserve-3d/);
     const allowed = css.slice(css.indexOf('@media (prefers-reduced-motion: no-preference)'));
-    expect(allowed.slice(0, allowed.indexOf('\n}\n'))).toContain('animation: sg-sway');
+    expect(allowed.slice(0, allowed.indexOf('\n}\n'))).toContain('animation: sht-sway');
     // The lanterns' sway is of their transform alone, which the compositor runs, four sways to a long round.
-    const sway = /@keyframes sg-sway \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    const sway = /@keyframes sht-sway \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
     expect(new Set([...sway.matchAll(/([a-z-]+):/g)].map((m) => m[1]))).toEqual(new Set(['transform']));
-    expect(css).toMatch(/animation: sg-sway 18s ease-in-out infinite/);
+    expect(css).toMatch(/animation: sht-sway 18s ease-in-out infinite/);
   });
 });
 
@@ -138,10 +138,10 @@ describe('the page', () => {
     const markup = render(<ShootingGallery />);
     expect(markup).toContain('<h1');
     expect(markup).toContain('Onsen');
-    expect(markup).toContain('id="sg-tab-machine"');
-    expect(markup).toContain('id="sg-tab-odds"');
-    expect(markup).toMatch(/id="sg-panel-odds"[^>]*hidden=""/);
-    expect(markup).toContain('data-testid="sg-center"');
+    expect(markup).toContain('id="sht-tab-machine"');
+    expect(markup).toContain('id="sht-tab-odds"');
+    expect(markup).toMatch(/id="sht-panel-odds"[^>]*hidden=""/);
+    expect(markup).toContain('data-testid="sht-center"');
     expect(markup).toContain('data-testid="floor-jackpot-strip"');
     expect(render(<ShootingGallery />, 'ja')).toContain('湯の町');
   });
@@ -150,7 +150,7 @@ describe('the page', () => {
     const markup = render(<OddsTab />);
     for (const kind of KIND_IDS) {
       KINDS[kind].rows.forEach((rows, position) => {
-        const table = markup.match(new RegExp(`<table[^>]*data-testid="sg-chances-${kind}-${position}"[\\s\\S]*?</table>`))?.[0] ?? '';
+        const table = markup.match(new RegExp(`<table[^>]*data-testid="sht-chances-${kind}-${position}"[\\s\\S]*?</table>`))?.[0] ?? '';
         expect(table, `${kind} ${position}`).not.toBe('');
         for (let band = 1; band < BANDS; band++) {
           const row = table.match(new RegExp(`<tr data-band="${band}">([\\s\\S]*?)</tr>`))?.[1] ?? '';

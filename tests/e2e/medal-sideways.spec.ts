@@ -274,16 +274,31 @@ async function galleryPlay(page: Page, seen: () => Promise<void>) {
 
 // ── Firework Ball Tower ──
 
-/** Ball tower: a run drawn UP down to the chance disc and ×12 there, watched disc by disc. */
+/**
+ * Ball tower: a run drawn UP down to the chance disc and ×12 there, watched disc by disc. Each disc the machine shows is
+ * caught as it is shown (with less motion, as here, a disc is shown for under half a second, and a look at the page
+ * every so often can come before and after one: on a busy runner it did), and the page is looked at once each is.
+ */
 async function towerPlay(page: Page, seen: () => Promise<void>) {
   const machine = page.getByTestId('bt-machine');
+  await machine.evaluate((m) => {
+    const shown: string[] = [];
+    (window as unknown as { towerLevels: string[] }).towerLevels = shown;
+    new MutationObserver(() => {
+      const level = m.getAttribute('data-level') ?? '';
+      if (level !== '' && shown[shown.length - 1] !== level) shown.push(level);
+    }).observe(m, { attributes: true, attributeFilter: ['data-level'] });
+  });
+  const levels = () => page.evaluate(() => (window as unknown as { towerLevels: string[] }).towerLevels);
   await rigPresses(page, towerNumbers(towerDrawFor(['up', 'up', 'up', 'pay'], 12)));
   await page.getByTestId('bt-start').click();
   for (const level of ['0', '1', '2', '3']) {
-    await expect(machine).toHaveAttribute('data-level', level, { timeout: 15_000 });
+    await expect.poll(levels, { timeout: 15_000 }).toContain(level);
     await seen();
   }
   await expect(machine).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
+  // Every disc down to the chance disc shown, in order.
+  expect(await levels()).toEqual(['0', '1', '2', '3']);
 }
 
 /** The ball tower's badge over a run from before, beside the tower, not on it. */

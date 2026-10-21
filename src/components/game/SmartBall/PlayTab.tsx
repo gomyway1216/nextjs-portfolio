@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, createRef, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment, createRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
@@ -237,8 +237,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const ballsLeft = phase === 'idle' ? 0 : MARBLES - marble;
 
   const canStart = mine && here && phase === 'idle';
+  // Brought up to date as START is drawn (a layout effect), not after the paint: the press reads it, and a press made
+  // the moment START is drawn enabled was otherwise turned away by the old value.
   const canStartRef = useRef(canStart);
-  useEffect(() => {
+  useLayoutEffect(() => {
     canStartRef.current = canStart;
   }, [canStart]);
 

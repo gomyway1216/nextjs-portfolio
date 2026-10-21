@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 /**
  * A machine's keys on a desktop, as Calico Janken has its own (Janken/keys.ts):
@@ -55,8 +55,10 @@ export function forTheMachine(press: MachineKey): boolean {
  * is drawn by holding Space).
  */
 export function useMachineKeys(active: boolean, onKey: (key: string) => boolean): void {
+  // Brought up to date as the machine is drawn (a layout effect), not after the paint: a key pressed the moment a
+  // button is drawn enabled otherwise went to the handler of the render before, which still saw that button off.
   const handler = useRef(onKey);
-  useEffect(() => {
+  useLayoutEffect(() => {
     handler.current = onKey;
   });
   useEffect(() => {

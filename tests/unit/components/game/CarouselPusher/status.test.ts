@@ -17,7 +17,7 @@ describe('the status line', () => {
     let rolling = 0;
     for (let i = 0, fed = 0; i < 20_000; i++) {
       if (fed < 200 && slotFree(m) && nextPocketUnderDrop(m.step + PRESS_TO_DECK).steps === 0) {
-        feed(m, 0.5, 0, ticketFor('miss'));
+        feed(m, 0.5, 0, ticketFor('miss'), 0.5);
         fed += 1;
       }
       step(m, LOTTERY);

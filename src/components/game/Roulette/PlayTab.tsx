@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useMachineKeys } from '../MedalCenter/machineKeys';
 import { useCountUp } from '../MedalCenter/countUp';
@@ -174,8 +174,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   // must be pure and may run twice under Strict Mode).
   const undoStack = useRef<{ key: BetKey; amount: number }[]>([]);
   const betsRef = useRef<Record<BetKey, PlacedBet>>({});
+  // Brought up to date as the felt is drawn (a layout effect), not after the paint: the presses read it, and a press
+  // made the moment the felt is drawn enabled was otherwise turned away by the old value.
   const canBetRef = useRef(canBet);
-  useEffect(() => {
+  useLayoutEffect(() => {
     canBetRef.current = canBet;
   }, [canBet]);
 

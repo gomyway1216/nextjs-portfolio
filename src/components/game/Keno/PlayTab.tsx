@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
@@ -222,8 +222,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const { pay: payWin } = winMeter;
 
   const canPlay = mine && here && running === null;
+  // Brought up to date as the board is drawn (a layout effect), not after the paint: the presses read it, and a press
+  // made the moment the board is drawn enabled was otherwise turned away by the old value.
   const canPlayRef = useRef(canPlay);
-  useEffect(() => {
+  useLayoutEffect(() => {
     canPlayRef.current = canPlay;
   }, [canPlay]);
 

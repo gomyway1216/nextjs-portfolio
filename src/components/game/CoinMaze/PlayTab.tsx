@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, createRef, useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment, createRef, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
@@ -221,8 +221,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const { pay: payWin } = winMeter;
 
   const canDrop = mine && here && phase === 'idle';
+  // Brought up to date as DROP is drawn (a layout effect), not after the paint: the press reads it, and a press made
+  // the moment DROP is drawn enabled was otherwise turned away by the old value.
   const canDropRef = useRef(canDrop);
-  useEffect(() => {
+  useLayoutEffect(() => {
     canDropRef.current = canDrop;
   }, [canDrop]);
 

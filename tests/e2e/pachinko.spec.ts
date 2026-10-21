@@ -273,6 +273,40 @@ test('pachinko: a rigged hit — a reach Skip cuts short, a fanfare calling 右�
   await expect(page.getByTestId('pk-history').locator('li').first()).toHaveAttribute('data-rounds', '10');
 });
 
+test('pachinko: the day’s bonus taken at the medal center in another window in the middle of a hit leaves the hit the player’s: its rounds are not played out', async ({ context, page }) => {
+  test.setTimeout(120_000);
+  // The medal center is open in another page first, so that the day's bonus is there to take in the middle of a hit.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openMachine(page);
+  await lend(page, [HIT]);
+  await turnTo(page, BEST_LEFT);
+  await hold(page, 300);
+  await expect(machine(page)).toHaveAttribute('data-spin', 'nr', { timeout: 5_000 });
+  await expect(machine(page)).toHaveAttribute('data-phase', '1', { timeout: 15_000 });
+  await page.getByTestId('pk-skip').click();
+  await expect(machine(page)).toHaveAttribute('data-stage', 'fanfare', { timeout: 5_000 });
+  await page.getByTestId('pk-skip').click();
+  await expect(machine(page)).toHaveAttribute('data-stage', 'open', { timeout: 5_000 });
+  const before = (await session(page))!.machine.bonus!;
+  // Taken there, the bonus borrows the medals for a moment: the hit goes on where it was, its rounds the player's.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await hub.close();
+  await expect(machine(page)).toHaveAttribute('data-card', 'here');
+  const after = (await session(page))!;
+  expect(after.machine.bonus).toMatchObject({ round: before.round, count: before.count, stage: 'open' });
+  expect(after.away).toBeNull();
+  await expect(machine(page)).toHaveAttribute('data-stage', 'open');
+  await expect(page.getByTestId('pk-message')).not.toContainText('played out');
+  // And the player's hand plays it on: balls at 6 go into the open attacker.
+  await turnTo(page, 5);
+  await hold(page, 2_000);
+  await expect.poll(async () => (await session(page))?.machine.bonus?.count ?? 0).toBeGreaterThan(before.count);
+});
+
 test('pachinko: Skip cuts short what the screen shows: a press on a reach the rules have already stopped leaves the hit’s fanfare to be seen', async ({ page }) => {
   test.setTimeout(60_000);
   await openMachine(page);

@@ -236,6 +236,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const table = useRef<Table | null>(null);
   const seat = useRef<Seat | null>(null);
   const reopen = useRef(true);
+  /** Whether the session is to be read again as it stands, a hit and all, as the card comes back from a moment's loan. */
+  const reread = useRef(false);
   const nextSlot = useRef<number | null>(null);
   const flying = useRef<Flying[]>([]);
   const due = useRef<Due[]>([]);
@@ -463,12 +465,23 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const found = tab.open();
     session.current = found;
     reopen.current = false;
+    reread.current = false;
     setKnown(true);
     if (found?.away) {
       setMessage(live.current.t.away(found.away.rounds, found.away.balls));
       tab.told();
       session.current = tab.session();
     }
+    showNow();
+    kick();
+  }, [kick, showNow]);
+
+  /** The session read again as the card comes back from a moment's loan: as it stands, a hit going on where it was. */
+  const resume = useCallback(() => {
+    const tab = table.current;
+    if (!tab) return;
+    reread.current = false;
+    session.current = tab.session();
     showNow();
     kick();
   }, [kick, showNow]);
@@ -619,7 +632,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   );
 
   // The machine's place at the medal center: it asks for the card as it is set up, and plays the player's medals while
-  // it holds it. As the card goes, a hit's rounds still to come are played out at once, and the page is shown them.
+  // it holds it. As the card goes with the page (hidden, left or reloaded), a hit's rounds still to come are played out
+  // at once, and the page is shown them. A moment's loan of the card (the medal center's front in another window taking
+  // the day's bonus, a floor jackpot paid in there, another tab's machine starting) leaves the machine as it is: no slot
+  // runs without the card, the hit goes on where it was as the card comes back, or, kept by another tab's machine, the
+  // page of this machine that holds the card first plays its rounds out (`open`).
   useEffect(() => {
     const purse = medalBank();
     table.current = createTable({
@@ -630,9 +647,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       random: Math.random,
       draw: drawBall,
     });
-    const yielding = () => {
+    const yielding = (why: 'moment' | 'hidden' | 'left') => {
       const tab = table.current;
       if (!tab) return;
+      if (why === 'moment') {
+        nextSlot.current = null;
+        reread.current = true;
+        return;
+      }
       heldRef.current = false;
       // A hit's rounds still to come are played out now; the note that says so is shown when the card comes back (`open`),
       // here or on the next page.
@@ -651,6 +673,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (!placed.holding() || !state.loaded || !who.settled || state.owner !== who.uid) return;
       if (purse.restartDue(PACHINKO_GAME)) startOver(false);
       if (reopen.current || (session.current && session.current.owner !== state.owner)) open();
+      else if (reread.current) resume();
     };
     const unsubscribe = purse.subscribe(sync);
     const unlisten = purse.listen((event) => {
@@ -665,7 +688,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (seat.current === placed) seat.current = null;
       table.current = null;
     };
-  }, [open, showNow, startOver]);
+  }, [open, resume, showNow, startOver]);
 
   // Signed in or out: the session is the new player's, read when the card is here for them.
   useEffect(() => {
@@ -673,7 +696,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   }, [player.uid]);
   useEffect(() => {
     if (mine && here && reopen.current) open();
-  }, [mine, here, open]);
+    else if (mine && here && reread.current) resume();
+  }, [mine, here, open, resume]);
 
   // While the machine is not on show (its Odds tab, or its help, in front of it), its clock stops and the handle is let
   // go; it goes on from the same point when it is shown again.

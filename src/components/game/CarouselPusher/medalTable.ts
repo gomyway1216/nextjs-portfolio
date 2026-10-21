@@ -216,6 +216,12 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     return true;
   };
 
+  /** This page's memory of the session, put back to `record`: after a write that storage would not keep. */
+  const remember = (record: SessionRecord): void => {
+    memory = serializeSession(record);
+    memoryKey = sessionKey(record.owner);
+  };
+
   const move = (record: SessionRecord, round: string, step: string, medals: number) => bank.apply({ game: CAROUSEL_GAME, round, step, medals, era: record.era });
   const moved = (round: string, step: string): boolean => bank.applied({ game: CAROUSEL_GAME, round, step });
 
@@ -325,7 +331,10 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       const asked: SessionRecord = { ...record, credit: from === 'credit' ? record.credit - medals : record.credit, pending };
       if (from === 'tray') asked.machine.tray -= medals;
       if (!keep(asked)) {
+        // Storage that can be read would not keep it: nothing is paid, and the page's memory goes back to the session
+        // as it was, so that the move written down a moment ago is never found and made later.
         if (from === 'tray') asked.machine.tray += medals;
+        remember(record);
         return null;
       }
       pay(asked, pending);
@@ -370,7 +379,10 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       staking = true;
       try {
         const asked: SessionRecord = { ...record, pending: { kind: 'lend', id, medals: handful } };
-        if (!keep(asked)) return { outcome: 'unsaved', record };
+        if (!keep(asked)) {
+          remember(record);
+          return { outcome: 'unsaved', record };
+        }
         if (move(asked, id, LEND_STEP, -handful) !== 'applied') {
           keep(record);
           return { outcome: 'short', record };

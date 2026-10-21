@@ -330,6 +330,39 @@ describe('a browser that dies between two writes', () => {
   });
 });
 
+describe('when storage will not keep things', () => {
+  it('puts nothing into the slot it cannot write down, and pays the tray once when storage fills between two counts', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    const machine = machineOn(page);
+    await quiet(browser);
+    const write = page.env.write;
+    let full = true;
+    page.env.write = (key, text) => {
+      if (full && key === SESSION_KEY) throw new Error('quota');
+      write(key, text);
+    };
+    expect(machine.lend()).toBe('unsaved');
+    expect(stored(browser)).toBe(WELCOME);
+    full = false;
+    expect(machine.lend()).toBe('lent');
+    machine.feed();
+    machine.now()!.machine.tray = 6;
+    // Storage fills: the count is not made, and nothing written down for it is ever found and made later.
+    full = true;
+    expect(machine.collect()).toBeNull();
+    expect(stored(browser)).toBe(WELCOME - LEND);
+    expect(machine.table.leftover()).toBeNull();
+    expect(stored(browser)).toBe(WELCOME - LEND);
+    // Storage has room again: the six go in once.
+    full = false;
+    machine.collect();
+    expect(stored(browser)).toBe(WELCOME - LEND + 6);
+    expect(machine.table.leftover()).toBeNull();
+    expect(stored(browser)).toBe(WELCOME - LEND + 6);
+  });
+});
+
 describe('reading a session back', () => {
   it('reads back only a session it could have written: every field checked', () => {
     const good: SessionRecord = { v: 1, owner: null, ledger: 'device00001', era: 0, credit: 7, machine: freshMachine(3), pending: null, lent: 'abc' };

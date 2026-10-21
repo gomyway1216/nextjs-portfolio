@@ -60,6 +60,9 @@ describe('the floor’s moments', () => {
     // Whale Isle Sugoroku's jackpot comes from the JP Chance square on the board a little more often than from the whale's
     // blowhole: the line names the machine, not the blowhole.
     expect(getFloorStrings('en').moment('sugoroku-jp', '1,000')).toBe('hit the jackpot on Whale Isle Sugoroku: 1,000 medals');
+    // The ball tower's jackpot: the ball goes UP on every disc as it comes down the tower, and into JP.
+    expect(getFloorStrings('en').moment('tower-jackpot', '3,000')).toBe('hit the jackpot at Firework Ball Tower, UP on every disc: 3,000 medals');
+    expect(getFloorStrings('en').moment('tower-chance', '60')).toBe('won in the jackpot chance at Firework Ball Tower: 60 medals');
   });
 
   it('and in Japanese', () => {

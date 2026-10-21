@@ -173,7 +173,7 @@ const enMoment = (label: string | null, medals: string): string => {
     case 'gallery-trio':
       return `knocked three or more off the shelf at Onsen Shooting Gallery: ${medals} medals`;
     case 'tower-jackpot':
-      return `went UP all the way down Firework Ball Tower into JP: ${medals} medals`;
+      return `hit the jackpot at Firework Ball Tower, UP on every disc: ${medals} medals`;
     case 'tower-chance':
       return `won in the jackpot chance at Firework Ball Tower: ${medals} medals`;
     default:

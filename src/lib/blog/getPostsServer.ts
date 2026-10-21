@@ -1,5 +1,5 @@
 import 'server-only';
-import { unstable_cache } from 'next/cache';
+import { cacheWithWaitUntil } from '@/lib/cache/cacheWithWaitUntil';
 import { getFirestore } from '@/lib/firebase-admin';
 import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
@@ -106,7 +106,7 @@ async function fetchPostsPage(
 }
 
 // The initial page of each blog category, cached for 60s.
-const getInitialPostsPageCached = unstable_cache(
+const getInitialPostsPageCached = cacheWithWaitUntil(
   fetchPostsPage,
   ['blog-posts-initial'],
   { revalidate: 60, tags: [BLOG_POST_LIST_CACHE_TAG] },

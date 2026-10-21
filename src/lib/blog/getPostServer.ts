@@ -1,5 +1,5 @@
 import 'server-only';
-import { unstable_cache } from 'next/cache';
+import { cacheWithWaitUntil } from '@/lib/cache/cacheWithWaitUntil';
 import { getFirestore } from '@/lib/firebase-admin';
 import { withReadDeadline } from '@/lib/firestoreDeadline';
 import { POSTS_COLLECTION } from '@/app/api/constants';
@@ -44,7 +44,7 @@ async function fetchPublicPost(id: string): Promise<DetailPost | null> {
 // unstable_cache already keys by arguments; the per-id tag is what makes
 // single-post on-demand revalidation possible later.
 export const getPublicPostCached = (id: string) =>
-  unstable_cache(() => fetchPublicPost(id), ['blog-post-detail', id], {
+  cacheWithWaitUntil(() => fetchPublicPost(id), ['blog-post-detail', id], {
     revalidate: 300,
     tags: [blogPostDetailCacheTag(id)],
   })();

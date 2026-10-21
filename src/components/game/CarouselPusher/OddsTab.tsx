@@ -4,7 +4,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ScrollArea } from '../common/ScrollArea';
 import { SOURCES, getStrings } from './i18n';
 import { OUTCOME_IDS, PRIZES, WEIGHTS, WEIGHT_TOTAL, trayValue } from './lottery';
-import { PUBLISHED_CAROUSEL, familyTops, type WayFigures } from './published';
+import { PUBLISHED_CAROUSEL, familyOf, familyTops, type WayFigures } from './published';
 import styles from './CarouselPusher.module.css';
 
 type Way = keyof typeof PUBLISHED_CAROUSEL.ways;
@@ -36,6 +36,8 @@ export const OddsTab = () => {
     return dish ? o.scanDish(Number(dish[1])) : play;
   };
   const { best } = PUBLISHED_CAROUSEL;
+  // The best of everything, by its family and its moment (best play by its own name).
+  const bestName = best.play === 'lead 0' ? o.bestLabel : o.scanNamed(o.familyName[familyOf(best.play)], playName(best.play));
 
   return (
     <div className={styles.odds}>
@@ -143,7 +145,7 @@ export const OddsTab = () => {
           </table>
         </ScrollArea>
         <p className={styles.note} data-testid="cp-best-of-all">
-          {o.againNote(playName(best.play), pct(best.return), pct(best.half), fmt(best.medals))}
+          {o.againNote(bestName, pct(best.return), pct(best.half), fmt(best.medals))}
         </p>
       </section>
 

@@ -174,6 +174,7 @@ const en = {
     scanAngle: (angle: number) => `at ${angle}°`,
     scanSwing: (from: number, to: number) => `${from}° to ${to}°`,
     scanDish: (stock: number) => `timed from ${stock} in the dish`,
+    scanNamed: (family: string, play: string) => `${family} (${play})`,
     counterTitle: 'The counter',
     counterNote: (value: string) =>
       `Each spin is drawn from one number: a number one of your presses drew and kept, the first still waiting, or the machine’s own when none is left. Every chance below is exact (out of 65,536). A spin pays ${value} medals into the tray on average, the jackpot left out: it pays through the field.`,
@@ -316,6 +317,7 @@ const ja: Strings = {
     scanAngle: (angle: number) => `${angle}°`,
     scanSwing: (from: number, to: number) => `${from}°〜${to}°`,
     scanDish: (stock: number) => `皿が${B}${stock}枚${B}から`,
+    scanNamed: (family: string, play: string) => `${family}（${play}）`,
     counterTitle: 'カウンター',
     counterNote: (value: string) =>
       `1回ごとに${B}1つの${B}数で${B}決まります。${B}投入の${B}ときに${B}引いて${B}ためておいた${B}数の${B}最初の${B}もの、${B}なければ${B}マシン自身の${B}数です。${B}下の${B}確率は${B}すべて${B}正確な${B}値です${B}（65,536分の）。${B}ジャックポットを${B}除くと、${B}1回あたり${B}平均${value}枚が${B}トレイに${B}出ます${B}（ジャックポットは${B}フィールドを${B}通して${B}戻ります）。`,

@@ -4,7 +4,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ScrollArea } from '../common/ScrollArea';
 import { SOURCES, getStrings } from './i18n';
 import { OUTCOME_IDS, PRIZES, WEIGHTS, WEIGHT_TOTAL, trayValue } from './lottery';
-import { PUBLISHED_CAROUSEL, type WayFigures } from './published';
+import { PUBLISHED_CAROUSEL, familyTops, type WayFigures } from './published';
 import styles from './CarouselPusher.module.css';
 
 type Way = keyof typeof PUBLISHED_CAROUSEL.ways;
@@ -25,6 +25,17 @@ export const OddsTab = () => {
     { key: 'held', label: o.heldLabel, note: o.heldNote, testId: 'cp-held' },
   ];
   const per100 = (w: WayFigures, key: 'front' | 'prizes' | 'thrownIn' | 'pockets') => fmt(w[key] * 100, 1);
+  const { scan } = PUBLISHED_CAROUSEL;
+  /** A play as the scan names it (`lead -3`, `phase@120+1`, `dish@150`), in words. */
+  const playName = (play: string): string => {
+    const lead = /^lead (-?\d+)$/.exec(play);
+    if (lead) return o.scanLead(Number(lead[1]));
+    const phase = /^phase@(\d+)\+(\d+)$/.exec(play);
+    if (phase) return phase[2] === '1' ? o.scanAngle(Number(phase[1])) : o.scanSwing(Number(phase[1]), Number(phase[1]) + Number(phase[2]) - 1);
+    const dish = /^dish@(\d+)$/.exec(play);
+    return dish ? o.scanDish(Number(dish[1])) : play;
+  };
+  const { best } = PUBLISHED_CAROUSEL;
 
   return (
     <div className={styles.odds}>
@@ -98,6 +109,42 @@ export const OddsTab = () => {
             </tbody>
           </table>
         </ScrollArea>
+      </section>
+
+      <section>
+        <h2 className={styles.blockTitle}>{o.scanTitle}</h2>
+        <p className={styles.note}>{o.scanNote}</p>
+        <ScrollArea className={styles.tableWrap}>
+          <table className={styles.oddsTable} data-testid="cp-scan-table">
+            <thead>
+              <tr>
+                <th scope="col">{o.colFamily}</th>
+                <th scope="col" className={styles.num}>
+                  {o.colPlays}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {o.colHighest}
+                </th>
+                <th scope="col">{o.colAt}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {familyTops(scan.plays).map((family) => (
+                <tr key={family.id} data-family={family.id}>
+                  <th scope="row">{o.familyName[family.id]}</th>
+                  <td className={styles.num}>{fmt(family.plays)}</td>
+                  <td className={styles.num}>
+                    {pct(family.top.return)} ±{pct(family.top.half)}
+                  </td>
+                  <td>{playName(family.top.play)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollArea>
+        <p className={styles.note} data-testid="cp-best-of-all">
+          {o.againNote(playName(best.play), pct(best.return), pct(best.half), fmt(best.medals))}
+        </p>
       </section>
 
       <section>

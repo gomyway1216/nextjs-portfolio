@@ -1,56 +1,97 @@
 import { describe, expect, it } from 'vitest';
 
-import { PUBLISHED_CAROUSEL } from '@/components/game/CarouselPusher/published';
-import { simulate } from '@/components/game/CarouselPusher/sim';
+import { COS, DROP, HOLD_MAX, PRESS_TO_DECK, SCATTER, SIN, TURN_STEPS, feed, freshMachine, nextPocketUnderDrop, nextRandom, slideOf, step, type Lottery, type MachineEvent } from '@/components/game/CarouselPusher/engine';
 
-// Best play is the best there is, and nothing brings back more than it takes.
+// Best play is the best there is: no moment of dropping a medal brings back more than the published best (sim.ts
+// `timed`, lead 0: each medal lands as a hole passes under the drop spot).
 //
-// The published best (sim.ts `timed`, lead 0) drops each medal so that a hole passes under the drop spot as it lands.
-// Dropping it a beat later, so that it lands after the hole has gone by (lead < 0), finds a hole as often: a hole's
-// mouth takes a medal alike over ±12 steps (35.8% of the scatter disc at every lead from −12 to +12). But the
-// carousel's angle as it lands changes where a medal that misses slides off the turning deck: more of them go off the
-// front edge into the tray, fewer down the side holes (front 0.57 a medal against 0.46, side holes 0.24 against 0.34).
-// Measured by QA on seeds 20001–20012, 60,000 medals each, 720,000 a lead: lead −18 (0.3 s late) brings back
-// 100.67% ±0.54 and lead −16 100.22% ±0.52, against 90.76% at lead 0. A player who learns the beat brings back more
-// than he puts in.
+// How it was found (QA, on the machine as it first shipped): dropping a medal a beat later, so that it lands after the
+// hole has gone by (lead < 0), found a hole as often, but the carousel's angle as it landed chose where a medal that
+// missed slid off the turning deck. At lead -18 (0.3 s late) more of the misses stayed on the open field and fewer went
+// past a side wall into the cabinet: 100.67% ±0.54 on seeds 20001-20012, 720,000 medals, against 90.76% at lead 0.
+// Now a miss glances off the deck at a heading its press draws (engine.ts `SHED`): the exact check of that is in
+// engine.test.ts, and scripts/carousel-pusher-lead-scan.ts measures every way of choosing the moment end to end.
 //
-// Here the published way and the two worst leads are each played for 5,000 medals on three seeded machines: quick
-// enough for every push, and deterministic (the machines are seeded). A lead may not bring back more than the published
-// best's high end by more than its own run's 95% margin. A medal's share of the return has a standard deviation of
-// about 2.34 (a jackpot throws some 200 medals at once): over 15,000 medals the margin is 1.96 × 2.4 / √15,000, 3.8
-// points. A full scan with intervals narrow enough to say whether a lead is over 100% takes 720,000 medals a lead.
+// What a lead can change is in two parts, and each is checked here on its own, quickly and with far less noise than
+// the whole return (where a jackpot throws some 200 medals at once):
+//
+// - the holes: what they pay depends only on how many medals go in, so no lead may catch more than lead 0. That is
+//   geometry, worked out over the whole scatter disc at every lead there is;
+// - the field: what it gives back of the medals it gets must not depend on the lead. Played with a lottery that pays
+//   nothing (so the field gets only the misses, no jackpot's stock), on a seeded machine, its share off the front at
+//   leads -9, -15 and -18 must be within 5 points of lead 0's. On the machine as it first shipped they were 10, 14 and
+//   17 points above it (51.1% at lead 0, 61.2%, 64.9%, 67.7%); now they are 54.2%, 53.1%, 56.2% and 54.0%.
 
-const MEDALS = 5_000;
-const SEEDS = [20_001, 20_002, 20_003];
-/** A medal's share of the return: its standard deviation, measured, rounded up. */
-const SPREAD = 2.4;
-
-/** The return of `SEEDS.length` seeded machines played at `lead`, `MEDALS` each, pooled. */
-function pooled(lead: number): { back: number; fed: number; each: number[] } {
-  let back = 0;
-  let fed = 0;
-  const each: number[] = [];
-  for (const seed of SEEDS) {
-    const { tally } = simulate({ strategy: 'timed', lead, medals: MEDALS, seed, warmup: 500 });
-    back += tally.back;
-    fed += tally.fed;
-    each.push(tally.back / tally.fed);
+/** The scatter disc's share that goes into a hole, for a medal landing `lead` steps before a hole passes the drop spot. */
+function catchAt(lead: number): number {
+  let under = TURN_STEPS;
+  while (nextPocketUnderDrop(under).steps !== 0) under++;
+  const lands = under - lead;
+  const RINGS = 40;
+  let caught = 0;
+  for (let deg = 0; deg < 360; deg++) {
+    for (let i = 0; i < RINGS; i++) {
+      // Every spot of the disc as likely: equal areas, ring by ring.
+      const r = SCATTER * Math.sqrt((i + 0.5) / RINGS);
+      if (slideOf(DROP.x + r * COS[deg], DROP.y + r * SIN[deg], lands, 0.5).pocket >= 0) caught++;
+    }
   }
-  return { back, fed, each };
+  return caught / (360 * RINGS);
 }
 
-describe('the moment a medal is dropped', () => {
-  const best = PUBLISHED_CAROUSEL.ways.timed;
+const MEDALS = 900;
+const WARMUP = 150;
+const SEED = 20_001;
+/** A lottery that never pays: the field gets the misses alone. */
+const QUIET: Lottery = { spinFrom: (_ticket, at) => ({ outcome: 4, digits: [1, 2, 3], from: at, stops: [0, 0, 0], at }), prize: () => 0 };
 
-  for (const lead of [0, -15, -18]) {
-    const when = lead === 0 ? 'as a hole passes the drop spot, as published' : `${-lead} steps after a hole has passed the drop spot`;
-    it(`brings back no more than the published best play when the medal lands ${when}`, () => {
-      const { back, fed, each } = pooled(lead);
-      const measured = back / fed;
-      const margin = (1.96 * SPREAD) / Math.sqrt(fed);
-      const shown = `lead ${lead}: ${(100 * measured).toFixed(2)}% over ${fed.toLocaleString('en-US')} medals (each machine ${each.map((r) => (100 * r).toFixed(1)).join(', ')}%), its margin ±${(100 * margin).toFixed(1)}, against the published best ${(100 * best.return).toFixed(2)}% ±${(100 * best.half).toFixed(2)}`;
-      expect(measured - margin, shown).toBeLessThanOrEqual(best.return + best.half);
-      expect(measured - margin, shown).toBeLessThan(1);
-    }, 120_000);
+/** The share of the medals leaving the field that go off the front into the tray, every hole timed at `lead`. */
+function fieldShare(lead: number): number {
+  const m = freshMachine(SEED);
+  const draw = { rng: (SEED * 2654435761) | 0 };
+  const events: MachineEvent[] = [];
+  let fed = 0;
+  let front = 0;
+  let side = 0;
+  for (let guard = 0; guard < (WARMUP + MEDALS) * 400 && fed < WARMUP + MEDALS; guard++) {
+    if (m.holds < HOLD_MAX && m.slotAt <= m.step && nextPocketUnderDrop(m.step + PRESS_TO_DECK + lead).steps === 0) {
+      feed(m, nextRandom(draw), nextRandom(draw), nextRandom(draw), nextRandom(draw), events);
+      fed++;
+    }
+    step(m, QUIET, events);
+    for (const e of events) {
+      if (fed <= WARMUP) continue;
+      if (e.type === 'won') front += e.count;
+      else if (e.type === 'lost') side += e.count;
+    }
+    events.length = 0;
+  }
+  return front / (front + side);
+}
+
+let atTheMoment: number | null = null;
+const shareAtTheMoment = (): number => (atTheMoment ??= fieldShare(0));
+
+describe('the moment a medal is dropped', () => {
+  it('catches no more medals in the holes at any lead than as a hole passes the drop spot, as published', () => {
+    const best = catchAt(0);
+    expect(best).toBeGreaterThan(0.35);
+    // Within ±12 steps the holes catch all but alike (the disc and the hole are worked out to the whole degree): no lead
+    // catches more by a fifth of a point, worth a quarter of a point of return.
+    for (let lead = -60; lead <= 60; lead++) expect(catchAt(lead), `lead ${lead}`).toBeLessThanOrEqual(best + 0.002);
+  });
+
+  it('gives back about half of what the field gets, off the front, when every hole is timed as published', () => {
+    const share = shareAtTheMoment();
+    expect(share).toBeGreaterThan(0.45);
+    expect(share).toBeLessThan(0.65);
+  }, 20_000);
+
+  for (const lead of [-9, -15, -18]) {
+    it(`leaves what the field gives back alone when the medal lands ${-lead} steps after a hole has passed the drop spot`, () => {
+      const atLead = fieldShare(lead);
+      const published = shareAtTheMoment();
+      expect(Math.abs(atLead - published), `lead ${lead}: ${(100 * atLead).toFixed(1)}% off the front, against ${(100 * published).toFixed(1)}% at lead 0`).toBeLessThanOrEqual(0.05);
+    }, 20_000);
   }
 });

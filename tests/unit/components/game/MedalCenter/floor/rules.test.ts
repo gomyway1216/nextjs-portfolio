@@ -253,8 +253,10 @@ describe('which machines are linked to the floor jackpot', () => {
     }
     // The Medal Pusher's is measured by its simulation, not worked out: the slowest feed down the middle, about 90%.
     expect(FLOOR_RULES['medal-pusher'].bestReturn).toBe(0.902);
-    // Cherry Blossom Carousel's too: its timed play over six million medals (published.ts), rounded up.
-    expect(FLOOR_RULES['carousel-pusher'].bestReturn).toBe(Math.ceil(PUBLISHED_CAROUSEL.ways.timed.return * 10_000) / 10_000);
+    // Cherry Blossom Carousel's too: the highest of its timed play over six million medals and every other moment of
+    // dropping it was measured at (published.ts `best`), rounded up.
+    expect(FLOOR_RULES['carousel-pusher'].bestReturn).toBe(Math.ceil(PUBLISHED_CAROUSEL.best.return * 10_000) / 10_000);
+    expect(PUBLISHED_CAROUSEL.best.return).toBeGreaterThanOrEqual(PUBLISHED_CAROUSEL.ways.timed.return);
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {

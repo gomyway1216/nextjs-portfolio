@@ -398,14 +398,15 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     },
 
     /**
-     * A medal from the slot into the machine, with the press's three random numbers (where it comes down, and a number
-     * kept for a coming spin). The session is changed in place; the page writes it down as it plays. False when there
-     * is no medal in the slot, or the session is not this page's to play.
+     * A medal from the slot into the machine, with the press's four random numbers (where it comes down, a number kept
+     * for a coming spin, and the way it glances off the deck if it misses the holes). The session is changed in place;
+     * the page writes it down as it plays. False when there is no medal in the slot, or the session is not this page's
+     * to play.
      */
-    feed(record: SessionRecord, u: number, v: number, ticket: number, events?: MachineEvent[]): boolean {
+    feed(record: SessionRecord, u: number, v: number, ticket: number, w: number, events?: MachineEvent[]): boolean {
       if (!holding() || record.pending || record.credit < 1) return false;
       record.credit -= 1;
-      feedMachine(record.machine, u, v, ticket, events);
+      feedMachine(record.machine, u, v, ticket, w, events);
       floorReport(CAROUSEL_GAME, { played: 1 });
       return true;
     },

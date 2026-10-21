@@ -19,7 +19,11 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
   const sidebarNavHrefs = await page
     .locator('.header-left .nav-menu a.nav-link')
     .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
-  expect(sidebarNavHrefs).toEqual([
+  // "Writing" is listed only where the site has writings (Header.tsx `showWriting`): never with CI's placeholder
+  // store, always on production. Where it is, it stands between Education and Blog.
+  const writing = sidebarNavHrefs.indexOf('/#writing');
+  if (writing !== -1) expect(sidebarNavHrefs[writing - 1]).toBe('/#education');
+  expect(sidebarNavHrefs.filter((href) => href !== '/#writing')).toEqual([
     '/#home',
     '/#impact',
     '/#resume',

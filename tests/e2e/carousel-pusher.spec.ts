@@ -99,6 +99,35 @@ test('RETURN gives back the medals left in the slot, and nothing is out once the
   expect((await stored(page))?.lent).toBeNull();
 });
 
+test('held sideways, RETURN keeps its word on one line beside DROP, in English and Japanese', async ({ page }) => {
+  test.setTimeout(90_000);
+  // The lines a button's words take on the screen.
+  const lines = (testId: string, child?: number) =>
+    page.getByTestId(testId).evaluate((button, child) => {
+      const range = document.createRange();
+      range.selectNodeContents(child === undefined ? button : button.children[child]);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+    }, child);
+  for (const [width, height] of [
+    [568, 320],
+    [667, 375],
+    [932, 430],
+  ] as const) {
+    for (const language of ['en', 'ja'] as const) {
+      await page.setViewportSize({ width, height });
+      await page.context().addCookies([{ name: 'i18nextLng', value: language, url: 'http://localhost:3000' }]);
+      await openMachine(page);
+      const at = `${width}×${height} ${language}`;
+      // RETURN, and DROP's own word, whole; the controls side by side, and nothing pushes the page sideways.
+      expect(await lines('cp-return'), at).toBe(1);
+      expect(await lines('cp-drop', 0), at).toBe(1);
+      const [dropBox, returnBox] = await Promise.all([drop(page).boundingBox(), page.getByTestId('cp-return').boundingBox()]);
+      expect(Math.abs(dropBox!.y - returnBox!.y), at).toBeLessThan(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), at).toBe(0);
+    }
+  }
+});
+
 test('a reload finds the field, the slot and the dish where they were, and pays nothing twice', async ({ page }) => {
   test.setTimeout(90_000);
   await openMachine(page);

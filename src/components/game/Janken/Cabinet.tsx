@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
@@ -322,8 +322,10 @@ export const Cabinet = ({ active }: CabinetProps) => {
     [machine, busy, play],
   );
 
-  // The machine's keys, while its tab is shown and nothing is open over it.
-  useEffect(() => {
+  // The machine's keys, while its tab is shown and nothing is open over it. Listened for again as the machine is drawn
+  // (a layout effect), not after the paint: a key pressed the moment a button is drawn enabled otherwise went to the
+  // listener of the render before, which still saw the machine busy.
+  useLayoutEffect(() => {
     if (!active) return;
     const onKey = (event: KeyboardEvent) => {
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;

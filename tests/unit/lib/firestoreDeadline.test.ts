@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FIRESTORE_READ_DEADLINE_MS,
   FirestoreReadTimeoutError,
+  LATE_DEADLINE_MS,
   withReadDeadline,
 } from '@/lib/firestoreDeadline';
 
@@ -65,5 +66,37 @@ describe('withReadDeadline', () => {
     await vi.advanceTimersByTimeAsync(50);
     finishLate('too late');
     await expect(outcome).resolves.toBeInstanceOf(FirestoreReadTimeoutError);
+  });
+
+  it('says so when the deadline fired late because the process was paused', async () => {
+    const outcome = withReadDeadline(new Promise<never>(() => {}), 'blog slug index query').catch(
+      (error: unknown) => error,
+    );
+
+    // A function frozen after its response, then thawed by another request a minute later: the clock has moved on,
+    // and the overdue timer fires first thing.
+    vi.setSystemTime(Date.now() + 60_000);
+    await vi.advanceTimersByTimeAsync(FIRESTORE_READ_DEADLINE_MS);
+
+    const error = await outcome;
+    expect(error).toBeInstanceOf(FirestoreReadTimeoutError);
+    expect(error).toMatchObject({
+      timeoutMs: FIRESTORE_READ_DEADLINE_MS,
+      elapsedMs: 60_000 + FIRESTORE_READ_DEADLINE_MS,
+      message:
+        `[firestore] blog slug index query did not finish within ${FIRESTORE_READ_DEADLINE_MS} ms; ` +
+        `its deadline fired ${60_000 + FIRESTORE_READ_DEADLINE_MS} ms after the read started, ` +
+        'so the process was paused (or blocked) while the read was pending',
+    });
+  });
+
+  it('keeps the plain message for a deadline that fired less than a second late', async () => {
+    const outcome = withReadDeadline(new Promise<never>(() => {}), 'read', 50).catch((error: unknown) => error);
+    vi.setSystemTime(Date.now() + LATE_DEADLINE_MS - 1);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await outcome).toMatchObject({
+      elapsedMs: 50 + LATE_DEADLINE_MS - 1,
+      message: '[firestore] read did not finish within 50 ms',
+    });
   });
 });

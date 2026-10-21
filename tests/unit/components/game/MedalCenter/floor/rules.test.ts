@@ -64,6 +64,7 @@ import { PRIZES as CAROUSEL_PRIZES } from '@/components/game/CarouselPusher/lott
 import { PUBLISHED_CAROUSEL } from '@/components/game/CarouselPusher/published';
 import { CORKS as GALLERY_CORKS, KINDS as GALLERY_KINDS, MOST_WIN as GALLERY_MOST, SHELF as GALLERY_SHELF, STAKE as GALLERY_STAKE, drawPlay as galleryDraw, labelOf as galleryLabel, playOf as galleryPlay, seeded as gallerySeeded, shotAs as galleryShot, valueOf as galleryValue } from '@/components/game/ShootingGallery/engine';
 import { PUBLISHED_SHOOTING_GALLERY_ODDS } from '@/components/game/ShootingGallery/published';
+import { CALM_HOLD_MS as GALLERY_CALM_HOLD_MS, CALM_LOAD_MS as GALLERY_CALM_LOAD_MS } from '@/components/game/ShootingGallery/scene';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
 // change to a game's payouts that the floor has not heard of fails this test instead of refusing a real win.
@@ -128,9 +129,10 @@ describe('the most each machine can take from the player at once, for the medals
   it('sizes each allowance of medals played to hold the biggest stake on top of ten minutes at the fastest', () => {
     for (const game of FLOOR_GAMES) {
       expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].playPerMinute);
-      // Refilled no faster than the medals won are: as fast, unless the machine says its play is slower (the pachinko).
+      // Refilled no faster than the medals won are: as fast, unless the machine says its play is slower (the pachinko,
+      // the shooting gallery).
       expect(FLOOR_RULES[game].playPerMinute).toBeLessThanOrEqual(FLOOR_RULES[game].perMinute);
-      if (game !== 'pachinko') expect(FLOOR_RULES[game].playPerMinute).toBe(FLOOR_RULES[game].perMinute);
+      if (game !== 'pachinko' && game !== 'shooting-gallery') expect(FLOOR_RULES[game].playPerMinute).toBe(FLOOR_RULES[game].perMinute);
     }
   });
 
@@ -589,6 +591,21 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(pachinkoValue(odds.perfect.back)).toBeGreaterThan(0.9345);
     expect(pachinkoValue(odds.typical.back)).toBeLessThan(rule.bestReturn);
     expect(pachinkoValue(odds.blind.back)).toBeLessThan(pachinkoValue(odds.typical.back));
+  });
+
+  it('Onsen Shooting Gallery: medals won and played no faster than its quickest play, 3.46 s, brings them in', () => {
+    const rule = FLOOR_RULES['shooting-gallery'];
+    // The quickest play: START, and each cork fired the moment it is in, with less motion asked for (a load, then the
+    // shot held a moment), the last one's hold skipped.
+    const quickest = GALLERY_CORKS * GALLERY_CALM_LOAD_MS + (GALLERY_CORKS - 1) * GALLERY_CALM_HOLD_MS;
+    expect(quickest).toBe(3_460);
+    // Won: every play at its most, as many whole plays a minute as there can be.
+    expect(rule.perMinute).toBeGreaterThanOrEqual(Math.floor(60_000 / quickest) * GALLERY_MOST);
+    // Played: six medals a play at that pace, and no more. Not the medals won's 700, which would let near seven times
+    // the play the stall can take into the floor jackpot.
+    expect(rule.playPerMinute).toBe(Math.ceil((60_000 / quickest) * GALLERY_STAKE));
+    expect(rule.playPerMinute).toBe(105);
+    expect(rule.playBurst).toBe(GALLERY_STAKE + 10 * 105);
   });
 
   it('Onsen Shooting Gallery: the most a play pays is what six corks can knock off, the cat named whatever else falls with it, three figures without it', () => {

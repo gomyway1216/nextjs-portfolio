@@ -102,6 +102,15 @@ export const FLOOR_JACKPOT = 'floor-jackpot';
  */
 export const REPORTS_ROUNDS: ReadonlySet<string> = new Set(['craps', 'sic-bo']);
 
+/**
+ * The games whose machine reports what it fed and paid as it goes (`machine`),
+ * as the Medal Pusher does, because their moves of medals are not bets:
+ * Goldfish Lantern Pachinko's lend and count turn medals into balls and back,
+ * and a lend counted straight back is no bet and no win. Only the balls fired
+ * are played, and the balls the pockets pay won.
+ */
+export const REPORTS_PLAY: ReadonlySet<string> = new Set(['pachinko']);
+
 /** What an entry is. */
 export type EntryKind =
   /** A round of a game: a spin, a hand, a coup, a roll. */
@@ -332,7 +341,7 @@ function wholeRound(history: History, o: Extract<Observation, { type: 'round' }>
   return settle(next, entry);
 }
 
-/** The Medal Pusher fed and paying: its visit grows, its prizes raise its best, and a jackpot is an entry of its own. */
+/** The Medal Pusher (or a machine of `REPORTS_PLAY`) fed and paying: its visit grows, its prizes raise its best, and a jackpot is an entry of its own. */
 function machine(history: History, o: Extract<Observation, { type: 'machine' }>): History {
   if (!isGame(o.game) || !isCount(o.fed) || !isCount(o.won) || !isCount(o.prize)) return history;
   const jackpots = o.jackpots.filter(isCount);
@@ -389,7 +398,7 @@ export function record(history: History, o: Observation): History {
   const next = withClose(history, o.day, o.at, o.left);
   switch (o.type) {
     case 'move':
-      return REPORTS_ROUNDS.has(o.game) ? next : moved(next, o);
+      return REPORTS_ROUNDS.has(o.game) || REPORTS_PLAY.has(o.game) ? next : moved(next, o);
     case 'round':
       return wholeRound(next, o);
     case 'machine':

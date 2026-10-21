@@ -56,7 +56,7 @@ import { ALL_CAUGHT_FROM as KENO_ALL_FROM, BETS as KENO_BETS, BET_MOST as KENO_B
 import { MARBLES as SMART_MARBLES, MOST_WIN as SMART_MOST, PAYS as SMART_PAYS, STAKE as SMART_STAKE, drawPlay as smartDraw, labelOf as smartLabel, playOf as smartPlay, seeded as smartSeeded, valueOf as smartValue } from '@/components/game/SmartBall/engine';
 import { PUBLISHED_SMART_BALL_ODDS } from '@/components/game/SmartBall/published';
 import { valueOf as pachinkoValue } from '@/components/game/Pachinko/analysis';
-import { BALLS_PER_MEDAL as PACHINKO_BALLS_PER_MEDAL, COUNT as PACHINKO_COUNT, LEND_MEDALS as PACHINKO_LEND, PAY_ATTACKER as PACHINKO_PAY_ATTACKER, RUSH_MOST as PACHINKO_RUSH_MOST, RUSH_NAMED as PACHINKO_RUSH_NAMED, SPLIT_DENCHU as PACHINKO_SPLIT_DENCHU, SPLIT_HESO as PACHINKO_SPLIT_HESO, SLOT_MS as PACHINKO_SLOT_MS, hitLabel as pachinkoHitLabel, hitMedals as pachinkoHitMedals, rushPrize as pachinkoRushPrize } from '@/components/game/Pachinko/engine';
+import { BALLS_PER_MEDAL as PACHINKO_BALLS_PER_MEDAL, COUNT as PACHINKO_COUNT, PAY_ATTACKER as PACHINKO_PAY_ATTACKER, RUSH_MOST as PACHINKO_RUSH_MOST, RUSH_NAMED as PACHINKO_RUSH_NAMED, SPLIT_DENCHU as PACHINKO_SPLIT_DENCHU, SPLIT_HESO as PACHINKO_SPLIT_HESO, SLOT_MS as PACHINKO_SLOT_MS, hitLabel as pachinkoHitLabel, hitMedals as pachinkoHitMedals, rushPrize as pachinkoRushPrize } from '@/components/game/Pachinko/engine';
 import { PUBLISHED_PACHINKO_ODDS } from '@/components/game/Pachinko/published';
 import { CAROUSEL_STOCK_MOST, CRAPS_DECIDED_MOST, FLOOR_GAMES, FLOOR_RULES, PUSHER_JACKPOT_MOST, feedWorthy, labelPays } from '@/lib/medalFloor/games';
 import { STOCK as CAROUSEL_STOCK } from '@/components/game/CarouselPusher/engine';
@@ -124,7 +124,12 @@ function fullestCraps(point: PointNumber | null): CrapsBets {
 
 describe('the most each machine can take from the player at once, for the medals played', () => {
   it('sizes each allowance of medals played to hold the biggest stake on top of ten minutes at the fastest', () => {
-    for (const game of FLOOR_GAMES) expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].perMinute);
+    for (const game of FLOOR_GAMES) {
+      expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].playPerMinute);
+      // Refilled no faster than the medals won are: as fast, unless the machine says its play is slower (the pachinko).
+      expect(FLOOR_RULES[game].playPerMinute).toBeLessThanOrEqual(FLOOR_RULES[game].perMinute);
+      if (game !== 'pachinko') expect(FLOOR_RULES[game].playPerMinute).toBe(FLOOR_RULES[game].perMinute);
+    }
   });
 
   it('from each machine’s own limits', () => {
@@ -173,9 +178,11 @@ describe('the most each machine can take from the player at once, for the medals
     // Hot Spring Smart Ball: five medals a play, for its ten marbles.
     expect(FLOOR_RULES['smart-ball'].stakeMost).toBe(SMART_STAKE);
     expect(SMART_STAKE).toBe(5);
-    // Goldfish Lantern Pachinko: one lend, five medals for fifty balls.
-    expect(FLOOR_RULES.pachinko.stakeMost).toBe(PACHINKO_LEND);
-    expect(PACHINKO_LEND).toBe(5);
+    // Goldfish Lantern Pachinko: played is the balls fired, ten a medal, and a lend is not play. The most at once: a
+    // 10-round hit's rounds played out as the page is left, ten balls a round.
+    const roundsMost = Math.max(...[...PACHINKO_SPLIT_HESO, ...PACHINKO_SPLIT_DENCHU].map(({ kind }) => kind.rounds));
+    expect(FLOOR_RULES.pachinko.stakeMost).toBe((roundsMost * PACHINKO_COUNT) / PACHINKO_BALLS_PER_MEDAL);
+    expect(FLOOR_RULES.pachinko.stakeMost).toBe(10);
     // Cherry Blossom Carousel: a medal fed at a time (the handful put into its slot is played only as it is fed).
     expect(FLOOR_RULES['carousel-pusher'].stakeMost).toBe(1);
   });
@@ -563,6 +570,11 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(pachinkoRushPrize({ hits: PACHINKO_RUSH_NAMED - 1, balls: 4_000 })).toBeNull();
     // The fastest medals come in: a ball every slot into the open attacker, ten balls back each.
     expect(rule.perMinute).toBe(((60_000 / PACHINKO_SLOT_MS) * PACHINKO_PAY_ATTACKER) / PACHINKO_BALLS_PER_MEDAL);
+    // The fastest medals are played: a ball every slot, ten balls a medal, 10 a minute. Not the medals won's 100, which
+    // would let ten times the play the handle can fire into the floor jackpot.
+    expect(rule.playPerMinute).toBe(60_000 / PACHINKO_SLOT_MS / PACHINKO_BALLS_PER_MEDAL);
+    expect(rule.playPerMinute).toBe(10);
+    expect(rule.playBurst).toBe(rule.stakeMost + 10 * 10);
     // The rule is perfect play, rounded up; an everyday hand and the handle left at its start bring back less.
     const odds = PUBLISHED_PACHINKO_ODDS;
     expect(rule.bestReturn).toBe(0.9346);

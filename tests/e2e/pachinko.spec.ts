@@ -65,6 +65,27 @@ async function turnTo(page: Page, to: number) {
   await expect(machine(page)).toHaveAttribute('data-strength', String(to));
 }
 
+/** The handle pressed or let go, by a pointer event on it. */
+const handle = (page: Page, type: 'pointerdown' | 'pointerup', pointerId = 23) =>
+  page.evaluate(([type, pointerId]) => document.querySelector('[data-testid="pk-handle"]')!.dispatchEvent(new PointerEvent(type as string, { pointerId: pointerId as number, isPrimary: true, button: 0, bubbles: true })), [type, pointerId] as const);
+
+/** Holds the handle until the tray is down to `tray` balls or fewer, lets go, and waits for the screen to show the last ball. */
+async function fireDownTo(page: Page, tray: number) {
+  await handle(page, 'pointerdown');
+  await expect.poll(async () => (await session(page))?.tray ?? 0, { timeout: 30_000 }).toBeLessThanOrEqual(tray);
+  await handle(page, 'pointerup');
+  const left = (await session(page))!.tray;
+  await expect(machine(page)).toHaveAttribute('data-tray', String(left), { timeout: 5_000 });
+  return left;
+}
+
+/** Opens My Page once the history has been read. */
+async function openMyPage(page: Page) {
+  await page.goto('/games/medal-center/records');
+  await arrived(page);
+  await expect(page.getByTestId('mypage-history')).toHaveAttribute('data-loaded', 'true', { timeout: 15_000 });
+}
+
 /** Holds the handle for `ms`, by pointer events on it, and lets go. */
 const hold = (page: Page, ms: number) =>
   page.evaluate(
@@ -104,9 +125,59 @@ test('pachinko: a lend takes 5 medals for 50 balls, the handle fires them, and t
 
   await openCenter(page);
   await expect(page.getByTestId('center-play-pachinko')).toHaveAttribute('href', '/games/pachinko');
-  await page.goto('/games/medal-center/records');
+  // Fewer than ten balls fired, all OUT: not a medal's worth played yet (the rest are owed to the next balls), and the
+  // lend and the count are no play.
+  await openMyPage(page);
+  await expect(page.getByTestId('mypage-game-pachinko')).toHaveAttribute('data-played', 'false');
+});
+
+test('pachinko: a lend counted straight back is no play: My Page shows nothing bet or won, and the medals are the same', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openMachine(page);
+  for (let i = 0; i < 3; i++) {
+    await lend(page);
+    // The counter is pressed once the screen shows the balls lent.
+    await expect(machine(page)).toHaveAttribute('data-tray', String(LEND_BALLS));
+    await expect(page.getByTestId('pk-count')).toBeEnabled();
+    await page.getByTestId('pk-count').click();
+    await expect.poll(() => bankBalance(page)).toBe(WELCOME);
+    await expect(machine(page)).toHaveAttribute('data-tray', '0');
+  }
+  await openMyPage(page);
+  await expect(page.getByTestId('mypage-game-pachinko')).toHaveAttribute('data-played', 'false');
+  await expect(page.getByTestId('mypage-total-bet')).toHaveText('0');
+  await expect(page.getByTestId('mypage-total-won')).toHaveText('0');
+  await expect(page.getByTestId('mypage-entry')).toHaveCount(0);
+});
+
+test('pachinko: the balls fired are the medals played, ten a medal, carried across a reload; My Page shows them fed, and the count is no win', async ({ page }) => {
+  test.setTimeout(120_000);
+  await openMachine(page);
+  await lend(page, Array.from({ length: 30 }, () => OUT));
+  // Fifteen balls or so, then a reload with the balls short of a medal owed in the session.
+  const first = await fireDownTo(page, LEND_BALLS - 15);
+  expect((await session(page))?.owed.fired).toBe((LEND_BALLS - first) % 10);
+  await page.reload();
   await arrived(page);
-  await expect(page.getByTestId('mypage-game-pachinko')).toHaveAttribute('data-played', 'true', { timeout: 15_000 });
+  await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+  expect((await session(page))?.owed.fired).toBe((LEND_BALLS - first) % 10);
+  // Twenty balls or more in all, every one OUT: the count gives back what is left, rounded down.
+  const left = await fireDownTo(page, LEND_BALLS - 20);
+  const fired = LEND_BALLS - left;
+  expect(fired).toBeGreaterThanOrEqual(20);
+  await page.getByTestId('pk-count').click();
+  await expect.poll(() => bankBalance(page)).toBe(WELCOME - LEND_MEDALS + Math.floor(left / 10));
+  await openMyPage(page);
+  await expect(page.getByTestId('mypage-game-pachinko')).toHaveAttribute('data-played', 'true');
+  // Medals fed: the balls fired, ten a medal. Won: nothing, as every ball went OUT; the count is no win. No rounds.
+  await expect(page.getByTestId('mypage-pachinko-bet')).toHaveText(String(Math.floor(fired / 10)));
+  await expect(page.getByTestId('mypage-pachinko-won')).toHaveText('0');
+  await expect(page.getByTestId('mypage-pachinko-rounds')).toHaveCount(0);
+  await expect(page.getByTestId('mypage-game-pachinko')).toContainText('Medals fed');
+  const entries = page.getByTestId('mypage-entry');
+  await expect(entries).toHaveCount(1);
+  await expect(entries.nth(0)).toHaveAttribute('data-game', 'pachinko');
+  await expect(entries.nth(0)).toContainText(`Fed ${Math.floor(fired / 10)} · won 0`);
 });
 
 test('pachinko: four holds full, a fifth ball into the ヘソ starts nothing, and the status says to stop firing', async ({ page }) => {

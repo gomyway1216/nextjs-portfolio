@@ -677,12 +677,20 @@
     min-height: 60px;
     line-height: 20px;
   }
+  /* RETURN kept on one line: its column is at least as wide as the word, a size smaller here (one word, which broke as
+     RETUR|N in a column of a third), and DROP gives up the room; where a third is wider, nothing moves. */
   .controls {
     grid-area: controls;
+    grid-template-columns: minmax(0, 2fr) minmax(max-content, 1fr);
   }
   .dropButton,
   .returnButton {
     min-height: 48px;
+  }
+  .returnButton {
+    padding-inline: 0.35rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
   }
   .meters {
     grid-area: meters;

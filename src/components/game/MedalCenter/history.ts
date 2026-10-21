@@ -107,9 +107,11 @@ export const REPORTS_ROUNDS: ReadonlySet<string> = new Set(['craps', 'sic-bo']);
  * as the Medal Pusher does, because their moves of medals are not bets:
  * Goldfish Lantern Pachinko's lend and count turn medals into balls and back,
  * and a lend counted straight back is no bet and no win. Only the balls fired
- * are played, and the balls the pockets pay won.
+ * are played, and the balls the pockets pay won. Cherry Blossom Carousel's
+ * handful into the slot is the player's still until it is fed, and RETURN
+ * gives it back: only the medals fed are played, and the tray's won.
  */
-export const REPORTS_PLAY: ReadonlySet<string> = new Set(['pachinko']);
+export const REPORTS_PLAY: ReadonlySet<string> = new Set(['pachinko', 'carousel-pusher']);
 
 /** What an entry is. */
 export type EntryKind =

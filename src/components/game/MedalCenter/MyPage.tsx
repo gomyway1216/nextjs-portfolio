@@ -335,7 +335,7 @@ const FloorJackpotCard = ({ row, t, f }: { row: GameRecord | null; t: MyPageStri
 /** A machine played since the history began, with its records. */
 const GameCard = ({ id, path, row, t, f, name }: { id: string; path: string | null; row: GameRecord | null; t: MyPageStrings; f: Formats; name: string }) => {
   // The Medal Pusher plays no rounds: medals go in and come out as the field moves. Nor does a machine that reports its
-  // play as it goes (the pachinko's balls fired and paid, ten a medal).
+  // play as it goes (the pachinko's balls fired and paid, ten a medal; the carousel's medals fed and its tray).
   const pusher = id === PUSHER_GAME || REPORTS_PLAY.has(id);
   return (
     <li className={styles.game} data-game={id} data-played="true" data-testid={`mypage-game-${id}`}>

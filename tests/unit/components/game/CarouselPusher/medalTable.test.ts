@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LOTTERY } from '@/components/game/CarouselPusher/lottery';
 import { atRest, busy, freshMachine, step } from '@/components/game/CarouselPusher/engine';
 import { CAROUSEL_GAME, LEND, SESSION_KEY, createTable, live, parseSession, roundId, seedFor, serializeSession, sessionKey, type SessionRecord, type Table } from '@/components/game/CarouselPusher/medalTable';
 import { BANK_KEY, ledgerKey } from '@/components/game/MedalCenter/bank';
+import { recordsOf } from '@/components/game/MedalCenter/history';
 import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, serializeLedger, take } from '@/components/game/MedalCenter/ledger';
 import type { Player } from '@/components/game/MedalPusher/account';
 import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
@@ -15,6 +16,24 @@ import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 // come back once, and what is left in the slot goes back once, whatever happens to the page: a reload, another tab, a
 // reset, or a browser that dies between two writes. The bank here is the real one (MedalCenter/bank.ts) in a fake
 // browser (bankFakes.ts); nothing is fetched and no account is real.
+
+type Told = { game: string; played?: number; won?: number; prize?: { medals: number; label?: string } };
+/** What the floor is told (`floorReport`), caught here: only while the browser telling it is alive, for one that has died tells nothing. */
+const floor = vi.hoisted(() => ({ reports: [] as Told[], dead: (() => false) as () => boolean }));
+vi.mock('@/components/game/MedalCenter/floor/reporter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/game/MedalCenter/floor/reporter')>()),
+  floorReport: (game: string, win: Omit<Told, 'game'>) => {
+    if (!floor.dead()) floor.reports.push({ game, ...win });
+  },
+}));
+beforeEach(() => {
+  floor.reports.length = 0;
+  floor.dead = () => false;
+});
+/** The medals played and won the floor has been told of, added up. */
+const told = () => floor.reports.reduce((sum, r) => ({ played: sum.played + (r.played ?? 0), won: sum.won + (r.won ?? 0) }), { played: 0, won: 0 });
+/** The machine's records in a page's medals' history: medals fed (`bet`) and won. */
+const records = (page: FakePage) => recordsOf(page.bank.historyState().history!).find((row) => row.game === CAROUSEL_GAME);
 
 const stored = (browser: FakeBrowser, uid: string | null = null): number | null => {
   const ledger = parseLedger(browser.storage.get(ledgerKey(uid)) ?? null);
@@ -180,6 +199,49 @@ describe('the slot, the tray and the medals', () => {
   });
 });
 
+describe('what the floor and the medals’ history are told', () => {
+  // The medals in the slot are still the player's: a medal fed is played, and the tray's medals are won as they are
+  // counted in. A handful put in and given back (RETURN) is no bet and no win.
+
+  it('tells nothing of a handful put into the slot and given back: no medals played or won, and the medals the same', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    page.bank.watchHistory(() => undefined);
+    const machine = machineOn(page);
+    await quiet(browser);
+    for (let i = 0; i < 3; i++) {
+      expect(machine.lend()).toBe('lent');
+      expect(machine.giveBack()).not.toBeNull();
+    }
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME);
+    expect(floor.reports).toEqual([]);
+    expect(records(page)).toBeUndefined();
+  });
+
+  it('tells each medal fed as played and the tray as won as it is counted in; the slot given back is no win', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    page.bank.watchHistory(() => undefined);
+    const machine = machineOn(page);
+    await quiet(browser);
+    machine.lend();
+    for (let i = 0; i < 3; i++) machine.feed();
+    expect(floor.reports).toEqual(Array.from({ length: 3 }, () => ({ game: CAROUSEL_GAME, played: 1 })));
+    // As though seven medals had come back off the field: counted in, they are won.
+    machine.now()!.machine.tray += 7;
+    machine.collect();
+    expect(told()).toEqual({ played: 3, won: 7 });
+    // The seven left in the slot go back, and are no win.
+    machine.giveBack();
+    await quiet(browser);
+    expect(told()).toEqual({ played: 3, won: 7 });
+    expect(stored(browser)).toBe(WELCOME - 3 + 7);
+    expect(stored(browser)! - WELCOME).toBe(told().won - told().played);
+    expect(records(page)).toMatchObject({ rounds: 0, bet: 3, won: 7 });
+  });
+});
+
 describe('the re-entrancy of the bank', () => {
   it('never squares the move being made: the bank tells its listeners inside the press, and `leftover` finds nothing then', async () => {
     const browser = new FakeBrowser();
@@ -288,14 +350,19 @@ describe('a browser that dies between two writes', () => {
       setUp,
       (browser) => {
         const machine = machines.get(browser)!;
+        floor.reports.length = 0;
+        floor.dead = () => browser.dead;
         machine.lend();
         machine.giveBack();
       },
       async (after, reached) => {
+        floor.dead = () => false;
         const machine = await reopened(after);
         const record = machine.now()!;
         expect(stored(after)! + record.credit, `died after ${reached} writes`).toBe(WELCOME);
         expect(record.pending, `died after ${reached} writes`).toBeNull();
+        // Nothing fed: the floor is told of no play and no win, before the browser died or as the slot is squared after.
+        expect(floor.reports, `died after ${reached} writes`).toEqual([]);
       },
     );
     expect(writes).toBeGreaterThanOrEqual(4);
@@ -306,6 +373,8 @@ describe('a browser that dies between two writes', () => {
       setUp,
       (browser) => {
         const machine = machines.get(browser)!;
+        floor.reports.length = 0;
+        floor.dead = () => browser.dead;
         machine.lend();
         for (let i = 0; i < 3; i++) machine.feed();
         // As though seven medals had come back off the field.
@@ -315,9 +384,13 @@ describe('a browser that dies between two writes', () => {
         machine.giveBack();
       },
       async (after, reached) => {
+        floor.dead = () => false;
         const machine = await reopened(after);
         const record = machine.now()!;
         const total = stored(after)! + record.credit + record.machine.tray;
+        // The floor hears of the tray's seven once at most (not at all when the browser died as they went in, or before),
+        // and never of the slot's seven given back.
+        expect([0, 7], `died after ${reached} writes`).toContain(told().won);
         // Either the field was never written down with its three medals fed and seven won (and the slot still holds the
         // handful), or it was, and nothing is lost or made after it, however far the moves went.
         // The machine counts the medals fed towards its dish: three, once the field was written down with them.
@@ -370,6 +443,7 @@ describe('reading a session back', () => {
     expect(read.credit).toBe(7);
     expect(read.still).toBe(false);
     expect(parseSession(serializeSession({ ...good, still: true }))?.still).toBe(true);
+    expect(parseSession(serializeSession({ ...good, pending: { kind: 'return', id: 'x', medals: 7 } }))?.pending).toEqual({ kind: 'return', id: 'x', medals: 7 });
     expect(read.machine.ids).toEqual(good.machine.ids);
     const machine = good.machine;
     const bad: unknown[] = [
@@ -381,6 +455,7 @@ describe('reading a session back', () => {
       JSON.stringify({ ...good, still: 'yes' }),
       JSON.stringify({ ...good, ledger: 'Not A Ledger!' }),
       JSON.stringify({ ...good, pending: { kind: 'steal', id: 'x', medals: 1 } }),
+      JSON.stringify({ ...good, pending: { kind: 'return', id: 'x', medals: 0 } }),
       JSON.stringify({ ...good, machine: { ...machine, xy: machine.xy.slice(1) } }),
       JSON.stringify({ ...good, machine: { ...machine, xy: [Number.NaN, ...machine.xy.slice(1)] } }),
       JSON.stringify({ ...good, machine: { ...machine, holds: 5 } }),

@@ -21,6 +21,13 @@
  * a handful into the slot whose medals never went did not happen; a handful into the tray whose medals never went is
  * paid then, once.
  *
+ * ## What the floor and the medals' history are told
+ *
+ * The medals in the slot are still the player's: a handful put in and given back (RETURN) is no bet and no win. What
+ * is played is each medal fed from the slot into the machine, and what is won is the tray's medals as they are counted
+ * in, as the Medal Pusher tells its medals fed and paid: the floor's medals played and won, and the history's medals
+ * fed and won (`bank.played`; the moves into and out of the slot are not the history's, `REPORTS_PLAY` in history.ts).
+ *
  * Everything else (a medal fed from the slot, the field moving) changes the session only, which the page writes down
  * as it plays: whenever a medal leaves the field, a spin starts or ends, and at least once a second while anything
  * moves. A page killed between those writes comes back a moment earlier, with the medals it had fed then still in the
@@ -30,7 +37,7 @@
  * a fake browser.
  */
 
-import type { Move } from '../MedalCenter/bank';
+import type { Move, Played } from '../MedalCenter/bank';
 import { floorReport } from '../MedalCenter/floor/reporter';
 import { busy, feed as feedMachine, freshMachine, type Machine, type MachineEvent } from './engine';
 import { CREDIT_MOST, LEND } from './credit';
@@ -46,7 +53,8 @@ export const LEND_STEP = 'lend';
 export const PAY_STEP = 'pay';
 export { LEND, CREDIT_MOST };
 
-export type Pending = { kind: 'lend' | 'pay'; id: string; medals: number };
+/** A move of medals written down before it is made: a handful into the slot, the tray paid, or the slot given back. */
+export type Pending = { kind: 'lend' | 'pay' | 'return'; id: string; medals: number };
 
 /** The session as it is written down. */
 export interface SessionRecord {
@@ -81,7 +89,7 @@ const ID_SHAPE = /^[a-z0-9-]{1,24}$/;
 
 const parsePending = (value: unknown): Pending | null | undefined => {
   if (value === null) return null;
-  if (!isRecordLike(value) || (value.kind !== 'lend' && value.kind !== 'pay') || typeof value.id !== 'string' || !ID_SHAPE.test(value.id)) return undefined;
+  if (!isRecordLike(value) || (value.kind !== 'lend' && value.kind !== 'pay' && value.kind !== 'return') || typeof value.id !== 'string' || !ID_SHAPE.test(value.id)) return undefined;
   if (!isWhole(value.medals, 1, 1_000_000)) return undefined;
   return { kind: value.kind, id: value.id, medals: value.medals };
 };
@@ -134,6 +142,8 @@ export interface TableBank {
   applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
   forget(game: string, keep?: readonly string[]): boolean;
   settle(game: string, keep?: readonly string[]): boolean;
+  /** Tells the medals' history what was fed and paid, which the moves into and out of the slot do not say. */
+  played(report: Played): void;
 }
 
 /** This device's storage. Every call may throw: storage can be blocked, full or switched off. */
@@ -266,9 +276,14 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     return inMemory();
   };
 
-  /** Medals into the player's medals under their receipt, once; the floor hears of the medals won. */
+  /**
+   * Medals into the player's medals under their receipt, once. The tray's are won, and the floor and the history hear
+   * of them; the slot's given back were never played, and are no win.
+   */
   const pay = (record: SessionRecord, pending: Pending): void => {
-    if (move(record, pending.id, PAY_STEP, pending.medals) === 'applied') floorReport(CAROUSEL_GAME, { won: pending.medals });
+    if (move(record, pending.id, PAY_STEP, pending.medals) !== 'applied' || pending.kind !== 'pay') return;
+    floorReport(CAROUSEL_GAME, { won: pending.medals });
+    bank.played({ game: CAROUSEL_GAME, fed: 0, won: pending.medals });
   };
 
   /** Lets go of the medals out, once nothing is left of the session's: nothing in the slot, the tray, or on its way. */
@@ -291,7 +306,7 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       record = { ...record, pending: null, credit: record.credit + (lent ? pending.medals : 0), lent: lent ? pending.id : record.lent };
       keep(record);
       if (lent) bank.forget(CAROUSEL_GAME, [pending.id]);
-    } else if (pending?.kind === 'pay') {
+    } else if (pending?.kind === 'pay' || pending?.kind === 'return') {
       // The medals came out of the tray (or the slot) before they went in: they are owed, once.
       if (!moved(pending.id, PAY_STEP)) pay(record, pending);
       record = { ...record, pending: null };
@@ -327,7 +342,7 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
     const id = newId();
     staking = true;
     try {
-      const pending: Pending = { kind: 'pay', id, medals };
+      const pending: Pending = { kind: from === 'tray' ? 'pay' : 'return', id, medals };
       const asked: SessionRecord = { ...record, credit: from === 'credit' ? record.credit - medals : record.credit, pending };
       if (from === 'tray') asked.machine.tray -= medals;
       if (!keep(asked)) {
@@ -407,6 +422,7 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       record.credit -= 1;
       feedMachine(record.machine, u, v, ticket, events);
       floorReport(CAROUSEL_GAME, { played: 1 });
+      bank.played({ game: CAROUSEL_GAME, fed: 1, won: 0 });
       return true;
     },
 

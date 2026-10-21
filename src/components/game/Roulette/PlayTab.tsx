@@ -374,6 +374,16 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       yielding: settleNow,
     });
     seat.current = placed;
+    // A spin settled as the card went for a moment, its ball still rolling, and the page left before the card came back
+    // (or while another tab's machine has it): no yield tells this page it is going, and no other page will put the
+    // number on the board, so it goes on as the page goes. Its medals are in already; the board needs no card.
+    const boardAsGone = () => {
+      const spun = inFlight.current;
+      if (!spun || spun.void || !spun.paid || spun.boarded) return;
+      resultsStore.record(spun.record.result);
+      spun.boarded = true;
+    };
+    window.addEventListener('pagehide', boardAsGone);
 
     // Whenever the bank changes: once this page holds the card for its player's medals, a reset since this device's
     // table last started over starts it over, and a spin left unfinished on this device is finished (medalTable.ts),
@@ -427,6 +437,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       unsubscribe();
       // Left while it still holds the card, and before the table is put away: a spin still rolling is settled now.
       placed.leave();
+      // Left without the card: a spin settled before still goes on the board.
+      boardAsGone();
+      window.removeEventListener('pagehide', boardAsGone);
       if (seat.current === placed) seat.current = null;
       if (syncNow.current === sync) syncNow.current = null;
       table.current = null;

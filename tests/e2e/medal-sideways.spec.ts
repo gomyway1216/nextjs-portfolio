@@ -5,7 +5,7 @@ import { BEST_LEFT, LEND_BALLS, numbersForBall, type BallDraw } from '../../src/
 import { SESSION_KEY, parseSession } from '../../src/components/game/Pachinko/medalTable';
 import { MARBLES, numbersFor as smartNumbers, slotFor } from '../../src/components/game/SmartBall/engine';
 import { instantScroll } from './instantScroll';
-import { pressUntil } from './pressUntil';
+import { pressOnce, pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
@@ -206,7 +206,9 @@ async function carouselPlay(page: Page, seen: () => Promise<void>) {
   const machine = page.getByTestId('cp-machine');
   await seen();
   for (let i = 0; i < 3; i++) {
-    await page.getByTestId('cp-drop').click();
+    // DROP acts on pointerdown: in Playwright's Firefox on a touch screen a click sends no pointer events, so press as a
+    // finger does there (pressOnce), or no medal drops and the machine stays at rest.
+    await pressOnce(page.getByTestId('cp-drop'));
     await page.waitForTimeout(400);
     await seen();
   }

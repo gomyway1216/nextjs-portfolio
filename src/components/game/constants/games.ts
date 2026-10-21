@@ -542,4 +542,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Arcade',
   },
+  {
+    id: 'shooting-gallery',
+    title: 'Onsen Shooting Gallery',
+    description: 'The hot-spring town’s cork-gun gallery: six corks, three tiers of figures on red felt, and only a figure that comes off the shelf counts. Pick a figure, fire as the swaying sight crosses its top edge, and slide the big beckoning cat to the brink — with perfect play, an everyday hand and blind shots each worked out exactly, so that no aim beats the machine.',
+    thumbnail: '🎯',
+    path: '/games/shooting-gallery',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
 ];

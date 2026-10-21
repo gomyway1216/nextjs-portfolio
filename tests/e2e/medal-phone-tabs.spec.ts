@@ -33,6 +33,9 @@ const MACHINES = [
   // RETURN is named for a screen reader by what it does (its name begins with the word on it). DROP is a plate of two
   // lines on purpose, its word over "hold for more".
   { game: 'carousel-pusher', tabs: 2, buttons: { en: ['Return the medals in the slot to your medals'], ja: ['返却：クレジットのメダルを持ちメダルに戻す'] } },
+  // START is named for a screen reader with what a play takes (its name begins with the word on it). FIRE stands the
+  // five bands of the sway beside its word, as Smart Ball's plunger stands its gauge.
+  { game: 'shooting-gallery', tabs: 2, buttons: { en: ['START: 6 medals for 6 corks', 'Skip'], ja: ['スタート（6枚でコルク6発）', 'スキップ'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

@@ -10,6 +10,8 @@ import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, parseLedger } from '../../src/components/game/MedalCenter/ledger';
 import { MARBLES, STAKE as SMART_BALL_STAKE, numbersFor as smartBallNumbers, slotFor } from '../../src/components/game/SmartBall/engine';
 import { PLAY_KEY as SMART_BALL_PLAY_KEY, parsePlay as parseSmartBallPlay } from '../../src/components/game/SmartBall/medalTable';
+import { CORKS as GALLERY_CORKS, STAKE as GALLERY_STAKE, numbersFor as galleryNumbers, type Draw as GalleryDraw } from '../../src/components/game/ShootingGallery/engine';
+import { PLAY_KEY as GALLERY_PLAY_KEY, parsePlay as parseGalleryPlay } from '../../src/components/game/ShootingGallery/medalTable';
 import { numberForFace, numberForLamp } from '../../src/components/game/Sugoroku/engine';
 import { BOARD_KEY as SUGOROKU_BOARD_KEY, parseBoard as parseSugorokuBoard } from '../../src/components/game/Sugoroku/medalTable';
 import { instantScroll } from './instantScroll';
@@ -293,6 +295,51 @@ test('Smart Ball: START pressed as the last marble drops starts the next play on
   expect((await play())?.id).toBe(next?.id);
   await expect(machine).toHaveAttribute('data-marble', '0');
   expect(await bankBalance(page)).toBe(WELCOME - 2 * SMART_BALL_STAKE);
+});
+
+test('Shooting Gallery: FIRE pressed the moment each cork is in fires it, and START pressed as the last cork’s figure settles starts the next play once', async ({ page, baseURL }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMachine(page, baseURL, '/games/shooting-gallery', 'sht-machine');
+  const machine = page.getByTestId('sht-machine');
+  const play = async () => parseGalleryPlay(await stored(page, GALLERY_PLAY_KEY));
+  // Every cork misses, whatever it is fired at.
+  const draw: GalleryDraw = { slots: Array.from({ length: GALLERY_CORKS }, () => 63), picks: Array.from({ length: GALLERY_CORKS }, () => 0), bands: Array.from({ length: GALLERY_CORKS }, () => 1) };
+  await rigPresses(page, galleryNumbers(draw));
+  await pressAsItLights(page, byTestId('sht-start'), { roundKey: GALLERY_PLAY_KEY });
+  await pressUntil(page.getByTestId('sht-start'), async () => (await play()) !== null);
+  for (let c = 0; c < GALLERY_CORKS; c++) {
+    // FIRE is drawn ready by the frame that finds the cork in (no medals move then): pressed that instant, it fires.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const fire = document.querySelector<HTMLButtonElement>('[data-testid="sht-fire"]')!;
+          const timer = window.setTimeout(() => reject(new Error('FIRE never lit in 10 s')), 10_000);
+          const press = () => {
+            window.clearTimeout(timer);
+            fire.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 31, isPrimary: true, button: 0, bubbles: true }));
+            resolve();
+          };
+          if (fire.getAttribute('aria-disabled') === 'false') return press();
+          const observer = new MutationObserver(() => {
+            if (fire.getAttribute('aria-disabled') !== 'false') return;
+            observer.disconnect();
+            press();
+          });
+          observer.observe(fire, { attributes: true, attributeFilter: ['aria-disabled'] });
+        }),
+    );
+    await expect.poll(async () => (await play())?.shots.length, { message: `cork ${c + 1}` }).toBe(c + 1);
+  }
+  const asLit = await pressedAsLit(page);
+  expect(stakedAsLit(asLit)).toBe(-GALLERY_STAKE);
+  const [first, next] = asLit.round.map((text) => parseGalleryPlay(text));
+  expect(first?.paid).toBe(true);
+  expect(next).not.toBeNull();
+  expect(next?.id).not.toBe(first?.id);
+  expect((await play())?.id).toBe(next?.id);
+  await expect(machine).toHaveAttribute('data-cork', '0');
+  expect(await bankBalance(page)).toBe(WELCOME - 2 * GALLERY_STAKE);
 });
 
 /** Flicks Coin Maze's lever the moment a flick would meet the gate standing as `slot`. */

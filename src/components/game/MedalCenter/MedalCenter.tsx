@@ -51,6 +51,7 @@ export const FLOOR: readonly { id: string; path: string | null }[] = [
   { id: 'smart-ball', path: '/games/smart-ball' },
   { id: 'pachinko', path: '/games/pachinko' },
   { id: 'carousel-pusher', path: '/games/carousel-pusher' },
+  { id: 'shooting-gallery', path: '/games/shooting-gallery' },
 ];
 
 /** A stack of medals, in the same silver as the medals on the machines. */

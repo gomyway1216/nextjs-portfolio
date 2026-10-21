@@ -2,6 +2,8 @@ import { test, expect, type BrowserContext, type Locator, type Page } from './fi
 
 import { POCKETS, randomsFor } from '../../src/components/game/BallBingo/engine';
 import { ROUND_KEY as BINGO_ROUND_KEY, parseRound as parseBingoRound } from '../../src/components/game/BallBingo/medals';
+import { drawFor as towerDrawFor, numbersFor as towerNumbers } from '../../src/components/game/BallTower/engine';
+import { RUN_KEY as TOWER_RUN_KEY, parseRun as parseTowerRun } from '../../src/components/game/BallTower/medalTable';
 import { CHEST_CELLS } from '../../src/components/game/Fishing/engine';
 import { ROUND_KEY as FISHING_ROUND_KEY, parseRound as parseFishingRound } from '../../src/components/game/Fishing/medals';
 import { WELCOME } from '../../src/components/game/MedalCenter/ledger';
@@ -212,4 +214,19 @@ test('Craps: Space pressed as ROLL lights again after a roll that settles nothin
   await roll.click();
   await keyedAsLit(page);
   await expect.poll(async () => Number(await felt.getAttribute('data-settled')), { timeout: 10_000 }).toBe(before + 2);
+});
+
+test('Ball Tower: Space pressed as START lights again, the ball at rest in OUT, starts the next run', async ({ page, baseURL }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMachine(page, baseURL, '/games/ball-tower');
+  const machine = page.getByTestId('bt-machine');
+  await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+  const run = async () => parseTowerRun(await page.evaluate((key) => window.localStorage.getItem(key), TOWER_RUN_KEY));
+  await rigPresses(page, towerNumbers(towerDrawFor(['out'])));
+  await keyAsItLights(page, '[data-testid="bt-start"]', ' ');
+  await pressUntil(page.getByTestId('bt-start'), async () => (await run()) !== null);
+  const first = (await run())!.id;
+  await keyedAsLit(page);
+  await expect.poll(async () => (await run())?.id, { timeout: 10_000 }).not.toBe(first);
+  expect(await bankBalance(page)).toBe(WELCOME - 2);
 });

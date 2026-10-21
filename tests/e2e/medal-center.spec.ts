@@ -96,11 +96,12 @@ test('shows a new member’s medals on a big counter, the floor and the one rese
   await expect(page.getByTestId('center-play-pachinko')).toHaveAttribute('href', '/games/pachinko');
   await expect(page.getByTestId('center-play-carousel-pusher')).toHaveAttribute('href', '/games/carousel-pusher');
   await expect(page.getByTestId('center-play-shooting-gallery')).toHaveAttribute('href', '/games/shooting-gallery');
-  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery']) {
+  await expect(page.getByTestId('center-play-ball-tower')).toHaveAttribute('href', '/games/ball-tower');
+  for (const id of ['slot-machine', 'janken', 'roulette', 'blackjack', 'video-poker', 'baccarat', 'craps', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery', 'ball-tower']) {
     await expect(page.getByTestId('center-soon').locator(`li[data-machine="${id}"]`)).toHaveCount(0);
   }
-  // Twenty-two machines on the floor: those open, and the rest shown as coming.
-  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(22);
+  // Twenty-three machines on the floor: those open, and the rest shown as coming.
+  expect((await page.getByTestId('center-machines').locator('li').count()) + (await page.getByTestId('center-soon').locator('li').count())).toBe(23);
   // The daily bonus is here too, and the one reset, which nothing has pressed.
   await expect(page.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('center-reset')).toBeEnabled();
@@ -236,6 +237,53 @@ test('the kids and candy shop corner stands its five cabinets in rows inside the
     expect(firstRow, where).toHaveLength(perRow);
     expect(Math.abs(cabinets[4].left - cabinets[0].left), where).toBeLessThan(2);
     expect(cabinets[4].top, where).toBeGreaterThan(cabinets[3].bottom - 1);
+  }
+});
+
+test('the big machines corner stands its five big cabinets in rows inside the corner at every width: two to a row on a desk, one on a phone, the ball tower last, none overlapping', async ({ page }) => {
+  await openCenter(page);
+  const zone = page.getByTestId('center-zone-big');
+  for (const [width, perRow] of [
+    [1280, 2],
+    [1024, 2],
+    [900, 2],
+    [768, 2],
+    [375, 1],
+    [320, 1],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    const where = `${width} px`;
+    expect(await sideways(page), where).toBeLessThanOrEqual(width);
+    const { corner, cabinets, next } = await zone.evaluate((el) => {
+      const box = (node: Element) => {
+        const r = node.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      };
+      const after = document.querySelector('[data-testid="center-zone-kids"]');
+      return { corner: box(el), cabinets: [...el.querySelectorAll('li[data-machine]')].map((li) => ({ id: li.getAttribute('data-machine'), ...box(li) })), next: after ? box(after) : null };
+    });
+    expect(cabinets.map(({ id }) => id), where).toEqual(['horse-race', 'ball-bingo', 'big-wheel', 'sugoroku', 'ball-tower']);
+    for (const cabinet of cabinets) {
+      expect(cabinet.left, `${where} ${cabinet.id}`).toBeGreaterThanOrEqual(corner.left - 1);
+      expect(cabinet.right, `${where} ${cabinet.id}`).toBeLessThanOrEqual(corner.right + 1);
+      expect(cabinet.bottom, `${where} ${cabinet.id}`).toBeLessThanOrEqual(corner.bottom + 1);
+    }
+    for (let a = 0; a < cabinets.length; a++)
+      for (let b = a + 1; b < cabinets.length; b++) {
+        const across = Math.min(cabinets[a].right, cabinets[b].right) - Math.max(cabinets[a].left, cabinets[b].left);
+        const down = Math.min(cabinets[a].bottom, cabinets[b].bottom) - Math.max(cabinets[a].top, cabinets[b].top);
+        expect(across <= 1 || down <= 1, `${where} ${cabinets[a].id} ${cabinets[b].id}`).toBe(true);
+      }
+    // Each row holds `perRow` big cabinets side by side, the two of a row ending level; the ball tower starts a row of its
+    // own at the left.
+    const firstRow = cabinets.filter((cabinet) => Math.abs(cabinet.top - cabinets[0].top) < 2);
+    expect(firstRow, where).toHaveLength(perRow);
+    if (perRow === 2) for (const [a, b] of [[0, 1], [2, 3]]) expect(Math.abs(cabinets[a].bottom - cabinets[b].bottom), `${where} ${cabinets[a].id} ${cabinets[b].id}`).toBeLessThan(2);
+    expect(Math.abs(cabinets[4].left - cabinets[0].left), where).toBeLessThan(2);
+    expect(cabinets[4].top, where).toBeGreaterThan(cabinets[3].bottom - 1);
+    // The corner ends with its last row, and the candy shop's corner starts under it.
+    expect(Math.abs(corner.bottom - cabinets[4].bottom), where).toBeLessThan(40);
+    expect(next!.top, where).toBeGreaterThanOrEqual(corner.bottom - 1);
   }
 });
 

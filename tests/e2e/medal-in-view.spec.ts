@@ -136,6 +136,39 @@ for (const [width, height] of [
   [375, 812],
   [320, 640],
 ] as const) {
+  test(`the ball tower (ball-tower) at ${width}×${height}: START brings the whole tower, the status line and START on screen together, under the toolbar`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const page = await phone(browser, width, height);
+    await page.context().addCookies([{ name: 'i18nextLng', value: 'ja', url: 'http://localhost:3000' }]);
+    await page.goto('/games/ball-tower');
+    await arrived(page);
+    const machine = page.getByTestId('bt-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    const start = page.getByTestId('bt-start');
+    // Scrolled on past the tower, START in the middle of the window, as a player back from the counters under it: the
+    // top of the tower is under the toolbar or off the screen.
+    await start.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    const tower = page.getByTestId('bt-board');
+    const covered = () =>
+      tower.evaluate((el) => {
+        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        return el.getBoundingClientRect().top < bar - 1;
+      });
+    expect(await covered()).toBe(true);
+    await pressUntil(start, async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    // The whole tower under the toolbar, and the words and START under it, inside the window.
+    await expect.poll(covered, { timeout: 4_000 }).toBe(false);
+    expect(await onScreen(tower)).toBe(1);
+    expect(await onScreen(page.getByTestId('bt-status'))).toBe(1);
+    expect(await onScreen(start)).toBe(1);
+    await page.context().close();
+  });
+}
+
+for (const [width, height] of [
+  [375, 812],
+  [320, 640],
+] as const) {
   test(`the shooting gallery (shooting-gallery) at ${width}×${height}: START brings the whole stall, its gun and FIRE on screen together, under the toolbar`, async ({ browser }) => {
     test.setTimeout(60_000);
     const page = await phone(browser, width, height);

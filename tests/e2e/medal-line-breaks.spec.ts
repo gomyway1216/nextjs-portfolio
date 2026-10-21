@@ -11,6 +11,7 @@ import { numbersFor as kenoNumbers } from '../../src/components/game/Keno/engine
 import { numbersFor as smbNumbers, slotFor as smbSlot } from '../../src/components/game/SmartBall/engine';
 import { numbersForBall as pkNumbers } from '../../src/components/game/Pachinko/engine';
 import { numbersFor as shtNumbers, slotFor as shtSlot } from '../../src/components/game/ShootingGallery/engine';
+import { drawFor as btDrawFor, numbersFor as btNumbers } from '../../src/components/game/BallTower/engine';
 import { FLOOR_GAMES } from '../../src/lib/medalFloor/games';
 import { JACKPOT_WINS_SHOWN, type FloorJackpotView } from '../../src/lib/medalFloor/jackpot';
 import { NAME_MAX } from '../../src/lib/medalFloor/names';
@@ -275,6 +276,7 @@ const LONGEST_MOMENTS: [FloorFeedEntry['game'], string | null][] = [
   ['slot-machine', 'bar3'],
   ['medal-pusher', 'floor-jackpot'],
   ['roulette', null],
+  ['ball-tower', 'tower-chance'],
 ];
 
 for (const width of WIDTHS) {
@@ -665,6 +667,44 @@ for (const width of WIDTHS) for (const safari of [false, true]) {
     if (safari) await asSafariBreaks(page);
     expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
     said.push(...(await brokenIn(odds.locator('table th, table td, caption, h3, [class*="statLabel"], [class*="statNote"]'), SHT_WORDS)));
+    expect(said, `at ${width} px${as}`).toEqual([]);
+    await context.close();
+  });
+}
+
+// ── Firework Ball Tower ─────────────────────────────────────────────────────
+
+const BT_WORDS = ['スタート', 'ベット', 'ボール', 'タワー', 'リフト', 'ころころ', 'チャンス', 'ジャックポット', '回転盤', '持ちメダル', '当たった', '使った', '差し引き', '割合', '戻り', 'ポケット', 'ランプ', 'ルーレット', '倍率', '確率', 'てっぺん', '止まった', '段目'];
+
+for (const width of WIDTHS) for (const safari of [false, true]) {
+  const as = safari ? ', broken as Safari and Firefox break them' : '';
+  test(`Firework Ball Tower's (ball-tower) status line, figures and Odds tables break between phrases in Japanese at ${width} px${as}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const { context, page } = await phone(browser, width);
+    await page.goto('/games/ball-tower');
+    await arrived(page);
+    const machine = page.getByTestId('bt-machine');
+    await expect(machine).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    if (safari) await asSafariBreaks(page);
+    const status = page.getByTestId('bt-status');
+    const said = await brokenIn(status, BT_WORDS);
+    // A run UP to the chance disc and into its "?": the lift, each disc, the chance, the lamps, and the end.
+    await rigPresses(page, btNumbers(btDrawFor(['up', 'up', 'up', 'mystery'], 30)));
+    await pressUntil(page.getByTestId('bt-start'), async () => ((await machine.getAttribute('data-round')) ?? '') !== '');
+    for (const level of ['0', '1', '2', '3']) {
+      await expect(machine).toHaveAttribute('data-level', level, { timeout: 15_000 });
+      said.push(...(await brokenIn(status, BT_WORDS)));
+      expect(await sideways(page), `the machine at ${width} px${as}`).toBe(0);
+    }
+    await expect(machine).toHaveAttribute('data-phase', 'idle', { timeout: 20_000 });
+    said.push(...(await brokenIn(status, BT_WORDS)));
+    said.push(...(await brokenIn(page.locator('#bt-session-title ~ dl dt'), BT_WORDS)));
+    await page.locator('#bt-tab-odds').click();
+    const odds = page.locator('[role="tabpanel"]:not([hidden])');
+    await expect(odds.getByTestId('bt-disc-4')).toBeVisible();
+    if (safari) await asSafariBreaks(page);
+    expect(await sideways(page), `the Odds tab at ${width} px${as}`).toBe(0);
+    said.push(...(await brokenIn(odds.locator('table th, table td, caption, [class*="statLabel"], [class*="statNote"]'), BT_WORDS)));
     expect(said, `at ${width} px${as}`).toEqual([]);
     await context.close();
   });

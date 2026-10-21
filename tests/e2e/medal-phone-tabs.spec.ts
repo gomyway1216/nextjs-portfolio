@@ -36,6 +36,8 @@ const MACHINES = [
   // START is named for a screen reader with what a play takes (its name begins with the word on it). FIRE stands the
   // five bands of the sway beside its word, as Smart Ball's plunger stands its gauge.
   { game: 'shooting-gallery', tabs: 2, buttons: { en: ['START: 6 medals for 6 corks', 'Skip'], ja: ['スタート（6枚でコルク6発）', 'スキップ'] } },
+  // START is named for a screen reader with what a ball takes on the bet picked; the bets are named by their medals.
+  { game: 'ball-tower', tabs: 2, buttons: { en: ['START: one ball for 1 medal', 'Skip', 'Bet 10 medals a ball'], ja: ['スタート（1枚でボール1球）', 'スキップ', '1球10枚でベット'] } },
 ] as const;
 
 /** How many lines the words of an element take: the tops of its boxes that are more than half a line apart. */

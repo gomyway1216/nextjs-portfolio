@@ -6,6 +6,8 @@ import { numbersFor as coinMazeNumbers, type Draw as CoinMazeDraw } from '../../
 import { PLAY_KEY as COIN_MAZE_PLAY_KEY, parsePlay as parseCoinMazePlay } from '../../src/components/game/CoinMaze/medalTable';
 import { numbersFor as kenoNumbers } from '../../src/components/game/Keno/engine';
 import { GAME_KEY as KENO_GAME_KEY, parseGame as parseKenoGame } from '../../src/components/game/Keno/medalTable';
+import { drawFor as towerDrawFor, numbersFor as towerNumbers } from '../../src/components/game/BallTower/engine';
+import { RUN_KEY as TOWER_RUN_KEY, parseRun as parseTowerRun } from '../../src/components/game/BallTower/medalTable';
 import { BANK_KEY } from '../../src/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, parseLedger } from '../../src/components/game/MedalCenter/ledger';
 import { MARBLES, STAKE as SMART_BALL_STAKE, numbersFor as smartBallNumbers, slotFor } from '../../src/components/game/SmartBall/engine';
@@ -340,6 +342,27 @@ test('Shooting Gallery: FIRE pressed the moment each cork is in fires it, and ST
   expect((await play())?.id).toBe(next?.id);
   await expect(machine).toHaveAttribute('data-cork', '0');
   expect(await bankBalance(page)).toBe(WELCOME - 2 * GALLERY_STAKE);
+});
+
+test('Ball Tower: START pressed as the ball comes to rest in OUT starts the next run once', async ({ page, baseURL }) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMachine(page, baseURL, '/games/ball-tower', 'bt-machine');
+  const run = async () => parseTowerRun(await stored(page, TOWER_RUN_KEY));
+  // UP on the top disc, then OUT on the second: nothing to pay as START lights again.
+  await rigPresses(page, towerNumbers(towerDrawFor(['up', 'out'])));
+  await pressAsItLights(page, byTestId('bt-start'), { roundKey: TOWER_RUN_KEY });
+  await pressUntil(page.getByTestId('bt-start'), async () => (await run()) !== null);
+  const asLit = await pressedAsLit(page);
+  // The two presses at that instant: one ball, of the bet of 1.
+  expect(stakedAsLit(asLit)).toBe(-1);
+  const [first, next] = asLit.round.map((text) => parseTowerRun(text));
+  expect(first?.paid).toBe(true);
+  expect(next).not.toBeNull();
+  expect(next?.id).not.toBe(first?.id);
+  expect(next?.paid).toBe(false);
+  expect((await run())?.id).toBe(next?.id);
+  expect(await bankBalance(page)).toBe(WELCOME - 2);
 });
 
 /** Flicks Coin Maze's lever the moment a flick would meet the gate standing as `slot`. */

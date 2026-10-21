@@ -37,14 +37,16 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'SMART BALL': 'the smart ball table’s noren, over 「湯けむり」',
   'GOLDFISH LANTERN': 'the pachinko cabinet’s marquee, beside 「パチンコ・1/99.9」',
   'SAKURA CAROUSEL': 'the carousel pusher’s marquee, beside 「メダルプッシャー」',
+  'BALL TOWER': 'the ball tower’s marquee, under 「花火」',
   // Lamps, pockets and reel symbols on a playfield, as real medal machines print them.
   JACKPOT: 'the pusher’s jackpot lamp',
   START: 'the pusher’s START pockets and the START buttons of the cabinets',
   BAR: 'a reel symbol',
   BONUS: 'the Big Wheel’s bonus segments',
   FREE: 'Ball Bingo’s FREE pockets',
-  CHANCE: 'Ball Bingo’s CHANCE pocket',
-  OUT: 'Ball Bingo’s OUT pockets, the OUT holes of the candy shop maze, and the smart ball’s OUT gutter',
+  CHANCE: 'Ball Bingo’s CHANCE pocket, and the ball tower’s CHANCE pockets',
+  OUT: 'Ball Bingo’s OUT pockets, the OUT holes of the candy shop maze, the smart ball’s OUT gutter, and the ball tower’s OUT pockets',
+  UP: 'the ball tower’s UP pockets, printed in English on the discs as on the real machines, and said so in its words',
   GF: 'the pusher’s model number, 「型式 GF-777」',
   // A cabinet's main button, printed in English on the real thing.
   SPIN: 'the roulette and slot machines’ main button',
@@ -65,7 +67,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   // Words and abbreviations a Japanese player reads as they are.
   OK: 'the button that puts a note away: everyday Japanese',
   MAX: 'MAXベット, as a pachislot’s MAX BET button says it',
-  JP: 'JP対象 and the pusher’s JP lamp: a Japanese medal hall’s word for its jackpot',
+  JP: 'JP対象, the pusher’s JP lamp and the ball tower’s JP pocket: a Japanese medal hall’s word for its jackpot',
   RTP: 'the slot machine’s return, 「還元率（RTP）」',
   EZ: 'the baccarat table’s name, 「ノーコミッション（EZ）」',
   ST: 'a pachinko’s ST (スペシャルタイム), as Japanese machines print it: 「ST残り30回」',

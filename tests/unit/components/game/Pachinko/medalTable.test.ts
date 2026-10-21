@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BEST_LEFT, BEST_RIGHT, FATE_SLOTS, LEND_BALLS, LEND_MEDALS, attackerOpen, busy, copyMachine, drawBall, newMachine, tick, type BallDraw, type Machine } from '@/components/game/Pachinko/engine';
 import {
@@ -17,6 +17,7 @@ import {
   type Table,
 } from '@/components/game/Pachinko/medalTable';
 import { BANK_KEY, ledgerKey, type Seat } from '@/components/game/MedalCenter/bank';
+import { recordsOf } from '@/components/game/MedalCenter/history';
 import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, serializeLedger, take } from '@/components/game/MedalCenter/ledger';
 import type { Player } from '@/components/game/MedalPusher/account';
 import { FakeBrowser, atEveryWrite, quiet, type FakePage } from '../MedalCenter/bankFakes';
@@ -26,6 +27,24 @@ import { FakeAccounts, signedIn } from '../MedalPusher/accountFakes';
 // taken once, a count's medals come back once, and a hit's rounds are paid in full, once, whatever happens to the page:
 // a reload, another tab, a reset, or a browser that dies between two writes. The bank here is the real one
 // (MedalCenter/bank.ts) in a fake browser (bankFakes.ts); nothing is fetched and no account is real.
+
+type Told = { game: string; played?: number; won?: number; prize?: { medals: number; label?: string } };
+/** What the floor is told (`floorReport`), caught here: only while the browser telling it is alive, for one that has died tells nothing. */
+const floor = vi.hoisted(() => ({ reports: [] as Told[], dead: (() => false) as () => boolean }));
+vi.mock('@/components/game/MedalCenter/floor/reporter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/game/MedalCenter/floor/reporter')>()),
+  floorReport: (game: string, win: Omit<Told, 'game'>) => {
+    if (!floor.dead()) floor.reports.push({ game, ...win });
+  },
+}));
+beforeEach(() => {
+  floor.reports.length = 0;
+  floor.dead = () => false;
+});
+/** The medals played and won the floor has been told of, added up. */
+const told = () => floor.reports.reduce((sum, r) => ({ played: sum.played + (r.played ?? 0), won: sum.won + (r.won ?? 0) }), { played: 0, won: 0 });
+/** The machine's records in a page's medals' history: medals fed (`bet`) and won, and the biggest prize (`top`). */
+const records = (page: FakePage) => recordsOf(page.bank.historyState().history!).find((row) => row.game === PACHINKO_GAME);
 
 const ball = (fate: number, lot = 65_535, split = 99, show = 1_023, seed = 7): BallDraw => ({ fate, lot, split, show, seed });
 /** A ball into the ヘソ at the best strength whose hold is a hit in any mode: from the ヘソ's split, 4 rounds and ST. */
@@ -215,6 +234,88 @@ describe('lending and counting', () => {
   });
 });
 
+describe('what the floor and the medals’ history are told', () => {
+  // A lend and a count only turn medals into balls and back: the medals played are the balls fired, and the medals won
+  // the balls the pockets pay, ten balls a medal, as the Medal Pusher tells its medals fed and paid.
+
+  it('tells nothing of a lend counted straight back, which is no bet and no win: the medals the same, and no play', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    page.bank.watchHistory(() => undefined);
+    const machine = machineOn(page);
+    await quiet(browser);
+    expect(machine.lend()).toBe('lent');
+    expect(machine.count()).toBe(LEND_MEDALS);
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME);
+    expect(floor.reports).toEqual([]);
+    expect(records(page)).toBeUndefined();
+    // Again and again: still nothing, and the medals still the same.
+    for (let i = 0; i < 5; i++) {
+      machine.lend();
+      machine.count();
+    }
+    await quiet(browser);
+    expect(stored(browser)).toBe(WELCOME);
+    expect(floor.reports).toEqual([]);
+    expect(records(page)).toBeUndefined();
+  });
+
+  it('tells the balls fired as medals played and the balls paid as medals won, ten balls a medal, as they go; the count tells nothing', async () => {
+    const browser = new FakeBrowser();
+    const page = browser.open();
+    page.bank.watchHistory(() => undefined);
+    const machine = machineOn(page);
+    await quiet(browser);
+    machine.lend([...Array.from({ length: 10 }, () => MISS), ...Array.from({ length: 10 }, () => OUT)]);
+    // Ten balls into the ヘソ (three back each), then ten OUT. Nine in: no medal played yet, and 27 balls paid, 2 won.
+    for (let i = 0; i < 9; i++) machine.step(BEST_LEFT);
+    expect(told()).toEqual({ played: 0, won: 2 });
+    for (let i = 9; i < 20; i++) machine.step(BEST_LEFT);
+    // Twenty balls fired, 2 medals played; thirty balls paid, 3 medals won. None short of a medal left over.
+    expect(told()).toEqual({ played: 2, won: 3 });
+    expect(floor.reports.every((r) => r.game === PACHINKO_GAME && (r.played ?? 0) <= 1 && (r.won ?? 0) <= 1)).toBe(true);
+    expect(session(browser)).toMatchObject({ tray: LEND_BALLS - 20 + 30, owed: { fired: 0, paid: 0 } });
+    // The count turns the tray into medals, and is not told: the medals up by what was told, won less played.
+    expect(machine.count()).toBe(6);
+    await quiet(browser);
+    expect(told()).toEqual({ played: 2, won: 3 });
+    expect(stored(browser)).toBe(WELCOME - LEND_MEDALS + 6);
+    expect(stored(browser)! - WELCOME).toBe(told().won - told().played);
+    expect(records(page)).toMatchObject({ rounds: 0, bet: 2, won: 3 });
+  });
+
+  it('carries the balls short of a medal in the session, across a reload, and tells each medal once', async () => {
+    const browser = new FakeBrowser();
+    const first = browser.open();
+    const machine = machineOn(first);
+    await quiet(browser);
+    machine.lend(Array.from({ length: 30 }, () => OUT));
+    for (let i = 0; i < 15; i++) machine.step(BEST_LEFT);
+    expect(told()).toEqual({ played: 1, won: 0 });
+    expect(session(browser)?.owed).toEqual({ fired: 5, paid: 0 });
+    // Reloaded: the five balls short of a medal are still owed, and the fifth fired after them is the second medal.
+    first.hide('left');
+    first.close();
+    const again = machineOn(browser.open());
+    await quiet(browser);
+    expect(again.now()).toMatchObject({ tray: LEND_BALLS - 15, owed: { fired: 5, paid: 0 } });
+    expect(told()).toEqual({ played: 1, won: 0 });
+    for (let i = 0; i < 4; i++) again.step(BEST_LEFT);
+    expect(told()).toEqual({ played: 1, won: 0 });
+    again.step(BEST_LEFT);
+    expect(told()).toEqual({ played: 2, won: 0 });
+    expect(session(browser)?.owed).toEqual({ fired: 0, paid: 0 });
+    // Counted out and lent again: the balls short of a medal are carried on into the next lend's.
+    for (let i = 0; i < 7; i++) again.step(BEST_LEFT);
+    expect(again.count()).toBe(2);
+    expect(again.lend(Array.from({ length: 3 }, () => OUT))).toBe('lent');
+    for (let i = 0; i < 3; i++) again.step(BEST_LEFT);
+    expect(told()).toEqual({ played: 3, won: 0 });
+    expect(session(browser)?.owed).toEqual({ fired: 0, paid: 0 });
+  });
+});
+
 describe('the re-entrancy of the bank', () => {
   it('never squares the lend being made: the bank tells its listeners inside the press, and the balls go in once', async () => {
     const browser = new FakeBrowser();
@@ -254,6 +355,33 @@ describe('a hit, whatever happens to the page', () => {
     expect(after.tray).toBe(LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET);
     expect(after.machine).toMatchObject({ mode: 'st', left: 30, bonus: null });
     expect(after.away).toBeNull();
+  });
+
+  it('tells a hit’s balls as they are fired and paid, on the page or played out as the page is left: the same medals either way, and its prize', async () => {
+    for (const leave of [false, true]) {
+      floor.reports.length = 0;
+      const browser = new FakeBrowser();
+      const page = browser.open();
+      page.bank.watchHistory(() => undefined);
+      const machine = machineOn(page);
+      await quiet(browser);
+      toTheHit(machine);
+      // The hit's prize is told as its spin stops: 4 rounds, 40 medals' worth.
+      expect(floor.reports.filter((r) => r.prize)).toEqual([{ game: PACHINKO_GAME, prize: { medals: 40, label: 'pachinko-4r' } }]);
+      if (leave) {
+        for (let i = 0; i < 12; i++) machine.step(attackerOpen(machine.now()!.machine) ? BEST_RIGHT : null);
+        page.hide('left');
+        page.close();
+      } else {
+        machine.playOut();
+        await quiet(browser);
+        expect(records(page)).toMatchObject({ rounds: 0, bet: 4, won: 40, top: 40 });
+      }
+      // The hit ball and the four rounds' forty fired, 4 medals played (one ball over); its three back and the rounds'
+      // four hundred paid, 40 won (three over).
+      expect(told(), leave ? 'left' : 'on the page').toEqual({ played: 4, won: 40 });
+      expect(session(browser), leave ? 'left' : 'on the page').toMatchObject({ tray: LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET, owed: { fired: 1, paid: 3 } });
+    }
   });
 
   it('plays out the rounds as the page is left, at strength 6, and says so on return; the reloaded page pays nothing twice', async () => {
@@ -378,16 +506,21 @@ describe('a browser that dies between two writes', () => {
       setUp,
       (browser) => {
         const machine = machines.get(browser)!;
+        floor.reports.length = 0;
+        floor.dead = () => browser.dead;
         machine.table.lend([]);
         machine.table.count();
       },
       async (after, reached) => {
+        floor.dead = () => false;
         const machine = await reopened(after);
         const medals = stored(after)!;
         const tray = machine.now()?.tray ?? 0;
         // Medals and balls together are what the player had: nothing lost, nothing made.
         expect(medals * 10 + tray, `died after ${reached} writes`).toBe(WELCOME * 10);
         expect(machine.now()?.pending ?? null, `died after ${reached} writes`).toBeNull();
+        // No ball was fired: the floor is told of no play and no win, before the browser died or after.
+        expect(floor.reports, `died after ${reached} writes`).toEqual([]);
       },
     );
     expect(writes).toBeGreaterThanOrEqual(4);
@@ -399,6 +532,8 @@ describe('a browser that dies between two writes', () => {
       setUp,
       (browser) => {
         const machine = machines.get(browser)!;
+        floor.reports.length = 0;
+        floor.dead = () => browser.dead;
         machine.table.lend([HIT]);
         let at = machine.table.open();
         // The hit ball, its spin, and the rounds played on the page.
@@ -411,11 +546,13 @@ describe('a browser that dies between two writes', () => {
         }
       },
       async (after, reached) => {
+        floor.dead = () => false;
         const machine = await reopened(after);
         const lent = stored(after) === WELCOME - LEND_MEDALS;
         if (!lent) {
           expect(stored(after), `died after ${reached} writes`).toBe(WELCOME);
           expect(machine.now()?.tray ?? 0).toBe(0);
+          expect(told(), `died after ${reached} writes`).toEqual({ played: 0, won: 0 });
           return;
         }
         // Played on the same way to the end: the hit ball fired if it was not, and every round paid.
@@ -425,6 +562,13 @@ describe('a browser that dies between two writes', () => {
         full ??= at.tray;
         expect(at.tray, `died after ${reached} writes`).toBe(full);
         expect(at.tray).toBe(LEND_BALLS - 1 + 3 + FOUR_ROUNDS_NET);
+        // Each medal of balls fired and paid told once at most: never twice, and one lost at most, the one whose
+        // session was written as the browser died, before it could be told.
+        const { played, won } = told();
+        expect(played, `died after ${reached} writes`).toBeLessThanOrEqual(4);
+        expect(played, `died after ${reached} writes`).toBeGreaterThanOrEqual(3);
+        expect(won, `died after ${reached} writes`).toBeLessThanOrEqual(40);
+        expect(won, `died after ${reached} writes`).toBeGreaterThanOrEqual(39);
       },
     );
     // The lend's two, the hit ball's, every slot of its spin and of the four rounds, and the medals let out at the end.
@@ -445,8 +589,12 @@ describe('reading a session back', () => {
       pending: null,
       lent: 'abc',
       away: null,
+      owed: { fired: 9, paid: 3 },
     };
     expect(parseSession(serializeSession(good))).toEqual(good);
+    // A session written before the balls owed were kept owes none.
+    const { owed: _owed, ...older } = good;
+    expect(parseSession(JSON.stringify(older))).toEqual({ ...good, owed: { fired: 0, paid: 0 } });
     const bad: unknown[] = [
       null,
       'not json',
@@ -458,6 +606,9 @@ describe('reading a session back', () => {
       JSON.stringify({ ...good, queue: Array.from({ length: QUEUE + 1 }, () => OUT) }),
       JSON.stringify({ ...good, queue: [{ ...OUT, fate: FATE_SLOTS }] }),
       JSON.stringify({ ...good, pending: { kind: 'steal', id: 'x', medals: 1, balls: 1 } }),
+      JSON.stringify({ ...good, owed: { fired: 10, paid: 0 } }),
+      JSON.stringify({ ...good, owed: { fired: 0, paid: -1 } }),
+      JSON.stringify({ ...good, owed: null }),
       JSON.stringify({ ...good, machine: { ...good.machine, spin: { from: 1, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode: 'normal', hit: false, kind: 'plain', phase: 0, age: 1 } } }),
     ];
     for (const text of bad) expect(parseSession(text)).toBeNull();

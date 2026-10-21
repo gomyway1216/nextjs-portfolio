@@ -81,7 +81,7 @@ export const Pachinko = ({ player }: PachinkoProps = {}) => {
           </button>
         </div>
 
-        {/* The floor jackpot, live, over the machine: every medal lent here by a player on the floor feeds it. */}
+        {/* The floor jackpot, live, over the machine: every ten balls fired here by a player on the floor feed it a medal (a lend counted back unfired feeds nothing). */}
         <FloorJackpotStrip game="pachinko" />
 
         <div className={`${styles.tabs} ${floorTabs.tabs}`} role="tablist" aria-label={t.title}>
@@ -112,7 +112,7 @@ export const Pachinko = ({ player }: PachinkoProps = {}) => {
         </div>
         <div role="tabpanel" id="pk-panel-odds" aria-labelledby="pk-tab-odds" hidden={tab !== 'odds'}>
           <OddsTab />
-          {/* What the floor jackpot adds to the medals lent here, on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
+          {/* What the floor jackpot adds to the medals played here (ten balls fired a medal), on top of the machine's own return. Kept out of the tab itself, which never touches the player's medals. */}
           <FloorJackpotOddsNote game="pachinko" />
         </div>
       </div>

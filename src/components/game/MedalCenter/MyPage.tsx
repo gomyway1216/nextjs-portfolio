@@ -9,7 +9,7 @@ import { ACHIEVEMENT_IDS, lifetimeReturn, viewOf } from '../MedalPusher/records'
 import { useRecords, type RecordsState } from '../MedalPusher/recordsStore';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useBank, useMedalHistory, type BankState } from './bank';
-import { CENTER, FLOOR_JACKPOT, HISTORY_LIMITS, PUSHER_GAME, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
+import { CENTER, FLOOR_JACKPOT, HISTORY_LIMITS, PUSHER_GAME, REPORTS_PLAY, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
 import type { HistoryState } from './historyStore';
 import { COUNTER_PLACES, FLOOR, MedalStack } from './MedalCenter';
 import { DottedParts } from './KeysHint';
@@ -334,8 +334,9 @@ const FloorJackpotCard = ({ row, t, f }: { row: GameRecord | null; t: MyPageStri
 
 /** A machine played since the history began, with its records. */
 const GameCard = ({ id, path, row, t, f, name }: { id: string; path: string | null; row: GameRecord | null; t: MyPageStrings; f: Formats; name: string }) => {
-  // The Medal Pusher plays no rounds: medals go in and come out as the field moves.
-  const pusher = id === PUSHER_GAME;
+  // The Medal Pusher plays no rounds: medals go in and come out as the field moves. Nor does a machine that reports its
+  // play as it goes (the pachinko's balls fired and paid, ten a medal).
+  const pusher = id === PUSHER_GAME || REPORTS_PLAY.has(id);
   return (
     <li className={styles.game} data-game={id} data-played="true" data-testid={`mypage-game-${id}`}>
       <div className={styles.gameHead}>

@@ -20,6 +20,15 @@
  * receipts: a lend whose medals never went in never happened; a lend whose medals did puts its balls in the tray;
  * a count whose medals never went in is paid now, once.
  *
+ * ## What the floor and the medals' history are told
+ *
+ * Neither a lend nor a count is play: a lend counted straight back gives the player the same medals back, so it is
+ * never told as medals played or won. What is played is the balls fired (the risk is the ball, not the lend), and what
+ * is won is the balls the pockets pay, ten balls a medal, as the Medal Pusher tells its medals fed and paid: the
+ * floor's medals played (its jackpot's tickets) and won, and the history's medals fed and won. The balls short of a
+ * medal are carried in the session (`owed`), and told once the session saying so is written: a reload never tells
+ * them twice.
+ *
  * ## A hit left behind
  *
  * A hit's rounds are paid in full whatever happens to the page. As the page gives up the card (hidden, left,
@@ -34,7 +43,7 @@
  * against a fake browser.
  */
 
-import type { Move } from '../MedalCenter/bank';
+import type { Move, Played } from '../MedalCenter/bank';
 import { floorReport } from '../MedalCenter/floor/reporter';
 import {
   BALLS_PER_MEDAL,
@@ -81,6 +90,15 @@ export interface AwayNote {
   balls: number;
 }
 
+/**
+ * The balls not yet told to the floor and the history, short of a medal each: fired from the tray (a ball fired on
+ * credit is taken out of what it pays, and costs nothing when it pays nothing), and paid by the pockets.
+ */
+export interface Owed {
+  fired: number;
+  paid: number;
+}
+
 /** The session as it is written down. */
 export interface SessionRecord {
   v: 1;
@@ -101,6 +119,8 @@ export interface SessionRecord {
   lent: string | null;
   /** A hit's rounds played out while the page was away. */
   away: AwayNote | null;
+  /** The balls fired and paid not yet told, fewer than a medal's each. A session written before it was kept owes none. */
+  owed: Owed;
 }
 
 /** What a slot did, for the page to show. */
@@ -148,8 +168,13 @@ export function parseSession(text: unknown): SessionRecord | null {
     if (!isRecordLike(data.away) || !isWhole(data.away.rounds, 1, 1_000) || !isWhole(data.away.balls, 0, TRAY_MOST)) return null;
     away = { rounds: data.away.rounds, balls: data.away.balls };
   }
+  let owed: Owed = { fired: 0, paid: 0 };
+  if (data.owed !== undefined) {
+    if (!isRecordLike(data.owed) || !isWhole(data.owed.fired, 0, BALLS_PER_MEDAL - 1) || !isWhole(data.owed.paid, 0, BALLS_PER_MEDAL - 1)) return null;
+    owed = { fired: data.owed.fired, paid: data.owed.paid };
+  }
   const queue = (data.queue as BallDraw[]).map((d) => ({ fate: d.fate, lot: d.lot, split: d.split, show: d.show, seed: d.seed }));
-  return { v: 1, owner, ledger: data.ledger, era: data.era, tray: data.tray, machine, queue, pending, lent: data.lent as string | null, away };
+  return { v: 1, owner, ledger: data.ledger, era: data.era, tray: data.tray, machine, queue, pending, lent: data.lent as string | null, away, owed };
 }
 
 export const serializeSession = (record: SessionRecord): string => JSON.stringify(record);
@@ -159,7 +184,22 @@ const copySession = (record: SessionRecord): SessionRecord => ({
   queue: record.queue.map((d) => ({ ...d })),
   pending: record.pending ? { ...record.pending } : null,
   away: record.away ? { ...record.away } : null,
+  owed: { ...record.owed },
 });
+
+/**
+ * The session with `fired` balls more fired and `paid` more paid, and what of them is to be told: the whole medals,
+ * ten balls each. The balls short of a medal stay owed.
+ */
+const owing = (record: SessionRecord, fired: number, paid: number): { record: SessionRecord; played: number; won: number } => {
+  const allFired = record.owed.fired + fired;
+  const allPaid = record.owed.paid + paid;
+  return {
+    record: { ...record, owed: { fired: allFired % BALLS_PER_MEDAL, paid: allPaid % BALLS_PER_MEDAL } },
+    played: Math.floor(allFired / BALLS_PER_MEDAL),
+    won: Math.floor(allPaid / BALLS_PER_MEDAL),
+  };
+};
 
 /** Whether a session has medals out: balls in the tray, or holds, a spin or a hit's rounds to come. */
 export const live = (record: SessionRecord): boolean => record.tray > 0 || busy(record.machine) || record.pending !== null;
@@ -175,6 +215,8 @@ export interface TableBank {
   applied(move: Pick<Move, 'game' | 'round' | 'step'>): boolean;
   forget(game: string, keep?: readonly string[]): boolean;
   settle(game: string, keep?: readonly string[]): boolean;
+  /** Tells the medals' history what was fed and paid, which the lend's and the count's moves do not say. */
+  played(report: Played): void;
 }
 
 /** This device's storage. Every call may throw: storage can be blocked, full or switched off. */
@@ -297,9 +339,18 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
     return inMemory();
   };
 
-  /** A count's medals, in under their receipt, once; the floor hears of them as they go in. */
+  /** A count's medals, in under their receipt, once. Not a win: the balls counted were told as they were paid. */
   const payCount = (record: SessionRecord, pending: Pending): void => {
-    if (move(record, pending.id, PAY_STEP, pending.medals) === 'applied') floorReport(PACHINKO_GAME, { won: pending.medals });
+    move(record, pending.id, PAY_STEP, pending.medals);
+  };
+
+  /**
+   * Tells the floor and the medals' history the whole medals of balls fired and paid, split off the session by
+   * `owing`, and the biggest prize among them. Called once that session is written, never before.
+   */
+  const tell = ({ played, won }: { played: number; won: number }, prize = 0): void => {
+    if (played > 0 || won > 0) floorReport(PACHINKO_GAME, { played, won });
+    if (played > 0 || won > 0 || prize > 0) bank.played({ game: PACHINKO_GAME, fed: played, won, prize });
   };
 
   /** Lets go of the medals out, once nothing is left of the session: no balls, holds, spin or hit. */
@@ -316,13 +367,14 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
    * A hit's rounds still to come, played out at once at strength 6: a ball a slot while the attacker is open (on
    * credit when the tray is empty), none between rounds; the 電チュー's run begins after them, and waits for the player.
    */
-  const playOut = (record: SessionRecord): SessionRecord => {
-    if (!record.machine.bonus) return record;
+  const playOut = (record: SessionRecord): { record: SessionRecord; played: number; won: number } => {
+    if (!record.machine.bonus) return { record, played: 0, won: 0 };
     const next = copySession(record);
     const kind = next.machine.bonus!.kind;
     // What the tray gains, told to the player on return: each ball pays ten and takes the one fired (out of the tray,
     // or out of what it pays when the tray is empty). Not the balls paid alone, which the tray never shows.
     let gained = 0;
+    let paid = 0;
     // A hit's rounds end within a bounded number of slots: ten balls a round, each one in.
     for (let guard = 0; next.machine.bonus && guard < 10_000; guard++) {
       if (attackerOpen(next.machine)) {
@@ -330,12 +382,14 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
         const fired = fire(next.machine, BEST_RIGHT, ball);
         next.tray += fired.paid - 1;
         gained += fired.paid - 1;
+        paid += fired.paid;
       }
       tick(next.machine);
     }
     next.tray = Math.max(0, next.tray);
     next.away = { rounds: (record.away?.rounds ?? 0) + kind.rounds, balls: (record.away?.balls ?? 0) + gained };
-    return next;
+    // The balls the player put at risk: what the tray had, and was paid, less what it has now.
+    return owing(next, record.tray + paid - next.tray, paid);
   };
 
   /** Squares a session found with its receipts, by the page that holds the card. Returns the session as it stands. */
@@ -380,7 +434,7 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
   const current = (): SessionRecord | null => {
     const medals = onTable();
     if (!medals) return null;
-    return look() ?? { v: 1, owner: bank.owner(), ledger: medals.device, era: medals.era, tray: 0, machine: newMachine(), queue: [], pending: null, lent: null, away: null };
+    return look() ?? { v: 1, owner: bank.owner(), ledger: medals.device, era: medals.era, tray: 0, machine: newMachine(), queue: [], pending: null, lent: null, away: null, owed: { fired: 0, paid: 0 } };
   };
 
   return {
@@ -399,8 +453,9 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
       const found = look();
       if (!found || !found.machine.bonus || !holding() || found.pending) return found;
       const done = playOut(found);
-      keep(done);
-      return settleIfDone(done);
+      keep(done.record);
+      tell(done);
+      return settleIfDone(done.record);
     },
 
     /**
@@ -427,7 +482,7 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
           keep(before);
           return 'short';
         }
-        floorReport(PACHINKO_GAME, { played: LEND_MEDALS });
+        // Not play: the balls are played as they are fired (`step`), and a lend counted straight back is no bet.
         keep({ ...asked, pending: null, tray: asked.tray + LEND_BALLS, lent: id });
         // Every lend and count before this one is over: only this lend's receipts say the session's medals are out.
         bank.forget(PACHINKO_GAME, [id]);
@@ -474,24 +529,31 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
 
     /**
      * One slot: the ball, if `strength` is given and there is one to fire, then the machine. Written down before it
-     * is shown. Null: not this page's to play now.
+     * is shown, and told to the floor and the history once written. Null: not this page's to play now.
      */
     step(strength: number | null, session: SessionRecord): { record: SessionRecord; slot: Slot } | null {
       if (!holding() || session.pending) return null;
       const next = copySession(session);
       let ball: Slot['ball'] = null;
+      let risked = 0;
+      let paid = 0;
       const credit = next.tray <= 0 && attackerOpen(next.machine);
       if (strength !== null && isStrength(strength) && (next.tray > 0 || credit)) {
         const shot = credit ? BEST_RIGHT : strength;
         const drawn = next.queue.shift() ?? draw(random);
         const fired = fire(next.machine, shot, drawn);
+        const before = next.tray;
         next.tray = Math.max(0, next.tray - 1 + fired.paid);
+        // The ball out of the tray is at risk; one on credit is taken out of what it pays, and costs nothing when it pays nothing.
+        risked = before + fired.paid - next.tray;
+        paid = fired.paid;
         ball = { strength: shot, draw: drawn, fired, credit };
       }
       const ticks = tick(next.machine);
-      reportTicks(ticks);
-      keep(next);
-      return { record: settleIfDone(next), slot: { ball, ticks } };
+      const done = owing(next, risked, paid);
+      keep(done.record);
+      tell(done, reportTicks(ticks));
+      return { record: settleIfDone(done.record), slot: { ball, ticks } };
     },
 
     /**
@@ -508,8 +570,8 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
         if (spin ? next.machine.spin !== spin : next.machine.bonus?.stage !== stage) break;
         ticks.push(...tick(next.machine, () => true));
       }
-      reportTicks(ticks);
       keep(next);
+      tell({ played: 0, won: 0 }, reportTicks(ticks));
       return { record: settleIfDone(next), ticks };
     },
 
@@ -519,8 +581,9 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
       const found = find();
       if (!found || !found.record.machine.bonus || found.record.pending) return found?.record ?? null;
       const done = playOut(found.record);
-      keep(done);
-      return settleIfDone(done);
+      keep(done.record);
+      tell(done);
+      return settleIfDone(done.record);
     },
 
     /** The note of a hit played out while the page was away has been shown. */
@@ -538,15 +601,24 @@ export function createTable({ bank, storage, holding, newId, random, draw }: Tab
   };
 }
 
-/** What the floor hears of a slot: each hit by name, and a long run of them as it ends. */
-function reportTicks(ticks: readonly Tick[]): void {
+/** What the floor hears of a slot: each hit by name, and a long run of them as it ends. Returns the biggest, for the history. */
+function reportTicks(ticks: readonly Tick[]): number {
+  let biggest = 0;
   for (const t of ticks) {
-    if (t.type === 'stop' && t.kind) floorReport(PACHINKO_GAME, { prize: { medals: hitMedals(t.kind), label: hitLabel(t.kind) } });
+    if (t.type === 'stop' && t.kind) {
+      const medals = hitMedals(t.kind);
+      floorReport(PACHINKO_GAME, { prize: { medals, label: hitLabel(t.kind) } });
+      biggest = Math.max(biggest, medals);
+    }
     if (t.type === 'mode' && t.mode === 'normal' && t.rush) {
       const medals = rushPrize(t.rush);
-      if (medals !== null) floorReport(PACHINKO_GAME, { prize: { medals, label: 'pachinko-rush' } });
+      if (medals !== null) {
+        floorReport(PACHINKO_GAME, { prize: { medals, label: 'pachinko-rush' } });
+        biggest = Math.max(biggest, medals);
+      }
     }
   }
+  return biggest;
 }
 
 /** Whether Skip has anything to cut short: a reach (from its reach on), or a hit's fanfare, interval or ending. */

@@ -5,13 +5,14 @@ import { BEST_LEFT, LEND_BALLS, numbersForBall, type BallDraw } from '../../src/
 import { SESSION_KEY, parseSession } from '../../src/components/game/Pachinko/medalTable';
 import { MARBLES, numbersFor as smartNumbers, slotFor } from '../../src/components/game/SmartBall/engine';
 import { CORKS, numbersFor as galleryNumbers, type Draw as GalleryDraw } from '../../src/components/game/ShootingGallery/engine';
+import { drawFor as towerDrawFor, numbersFor as towerNumbers } from '../../src/components/game/BallTower/engine';
 import { instantScroll } from './instantScroll';
 import { pressOnce, pressUntil } from './pressUntil';
 import { rigPresses } from './rigPresses';
 import { arrived } from './streamedPage';
 
 // A phone held sideways (844 × 390, 667 × 375): the tall machines (Hot Spring Smart Ball, Candy Shop Medal Maze,
-// Goldfish Lantern Pachinko, Cherry Blossom Carousel, Onsen Shooting Gallery) lay out in two columns, the board at the left as tall as the screen allows under the
+// Goldfish Lantern Pachinko, Cherry Blossom Carousel, Onsen Shooting Gallery, Firework Ball Tower) lay out in two columns, the board at the left as tall as the screen allows under the
 // site's toolbar, and the badge, the status line, the counters and the controls in a column at the right, all on the
 // screen at once. Narrowed over its controls as on a phone held upright, the Smart Ball's board and the Maze's case
 // came to 85 to 139 px wide, their numbers 3 to 5 px; the pachinko's board, the cabinet's full width, was taller than
@@ -271,6 +272,27 @@ async function galleryPlay(page: Page, seen: () => Promise<void>) {
   await expect(machine).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
 }
 
+// ── Firework Ball Tower ──
+
+/** Ball tower: a run drawn UP down to the chance disc and ×12 there, watched disc by disc. */
+async function towerPlay(page: Page, seen: () => Promise<void>) {
+  const machine = page.getByTestId('bt-machine');
+  await rigPresses(page, towerNumbers(towerDrawFor(['up', 'up', 'up', 'pay'], 12)));
+  await page.getByTestId('bt-start').click();
+  for (const level of ['0', '1', '2', '3']) {
+    await expect(machine).toHaveAttribute('data-level', level, { timeout: 15_000 });
+    await seen();
+  }
+  await expect(machine).toHaveAttribute('data-phase', 'idle', { timeout: 15_000 });
+}
+
+/** The ball tower's badge over a run from before, beside the tower, not on it. */
+const towerBadge = async (page: Page, language: 'en' | 'ja') => {
+  await expect(page.getByTestId('bt-resumed-side')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('bt-resumed-side')).toHaveText(language === 'en' ? /Last run|Finished from before/ : /前回のボール|前のボールの続き/);
+  await expect(page.getByTestId('bt-resumed')).toBeHidden();
+};
+
 const MACHINES: Machine[] = [
   {
     name: 'smart-ball',
@@ -332,6 +354,16 @@ const MACHINES: Machine[] = [
     smallest: 7,
     play: galleryPlay,
     afterReload: badgeBeside('sht-resumed-side', 'sht-resumed'),
+  },
+  {
+    name: 'ball-tower',
+    path: '/games/ball-tower',
+    board: 'bt-board',
+    column: ['bt-start', 'bt-skip', 'bt-status', 'bt-bet-1', 'bt-bet-10'],
+    side: 'bt-resumed-side',
+    onBoard: 'bt-resumed',
+    play: towerPlay,
+    afterReload: towerBadge,
   },
 ];
 

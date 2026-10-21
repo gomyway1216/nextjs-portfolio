@@ -66,6 +66,9 @@ import { PUBLISHED_CAROUSEL } from '@/components/game/CarouselPusher/published';
 import { CORKS as GALLERY_CORKS, KINDS as GALLERY_KINDS, MOST_WIN as GALLERY_MOST, SHELF as GALLERY_SHELF, STAKE as GALLERY_STAKE, drawPlay as galleryDraw, labelOf as galleryLabel, playOf as galleryPlay, seeded as gallerySeeded, shotAs as galleryShot, valueOf as galleryValue } from '@/components/game/ShootingGallery/engine';
 import { PUBLISHED_SHOOTING_GALLERY_ODDS } from '@/components/game/ShootingGallery/published';
 import { CALM_HOLD_MS as GALLERY_CALM_HOLD_MS, CALM_LOAD_MS as GALLERY_CALM_LOAD_MS } from '@/components/game/ShootingGallery/scene';
+import { BETS as TOWER_BETS, BET_MOST as TOWER_BET_MOST, CHANCE_LEVEL as TOWER_CHANCE_LEVEL, DISCS as TOWER_DISCS, JACKPOT as TOWER_JACKPOT, LAMP_SETS as TOWER_LAMP_SETS, MOST_WIN as TOWER_MOST, bestBack as towerBest, drawRun as towerDraw, labelOf as towerLabel, runOf as towerRun, seeded as towerSeeded, valueOf as towerValue, wonOf as towerWon } from '@/components/game/BallTower/engine';
+import { PUBLISHED_BALL_TOWER_ODDS } from '@/components/game/BallTower/published';
+import { CALM_LIFT_MS as TOWER_CALM_LIFT_MS } from '@/components/game/BallTower/scene';
 
 // What the floor believes each machine can pay is worked out here again from the machines' own tables, so that a
 // change to a game's payouts that the floor has not heard of fails this test instead of refusing a real win.
@@ -131,9 +134,9 @@ describe('the most each machine can take from the player at once, for the medals
     for (const game of FLOOR_GAMES) {
       expect(FLOOR_RULES[game].playBurst).toBe(FLOOR_RULES[game].stakeMost + 10 * FLOOR_RULES[game].playPerMinute);
       // Refilled no faster than the medals won are: as fast, unless the machine says its play is slower (the pachinko,
-      // the shooting gallery).
+      // the shooting gallery, the ball tower).
       expect(FLOOR_RULES[game].playPerMinute).toBeLessThanOrEqual(FLOOR_RULES[game].perMinute);
-      if (game !== 'pachinko' && game !== 'shooting-gallery') expect(FLOOR_RULES[game].playPerMinute).toBe(FLOOR_RULES[game].perMinute);
+      if (game !== 'pachinko' && game !== 'shooting-gallery' && game !== 'ball-tower') expect(FLOOR_RULES[game].playPerMinute).toBe(FLOOR_RULES[game].perMinute);
     }
   });
 
@@ -192,6 +195,9 @@ describe('the most each machine can take from the player at once, for the medals
     expect(FLOOR_RULES['carousel-pusher'].stakeMost).toBe(1);
     // Onsen Shooting Gallery: six medals a play, for its six corks.
     expect(FLOOR_RULES['shooting-gallery'].stakeMost).toBe(GALLERY_STAKE);
+    // Firework Ball Tower: one ball at its biggest bet.
+    expect(FLOOR_RULES['ball-tower'].stakeMost).toBe(TOWER_BET_MOST);
+    expect(TOWER_BET_MOST).toBe(10);
     expect(GALLERY_STAKE).toBe(6);
   });
 
@@ -259,6 +265,8 @@ describe('which machines are linked to the floor jackpot', () => {
       // Perfect play: the best figure and band for every cork for the shelf as it stands (dynamic programming over every
       // state of the shelf and every count of corks left, exact): no way of aiming brings back more.
       'shooting-gallery': galleryValue(PUBLISHED_SHOOTING_GALLERY_ODDS.perfect.back),
+      // The best of its bets (the five discs' Markov chain, exact, each bet on its own): every bet brings back 9/10.
+      'ball-tower': towerValue(towerBest(PUBLISHED_BALL_TOWER_ODDS)),
     };
   };
 
@@ -280,7 +288,7 @@ describe('which machines are linked to the floor jackpot', () => {
   });
 
   it('links only the machines whose best play, with the floor jackpot added, stays at or under 100%', () => {
-    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery']);
+    expect([...LINKED_GAMES]).toEqual(['medal-pusher', 'slot-machine', 'janken', 'roulette', 'three-card-poker', 'fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery', 'ball-tower']);
     for (const game of FLOOR_GAMES) {
       const withJackpot = FLOOR_RULES[game].bestReturn + EXPECTED_PER_MEDAL;
       expect(linked(game), game).toBe(withJackpot <= 1);
@@ -598,6 +606,49 @@ describe('the most each machine can pay, from its own tables', () => {
     expect(pachinkoValue(odds.blind.back)).toBeLessThan(pachinkoValue(odds.typical.back));
   });
 
+  it('Firework Ball Tower: the jackpot on the biggest bet is the most, every win in the jackpot chance is named, and the best of its bets is 90%', () => {
+    const rule = FLOOR_RULES['ball-tower'];
+    expect(rule.most).toBe(TOWER_MOST);
+    expect(TOWER_MOST).toBe(TOWER_JACKPOT * TOWER_BET_MOST);
+    expect(rule.labels['tower-jackpot']).toEqual({ amounts: TOWER_BETS.map((bet) => TOWER_JACKPOT * bet), feed: true });
+    // Every multiple the fourth and fifth discs pay but the jackpot, its pockets' and its roulettes', on every bet.
+    const chance = new Set<number>();
+    for (let level = TOWER_CHANCE_LEVEL; level < TOWER_DISCS.length; level++) {
+      for (const pocket of TOWER_DISCS[level]) if (pocket.kind === 'pay') chance.add(pocket.pays);
+      for (const pays of TOWER_LAMP_SETS[level]) chance.add(pays);
+    }
+    const amounts = [...new Set([...chance].flatMap((pays) => TOWER_BETS.map((bet) => pays * bet)))].sort((a, b) => a - b);
+    expect(rule.labels['tower-chance']).toEqual({ amounts, feed: false });
+    // Every run's named win is one its label can pay, and no run pays more than the most.
+    const random = towerSeeded(7);
+    let named = 0;
+    for (let n = 0; n < 100_000; n++) {
+      const run = towerRun(towerDraw(random));
+      const bet = TOWER_BETS[n % TOWER_BETS.length];
+      const won = towerWon(run, bet);
+      const label = towerLabel(run);
+      if (label) {
+        named += 1;
+        expect(labelPays('ball-tower', label, won)).toBe(true);
+      }
+      expect(won).toBeLessThanOrEqual(rule.most);
+    }
+    expect(named).toBeGreaterThan(0);
+    expect(rule.bestReturn).toBe(0.9);
+    expect(towerValue(towerBest(PUBLISHED_BALL_TOWER_ODDS))).toBe(0.9);
+  });
+
+  it('Firework Ball Tower: medals played no faster than its quickest run, 0.6 s, takes them', () => {
+    const rule = FLOOR_RULES['ball-tower'];
+    // The quickest run: START with less motion asked for, and Skip the moment the ball is at the top of the tower.
+    expect(TOWER_CALM_LIFT_MS).toBe(600);
+    // Played: the biggest bet a run at that pace, and no more.
+    expect(rule.playPerMinute).toBe(Math.ceil((60_000 / TOWER_CALM_LIFT_MS) * TOWER_BET_MOST));
+    expect(rule.playPerMinute).toBe(1_000);
+    expect(rule.playBurst).toBe(TOWER_BET_MOST + 10 * 1_000);
+    expect(rule.perMinute).toBe(6_000);
+  });
+
   it('Onsen Shooting Gallery: medals won and played no faster than its quickest play, 3.46 s, brings them in', () => {
     const rule = FLOOR_RULES['shooting-gallery'];
     // The quickest play: START, and each cork fired the moment it is in, with less motion asked for (a load, then the
@@ -733,6 +784,10 @@ describe('named wins and the feed', () => {
     expect(labelPays('shooting-gallery', 'gallery-cat', 21)).toBe(false);
     expect(labelPays('shooting-gallery', 'gallery-trio', 6)).toBe(true);
     expect(labelPays('shooting-gallery', 'gallery-trio', 25)).toBe(false);
+    expect(labelPays('ball-tower', 'tower-jackpot', 3_000)).toBe(true);
+    expect(labelPays('ball-tower', 'tower-jackpot', 1_000)).toBe(false);
+    expect(labelPays('ball-tower', 'tower-chance', 500)).toBe(true);
+    expect(labelPays('ball-tower', 'tower-chance', 7)).toBe(false);
     expect(labelPays('pachinko', 'pachinko-4r', 40)).toBe(true);
     expect(labelPays('pachinko', 'pachinko-4r', 100)).toBe(false);
     expect(labelPays('pachinko', 'pachinko-rush', 199)).toBe(false);
@@ -775,6 +830,9 @@ describe('named wins and the feed', () => {
     expect(feedWorthy('smart-ball', 7, 'smart-line')).toBe(false);
     expect(feedWorthy('shooting-gallery', 31, 'gallery-cat')).toBe(true);
     expect(feedWorthy('shooting-gallery', 9, 'gallery-trio')).toBe(false);
+    expect(feedWorthy('ball-tower', 300, 'tower-jackpot')).toBe(true);
+    expect(feedWorthy('ball-tower', 60, 'tower-chance')).toBe(false);
+    expect(feedWorthy('ball-tower', 500, 'tower-chance')).toBe(true);
     expect(feedWorthy('pachinko', 200, 'pachinko-rush')).toBe(true);
     expect(feedWorthy('pachinko', 100, 'pachinko-10r')).toBe(false);
     expect(feedWorthy('pachinko', 40, 'pachinko-4r')).toBe(false);

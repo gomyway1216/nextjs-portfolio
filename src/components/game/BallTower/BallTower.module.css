@@ -1,0 +1,1058 @@
+/* Firework Ball Tower. The page follows the --games-route-* theme (light and dark); the cabinet is a fixed palette of its
+   own — night-blue lacquer under gold trim, rows of bulbs down both sides, a marquee and an amber jackpot counter over
+   the glass tower — that reads on both. Nothing here uses 3D transforms (WebKit flattens them): the tower is painted on
+   one canvas (draw.ts), the discs squashed flat. The bulbs chase by an animation of opacity alone, which the compositor
+   runs without painting, so a machine standing unplayed costs the page nothing but them. */
+
+.root {
+  --bt-night: #0d1238;
+  --bt-night-deep: #070a22;
+  --bt-gold: #d9a43a;
+  --bt-gold-light: #ffe39a;
+  --bt-red: #c92a3c;
+  --bt-focus: #ffd34d;
+  /* Text in the page's own colours that has to stand out: at least 4.5:1 on the light surfaces (dark values below). */
+  --bt-accent-text: #a11d2c;
+  --bt-ahead: #15803d;
+  --bt-behind: #b91c1c;
+
+  min-height: 100%;
+  color: var(--games-route-fg);
+  padding: clamp(1rem, 3vw, 2rem) 16px 3rem;
+}
+:global(html.dark) .root {
+  --bt-accent-text: #ff9ca6;
+  --bt-ahead: #4ade80;
+  --bt-behind: #f87171;
+}
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.headerText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.centerLink {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+  min-height: 44px;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The machine's name is never broken inside a word: its words are kept whole, and 遊び方 moves under it when they do
+     not fit beside it. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 1.28rem;
+  }
+}
+.titleText {
+  word-break: keep-all;
+  min-width: 0;
+}
+.titleTower {
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+}
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--games-route-muted);
+  max-width: 66ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.btn {
+  appearance: none;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  border-radius: 11px;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  padding: 0.25rem;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--games-route-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--games-route-fg);
+}
+.tab[aria-selected='true'] {
+  background: var(--bt-red);
+  color: #fff;
+}
+.centerLink:focus-visible,
+.btn:focus-visible,
+.tab:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.infoP {
+  margin: 0 0 0.8rem;
+  line-height: 1.6;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- The machine, and the panels beside it ---------- */
+.machine {
+  display: grid;
+  gap: 1.25rem;
+  justify-content: center;
+  grid-template-columns: minmax(0, 520px);
+}
+@media (min-width: 960px) {
+  .machine {
+    grid-template-columns: minmax(0, 560px) minmax(0, 340px);
+    align-items: start;
+  }
+}
+
+/* The cabinet: night-blue lacquer under gold trim, as wide as the big machines stand. */
+.cabinet {
+  position: relative;
+  min-width: 0;
+  padding: 0.6rem 1.05rem 0.9rem;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.07) 0 1px, transparent 2px) 0 0 / 27px 31px,
+    linear-gradient(180deg, #1c2466 0%, var(--bt-night) 42%, var(--bt-night-deep) 100%);
+  border: 3px solid var(--bt-gold);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08),
+    0 14px 30px rgba(0, 0, 0, 0.32);
+  color: #f2f3ff;
+}
+@media (max-width: 400px) {
+  .cabinet {
+    padding: 0.45rem 0.7rem 0.75rem;
+    border-radius: 16px;
+  }
+}
+
+/* The rows of bulbs down both sides of the cabinet: a strip of dim bulbs, and over it the same strip lit, every other
+   bulb, its opacity stepping so that the light runs. */
+.bulbs {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  width: 7px;
+  border-radius: 4px;
+  background-image: radial-gradient(circle, #7a5a1c 0 2px, transparent 2.4px);
+  background-size: 7px 12px;
+  pointer-events: none;
+}
+.bulbsLeft {
+  left: 3px;
+}
+.bulbsRight {
+  right: 3px;
+}
+@media (max-width: 400px) {
+  .bulbs {
+    width: 5px;
+    background-size: 5px 10px;
+  }
+  .bulbsLeft {
+    left: 2px;
+  }
+  .bulbsRight {
+    right: 2px;
+  }
+}
+.bulbsOn {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, #fff6c9 0 1.6px, #ffcf4a 2px, transparent 2.6px);
+  background-size: inherit;
+  /* Every other bulb, a half step apart: the lit half is shown and hidden in turn. */
+  -webkit-mask-image: linear-gradient(180deg, #000 50%, transparent 50%);
+  mask-image: linear-gradient(180deg, #000 50%, transparent 50%);
+  -webkit-mask-size: 100% 24px;
+  mask-size: 100% 24px;
+  opacity: 0.85;
+}
+/* The other half of the bulbs, lit in turn with the first: the light runs down the row. */
+.bulbsOdd {
+  -webkit-mask-position: 0 12px;
+  mask-position: 0 12px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bulbsOn {
+    animation: bt-chase 1.6s steps(1, end) infinite;
+  }
+  .cabinet .bulbsOdd {
+    animation-name: bt-chase-odd;
+  }
+  .cabinet[data-chase='fast'] .bulbsOn {
+    animation-duration: 0.5s;
+  }
+  .cabinet[data-chase='jackpot'] .bulbsOn {
+    animation-duration: 0.22s;
+  }
+}
+@keyframes bt-chase {
+  0% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+@keyframes bt-chase-odd {
+  0% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* The marquee over the tower. */
+.marquee {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto 0.35rem;
+  padding: 0.25rem 0.8rem 0.3rem;
+  max-width: 420px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #e8435a 0%, var(--bt-red) 55%, #7a1222 100%);
+  border: 2px solid var(--bt-gold-light);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.18);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  line-height: 1.05;
+}
+.marqueeSub {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #fff3c4;
+}
+.marqueeSub:lang(ja) {
+  letter-spacing: 0.4em;
+  font-size: 0.9rem;
+}
+.marqueeMain {
+  font-size: clamp(1.3rem, 6.2vw, 1.85rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* The jackpot counter: amber LEDs on black, with what it pays. */
+.jackpot {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  justify-content: center;
+  align-items: center;
+  column-gap: 0.6rem;
+  margin: 0 auto 0.45rem;
+  padding: 0.3rem 0.7rem;
+  max-width: 420px;
+  border-radius: 12px;
+  background: #07040f;
+  border: 2px solid #6b4e14;
+}
+.jackpotLabel {
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--bt-gold-light);
+  white-space: nowrap;
+}
+.jackpot .led > span {
+  height: clamp(20px, 6vw, 26px);
+}
+.jackpotNote {
+  grid-column: 1 / -1;
+  justify-self: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ffe9b0;
+  white-space: nowrap;
+}
+
+/* ---------- The tower and what is under it: on a phone, the whole tower, the words and START on screen at once ---------- */
+.playArea {
+  display: flex;
+  flex-direction: column;
+  /* Brought into view on START clear of the site's sticky toolbar. */
+  scroll-margin-top: 62px;
+}
+.boardBox {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  /* On a short screen the tower is narrowed so that it, the status line, the bets and START are all on the screen at
+     once, under the site's toolbar: the rest of the play area takes about 165 px, and the toolbar some 60 more. */
+  max-width: min(400px, calc((100vh - 238px) * 360 / 520 + 10px));
+  max-width: min(400px, calc((100svh - 238px) * 360 / 520 + 10px));
+  border-radius: 12px;
+  padding: 5px;
+  background: linear-gradient(180deg, #2b2050, #0d0a24);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    0 0 0 2px rgba(217, 164, 58, 0.6);
+  box-sizing: border-box;
+  /* Never what a browser keeps the page still by as it scrolls (scroll anchoring). */
+  overflow-anchor: none;
+}
+/* The still parts' canvas, and over it the one each frame is painted on. */
+.canvasStack {
+  position: relative;
+}
+.canvasTop {
+  position: absolute;
+  inset: 0;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 360 / 520;
+  border-radius: 8px;
+  /* Nothing on it is ever selected or dragged by a press. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Over a run from before: at the top left, clear of the crown. */
+.resumedBadge {
+  position: absolute;
+  top: calc(5px + 1.5%);
+  left: calc(5px + 3%);
+  z-index: 3;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bt-red);
+  border: 1px solid var(--bt-gold-light);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* The badge beside the tower, on a phone held sideways only (below). */
+.sideBadge {
+  display: none;
+}
+
+/* The flash over the tower as a run ends well: big gold letters, popping up and fading. */
+.flash {
+  position: absolute;
+  left: 50%;
+  /* Over the crown and the top disc, clear of a roulette's lamps lower down. */
+  top: 13%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+  padding: 0.15rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(90, 10, 30, 0.88);
+  border: 2px solid #ffe066;
+  font-size: clamp(1.5rem, 8vw, 2.1rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #ffe066;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: bt-flash 1.6s ease-out forwards;
+}
+.flash[data-jackpot='true'] {
+  background: rgba(150, 12, 30, 0.92);
+  font-size: clamp(1.4rem, 7.5vw, 2rem);
+}
+@keyframes bt-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+  22% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+.phrase {
+  white-space: nowrap;
+}
+.status {
+  margin: 0.4rem 0 0.3rem;
+  /* Two lines held, so that nothing under it moves when the words change. */
+  min-height: 2.9em;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  color: #fff3d6;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- The seat: the bet buttons, START and Skip, always in the same place ---------- */
+.bets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 0 0.45rem;
+}
+.betsWord {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--bt-gold-light);
+  white-space: nowrap;
+}
+.betButton,
+.startButton,
+.skipButton,
+.refill,
+.cardAwayButton {
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A bet button: a round lamp with its number, lit when it is the bet. */
+.betButton {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 2px solid #8a6a2a;
+  background: radial-gradient(circle at 50% 35%, #3a3f78 0%, #191c44 100%);
+  color: #e9ebff;
+  font-size: 1rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.betButton[aria-pressed='true'] {
+  border-color: #fff3c4;
+  background: radial-gradient(circle at 50% 35%, #fff4b8 0%, #f2b425 70%, #b87d0e 100%);
+  color: #2a1600;
+  box-shadow: 0 0 10px rgba(255, 210, 90, 0.75);
+}
+.betButton:disabled {
+  cursor: default;
+}
+.betButton:disabled:not([aria-pressed='true']) {
+  opacity: 0.55;
+}
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(88px, 0.42fr);
+  gap: 8px;
+  align-items: stretch;
+  min-height: 64px;
+}
+/* START: a big red push button in a brass ring, with its word. */
+.startButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 0.3rem 0.5rem;
+  border-radius: 16px;
+  border: 3px solid var(--bt-gold-light);
+  background: linear-gradient(180deg, #f2566a 0%, var(--bt-red) 55%, #8b1626 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 -5px 0 rgba(0, 0, 0, 0.25),
+    0 3px 0 rgba(0, 0, 0, 0.4);
+}
+.startWords {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+.startWords:lang(ja) {
+  letter-spacing: 0.04em;
+}
+.skipButton {
+  min-height: 64px;
+  padding: 0 0.6rem;
+  border-radius: 14px;
+  border: 2px solid #9aa3d8;
+  background: #20255a;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.startButton:active:not(:disabled),
+.skipButton:active:not(:disabled),
+.betButton:active:not(:disabled) {
+  transform: translateY(2px);
+}
+.startButton:disabled,
+.skipButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.startButton:focus-visible,
+.skipButton:focus-visible,
+.betButton:focus-visible,
+.refill:focus-visible,
+.cardAwayButton:focus-visible,
+.cabinet .btn:focus-visible {
+  outline: 3px solid var(--bt-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .bets {
+    gap: 4px;
+  }
+  .betsWord {
+    display: none;
+  }
+  .meters {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.05fr) minmax(0, 1.35fr);
+    gap: 0.3rem;
+  }
+  .meterCell {
+    padding: 0.3rem 0.3rem 0.35rem;
+  }
+  .meterLabel {
+    font-size: 0.66rem;
+    letter-spacing: 0;
+  }
+}
+
+/* ---------- The counters ---------- */
+.meters {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem 0.35rem;
+  border-radius: 10px;
+  background: #05040d;
+  border: 2px solid #3a3f78;
+  min-width: 0;
+}
+.meterWin {
+  border-color: #ffd27a;
+}
+.meterLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #dfe2ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterValue {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.led {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+.led > span {
+  height: clamp(18px, 5.4vw, 24px);
+}
+.message {
+  margin: 0.4rem 0 0;
+  /* Two lines held, so that nothing under it moves when a message comes and goes. */
+  min-height: 2.8em;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffe1a1;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cabinet .btn {
+  background: #1b1f4f;
+  color: #fff;
+  border-color: #9aa3d8;
+}
+.outRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.outRow:not(:empty) {
+  margin-top: 0.4rem;
+}
+.refill {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: #1b1f4f;
+  color: #fff;
+  font-weight: 800;
+}
+.outNote {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: #ffe1a1;
+}
+.outNote a {
+  color: #ffe1a1;
+}
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.keysHint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #e3e6ff;
+  text-align: center;
+}
+@media (hover: none) {
+  .keysHint {
+    display: none;
+  }
+}
+.medalNotes {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(255, 210, 122, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #f2f3ff;
+}
+.medalNotes p {
+  margin: 0 0 0.35rem;
+}
+.link {
+  color: #ffe1a1;
+  font-weight: 700;
+}
+
+/* The card in another tab's machine: this one waits. */
+.cardAway {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(7, 8, 28, 0.95);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cardAwayButton {
+  min-height: 48px;
+  padding: 0.5rem 1.4rem;
+  border-radius: 12px;
+  border: 2px solid #ffd27a;
+  background: var(--bt-red);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* ---------- A phone held sideways: the tower at the left, the words and the seat in a column at the right ---------- */
+/* Too short a screen for the tower over its controls (a phone held sideways, 320 to 500 px tall): the tower is as tall as
+   the screen allows under the site's toolbar (62 px, and 18 px of room), and the badge over a run from before, the
+   status line, the bets, START and Skip stand in a column beside it, all on the screen at once. The badge's place is
+   kept while there is none, so the column never moves. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .machine {
+    grid-template-columns: minmax(0, 700px);
+  }
+  .playArea {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto auto auto auto 1fr;
+    column-gap: 14px;
+    align-items: center;
+  }
+  .boardBox {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: calc((100vh - 80px) * 360 / 520 + 10px);
+    width: calc((100svh - 80px) * 360 / 520 + 10px);
+    max-width: none;
+  }
+  .resumedBadge {
+    display: none;
+  }
+  .sideBadge {
+    display: block;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--bt-red);
+    border: 1px solid var(--bt-gold-light);
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .sideBadge[data-shown='false'] {
+    visibility: hidden;
+  }
+  .status {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .bets {
+    grid-column: 2;
+    grid-row: 4;
+  }
+  .controls {
+    grid-column: 2;
+    grid-row: 5;
+  }
+}
+
+/* ---------- Beside the cabinet ---------- */
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  padding: 1rem;
+  border-radius: 14px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted);
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.historyChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.historyChip[data-won='true'] {
+  color: var(--games-route-fg);
+  border-color: #d9a43a;
+}
+.historyChip[data-jackpot='true'] {
+  background: #f6c343;
+  color: #2a1600;
+}
+.statList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+.statList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.statList dt {
+  color: var(--games-route-muted);
+  /* Free to be narrower than its longest word, so that a label with no room to break never pushes the page sideways
+     (Safari and Firefox keep Japanese words whole); its words carry their breaks (i18n.ts). */
+  min-width: 0;
+}
+.statList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pos {
+  color: var(--bt-ahead);
+}
+.neg {
+  color: var(--bt-behind);
+}
+
+/* ---------- The Odds tab ---------- */
+.odds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+  max-width: 860px;
+}
+.odds > * {
+  min-width: 0;
+}
+.intro p {
+  margin: 0 0 0.6rem;
+  line-height: 1.6;
+}
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+.statLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.statValue {
+  font-size: 1.45rem;
+  font-weight: 850;
+  color: var(--bt-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.statNote {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--games-route-muted);
+}
+.statFraction {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.blockTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+.note {
+  margin: 0.5rem 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--games-route-muted);
+}
+.ruleList {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  /* A rule may be narrower than its longest phrase (Safari and Firefox keep Japanese words whole): it breaks inside it
+     rather than push the page sideways. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0.5rem 0 0.1rem;
+  font-size: 0.86rem;
+  font-weight: 850;
+  color: var(--games-route-fg);
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 0.4rem;
+}
+.oddsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.oddsTable th,
+.oddsTable td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.oddsTable thead th {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.oddsTable tbody th {
+  font-weight: 800;
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.oddsTable thead th.num {
+  white-space: normal;
+}
+@media (max-width: 480px) {
+  .oddsTable {
+    font-size: 0.74rem;
+  }
+  .oddsTable th,
+  .oddsTable td {
+    padding: 0.35rem 0.18rem;
+  }
+}
+
+/* ---------- Less motion: the bulbs stay lit, and the flash does not pop ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation: none;
+  }
+}
+
+/*
+ * Japanese breaks between phrases, never inside a word, in the figures and the Odds tab's tables (as the other
+ * machines' do): where the browser can tell phrases apart, at them; elsewhere at the zero-width spaces, 、。： and
+ * spaces the words carry. A word longer than its line still breaks. The status line keeps its phrases whole itself
+ * (PlayTab.tsx).
+ */
+.statLabel,
+.statNote,
+.statList dt,
+.ruleList li,
+.note,
+.intro p,
+.caption,
+.oddsTable th,
+.oddsTable td {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .statLabel,
+  .statNote,
+  .statList dt,
+  .ruleList li,
+  .note,
+  .intro p,
+  .caption,
+  .oddsTable th,
+  .oddsTable td {
+    word-break: auto-phrase;
+  }
+}

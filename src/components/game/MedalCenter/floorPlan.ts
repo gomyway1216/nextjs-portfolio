@@ -88,13 +88,16 @@ export const MACHINE_ZONES: Readonly<Record<string, Exclude<ZoneId, 'new'>>> = {
   // A cork-gun shooting gallery stands in the candy shop corner beside the smart ball, as the 射的 and the smart ball
   // stand side by side in the hot-spring towns' game rooms.
   'shooting-gallery': 'kids',
+  // A ball tower stands among the big machines a floor is built round, as the big ball-lottery machines played from
+  // seats round them stand in the middle of a real floor.
+  'ball-tower': 'big',
 };
 
 /**
  * Machines marked NEW wherever they stand. A machine with no corner yet is
  * marked NEW without being listed here.
  */
-export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery']);
+export const NEW_MACHINES: ReadonlySet<string> = new Set<string>(['fishing', 'horse-race', 'ball-bingo', 'big-wheel', 'high-low', 'sic-bo', 'sugoroku', 'coin-maze', 'keno', 'smart-ball', 'pachinko', 'carousel-pusher', 'shooting-gallery', 'ball-tower']);
 
 /** What each machine is, in a line, on its plate. One line a machine. */
 export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
@@ -120,6 +123,7 @@ export const MACHINE_PITCHES: Readonly<Record<string, Words>> = {
   pachinko: { en: 'A 1-in-99.9 pachinko; balls lent for medals.', ja: '1/99.9の甘デジ。メダルで玉を借りて遊ぶ' },
   'carousel-pusher': { en: 'A turning carousel pushes; drop into its holes.', ja: '回るメリーゴーランドが押す。穴をねらって投入' },
   'shooting-gallery': { en: 'Six corks; knock the figures off the shelf.', ja: 'コルク6発。的を棚から落とそう' },
+  'ball-tower': { en: 'Five turning discs; go UP all the way to the JP.', ja: '5段の回転盤。UPを続けてJPへ' },
 };
 
 /**
@@ -143,6 +147,7 @@ export const NAME_WORDS: Readonly<Record<string, readonly string[]>> = {
   pachinko: ['金魚ちょうちん', 'パチンコ'],
   'carousel-pusher': ['さくら', 'メリーゴーランド'],
   'shooting-gallery': ['湯の町', '射的'],
+  'ball-tower': ['花火', 'ボールタワー'],
 };
 
 /**
@@ -177,6 +182,7 @@ export const PITCH_WORDS: Readonly<Record<string, readonly string[]>> = {
   pachinko: ['1/99.9の', '甘デジ。', 'メダルで', '玉を', '借りて', '遊ぶ'],
   'carousel-pusher': ['回る', 'メリーゴーランドが', '押す。', '穴を', 'ねらって', '投入'],
   'shooting-gallery': ['コルク6発。', '的を', '棚から', '落とそう'],
+  'ball-tower': ['5段の', '回転盤。', 'UPを', '続けて', 'JPへ'],
 };
 
 /** `text` in the words `table` gives machine `id`, where it knows them and they still make up `text`; else whole. */

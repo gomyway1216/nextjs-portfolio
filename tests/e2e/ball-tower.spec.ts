@@ -296,6 +296,17 @@ test('ball-tower fits 375 and 320 px phones in English and Japanese: the whole t
       );
     const before = await boxes();
     const seen = new Set<string>([JSON.stringify(before)]);
+    // Every disc the machine shows, caught as it is shown: with less motion a disc is shown for under half a second, and a
+    // look at the page every so often can come before and after one (on a busy runner it did).
+    await machine(page).evaluate((m) => {
+      const shown: string[] = [];
+      (window as unknown as { towerLevels: string[] }).towerLevels = shown;
+      new MutationObserver(() => {
+        const level = m.getAttribute('data-level') ?? '';
+        if (level !== '' && shown[shown.length - 1] !== level) shown.push(level);
+      }).observe(m, { attributes: true, attributeFilter: ['data-level'] });
+    });
+    const levels = () => page.evaluate(() => (window as unknown as { towerLevels: string[] }).towerLevels);
     await start(page, CHANCE_12);
     const inView = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
@@ -306,11 +317,13 @@ test('ball-tower fits 375 and 320 px phones in English and Japanese: the whole t
     await expect.poll(() => inView('bt-board'), { message: `${where}: the tower` }).toBe(true);
     for (const id of ['bt-status', 'bt-start', 'bt-skip']) expect(await inView(id), `${where}: ${id}`).toBe(true);
     for (const level of ['0', '1', '2', '3']) {
-      await expect(machine(page)).toHaveAttribute('data-level', level, { timeout: 15_000 });
+      await expect.poll(levels, { timeout: 15_000, message: `${where}: disc ${level}` }).toContain(level);
       seen.add(JSON.stringify(await boxes()));
       expect(await sideways(), where).toBeLessThanOrEqual(width);
     }
     await ended(page);
+    // Every disc down to the chance disc shown, in order.
+    expect(await levels(), where).toEqual(['0', '1', '2', '3']);
     seen.add(JSON.stringify(await boxes()));
     expect([...seen], where).toEqual([JSON.stringify(before)]);
     await expect(machine(page)).toHaveAttribute('data-won', '12');

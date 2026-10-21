@@ -733,14 +733,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         shown.side = side;
         parts.sightLabel.current.setAttribute('data-side', side);
       }
-      // The gun: turned to the sight while aiming, held still while its cork flies, and to the figure picked otherwise.
+      // The gun: turned to the figure picked, and held still while its cork flies. Once it points there it stands still:
+      // only the sight sways, so a frame of aiming moves one layer.
       const home = figureHome(target);
-      const aimAt = flight?.phase === 'aim' ? sightRef.current : { x: home.x, y: home.y - home.h / 2 };
-      const want = gunAngle(aimAt);
+      const want = gunAngle({ x: home.x, y: home.y - home.h / 2 });
       let angle = angleRef.current ?? want;
-      if (flight?.phase !== 'fly') angle = calmNow ? want : angle + (want - angle) * (1 - Math.exp(-dt / 0.07));
+      if (flight?.phase !== 'fly') angle = calmNow || Math.abs(want - angle) < 0.05 ? want : angle + (want - angle) * (1 - Math.exp(-dt / 0.07));
       angleRef.current = angle;
-      const settled = Math.abs(want - angle) < 0.05;
+      const settled = angle === want;
       const scene = flight?.phase === 'fly' ? flight.scene : null;
       const ms = scene && flight ? at - flight.sceneAt : 0;
       const kick = scene ? scene.kick(ms) * KICK : 0;

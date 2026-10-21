@@ -43,6 +43,22 @@ interface Machine {
 /** The play area centred under the toolbar, where START (or DROP) brings it. */
 const centred = (board: string) => async (page: Page) => {
   await page.getByTestId(board).evaluate((el) => (el.parentElement as HTMLElement).scrollIntoView({ block: 'center', behavior: 'instant' }));
+  // Measured from where the page comes to rest: Firefox lands a centre on a half pixel at one whole pixel, and moves it to
+  // the other a frame later (the shooting gallery's play area, 305 px tall at 667 × 375, went from 349 to 348).
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let last = window.scrollY;
+        let still = 0;
+        const tick = () => {
+          still = window.scrollY === last ? still + 1 : 0;
+          last = window.scrollY;
+          if (still >= 3) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
 };
 
 /** The badge over a play from before, beside the board, not on it. */

@@ -29,7 +29,7 @@ const enFigures = (n: number) => `${n} ${n === 1 ? 'figure' : 'figures'}`;
 const EN_KINDS: Readonly<Record<KindId, string>> = { box: 'sweet box', daruma: 'daruma', kokeshi: 'kokeshi', manju: 'manjū box', cat: 'beckoning cat' };
 const JA_KINDS: Readonly<Record<KindId, string>> = { box: 'お菓子の箱', daruma: 'だるま', kokeshi: 'こけし', manju: 'まんじゅう箱', cat: '招き猫' };
 /** The bands of the sway, over the top first: as the sight names them, and in a sentence. */
-const EN_BANDS: readonly string[] = ['OVER', 'TOP EDGE', 'UPPER', 'CENTRE', 'BASE'];
+const EN_BANDS: readonly string[] = ['TOO HIGH', 'TOP EDGE', 'UPPER', 'CENTRE', 'BASE'];
 const EN_BAND_WORDS: readonly string[] = ['over the top', 'the top edge', 'the upper half', 'the centre', 'the base'];
 const JA_BANDS: readonly string[] = ['上へ外れ', '上の角', '上半分', 'まん中', '足もと'];
 /** Where a figure stands: as set up, slid back once, on the brink (slid back twice), off the shelf. */

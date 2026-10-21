@@ -225,6 +225,9 @@
   aspect-ratio: 360 / 450;
   overflow: hidden;
   border-radius: 6px;
+  /* Never what a browser keeps the page still by as it scrolls (scroll anchoring): Firefox measures an anchor with its
+     transform, and moved the page a pixel as a figure it had chosen slid back or fell. */
+  overflow-anchor: none;
   /* Nothing on it is ever selected or dragged by a press. */
   user-select: none;
   -webkit-user-select: none;

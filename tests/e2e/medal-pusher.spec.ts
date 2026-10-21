@@ -2199,6 +2199,8 @@ test('each rail can be aimed from the keyboard, by its slider and by the keys be
   await page.keyboard.down('d');
   await expect.poll(() => aimOf(page, 'left'), { timeout: 10_000 }).toBeGreaterThan(15);
   await page.keyboard.up('d');
+  // As for the right rail below: a step of the held key can still land after the key comes up.
+  await page.waitForTimeout(200);
   const left = await aimOf(page, 'left');
   await page.keyboard.down('k');
   await expect.poll(() => aimOf(page, 'right'), { timeout: 10_000 }).toBeLessThan(85);

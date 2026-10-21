@@ -35,7 +35,7 @@ export async function pressUntil(
  * a touch, so a control that acts on pointerdown (a Medal Pusher's feed buttons) never hears it. A tap sends the
  * pointer events a finger makes, as a phone does. Everywhere else the press is the click it always was.
  */
-async function pressOnce(target: Locator): Promise<void> {
+export async function pressOnce(target: Locator): Promise<void> {
   const page = target.page();
   if (page.context().browser()?.browserType().name() === 'firefox' && (await page.evaluate(() => 'ontouchstart' in window))) {
     await target.tap({ timeout: 1_000 });

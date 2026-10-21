@@ -442,9 +442,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (said) setAnnouncement(live.current.t.sayRestart);
   }, []);
 
-  // The machine's place at the medal center: it asks for the card as it is set up and plays the player's medals while
-  // it holds it. As the card goes, a play under way is finished at once (the levers not flicked yet flicked blind), so
-  // that its winnings are in before anyone else plays the medals or the page is gone.
+  // The machine's place at the medal center: it asks for the card as it is set up and plays the player's medals while it
+  // holds it. As the card goes with the page (hidden, left or reloaded), a play under way is finished at once (the levers
+  // not flicked yet flicked blind), so that its winnings are in before the page is gone. A moment's loan of the card (the
+  // medal center's front in another tab taking the day's bonus, a floor jackpot paid in there, another tab's machine
+  // starting) leaves the play as it is, written down, and the player's: the card comes straight back and the player plays
+  // on, or the play waits on record, and a page of this machine that holds the card first finishes it (`leftover`).
   useEffect(() => {
     const purse = medalBank();
     table.current = createTable({
@@ -453,7 +456,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       holding: () => seat.current?.holding() ?? false,
       newId: () => playId(Date.now(), nameRandom),
     });
-    const finishNow = () => {
+    const finishNow = (why: 'moment' | 'hidden' | 'left') => {
+      if (why === 'moment') return;
       const flight = flightRef.current;
       if (flight && !flight.staked.void) finish(flight, 'skipped');
     };
@@ -476,7 +480,15 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           const state = purse.getState();
           if (!tab || !placed.holding() || !state.loaded || !who.settled || state.owner !== who.uid) break;
           if (purse.restartDue(COIN_MAZE_GAME)) startOver(false);
-          if (flightRef.current || staking.current) break;
+          if (staking.current) break;
+          const flight = flightRef.current;
+          if (flight) {
+            // The play under way, finished by another page of this machine while this one lent it the card (or another
+            // play on record in its place): shown as finished there.
+            const there = tab.last();
+            if (!flight.staked.paid && there && (there.id !== flight.staked.record.id || there.paid)) finish(flight, 'skipped');
+            break;
+          }
           const left = tab.leftover();
           if (left) {
             setAnnouncement(live.current.t.sayResumed);

@@ -276,6 +276,43 @@ test('a play finished while the player was away says so when they come back: the
   await expect(page.getByTestId('cm-message')).toHaveText('');
 });
 
+test('the day’s bonus taken at the medal center in another tab while the medal waits at a gate leaves the play the player’s: every flick theirs, none blind', async ({ context, page }) => {
+  test.setTimeout(60_000);
+  // The medal center is open in another tab first, so that the day's bonus is there to take in the middle of a play.
+  const hub = await context.newPage();
+  await openCenter(hub);
+  await expect(hub.getByTestId('pusher-bonus-take')).toBeVisible();
+  await page.bringToFront();
+  await openMaze(page);
+  // Every blind flick at window 7, where each gate is shut: a blind finish would drop OUT.
+  await drop(page, play({ blinds: [7, 7, 7, 7] }));
+  await atGate(page, 0);
+  const first = await flickWhen(page, 'open');
+  await expect.poll(async () => (await record(page))?.flicks.length).toBe(1);
+  await atGate(page, 1);
+  // Taken there, the bonus borrows the medals for a moment: the play stays as it was, the medal at the next gate.
+  await hub.getByTestId('pusher-bonus-take').click();
+  await expect(hub.getByTestId('pusher-bonus')).toHaveAttribute('data-state', 'taken');
+  await hub.close();
+  await expect(machine(page)).toHaveAttribute('data-card', 'here');
+  await expect(machine(page)).toHaveAttribute('data-phase', 'wait');
+  expect(await record(page)).toMatchObject({ flicks: [first], paid: false });
+  // The rest are the player's own, each as its gate opens: through all four, and BIG on the pins.
+  for (let stage = 1; stage < 4; stage++) {
+    await atGate(page, stage);
+    await flickWhen(page, 'open');
+    await expect.poll(async () => (await record(page))?.flicks.length).toBe(stage + 1);
+  }
+  await ended(page);
+  const played = (await record(page))!;
+  expect(played.paid).toBe(true);
+  // Four flicks, each the player's as its gate opened: none at the shut window the blind flicks were drawn at.
+  expect(played.flicks).toHaveLength(4);
+  expect(played.flicks).not.toContain(7);
+  await expect(machine(page)).toHaveAttribute('data-result', 'big');
+  await expect(page.getByTestId('cm-message')).not.toHaveText('The play was finished while you were away: the levers left were flicked blind.');
+});
+
 /** A phone, in a language, with the floor faked. */
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });

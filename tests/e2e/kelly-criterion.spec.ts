@@ -283,33 +283,51 @@ test('while a run counts up, Cancel stands still beside it, in either language',
     await fields.nth(1).selectOption('300');
     await fields.nth(2).selectOption('100000');
     await sim(page).locator('button').first().click();
-    // Every frame for a second: the count, and where Cancel is. The count used to be as wide as its digits, and
-    // pushed Cancel along the row by up to 4 px at each step (46 places in 120 frames), so a press could not settle on it.
-    const frames = await page.evaluate(
+    // Every frame while the run counts up: the count, and where Cancel is. The count used to be as wide as its digits,
+    // and pushed Cancel along the row by up to 4 px at each step (46 places in 120 frames), so a press could not settle
+    // on it. Once the count has gone up five times, Cancel is pressed in that same frame, where it is seen standing: the
+    // run counts on the page's own thread, between frames, so it cannot end between the look and the press (a press
+    // made from outside the page, a moment after a look, could come after the run had ended, and wait for a Cancel that
+    // was gone).
+    const watched = await page.evaluate(
       () =>
-        new Promise<{ count: string; left: number; width: number }[]>((resolve) => {
-          const seen: { count: string; left: number; width: number }[] = [];
-          const start = performance.now();
+        new Promise<{ frames: { count: string; left: number; width: number }[]; pressed: boolean; underPress: boolean }>((resolve) => {
+          const frames: { count: string; left: number; width: number }[] = [];
+          const counts = new Set<string>();
           const step = () => {
             const buttons = document.querySelectorAll<HTMLButtonElement>('#kelly-panel-sim button');
             const run = buttons[0];
             const cancel = buttons[1];
-            if (run?.disabled && cancel) {
-              const box = cancel.getBoundingClientRect();
-              seen.push({ count: run.innerText, left: box.left, width: box.width });
+            if (!run?.disabled || !cancel) {
+              // Not counting yet: wait for it. Counting no more: it ended before five steps, and was never pressed.
+              if (frames.length === 0) requestAnimationFrame(step);
+              else resolve({ frames, pressed: false, underPress: false });
+              return;
             }
-            if (performance.now() - start < 1_000 && (seen.length === 0 || run?.disabled)) requestAnimationFrame(step);
-            else resolve(seen);
+            const box = cancel.getBoundingClientRect();
+            frames.push({ count: run.innerText, left: box.left, width: box.width });
+            counts.add(run.innerText);
+            if (counts.size <= 5) {
+              requestAnimationFrame(step);
+              return;
+            }
+            // Pressed where it stands: nothing over its middle takes the press.
+            const middle = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+            const underPress = middle !== null && cancel.contains(middle);
+            cancel.click();
+            resolve({ frames, pressed: true, underPress });
           };
           requestAnimationFrame(step);
         }),
     );
-    expect(new Set(frames.map((f) => f.count)).size, `${language}: the count went up`).toBeGreaterThan(3);
-    const lefts = frames.map((f) => f.left);
+    expect(watched.pressed, `${language}: Cancel pressed while the run counted up`).toBe(true);
+    expect(watched.underPress, `${language}: Cancel uncovered where it stands`).toBe(true);
+    expect(new Set(watched.frames.map((f) => f.count)).size, `${language}: the count went up`).toBeGreaterThan(5);
+    const lefts = watched.frames.map((f) => f.left);
     expect(Math.max(...lefts) - Math.min(...lefts), `${language}: Cancel moved along the row`).toBeLessThan(0.5);
-    // Cancel, a still target, is pressed at once (unless the run has just ended).
-    const cancel = sim(page).getByRole('button', { name: language === 'en' ? 'Cancel' : '中止', exact: true });
-    if (await cancel.isVisible()) await cancel.click({ timeout: 2_000 });
+    // The run is cancelled: Run is back, Cancel gone, and no result.
+    await expect(sim(page).getByRole('button', { name: language === 'en' ? 'Cancel' : '中止', exact: true })).toHaveCount(0);
+    await expect(sim(page).getByTestId('kelly-sim-result')).toHaveCount(0);
     await expect(sim(page).locator('button').first()).toBeEnabled();
   }
 });

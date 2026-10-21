@@ -66,8 +66,8 @@ export const HISTORY_LIMITS = {
    * Nineteen with Video Keno; a twentieth machine was coming onto the floor beside it (a smart ball for the kids'
    * corner), which would have filled the 20 there were, and a history that kept no more would have let go of the
    * records of the machine played least long ago. 24 left room for four more after those; Goldfish Lantern Pachinko
-   * is the first of them (twenty machines and the jackpot: 21), Cherry Blossom Carousel the second (22), and two are
-   * left.
+   * is the first of them (twenty machines and the jackpot: 21), Cherry Blossom Carousel the second (22), Onsen
+   * Shooting Gallery the third (23), and one is left.
    */
   games: 24,
   /** Devices a game keeps the records of. Beyond that, the ones that played it least are left out. */

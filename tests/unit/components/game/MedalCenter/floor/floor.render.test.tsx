@@ -79,6 +79,8 @@ describe('the floor’s moments', () => {
     expect(ja.moment('keno-all', '12,500')).toBe('ビデオキノで全部的中！12,500枚');
     expect(ja.moment('smart-triple', '100')).toBe('湯けむりスマートボールでビンゴ3列！100枚');
     expect(ja.moment('smart-line', '7')).toBe('湯けむりスマートボールでビンゴ！7枚');
+    expect(ja.moment('gallery-cat', '31')).toBe('湯の町射的で招き猫を落とした！31枚');
+    expect(ja.moment('gallery-trio', '9')).toBe('湯の町射的で3個以上落とした！9枚');
     expect(html).toContain('プレイヤー1234');
     expect(html).toContain('7が3つそろって3,000枚');
     expect(html).toContain('ダブルアップで160枚');
@@ -249,7 +251,7 @@ describe('the floor jackpot', () => {
     expect(html.includes(`href="/signin" data-testid="jackpot-sign-in">${t.jackpotGuest}`)).toBe(true);
     expect(html).toContain(t.jackpotHonesty);
     // Which machines are linked to it, by name.
-    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku, Candy Shop Medal Maze, Video Keno, Hot Spring Smart Ball, Goldfish Lantern Pachinko, Cherry Blossom Carousel.');
+    expect(html).toContain('Linked machines: Medal Pusher, Slot Machine, Calico Janken, Roulette &amp; Martingale, Three Card Poker, Big Catch Harbor, Mini Turf Racing, Ball Bingo, Star Festival Big Wheel, High &amp; Low Ladder, Moonlit Sic Bo, Whale Isle Sugoroku, Candy Shop Medal Maze, Video Keno, Hot Spring Smart Ball, Goldfish Lantern Pachinko, Cherry Blossom Carousel, Onsen Shooting Gallery.');
   });
 
   it('tells a signed-in player who is not on the floor to join it, and one on it that they play for it', () => {
@@ -334,6 +336,7 @@ describe('the floor jackpot', () => {
       'smart-ball': ['SmartBall/SmartBall.tsx', 'OddsTab'],
       pachinko: ['Pachinko/Pachinko.tsx', 'OddsTab'],
       'carousel-pusher': ['CarouselPusher/CarouselPusher.tsx', 'OddsTab'],
+      'shooting-gallery': ['ShootingGallery/ShootingGallery.tsx', 'OddsTab'],
     };
     expect(Object.keys(folders)).toEqual(FLOOR_GAMES.slice());
     const source = (file: string) => readFileSync(path.join(process.cwd(), 'src/components/game', file), 'utf8');

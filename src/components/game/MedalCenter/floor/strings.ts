@@ -168,6 +168,10 @@ const enMoment = (label: string | null, medals: string): string => {
       return `tipped the treasure dish at Cherry Blossom Carousel: ${medals} medals across the field`;
     case 'carousel-triple':
       return `rolled three alike at Cherry Blossom Carousel: ${medals} medals`;
+    case 'gallery-cat':
+      return `knocked the beckoning cat off the shelf at Onsen Shooting Gallery: ${medals} medals`;
+    case 'gallery-trio':
+      return `knocked three or more off the shelf at Onsen Shooting Gallery: ${medals} medals`;
     default:
       return `won ${medals} medals`;
   }
@@ -236,6 +240,10 @@ const jaMoment = (label: string | null, medals: string): string => {
       return `さくらメリーゴーランドでジャックポット！${medals}枚がフィールドへ`;
     case 'carousel-triple':
       return `さくらメリーゴーランドでゾロ目！${medals}枚`;
+    case 'gallery-cat':
+      return `湯の町射的で招き猫を落とした！${medals}枚`;
+    case 'gallery-trio':
+      return `湯の町射的で3個以上落とした！${medals}枚`;
     default:
       return `${medals}枚の当たり`;
   }

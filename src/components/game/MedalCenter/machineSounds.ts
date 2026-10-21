@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * to: that each starts and ends in silence and is never too loud.
  */
 
-export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole', 'pachi', 'chucker', 'reach', 'tulip', 'payout'] as const;
+export const MACHINE_SOUNDS = ['medal', 'button', 'lever', 'reel', 'tick', 'win', 'big', 'card', 'hold', 'chip', 'launch', 'drop', 'splash', 'bite', 'ratchet', 'fanfare', 'gate', 'hooves', 'bell', 'flap', 'bonus', 'rung', 'shaker', 'dice', 'tumble', 'hop', 'spring', 'roll', 'clack', 'pin', 'pocket', 'ball', 'catch', 'plunger', 'marble', 'rattle', 'hole', 'pachi', 'chucker', 'reach', 'tulip', 'payout', 'cock', 'cork', 'thud', 'topple', 'whiff'] as const;
 export type MachineSound = (typeof MACHINE_SOUNDS)[number];
 
 /** How loud the loudest moment of any sound is, out of 1. */
@@ -488,6 +488,52 @@ const RECIPES: Record<MachineSound, (rate: number) => Take> = {
     hiss(t, 0.002, 0.38, 0.4, 6200, 341, true);
     return t;
   },
+  // The shooting gallery's cork gun cocked: the lever's ratchet clicking back against its spring, the piston catching,
+  // and the soft squeak of a cork pushed into the muzzle.
+  cock: (rate) => {
+    const t = take(0.5, rate);
+    for (let i = 0; i < 3; i++) knock(t, 0.004 + i * 0.045, 1700 + i * 120, 0.4, 0.004);
+    hiss(t, 0.0, 0.14, 0.35, 1300, 351, true);
+    knock(t, 0.16, 520, 0.85, 0.018);
+    ping(t, 0.165, 2400, 0.18, 0.02);
+    bubble(t, 0.3, 900, 1500, 0.12, 0.18);
+    hiss(t, 0.3, 0.1, 0.25, 3800, 352);
+    return t;
+  },
+  // The cork gun fired: the hollow pop of the cork leaving the muzzle on the spring's air, and the rush of that air.
+  cork: (rate) => {
+    const t = take(0.3, rate);
+    bubble(t, 0.0, 900, 260, 0.06, 0.9);
+    knock(t, 0.001, 420, 0.7, 0.012);
+    hiss(t, 0.0, 0.08, 0.9, 2600, 361);
+    hiss(t, 0.01, 0.18, 0.35, 900, 362);
+    return t;
+  },
+  // A cork on a figure: a dry knock of cork on wood and paper.
+  thud: (rate) => {
+    const t = take(0.16, rate);
+    knock(t, 0.001, 760, 0.8, 0.01);
+    hiss(t, 0.001, 0.03, 0.6, 1800, 371);
+    knock(t, 0.05, 900, 0.18, 0.006);
+    return t;
+  },
+  // A figure tipping off the back of its shelf: its foot scraping over the felt, and the thump of it landing behind.
+  topple: (rate) => {
+    const t = take(0.6, rate);
+    hiss(t, 0.0, 0.16, 0.5, 700, 381, true);
+    knock(t, 0.22, 140, 1, 0.04);
+    hiss(t, 0.22, 0.06, 0.5, 900, 382);
+    knock(t, 0.36, 180, 0.35, 0.025);
+    return t;
+  },
+  // A cork that missed, into the cloth behind the shelves: a soft pat, and the tick of it dropping.
+  whiff: (rate) => {
+    const t = take(0.3, rate);
+    hiss(t, 0.0, 0.06, 0.6, 500, 391);
+    knock(t, 0.002, 260, 0.4, 0.012);
+    knock(t, 0.17, 1300, 0.25, 0.004);
+    return t;
+  },
 };
 
 /** A spring let go: a tone bent down from a wobble, dying away. */
@@ -536,7 +582,7 @@ export const countedSoundLength = (sound: MachineSound, rate: number): number =>
 
 /** How loud the machine is, over all, and the chirp of a medal counted in, under the rest. */
 const MASTER = 0.5;
-const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7, pachi: 0.35, tulip: 0.6, payout: 0.55 };
+const LEVELS: Partial<Record<MachineSound, number>> = { tick: 0.45, card: 0.7, chip: 0.8, launch: 0.6, hooves: 0.45, bell: 0.55, shaker: 0.6, dice: 0.7, hop: 0.5, roll: 0.5, pin: 0.6, ball: 0.5, marble: 0.55, rattle: 0.7, plunger: 0.7, pachi: 0.35, tulip: 0.6, payout: 0.55, cock: 0.6, thud: 0.75, whiff: 0.6 };
 
 export interface Speaker {
   on: () => boolean;

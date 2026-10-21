@@ -306,7 +306,9 @@ test('the day’s bonus taken at the medal center in another tab while the medal
   await ended(page);
   const played = (await record(page))!;
   expect(played.paid).toBe(true);
-  expect(played.own).toBeUndefined();
+  // Four flicks, each the player's as its gate opened: none at the shut window the blind flicks were drawn at.
+  expect(played.flicks).toHaveLength(4);
+  expect(played.flicks).not.toContain(7);
   await expect(machine(page)).toHaveAttribute('data-result', 'big');
   await expect(page.getByTestId('cm-message')).not.toHaveText('The play was finished while you were away: the levers left were flicked blind.');
 });

@@ -99,6 +99,32 @@ test('RETURN gives back the medals left in the slot, and nothing is out once the
   expect((await stored(page))?.lent).toBeNull();
 });
 
+test('RETURN is no win: My Page shows the medal fed as played, the tray as won, and not the handful given back', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openMachine(page);
+  await pressUntil(drop(page), async () => (await machine(page).getAttribute('data-fed')) === '1');
+  await expect(machine(page)).toHaveAttribute('data-credit', String(LEND - 1));
+  await page.getByTestId('cp-return').click();
+  await expect(machine(page)).toHaveAttribute('data-credit', '0');
+  // Whatever the medal fed brings back off the field is counted in once the machine stands still.
+  await expect(machine(page)).toHaveAttribute('data-resting', 'true', { timeout: 45_000 });
+  await expect.poll(async () => (await stored(page))?.machine.tray).toBe(0);
+  const back = (await medals(page)) - (WELCOME - 1);
+  await page.goto('/games/medal-center/records');
+  await arrived(page);
+  await expect(page.getByTestId('mypage-history')).toHaveAttribute('data-loaded', 'true', { timeout: 15_000 });
+  await expect(page.getByTestId('mypage-game-carousel-pusher')).toHaveAttribute('data-played', 'true');
+  // One medal fed; won only what the tray brought back, never the nine given back from the slot.
+  await expect(page.getByTestId('mypage-carousel-pusher-bet')).toHaveText('1');
+  await expect(page.getByTestId('mypage-carousel-pusher-won')).toHaveText(String(back));
+  await expect(page.getByTestId('mypage-carousel-pusher-rounds')).toHaveCount(0);
+  await expect(page.getByTestId('mypage-game-carousel-pusher')).toContainText('Medals fed');
+  await expect(page.getByTestId('mypage-total-bet')).toHaveText('1');
+  const entries = page.getByTestId('mypage-entry');
+  await expect(entries).toHaveCount(1);
+  await expect(entries.nth(0)).toContainText(`Fed 1 · won ${back}`);
+});
+
 test('a reload finds the field, the slot and the dish where they were, and pays nothing twice', async ({ page }) => {
   test.setTimeout(90_000);
   await openMachine(page);

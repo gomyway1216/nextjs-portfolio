@@ -352,7 +352,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               const entry = { id: historyId.current, outcome: id, medals: e.medals };
               setHistory((h) => [entry, ...h].slice(0, HISTORY_LIMIT));
               setStats((st) => ({ ...st, wins: st.wins + 1 }));
-              if (id === 'triple') floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-triple' } });
+              if (id === 'triple') {
+                floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-triple' } });
+                // The medals' history hears of the prize for its biggest; the medals themselves are won as the tray is counted in.
+                medalBank().played({ game: CAROUSEL_GAME, fed: 0, won: 0, prize: e.medals });
+              }
             }
             setMessage(words.outcome(id, e.medals));
             setAnnouncement(words.sayResult(spinDigits.current.join(' '), id, e.medals));
@@ -369,6 +373,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             setAnnouncement(words.sayJackpot(e.medals));
             setThrowing(true);
             floorReport(CAROUSEL_GAME, { prize: { medals: e.medals, label: 'carousel-jackpot' } });
+            medalBank().played({ game: CAROUSEL_GAME, fed: 0, won: 0, jackpots: [e.medals] });
             saveNow = true;
             break;
           case 'thrown':

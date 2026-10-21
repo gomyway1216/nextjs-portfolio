@@ -161,7 +161,9 @@ test('ball-tower: standing unplayed it asks the browser for no frames; a run doe
   await expect(machine(page)).toHaveAttribute('data-level', '1', { timeout: 15_000 });
   const running = await frames();
   await page.waitForTimeout(500);
-  expect((await frames()) - running, 'frames asked for in 0.5 s of a run').toBeGreaterThan(10);
+  // More than standing still allows (2 in 2 s): the run asks for frames. Not a frame rate: Firefox on the CI runner
+  // draws the canvas in software at 12-20 frames a second.
+  expect((await frames()) - running, 'frames asked for in 0.5 s of a run').toBeGreaterThan(2);
   // The Odds tab in front: the clock stops, no frames are asked for, and the ball stays on the disc it was on.
   await page.locator('#bt-tab-odds').click();
   await page.waitForTimeout(300);

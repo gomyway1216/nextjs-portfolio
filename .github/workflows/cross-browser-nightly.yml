@@ -94,8 +94,12 @@ jobs:
           pactl load-module module-null-sink sink_name=nightly
           pactl set-default-sink nightly
 
+      # macOS runners have about 7 GB: the build's JavaScript heap ran out at Node's default limit there (2026-10-21,
+      # one of the three WebKit parts), so it is given room to grow.
       - name: Build production app
         run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=5120
 
       - name: Run E2E tests in ${{ matrix.browser }} (part ${{ matrix.part }} of ${{ matrix.parts }})
         run: npx playwright test -c playwright.cross-browser.config.ts --project=${{ matrix.browser }} --shard=${{ matrix.part }}/${{ matrix.parts }} --workers=${{ matrix.workers }}

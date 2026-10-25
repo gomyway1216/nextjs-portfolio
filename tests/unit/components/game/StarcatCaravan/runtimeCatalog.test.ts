@@ -69,7 +69,8 @@ describe('runtime character catalogs', () => {
     state = gameReducer(state, { type: 'start', stage: 1 }, characters);
     state = gameReducer(state, { type: 'deploy', id: 'nova' }, characters);
     state = gameReducer(state, { type: 'tick' }, characters);
-    expect(state.battle?.units[0]).toMatchObject({ catId: 'nova', maxHp: 228, attack: 46 });
+    // The added Wind companion joins the existing Wind members, so resonance applies.
+    expect(state.battle?.units[0]).toMatchObject({ catId: 'nova', maxHp: 274, attack: 53 });
     expect(state.battle?.time).toBe(0.1);
   });
 

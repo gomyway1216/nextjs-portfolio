@@ -6,6 +6,44 @@
 .page button:focus-visible, .page a:focus-visible { outline: 3px solid #f4dca0; outline-offset: 4px; }
 .shell { max-width: 1160px; margin: 0 auto; }
 .content { scroll-margin-top: 80px; }
+.guideLink { display: flex; align-items: center; gap: 7px; margin-left: auto; margin-right: 18px; min-height: 44px; font-size: 12px; color: var(--gold); text-decoration: none; }
+.guideMore a { display: inline-flex; align-items: center; gap: 8px; color: #e9cf98; font-size: 12px; margin-top: 20px; }
+.roleHint { min-height: 32px; font-size: 11px; color: #c1d1d9 !important; line-height: 1.5; margin-bottom: 7px !important; }
+.synergy { border: 1px solid #a9c8b53b; background: #9ebfb009; padding: 20px; border-radius: 9px; margin-block: 18px; }
+.synergy h3 { font-size: 16px; font-weight: 500; }
+.synergy p, .synergy a { font-size: 12px; line-height: 1.8; }
+.synergy p { color: #b9cad8; }
+.synergy a { color: #edd29c; display: inline-flex; align-items: center; gap: 8px; }
+.synergy ul { list-style: none; padding: 0; margin-block: 14px; display: grid; gap: 8px; }
+.synergy li { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; }
+.synergy li strong { min-width: 110px; font-weight: 500; }
+.synergy li span { color: #b9cad8; }
+.elementChips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.elementChips span { font-size: 12px; border: 1px solid #ffffff22; border-radius: 20px; padding: 3px 12px; }
+.reactionBurst { animation: reactionGlow .5s ease-out; }
+.reactionLog { position: absolute; top: 57px; left: 15px; right: 15px; display: flex; gap: 12px; justify-content: center; pointer-events: none; font-size: 12px; text-shadow: 0 1px 4px #000; }
+@keyframes reactionGlow { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .reactionBurst { animation: none; } }
+.partyOverview { border: 1px solid var(--line); border-radius: 9px; padding: 14px 18px; margin: 0 0 22px; background: #ffffff03; }
+.partyOverview summary { cursor: pointer; font-size: 12px; color: var(--gold); min-height: 30px; }
+.partyOverview > p, .partyOverview li p { font-size: 12px; color: var(--muted); line-height: 1.8; }
+.partyOverview > p { margin: 8px 0 !important; }
+.partyOverview ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 12px 0; list-style: none; }
+.partyOverview strong { font-size: 13px; font-weight: 500; }
+.partyOverview strong span { color: #9dc4c7; font-size: 11px; margin-left: 8px; }
+.partyOverview a, .travelRecord a { display: inline-flex; align-items: center; gap: 8px; color: var(--gold); font-size: 11px; min-height: 36px; }
+.travelRecord { padding: 20px; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 10px; background: #1a293a; }
+.travelRecord h3 { font-size: 16px; font-weight: 500; }
+.travelRecord p { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.travelRecord dl { display: flex; flex-wrap: wrap; gap: 22px 38px; margin: 16px 0 6px; }
+.travelRecord dt { font-size: 10px; color: var(--muted); }
+.travelRecord dd { font-size: 21px; margin: 4px 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 650px) {
+  .navigation { flex-wrap: wrap; }
+  .guideLink { font-size: 10px; margin-right: 12px; }
+  .guideLink span { display: none; }
+  .partyOverview ul { grid-template-columns: 1fr; }
+}
 .topline { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 11px; letter-spacing: .06em; margin-bottom: 24px; }
 .topline a { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; color: var(--muted); text-decoration: none; }
 .topline > span { display: flex; gap: 7px; align-items: center; }

@@ -1,11 +1,12 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Check, Coins, Heart, Swords } from 'lucide-react';
+import { ArrowRight, Check, Coins, Heart, Shield, Swords } from 'lucide-react';
 import { CatSprite } from './CatSprite';
 import { ELEMENTS, MAX_LEVEL, ROLES, STAGES, type Character, type Language } from './data';
 import { catStats, upgradeCost, type Save } from './engine';
 import { GUIDE_URL, ROLE_DETAILS } from './guide';
 import { partyElements, REACTIONS } from './elements';
+import { abilityFor } from './abilities';
 import styles from './StarcatCaravan.module.css';
 
 interface Props { save: Save; characters: readonly Character[]; language: Language }
@@ -17,13 +18,15 @@ export function CompanionCollection({ save, characters, language, ready, onActio
     const companion = save.owned[cat.id];
     const selected = save.team.includes(cat.id);
     const stats = catStats(cat.id, companion, characters);
+    const ability = abilityFor(cat);
     const color = { '--cat-accent': cat.accent, '--rarity': cat.rarity === 5 ? '#f2d584' : cat.rarity === 4 ? '#c0a4e9' : '#8ac6d0' } as CSSProperties;
     return <article key={cat.id} className={styles.catCard} style={color} data-testid={`cat-${cat.id}`}>
       <div className={styles.cardTop}><span className={styles.stars}>{'★'.repeat(cat.rarity)}</span><span style={{ color: ELEMENTS[cat.element].color }}>{ELEMENTS[cat.element].symbol} {ELEMENTS[cat.element].name[language]}</span></div>
       <div className={styles.portrait}><CatSprite cat={cat} />{selected && <span className={styles.inParty}><Check size={12} />{tx('編成中', 'In party')}</span>}</div>
       <p className={styles.catTitle}>{cat.title[language]}</p><div className={styles.catName}><h3>{cat.name[language]}</h3><span>Lv. {companion.level}</span></div>
       <p className={styles.role}>{ROLES[cat.role][language]} · {tx('出撃', 'Deploy')} {cat.cost}</p><p className={styles.roleHint}>{ROLE_DETAILS[cat.role].brief[language]}</p>
-      <div className={styles.catStats}><span><Heart size={13} />{stats.hp}</span><span><Swords size={13} />{stats.attack}</span><span title={tx('重複1体につき能力+4%、最大+20%', '+4% stats per duplicate, up to +20%')}>✦ {Math.min(companion.copies - 1, 5)}/5</span></div>
+      <div className={styles.catStats}><span title="HP"><Heart size={13} />HP {stats.hp}</span><span title={tx('攻撃・回復力', 'Attack/healing')}><Swords size={13} />{tx('攻撃', 'ATK')} {stats.attack}</span><span title={tx('防御力', 'Defense')}><Shield size={13} />{tx('防御', 'DEF')} {stats.defense}</span><span title={tx('重複1体につき能力+4%、最大+20%', '+4% stats per duplicate, up to +20%')}>✦ {tx('重複', 'Copies')} {Math.min(companion.copies - 1, 5)}/5</span></div>
+      <div className={styles.ability}><h4>{ability.name[language]}</h4><p>{ability.detail[language]}</p></div>
       <div className={styles.cardActions}><button aria-pressed={selected} disabled={!ready || (!selected && save.team.length >= 4) || (selected && save.team.length <= 1)} onClick={() => onAction({ type: 'team', id: cat.id })}>{selected ? tx('外す', 'Remove') : tx('編成する', 'Add to party')}</button><button disabled={!ready || companion.level >= MAX_LEVEL || save.coins < upgradeCost(companion.level)} onClick={() => onAction({ type: 'upgrade', id: cat.id })}>{companion.level >= MAX_LEVEL ? 'MAX' : <>{tx('育成', 'Train')} <Coins size={12} />{upgradeCost(companion.level)}</>}</button></div>
     </article>;
   })}</div>;
@@ -34,7 +37,7 @@ export function PartyOverview({ save, characters, language }: Props) {
   const team = save.team.flatMap((id) => { const cat = characters.find((entry) => entry.id === id); return cat && Object.hasOwn(save.owned, id) ? [cat] : []; });
   return <><ElementSynergy save={save} characters={characters} language={language} /><details className={styles.partyOverview}><summary>{ja ? '仲間の得意な動きと、出撃のしかた' : 'Companion traits and how to deploy'}</summary>
     <p>{ja ? '編成は「出撃できる仲間」の選択です。戦闘が始まったら、画面下の仲間を押してエネルギーを使い出撃させます。' : 'Your party selects who you can deploy. In battle, press a companion at the bottom to spend energy and send them out.'}</p>
-    <ul>{team.map((cat) => <li key={cat.id}><strong>{cat.name[language]} <span>{ROLES[cat.role][language]}</span></strong><p>{ROLE_DETAILS[cat.role].tactic[language]}</p></li>)}</ul>
+    <ul>{team.map((cat) => <li key={cat.id}><strong>{cat.name[language]} <span>{ELEMENTS[cat.element].name[language]} · {ROLES[cat.role][language]}</span></strong><p>{ROLE_DETAILS[cat.role].tactic[language]}</p><p>{abilityFor(cat).name[language]}：{abilityFor(cat).detail[language]}</p></li>)}</ul>
     <Link href={`${GUIDE_URL}#roles`}>{ja ? '編成・属性・敵を詳しく見る' : 'Read about roles, elements and enemies'}<ArrowRight size={14} /></Link>
   </details></>;
 }

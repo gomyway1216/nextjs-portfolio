@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHARACTERS } from '@/components/game/StarcatCaravan/data';
+import { CHARACTERS, ORIGINAL_CHARACTER_IDS } from '@/components/game/StarcatCaravan/data';
 import { getOrCreateStarcatCatalog, updateStarcatCatalog } from '@/lib/starcatCatalog';
 
 const mocks = vi.hoisted(() => ({ getFirestore: vi.fn() }));
@@ -78,7 +78,7 @@ describe('Starcat catalog database', () => {
     const characters = structuredClone(CHARACTERS);
     characters[0].portraitUrl = 'https://example.com/custom-ember.webp';
     characters[1].portraitUrl = null;
-    document = { revision: 3, characters };
+    document = { revision: 3, contentVersion: 2, characters };
     expect(await getOrCreateStarcatCatalog()).toEqual({ revision: 3, characters });
     expect(update).not.toHaveBeenCalled();
   });
@@ -89,6 +89,39 @@ describe('Starcat catalog database', () => {
     await expect(updateStarcatCatalog(initial, 'second-admin')).rejects.toMatchObject({ status: 409 });
     expect(await getOrCreateStarcatCatalog()).toEqual(latest);
     expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('upgrades an actual legacy twelve-cat catalog once, preserving administrator choices and all player records', async () => {
+    const legacy = CHARACTERS.filter((cat) => (ORIGINAL_CHARACTER_IDS as readonly string[]).includes(cat.id)).map(({ defense: _defense, ability: _ability, abilityName: _name, portraitUrl: _art, ...cat }) => ({ ...cat }));
+    const characters = legacy.map((cat, index) => index === 0 ? { ...cat, name: { ja: '私のコハク', en: 'My Ember' }, hp: 999, defense: 0, ability: 'none' as const, abilityName: { ja: '自由な名前', en: 'Custom name' }, portraitUrl: null } : cat);
+    document = { revision: 2, characters, createdAt: 'original' };
+    const catalog = await getOrCreateStarcatCatalog();
+    expect(catalog.revision).toBe(3); expect(catalog.characters).toHaveLength(16);
+    expect(catalog.characters[0]).toEqual(characters[0]);
+    expect(catalog.characters.find((cat) => cat.id === 'brook')).toMatchObject({ defense: 28, ability: 'ward' });
+    expect(catalog.characters.find((cat) => cat.id === 'yuki')).toMatchObject({ element: 'ice', ability: 'frost' });
+    expect(document).toMatchObject({ contentVersion: 2, createdAt: 'original' });
+    expect(await getOrCreateStarcatCatalog()).toEqual(catalog); expect(update).toHaveBeenCalledTimes(1);
+    expect(collection.mock.calls.every(([name]) => name === 'game_catalogs')).toBe(true);
+  });
+
+  it('keeps a pre-existing administrator companion that happens to share a new seed ID', async () => {
+    const legacy = structuredClone(CHARACTERS.slice(0, 12));
+    const custom = { ...legacy[0], id: 'yuki', name: { ja: '管理者の猫', en: 'Custom cat' }, portraitUrl: null, ability: 'none' as const, defense: 99 };
+    document = { revision: 2, characters: [...legacy, custom] };
+    const catalog = await getOrCreateStarcatCatalog();
+    expect(catalog.characters).toHaveLength(16);
+    expect(catalog.characters.find((cat) => cat.id === 'yuki')).toEqual(custom);
+    expect(await getOrCreateStarcatCatalog()).toEqual(catalog);
+  });
+
+  it('keeps a full administrator catalog readable rather than exceeding the 200-companion limit', async () => {
+    const characters = [...structuredClone(CHARACTERS.slice(0, 12)), ...Array.from({ length: 188 }, (_, index) => ({ ...CHARACTERS[0], id: `admin-${index}` }))];
+    document = { revision: 2, characters };
+    const catalog = await getOrCreateStarcatCatalog();
+    expect(catalog.characters).toHaveLength(200);
+    expect(catalog.characters.map((cat) => cat.id)).toEqual(characters.map((cat) => cat.id));
+    expect(await getOrCreateStarcatCatalog()).toEqual(catalog);
   });
 
   it('also protects companions that were added after bootstrap from deletion and ID renaming', async () => {

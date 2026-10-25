@@ -135,6 +135,10 @@
 .role { color: var(--muted) !important; font-size: 10px; margin: 3px 0 10px !important; }
 .catStats { display: flex; justify-content: space-between; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 10px; color: #bac8d4; }
 .catStats span { display: flex; align-items: center; gap: 4px; }
+.catStats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.ability { border-top: 1px solid var(--line); padding: 10px 0; min-height: 105px; }
+.ability h4 { color: #e1cc9d; font-size: 12px; font-weight: 500; margin: 0; }
+.ability p { color: #b9c9d6; font-size: 10px; line-height: 1.7; margin: 6px 0; }
 .cardActions { display: flex; gap: 7px; }
 .cardActions button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; color: #e9d6ae; min-height: 44px; background: #edd29808; border: 1px solid #edd29840; border-radius: 5px; padding: 4px; font-size: 11px; }
 .cardActions button:first-child { color: #ccd6e1; border-color: #ffffff28; background: #ffffff04; }
@@ -314,3 +318,5 @@
 @media (prefers-reduced-motion: reduce) {
   .page * { animation: none !important; transition: none !important; }
 }
+
+.reactionLog { flex-wrap: wrap; }

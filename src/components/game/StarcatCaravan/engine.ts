@@ -1,5 +1,5 @@
-import { CHARACTERS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, STAGES, SUMMON_COST, characterById, type Character, type Element, type Rarity } from './data';
-import { AURA_SECONDS, REACTION_COOLDOWN, RESONANCE_ATTACK, RESONANCE_HP, partyElements, reactionFor, type Reaction } from './elements';
+import { CHARACTERS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, RARITY_POWER, STAGES, SUMMON_COST, characterById, type Ability, type Character, type Element, type Rarity } from './data';
+import { AURA_SECONDS, ELEMENT_ADVANTAGES, REACTION_COOLDOWN, RESONANCE_ATTACK, RESONANCE_HP, partyElements, reactionFor, type Reaction } from './elements';
 
 export interface OwnedCat { level: number; copies: number }
 export interface Save {
@@ -82,11 +82,12 @@ export function toggleTeam(save: Save, id: string): Save {
 }
 export function catStats(id: string, owned: OwnedCat, characters: readonly Character[] = CHARACTERS) {
   const cat = characterById(id, characters);
-  const multiplier = (1 + (owned.level - 1) * 0.14) * (1 + Math.min(5, owned.copies - 1) * 0.04);
-  return { hp: Math.round(cat.hp * multiplier), attack: Math.round(cat.attack * multiplier) };
+  const multiplier = RARITY_POWER[cat.rarity] * (1 + (owned.level - 1) * 0.14) * (1 + Math.min(5, owned.copies - 1) * 0.04);
+  const armor = RARITY_POWER[cat.rarity] * (1 + (owned.level - 1) * 0.07) * (1 + Math.min(5, owned.copies - 1) * 0.04);
+  return { hp: Math.round(cat.hp * multiplier), attack: Math.round(cat.attack * multiplier), defense: Math.round((cat.defense ?? 0) * armor) };
 }
 export function elementMultiplier(attack: Element, defense: Element): number {
-  return ({ fire: 'wind', wind: 'water', water: 'fire' }[attack] === defense) ? 1.5 : 1;
+  return ELEMENT_ADVANTAGES[attack].includes(defense) ? 1.5 : 1;
 }
 
 export interface Unit {
@@ -106,6 +107,12 @@ export interface Unit {
   aura?: Element;
   auraUntil?: number;
   reactionReadyAt?: number;
+  defense?: number;
+  shield?: number;
+  shieldUntil?: number;
+  frozenUntil?: number;
+  strikes?: number;
+  skillReadyAt?: number;
 }
 export interface Battle {
   stage: number;
@@ -123,10 +130,11 @@ export interface Battle {
   nextKey: number;
   units: Unit[];
   reactions: { kind: Reaction; x: number; time: number; key: number }[];
+  skills: { ability: Ability; catId: string; x: number; time: number; key: number }[];
 }
 export function startBattle(save: Save, stage: number): Battle | null {
   if (!whole(stage, STAGES.length - 1) || (stage > 0 && !save.cleared.includes(stage - 1)) || !save.team.length) return null;
-  return { stage, time: 0, status: 'playing', paused: false, baseHp: 1000, enemyHp: STAGES[stage].hp, energy: 100, cannon: 100, cannonFlash: 0, cooldowns: {}, spawned: 0, nextEnemy: 2, nextKey: 1, units: [], reactions: [] };
+  return { stage, time: 0, status: 'playing', paused: false, baseHp: 1000, enemyHp: STAGES[stage].hp, energy: 100, cannon: 100, cannonFlash: 0, cooldowns: {}, spawned: 0, nextEnemy: 2, nextKey: 1, units: [], reactions: [], skills: [] };
 }
 export function deploy(battle: Battle, save: Save, id: string, characters: readonly Character[] = CHARACTERS): Battle {
   if (battle.status !== 'playing' || battle.paused || !save.team.includes(id) || !Object.hasOwn(save.owned, id) || !save.owned[id]) return battle;
@@ -137,12 +145,71 @@ export function deploy(battle: Battle, save: Save, id: string, characters: reado
     stats.hp = Math.round(stats.hp * RESONANCE_HP);
     stats.attack = Math.round(stats.attack * RESONANCE_ATTACK);
   }
-  const unit: Unit = { key: battle.nextKey, catId: id, side: 'ally', x: 9, hp: stats.hp, maxHp: stats.hp, attack: stats.attack, range: cat.range, speed: cat.speed, element: cat.element, cooldown: 0, flash: 0, boss: false };
+  const unit: Unit = { key: battle.nextKey, catId: id, side: 'ally', x: 9, hp: stats.hp, maxHp: stats.hp, attack: stats.attack, defense: stats.defense, range: cat.range, speed: cat.speed, element: cat.element, cooldown: 0, flash: 0, boss: false, strikes: 0, skillReadyAt: battle.time + 10 };
   return { ...battle, energy: battle.energy - cat.cost, nextKey: battle.nextKey + 1, cooldowns: { ...battle.cooldowns, [id]: cat.cooldown }, units: [...battle.units, unit] };
 }
 export function fireCannon(battle: Battle): Battle {
   if (battle.status !== 'playing' || battle.paused || battle.cannon < 100) return battle;
   return { ...battle, cannon: 0, cannonFlash: 0.6, units: battle.units.map((unit) => unit.side === 'enemy' ? { ...unit, hp: unit.hp - 140, x: Math.min(90, unit.x + 5), flash: 0.3 } : unit).filter((unit) => unit.hp > 0) };
+}
+
+/** Defense reduces ordinary, reaction and skill damage; a live ward absorbs the remainder. */
+export function applyDamage(target: Unit, power: number, time: number) {
+  if (power <= 0) return;
+  const damage = Math.max(1, Math.round(power * 100 / (100 + (target.defense ?? 0))));
+  const shield = (target.shieldUntil ?? 0) > time ? (target.shield ?? 0) : 0;
+  const absorbed = Math.min(shield, damage);
+  target.shield = shield - absorbed;
+  target.hp -= damage - absorbed;
+  target.flash = 0.3;
+}
+
+function freezeUnit(target: Unit, duration: number, time: number) { target.frozenUntil = Math.max(target.frozenUntil ?? 0, time + duration * (target.boss ? 0.5 : 1)); }
+
+function react(battle: Battle, target: Unit, reaction: Reaction, power: number) {
+  const near = (radius: number) => battle.units.filter((enemy) => enemy.side === 'enemy' && (enemy.hp > 0 || enemy === target) && Math.abs(enemy.x - target.x) <= radius);
+  if (reaction === 'steam' || reaction === 'melt' || reaction === 'shatter') applyDamage(target, power * ({ steam: 0.75, melt: 0.85, shatter: 1 }[reaction]), battle.time);
+  if (reaction === 'flare' || reaction === 'overload' || reaction === 'blizzard') for (const enemy of near(14)) {
+    applyDamage(enemy, power * ({ flare: 0.5, overload: 0.65, blizzard: 0.45 }[reaction]), battle.time);
+    if (reaction === 'blizzard') freezeUnit(enemy, 0.6, battle.time);
+  }
+  if (reaction === 'shock' || reaction === 'storm') {
+    const others = near(reaction === 'shock' ? 20 : 25).filter((enemy) => enemy !== target).sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x)).slice(0, 2);
+    for (const enemy of [target, ...others]) applyDamage(enemy, power * (reaction === 'shock' ? 0.65 : 0.5), battle.time);
+  }
+  if (reaction === 'freeze') { applyDamage(target, power * 0.25, battle.time); freezeUnit(target, 1.2, battle.time); }
+  if (reaction === 'bloom') for (const ally of battle.units) if (ally.side === 'ally' && ally.hp > 0) ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(power * 0.5));
+  target.aura = undefined;
+  target.auraUntil = 0;
+  target.reactionReadyAt = battle.time + REACTION_COOLDOWN;
+  battle.reactions.push({ kind: reaction, x: target.x, time: battle.time, key: battle.nextKey++ });
+}
+
+function skillEvent(battle: Battle, unit: Unit, ability: Ability) { battle.skills.push({ ability, catId: unit.catId!, x: unit.x, time: battle.time, key: battle.nextKey++ }); }
+
+function supportSkill(battle: Battle, unit: Unit, ability: Ability) {
+  if ((ability !== 'ward' && ability !== 'mend') || battle.time < (unit.skillReadyAt ?? Infinity)) return;
+  unit.skillReadyAt = battle.time + 10;
+  for (const ally of battle.units) if (ally.side === 'ally' && ally.hp > 0) {
+    if (ability === 'mend') ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(unit.attack * 0.8));
+    else {
+      const existing = (ally.shieldUntil ?? 0) > battle.time ? (ally.shield ?? 0) : 0;
+      ally.shield = Math.max(existing, Math.min(Math.round(unit.maxHp * 0.08), Math.round(ally.maxHp * 0.25)));
+      ally.shieldUntil = battle.time + 6;
+    }
+  }
+  skillEvent(battle, unit, ability);
+}
+
+function attackSkill(battle: Battle, unit: Unit, target: Unit, ability: Ability) {
+  unit.strikes = (unit.strikes ?? 0) + 1;
+  if (unit.strikes % 4 !== 0 || !['strike', 'splash', 'chain', 'frost'].includes(ability)) return;
+  if (ability === 'strike') applyDamage(target, unit.attack * 0.75, battle.time);
+  if (ability === 'frost') { applyDamage(target, unit.attack * 0.5, battle.time); freezeUnit(target, 1, battle.time); }
+  const others = battle.units.filter((enemy) => enemy.side === 'enemy' && enemy.hp > 0 && enemy !== target).sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x));
+  if (ability === 'splash') for (const enemy of [target, ...others.filter((entry) => Math.abs(entry.x - target.x) <= 12)]) applyDamage(enemy, unit.attack * 0.6, battle.time);
+  if (ability === 'chain') for (const enemy of others.filter((entry) => Math.abs(entry.x - target.x) <= 20).slice(0, 2)) applyDamage(enemy, unit.attack * 0.7, battle.time);
+  skillEvent(battle, unit, ability);
 }
 
 /** A fixed simulation step. UI scheduling never changes combat speed or the draw order. */
@@ -152,18 +219,22 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
   const stage = STAGES[previous.stage];
   const battle: Battle = { ...previous, time: previous.time + step, energy: Math.min(200, previous.energy + step * 14), cannon: Math.min(100, previous.cannon + step * 5), cannonFlash: Math.max(0, previous.cannonFlash - step), cooldowns: Object.fromEntries(Object.entries(previous.cooldowns).map(([id, value]) => [id, Math.max(0, value - step)])), units: previous.units.map((unit) => ({ ...unit, cooldown: Math.max(0, unit.cooldown - step), flash: Math.max(0, unit.flash - step) })) };
   battle.reactions = previous.reactions.filter((event) => battle.time - event.time < 1.6);
+  battle.skills = previous.skills.filter((event) => battle.time - event.time < 1.6);
+  for (const unit of battle.units) if ((unit.shieldUntil ?? 0) <= battle.time) unit.shield = 0;
   if (battle.spawned < stage.enemies && battle.time >= battle.nextEnemy) {
     const boss = battle.spawned === stage.enemies - 1;
     const hp = Math.round((boss ? 500 : 115) * stage.strength);
-    battle.units.push({ key: battle.nextKey++, catId: null, side: 'enemy', x: 91, hp, maxHp: hp, attack: Math.round((boss ? 48 : 18) * stage.strength), range: boss ? 9 : 6, speed: boss ? 3 : 4.5, element: stage.element, cooldown: 0, flash: 0, boss });
+    battle.units.push({ key: battle.nextKey++, catId: null, side: 'enemy', x: 91, hp, maxHp: hp, attack: Math.round((boss ? 48 : 18) * stage.strength), defense: Math.round((boss ? 18 : 4) * stage.strength), range: boss ? 9 : 6, speed: boss ? 3 : 4.5, element: stage.element, cooldown: 0, flash: 0, boss });
     battle.spawned++;
     battle.nextEnemy += stage.interval;
   }
   for (const unit of battle.units) {
-    if (unit.hp <= 0) continue;
+    if (unit.hp <= 0 || (unit.frozenUntil ?? 0) > battle.time) continue;
+    const cat = unit.catId ? characterById(unit.catId, characters) : null;
+    if (cat) supportSkill(battle, unit, cat.ability ?? 'none');
     const opponents = battle.units.filter((target) => target.side !== unit.side && target.hp > 0).sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x));
     const target = opponents[0];
-    const healer = unit.catId && characterById(unit.catId, characters).role === 'healer';
+    const healer = cat?.role === 'healer';
     const hurt = healer ? battle.units.filter((ally) => ally.side === 'ally' && ally.hp > 0 && ally.hp < ally.maxHp && Math.abs(ally.x - unit.x) <= unit.range).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] : undefined;
     if (hurt && unit.cooldown <= 0) {
       hurt.hp = Math.min(hurt.maxHp, hurt.hp + unit.attack);
@@ -173,30 +244,18 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
     if (target && Math.abs(target.x - unit.x) <= unit.range) {
       if (unit.cooldown <= 0) {
         const power = unit.attack * (healer ? 0.5 : 1);
-        target.hp -= Math.round(power * elementMultiplier(unit.element, target.element));
+        applyDamage(target, power * elementMultiplier(unit.element, target.element), battle.time);
         // An enemy's native element affects weakness, not its applied aura. Only ally hits combine.
         if (unit.side === 'ally' && battle.time >= (target.reactionReadyAt ?? 0)) {
           const reaction = target.aura && (target.auraUntil ?? 0) > battle.time ? reactionFor(target.aura, unit.element) : null;
           if (reaction) {
-            if (reaction === 'steam') target.hp -= Math.round(power * 0.75);
-            if (reaction === 'flare') for (const enemy of battle.units) {
-              if (enemy.side === 'enemy' && (enemy.hp > 0 || enemy === target) && Math.abs(enemy.x - target.x) <= 14) {
-                enemy.hp -= Math.round(power * 0.5);
-                enemy.flash = 0.3;
-              }
-            }
-            if (reaction === 'bloom') for (const ally of battle.units) {
-              if (ally.side === 'ally' && ally.hp > 0) ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(power * 0.5));
-            }
-            target.aura = undefined;
-            target.auraUntil = 0;
-            target.reactionReadyAt = battle.time + REACTION_COOLDOWN;
-            battle.reactions.push({ kind: reaction, x: target.x, time: battle.time, key: battle.nextKey++ });
+            react(battle, target, reaction, power);
           } else {
             target.aura = unit.element;
             target.auraUntil = battle.time + AURA_SECONDS;
           }
         }
+        if (cat) attackSkill(battle, unit, target, cat.ability ?? 'none');
         target.flash = 0.2;
         unit.cooldown = 1;
       }
@@ -212,6 +271,7 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
   }
   battle.units = battle.units.filter((unit) => unit.hp > 0);
   battle.reactions = battle.reactions.slice(-3);
+  battle.skills = battle.skills.slice(-3);
   battle.enemyHp = Math.max(0, battle.enemyHp);
   battle.baseHp = Math.max(0, battle.baseHp);
   if (battle.baseHp <= 0 || battle.time >= 180) battle.status = 'lost';

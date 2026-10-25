@@ -37,7 +37,7 @@ describe('character administration access and form', () => {
     expect(idInput).toContain('disabled=""');
     expect(idInput).toContain('value="ember"');
     for (const label of ['名前（日本語）', '名前（English）', '肩書き（日本語）', '肩書き（English）', 'レア度', '属性', '役割', '毛色', '衣装・アクセント色', 'HP', '攻撃・回復力', '射程', '移動速度', '出撃エネルギー', '再出撃までの秒数']) expect(html).toContain(label);
-    expect(html.match(/type="number"/g)).toHaveLength(6);
+    expect(html.match(/type="number"/g)).toHaveLength(7);
     expect(html).toContain('max="200"');
     expect(html).not.toContain('削除');
   });

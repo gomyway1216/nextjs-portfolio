@@ -50,11 +50,11 @@ describe('summon presentation and portrait assets', () => {
     expect(html).toContain('+160 コイン');
   });
 
-  it('ships six unique image assets and still supports companions without a portrait', () => {
+  it('ships sixteen unique image assets and still supports companions without a portrait', () => {
     const portraits = CHARACTERS.flatMap((cat) => cat.portraitUrl ? [cat.portraitUrl] : []);
-    expect(new Set(portraits).size).toBe(6);
+    expect(new Set(portraits).size).toBe(16);
     for (const url of portraits) expect(existsSync(path.join(process.cwd(), 'public', url))).toBe(true);
-    expect(renderToStaticMarkup(<CatSprite cat={characterById('mist')} />)).not.toContain('<image');
+    expect(renderToStaticMarkup(<CatSprite cat={{ ...characterById('mist'), portraitUrl: null }} />)).not.toContain('<image');
     expect(renderToStaticMarkup(<CatSprite cat={{ ...CHARACTERS[0], id: 'new-id', portraitUrl: 'https://example.com/new.webp' }} />)).toContain('href="https://example.com/new.webp"');
   });
 

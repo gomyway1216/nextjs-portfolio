@@ -33,6 +33,12 @@ export function createProgress({ store, slots, characters = CHARACTERS, now = Da
   };
   const serverSnapshot = snapshot;
 
+  const checkpointPosition = () => {
+    if (!snapshot.playable || !snapshot.game.journey) return;
+    const game = gameReducer(snapshot.game, { type: 'checkpoint' }, characters);
+    if (game !== snapshot.game) { snapshot = { ...snapshot, game }; publish(); }
+  };
+
   const publish = (changes: Partial<ProgressSnapshot> = {}) => {
     snapshot = { ...snapshot, ...changes };
     // An unread account must be opened before play can spend its currency.
@@ -64,6 +70,7 @@ export function createProgress({ store, slots, characters = CHARACTERS, now = Da
       return () => { listeners.delete(listener); };
     },
     attend(next: Player) {
+      checkpointPosition();
       player = next;
       keeper?.player(next);
       publish();
@@ -96,10 +103,12 @@ export function createProgress({ store, slots, characters = CHARACTERS, now = Da
       publish();
     },
     save(why: Why = 'tick') {
+      checkpointPosition();
       keeper?.save(why);
     },
     close() {
       if (!keeper) return;
+      checkpointPosition();
       keeper.save('left');
       const uid = keeper.owner();
       keeper.close();

@@ -537,12 +537,12 @@
   "games": {
     "starcat-caravan": {
       "title": "Starcat Caravan",
-      "description": "Wish for a team of cats, train your companions, and reclaim six floating islands in a free gacha adventure.",
-      "longDescription": "Collect original cat companions, build a party of four, and deploy them in real-time tower-defense battles. Train your team with battle rewards and explore six floating islands. Sign in to keep your progress on your account.",
+      "description": "Explore six islands with your collectible cat party. Find treasure, follow their stories and restore the starlight.",
+      "longDescription": "Collect and train a party of up to four cats. Walk through six islands, meet lightkeepers and find treasure. Dodge enemy attacks and use one big move while your party attacks automatically. Sign in to keep companions, exploration, chests and story progress on your account.",
       "howToPlay": [
         "Use Stardrops to collect companions. A ★4+ is guaranteed within 10 wishes and a ★5 within 50.",
-        "Build a party of up to four cats and train them with coins.",
-        "Deploy companions with regenerating energy and destroy the enemy fortress."
+        "Train up to four companions and choose a party leader to explore the islands.",
+        "Meet keepers, find chests and restore lanterns. Move out of enemy attacks and use Star bond; normal attacks are automatic."
       ],
       "features": [
         "Unique companions with three rarities and three elements",

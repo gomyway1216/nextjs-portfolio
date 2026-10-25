@@ -1,59 +1,25 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Coins, Compass, Gem, LockKeyhole, Pause, Play, Shield, Sparkles, Swords, Users, Volume2, VolumeX, WandSparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Coins, Compass, Gem, Shield, Sparkles, Users } from 'lucide-react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { GUEST, type AccountStore, type Player } from '../MedalPusher/account';
-import { CHARACTERS, ELEMENTS, PITY_FIVE, PITY_FOUR, ROLES, STAGES, SUMMON_COST, characterById, type Character, type Language } from './data';
-import { type Battle } from './engine';
-import { ELEMENT_ADVANTAGES, REACTIONS } from './elements';
-import { abilityFor } from './abilities';
-import { abilityCue, createBattleAudio, reactionCue } from './battleAudio';
+import { CHARACTERS, PITY_FIVE, PITY_FOUR, STAGES, SUMMON_COST, characterById, type Character } from './data';
 import { useProgress } from './useProgress';
-import { CatSprite, ShadowSprite } from './CatSprite';
+import { CatSprite } from './CatSprite';
 import SummonShow from './SummonShow';
 import { CompanionCollection, PartyOverview, TravelRecord } from './Companions';
 import { GUIDE_URL } from './guide';
+import AdventureWorld from './AdventureWorld';
+import AdventureBattle from './AdventureBattle';
+import { adventureOf } from './adventure';
 import styles from './StarcatCaravan.module.css';
 
 type View = 'summon' | 'adventure' | 'collection';
-const colorStyle = (cat: Character) => ({ '--cat-accent': cat.accent, '--rarity': cat.rarity === 5 ? '#f2d584' : cat.rarity === 4 ? '#c0a4e9' : '#8ac6d0' }) as CSSProperties;
-
-function Battlefield({ battle, language, characters }: { battle: Battle; language: Language; characters: readonly Character[] }) {
-  const stage = STAGES[battle.stage];
-  return <div className={styles.battlefield} data-paused={battle.paused}>
-    <div className={styles.baseMeters}>
-      <div><span>{language === 'ja' ? 'キャラバン' : 'Caravan'} <b>{Math.ceil(battle.baseHp)} / 1,000</b></span><meter min={0} max={1000} value={battle.baseHp} aria-label={language === 'ja' ? '味方拠点HP' : 'Caravan HP'} /></div>
-      <div><span>{language === 'ja' ? '影の砦' : 'Shadow fortress'} <b>{Math.ceil(battle.enemyHp)} / {stage.hp}</b></span><meter min={0} max={stage.hp} value={battle.enemyHp} aria-label={language === 'ja' ? '敵拠点HP' : 'Enemy fortress HP'} /></div>
-    </div>
-    <svg viewBox="0 0 1000 300" className={styles.battleScene} role="img" aria-label={language === 'ja' ? `戦場：味方${battle.units.filter((u) => u.side === 'ally').length}体、敵${battle.units.filter((u) => u.side === 'enemy').length}体` : `Battlefield: ${battle.units.filter((u) => u.side === 'ally').length} allies, ${battle.units.filter((u) => u.side === 'enemy').length} enemies`}>
-      <circle cx="710" cy="55" r="31" fill="#f5e7be" opacity=".85" />
-      <g fill="#e7d8aa" opacity=".65">{[80, 190, 340, 460, 570, 810, 910].map((x, i) => <circle key={x} cx={x} cy={20 + i % 3 * 24} r={i % 2 + 1} />)}</g>
-      <path d="M0 179L135 105L240 151L390 90L510 158L650 103L820 169L930 101L1000 151V300H0Z" fill="#283c55" />
-      <path d="M0 218Q180 138 360 211T700 199T1000 208V300H0Z" fill="#345557" />
-      <path d="M0 252Q200 228 400 249T1000 250V300H0Z" fill="#4c6f63" />
-      <path d="M0 270Q400 257 1000 274" stroke="#a3b488" strokeWidth="3" opacity=".5" />
-      <g transform="translate(30 158)"><path d="M0 42L40 7L84 42V100H0Z" fill="#bd9b70" stroke="#483b3a" strokeWidth="3" /><path d="M-9 45L40 0L94 45" stroke="#8fbeb0" strokeWidth="13" strokeLinejoin="round" /><path d="M31 100V65Q42 52 53 65V100" fill="#40565b" /><circle cx="15" cy="108" r="12" fill="#384852" /><circle cx="70" cy="108" r="12" fill="#384852" /><path d="M37 23L41 14L45 23L54 25L46 31L47 40L41 35L34 40L35 31L28 25Z" fill="#ffdf8b" /></g>
-      <g transform="translate(888 135)"><path d="M0 18H22V0H40V18H66V0H84V18H100V120H0Z" fill="#756a86" stroke="#36374f" strokeWidth="3" /><path d="M33 120V82Q50 56 67 82V120" fill="#3a3556" /><path d="M19 42H29V60H19ZM71 42H81V60H71Z" fill="#edc68d" /></g>
-      {battle.units.map((unit) => <g key={unit.key} transform={`translate(${unit.x * 10 - (unit.boss ? 40 : 27)},${unit.boss ? 158 : 182 + unit.key % 3 * 8})`} opacity={unit.flash > 0 ? 0.65 : 1}>
-        {(unit.shield ?? 0) > 0 && <ellipse cx="27" cy="30" rx="34" ry="43" fill="#a5d9ff19" stroke="#a5d9ff" strokeWidth="2" />}
-        {(unit.frozenUntil ?? 0) > battle.time && <rect x="-4" y="-3" width={unit.boss ? 90 : 64} height={unit.boss ? 105 : 75} rx="12" fill="#c1f2ff45" stroke="#a8e2f5" />}
-        <svg width={unit.boss ? 84 : 56} height={unit.boss ? 98 : 66} overflow="visible">{unit.catId ? <CatSprite cat={characterById(unit.catId, characters)} /> : <ShadowSprite boss={unit.boss} />}</svg>
-        {unit.side === 'enemy' && unit.aura && (unit.auraUntil ?? 0) > battle.time && <text y="-13" x="23" textAnchor="middle" fill={ELEMENTS[unit.aura].color} fontSize="18">{ELEMENTS[unit.aura].symbol}</text>}
-        <rect y="-7" width={unit.boss ? 80 : 52} height="4" rx="2" fill="#1a2638" /><rect y="-7" width={(unit.boss ? 80 : 52) * Math.max(0, unit.hp / unit.maxHp)} height="4" rx="2" fill={unit.side === 'ally' ? '#a4dfb9' : '#eab1b9'} />
-      </g>)}
-      {battle.skills.map((event) => <g key={event.key} transform={`translate(${event.x * 10},125)`} className={styles.reactionBurst}><circle r="30" fill="none" stroke="#d3e9ff" strokeWidth="2" /><text textAnchor="middle" fill="#f8e6b5" fontSize="15" fontWeight="bold" stroke="#142039" strokeWidth="4" paintOrder="stroke">{abilityFor(characterById(event.catId, characters)).name[language]}</text></g>)}
-      {battle.reactions.map((event) => <g key={event.key} className={styles.reactionBurst} style={{ color: REACTIONS[event.kind].color }} transform={`translate(${event.x * 10},145)`}><circle r="36" fill="none" stroke="currentColor" strokeWidth="3" opacity=".6" /><text textAnchor="middle" fill="currentColor" fontSize="17" fontWeight="bold" stroke="#142039" strokeWidth="4" paintOrder="stroke">{REACTIONS[event.kind].name[language]}</text></g>)}
-      {battle.cannonFlash > 0 && <path d="M82 202H930" stroke="#fff0a3" strokeWidth="14" opacity={battle.cannonFlash} />}
-    </svg>
-    <div className={styles.reactionLog} role="status">{battle.reactions.map((event) => <span key={event.key} style={{ color: REACTIONS[event.kind].color }}>{REACTIONS[event.kind].name[language]}</span>)}{battle.skills.map((event) => <span key={event.key}>{abilityFor(characterById(event.catId, characters)).name[language]}</span>)}</div>
-    {battle.paused && battle.status === 'playing' && <div className={styles.pauseOverlay}><Pause size={26} />{language === 'ja' ? '一時停止中' : 'Paused'}</div>}
-  </div>;
-}
 
 interface StarcatCaravanProps {
   characters?: readonly Character[];
@@ -71,23 +37,15 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
   const { game: state, playable: ready, recovered, status } = snapshot;
   const dispatch = progress.dispatch;
   const storageError = !status.kept;
-  const [view, setView] = useState<View>('summon');
-  const [stageIndex, setStageIndex] = useState(0);
+  const [view, setView] = useState<View>('adventure');
   const [showInfo, setShowInfo] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const [battleSound, setBattleSound] = useState(false);
-  const battleAudio = useRef<ReturnType<typeof createBattleAudio> | null>(null);
-  const lastSound = useRef(0);
-  const lastCueAt = useRef(-Infinity);
   const [pendingWish, setPendingWish] = useState<1 | 10 | null>(null);
-  const { save, battle, pulls, reward } = state;
+  const { save, arena, pulls, reward } = state;
   const team = save.team.filter((id) => characters.some((cat) => cat.id === id));
-  const stage = STAGES[stageIndex];
-  const running = battle?.status === 'playing' && !battle.paused;
-  const hasBattle = !!battle;
+  const running = arena?.status === 'playing' && !arena.paused;
+  const hasBattle = !!arena;
   const contentRef = useRef<HTMLElement>(null);
-  const previousScreen = useRef('summon:false');
-  const secondsLeft = Math.max(0, Math.ceil(180 - (battle?.time ?? 0)));
+  const previousScreen = useRef('adventure:false');
 
   useEffect(() => {
     const screen = `${view}:${hasBattle}`;
@@ -95,36 +53,12 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
     previousScreen.current = screen;
   }, [view, hasBattle]);
 
-  // A restored journal can belong to another account; reopen its map with the newly loaded progress.
-  // Read at that restore event only: a first clear must not reset the player's chosen battle speed.
+  // A restored journal can belong to another account; close its pending wish presentation.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    setStageIndex(Math.min(progress.getSnapshot().game.save.cleared.length, STAGES.length - 1));
-    setSpeed(1);
     setPendingWish(null);
   }, [progress, snapshot.opened]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => {
-      if (document.hidden) return;
-      for (let step = 0; step < speed; step++) dispatch({ type: 'tick' });
-    }, 100);
-    const visibility = () => { if (document.hidden) dispatch({ type: 'pause' }); };
-    document.addEventListener('visibilitychange', visibility);
-    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', visibility); };
-  }, [running, speed, dispatch]);
-
-  useEffect(() => () => battleAudio.current?.dispose(), []);
-  useEffect(() => {
-    if (!battle) { lastSound.current = 0; battleAudio.current?.stop(); return; }
-    const events = [...battle.reactions.map((event) => ({ key: event.key, cue: reactionCue(event.kind) })), ...battle.skills.map((event) => ({ key: event.key, cue: abilityCue(event.ability) }))].sort((a, b) => b.key - a.key);
-    const latest = events[0];
-    if (battleSound && battle.status === 'playing' && !battle.paused && latest && latest.key > lastSound.current && performance.now() - lastCueAt.current >= 350) { battleAudio.current?.play(latest.cue); lastCueAt.current = performance.now(); }
-    if (latest) lastSound.current = Math.max(lastSound.current, latest.key);
-    if (battle.paused || battle.status !== 'playing') battleAudio.current?.stop();
-  }, [battle, battleSound]);
 
   const draw = (count: 1 | 10) => setPendingWish(count);
   const closeWish = () => { setPendingWish(null); dispatch({ type: 'close-pulls' }); };
@@ -134,7 +68,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
     dispatch({ type: 'summon', count: pendingWish, rolls: Array.from({ length: pendingWish * 2 }, () => Math.random()) });
     return progress.getSnapshot().game.pulls.length === pendingWish;
   };
-  const openInfo = () => { if (running) dispatch({ type: 'pause' }); setShowInfo(true); };
+  const openInfo = () => { if (running) dispatch({ type: 'arena-pause' }); setShowInfo(true); };
   const collected = Object.keys(save.owned).length;
   const featured = characterById('luna', characters);
   const saveLabel = storageError && status.where !== 'account' ? tx('この端末に保存できません', 'Device saving unavailable')
@@ -153,7 +87,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
       </header>
       <div className={styles.navigation}>
         <nav aria-label={tx('ゲームメニュー', 'Game menu')}>
-          {([{ id: 'adventure', Icon: Compass, label: tx('冒険', 'Adventure') }, { id: 'summon', Icon: Sparkles, label: tx('星の召喚', 'Wish upon a star') }, { id: 'collection', Icon: Users, label: tx('仲間・編成', 'Companions') }] as const).map(({ id, Icon, label }) => <button key={id} type="button" aria-pressed={view === id} disabled={!!battle} onClick={() => setView(id)}><Icon size={17} /><span>{label}</span>{id === 'collection' && <small>{collected}/{characters.length}</small>}</button>)}
+          {([{ id: 'adventure', Icon: Compass, label: tx('冒険', 'Adventure') }, { id: 'summon', Icon: Sparkles, label: tx('星の召喚', 'Wish upon a star') }, { id: 'collection', Icon: Users, label: tx('仲間・編成', 'Companions') }] as const).map(({ id, Icon, label }) => <button key={id} type="button" aria-pressed={view === id} disabled={!!arena} onClick={() => setView(id)}><Icon size={17} /><span>{label}</span>{id === 'collection' && <small>{collected}/{characters.length}</small>}</button>)}
         </nav><Link href={GUIDE_URL} target="_blank" rel="noopener noreferrer" className={styles.guideLink} aria-label={tx('冒険ガイドを別タブで開く', 'Open adventure guide in a new tab')}><Compass size={17} /><span>{tx('冒険ガイド', 'Adventure guide')}</span></Link><button className={styles.help} type="button" onClick={openInfo} aria-label={tx('遊び方', 'How to play')}><BookOpen size={17} /><span>{tx('遊び方', 'Guide')}</span></button>
       </div>
 
@@ -183,22 +117,14 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
 
       {view === 'collection' && <section ref={contentRef} className={styles.content}>
         <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>YOUR LITTLE CONSTELLATION</p><h2>{tx('仲間と、一緒なら。', 'Better, together.')}</h2><p>{tx('獲得した仲間だけを表示。好きな仲間を最大4体、属性で自由に組み合わせよう。', 'Only acquired companions appear here. Choose up to four favorites and combine their elements.')}</p></div><span>{collected} / {characters.length} {tx('発見', 'discovered')}</span></div>
-        <div className={styles.teamStrip}><strong><Users size={18} />{tx('出撃チーム', 'Your party')} <small>{save.team.length}/4</small></strong><div>{[0, 1, 2, 3].map((index) => { const cat = team[index] ? characterById(team[index], characters) : null; return <div key={index} className={styles.teamSlot}>{cat ? <><CatSprite cat={cat} /><span>{cat.name[language]}</span><button aria-label={tx(`${cat.name.ja}を編成から外す`, `Remove ${cat.name.en} from party`)} disabled={!ready || save.team.length <= 1} onClick={() => dispatch({ type: 'team', id: cat.id })}>×</button></> : <span>＋</span>}</div>; })}</div><button className={styles.textButton} onClick={() => setView('adventure')}>{tx('出撃する', 'To adventure')}<ArrowRight size={16} /></button></div>
+        <div className={styles.teamStrip}><strong><Users size={18} />{tx('冒険パーティー', 'Your party')} <small>{save.team.length}/4</small></strong><div>{[0, 1, 2, 3].map((index) => { const cat = team[index] ? characterById(team[index], characters) : null; return <div key={index} className={styles.teamSlot}>{cat ? <><CatSprite cat={cat} /><span>{cat.name[language]}</span><button aria-label={tx(`${cat.name.ja}を編成から外す`, `Remove ${cat.name.en} from party`)} disabled={!ready || save.team.length <= 1} onClick={() => dispatch({ type: 'team', id: cat.id })}>×</button></> : <span>＋</span>}</div>; })}</div><button className={styles.textButton} onClick={() => setView('adventure')}>{tx('冒険へ', 'To adventure')}<ArrowRight size={16} /></button></div>
         <PartyOverview save={save} characters={characters} language={language} />
         <CompanionCollection save={save} characters={characters} language={language} ready={ready} onAction={dispatch} />
       </section>}
 
+      {/* A new account/region remounts the world: followers, routes and dialogue never cross maps. */}
       {view === 'adventure' && <section ref={contentRef} className={styles.content}>
-        {!battle ? <><div className={styles.sectionHeading}><div><p className={styles.eyebrow}>THE FLOATING ISLES · CHAPTER 01</p><h2>{tx('星をたどる旅。', 'Follow the stars.')}</h2><p>{tx('戦闘が始まったら、画面下の仲間を押して出撃。影の砦を攻略しよう。', 'Once battle begins, press companions at the bottom to deploy and reclaim the fortress.')}</p></div><span>{save.cleared.length} / {STAGES.length} {tx('クリア', 'cleared')}</span></div>
-          <TravelRecord save={save} language={language} />
-          <div className={styles.adventureLayout}><div className={styles.map}><div className={styles.mapSky} /><div className={styles.mapPath} /><div className={styles.stageNodes}>{STAGES.map((item, index) => { const unlocked = index === 0 || save.cleared.includes(index - 1); return <button key={index} aria-pressed={stageIndex === index} disabled={!unlocked || !ready} onClick={() => setStageIndex(index)}><span className={styles.island}>{!unlocked ? <LockKeyhole size={24} /> : save.cleared.includes(index) ? <Check size={28} /> : <span>{String(index + 1).padStart(2, '0')}</span>}</span><strong>{item.name[language]}</strong><small>{save.cleared.includes(index) ? tx('クリア済み', 'Cleared') : unlocked ? tx('冒険へ', 'Ready to explore') : tx('前の島をクリア', 'Clear the previous island')}</small></button>; })}</div></div>
-            <aside className={styles.stagePanel}><p className={styles.eyebrow}>ISLAND {String(stageIndex + 1).padStart(2, '0')}</p><h3>{stage.name[language]}</h3><p>{stage.subtitle[language]}</p><div className={styles.stageDetails}><span>{tx('敵の属性', 'Enemy element')}<b style={{ color: ELEMENTS[stage.element].color }}>{ELEMENTS[stage.element].symbol} {ELEMENTS[stage.element].name[language]}</b></span><span>{tx('敵拠点HP', 'Fortress HP')}<b>{stage.hp.toLocaleString(language)}</b></span><span>{tx('制限時間', 'Time limit')}<b>3:00</b></span></div><p className={styles.eyebrow}>{save.cleared.includes(stageIndex) ? tx('周回報酬', 'REPLAY REWARDS') : tx('初回クリア報酬', 'FIRST CLEAR REWARDS')}</p><div className={styles.rewards}><span><Gem size={17} />{save.cleared.includes(stageIndex) ? 80 : stage.gems}</span><span><Coins size={17} />{save.cleared.includes(stageIndex) ? 120 + stageIndex * 30 : stage.coins}</span></div><div className={styles.miniTeam}>{team.map((id) => <CatSprite key={id} cat={characterById(id, characters)} />)}<button aria-label={tx('編成を変更', 'Edit party')} onClick={() => setView('collection')}><Users size={17} /></button></div><button className={styles.primary} disabled={!ready} onClick={() => dispatch({ type: 'start', stage: stageIndex })}><Swords size={18} />{tx('出撃する', 'Start adventure')}<ArrowRight size={17} /></button><small className={styles.noStamina}>{tx('スタミナ消費なし · 何度でも挑戦', 'No stamina cost · Try as often as you like')}</small></aside>
-          </div><p className={styles.elementGuide}>{tx('有利属性へのダメージ1.5倍：', '1.5× damage with an advantage: ')}{(Object.keys(ELEMENT_ADVANTAGES) as (keyof typeof ELEMENT_ADVANTAGES)[]).map((element) => `${ELEMENTS[element].name[language]} → ${ELEMENT_ADVANTAGES[element].map((target) => ELEMENTS[target].name[language]).join(' / ')}`).join(' · ')}</p>
-        </> : <div className={styles.battlePanel}>
-          <div className={styles.battleHeading}><div><p className={styles.eyebrow}>ISLAND {String(battle.stage + 1).padStart(2, '0')}</p><h2>{STAGES[battle.stage].name[language]}</h2></div><div><button aria-pressed={battleSound} aria-label={tx(`戦闘音 ${battleSound ? 'ON' : 'OFF'}`, `Battle sound ${battleSound ? 'ON' : 'OFF'}`)} onClick={() => { const audio = battleAudio.current ??= createBattleAudio(); audio.enable(!battleSound); setBattleSound(!battleSound); }}>{battleSound ? <Volume2 size={17} /> : <VolumeX size={17} />}</button><span className={styles.timer}>{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}</span><button disabled={battle.status !== 'playing'} onClick={() => setSpeed(speed === 1 ? 2 : 1)} aria-label={tx(`戦闘速度 ${speed}倍`, `Battle speed ${speed}×`)}>{speed}×</button><button disabled={battle.status !== 'playing'} aria-label={battle.paused ? tx('再開', 'Resume') : tx('一時停止', 'Pause')} onClick={() => dispatch({ type: 'pause' })}>{battle.paused ? <Play size={17} /> : <Pause size={17} />}</button></div></div>
-          <Battlefield battle={battle} language={language} characters={characters} />
-          {battle.status === 'playing' ? <><div className={styles.energyBar}><span><WandSparkles size={17} />{tx('出撃エネルギー', 'Deploy energy')} <b>{Math.floor(battle.energy)} / 200</b></span><div><i style={{ width: `${battle.energy / 2}%` }} /></div><small>{tx('毎秒 +14', '+14 / second')}</small></div><div className={styles.deployRow}>{team.map((id) => { const cat = characterById(id, characters); const cooldown = battle.cooldowns[id] ?? 0; return <button key={id} disabled={battle.paused || battle.energy < cat.cost || cooldown > 0 || battle.units.filter((unit) => unit.side === 'ally').length >= 16} onClick={() => dispatch({ type: 'deploy', id })} aria-label={tx(`${cat.name.ja}を出撃`, `Deploy ${cat.name.en}`)} style={colorStyle(cat)}><CatSprite cat={cat} /><span><strong>{cat.name[language]}</strong><small>{ROLES[cat.role][language]} · Lv. {save.owned[id].level}</small><b>{cooldown > 0 ? `${cooldown.toFixed(1)}s` : `✦ ${cat.cost}`}</b></span></button>; })}<button className={styles.cannon} disabled={battle.paused || battle.cannon < 100} onClick={() => dispatch({ type: 'cannon' })}><Sparkles size={25} /><strong>{tx('星の砲撃', 'Star cannon')}</strong><small>{battle.cannon < 100 ? `${Math.ceil((100 - battle.cannon) / 5)}s` : tx('発射！', 'Fire!')}</small></button></div><div className={styles.battleTip}><p>{tx('仲間をタップして出撃。自動で前進・攻撃します。異なる属性を同じ敵に当てて連携しよう。役の必須枠はありません。', 'Tap a companion to deploy. They move and fight automatically. Combine elements on the same enemy for reactions. No role slots are required.')}</p><button onClick={() => dispatch({ type: 'leave' })}>{tx('撤退する', 'Retreat')}</button></div></> : <div className={styles.battleResult} role="status"><span>{battle.status === 'won' ? '✧' : '☾'}</span><p className={styles.eyebrow}>{battle.status === 'won' ? 'ISLAND RECLAIMED' : 'A MOMENT TO REST'}</p><h3>{battle.status === 'won' ? tx('星の光が、戻った！', 'The starlight returns!') : tx('次の冒険に、備えよう。', 'Your next adventure awaits.')}</h3><p>{battle.status === 'won' ? reward?.first ? save.cleared.length === STAGES.length ? tx('最後の砦を攻略！ すべての島に光が戻りました。', 'The final fortress is reclaimed. Starlight shines over every island.') : tx('初回クリア！ 新しい島への道が開きました。', 'First clear! Your journey continues to the next island.') : tx('この島を守りました。報酬を受け取りました。', 'The island is safe. Your rewards have been saved.') : tx('育成や属性連携・共鳴を試して再挑戦しよう。星のしずくやコインは減りません。', 'Train, try element reactions or resonance, and return. You lose no Stardrops or coins.')}</p>{battle.status === 'won' && reward && <div className={styles.rewards}><span><Gem size={20} />+{reward.gems}</span><span><Coins size={20} />+{reward.coins}</span></div>}{save.cleared.length === STAGES.length && battle.status === 'won' && <p>{tx(`全${STAGES.length}島クリア！ 星ねこたちとの旅は、これからも続きます。`, `All ${STAGES.length} islands cleared! Keep collecting and growing your constellation.`)}</p>}<button className={styles.primary} onClick={() => { dispatch({ type: 'leave' }); setStageIndex(Math.min(save.cleared.length, STAGES.length - 1)); }}>{tx('冒険マップへ', 'Back to the islands')}<ArrowRight size={17} /></button></div>}
-        </div>}
+        {!arena ? <><AdventureWorld key={`${snapshot.opened}:${adventureOf(save).region}`} game={state} characters={characters} language={language} ready={ready} readGame={() => progress.getSnapshot().game} dispatch={dispatch} onParty={() => setView('collection')} onWish={() => setView('summon')} /><TravelRecord save={save} language={language} /></> : <AdventureBattle arena={arena} save={save} characters={characters} language={language} ready={ready} dispatch={dispatch} reward={reward} />}
       </section>}
 
       <footer className={styles.footer}><span role="status" data-testid="starcat-save-status"><Shield size={13} />{saveLabel}</span><span>{tx(`課金なし · 全${characters.length}キャラ · 全${STAGES.length}ステージ`, `No purchases · ${characters.length} companions · ${STAGES.length} islands`)}</span></footer>
@@ -206,7 +132,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
 
     {pendingWish !== null && <SummonShow key={`${snapshot.opened}:${pendingWish}`} count={pendingWish} pulls={pulls} characters={characters} language={language} onLaunch={launchWish} onClose={closeWish} onParty={() => { closeWish(); setView('collection'); }} />}
     <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={tx('星ねこキャラバンの遊び方', 'Your guide to Starcat Caravan')}>
-      <div className={styles.guide}><h3>{tx('1. 星に願って、仲間を集める', '1. Make a wish, meet a companion')}</h3><p>{tx('星のしずく100個で1回召喚。通常の提供割合は★5が3%、★4が15%、★3が82%。同じレア度のキャラは均等確率です。', 'One wish costs 100 Stardrops. Base rates: ★5 3%, ★4 15%, ★3 82%. Characters of the same rarity are equally likely.')}</p><p>{tx('★4以上が9回連続で出なければ次は★4以上が確定（★5 3%、★4 97%）。★5が49回連続で出なければ次は★5確定。★5確定が優先され、それぞれのレア度を引くと対応するカウントがリセットされます。1回召喚と10回召喚で共有し、ページを閉じても保持されます。', 'After 9 wishes without a ★4+, the next is guaranteed (★5 3%, ★4 97%). After 49 without a ★5, the next is a ★5. The ★5 guarantee takes precedence. Each counter resets when its rarity or higher appears. Counters carry across single wishes, ten wishes, and visits.')}</p><h3>{tx('2. 育てて、チームを組む', '2. Train and build your party')}</h3><p>{tx('好きな仲間を1〜4体。4役を揃える必要はありません。属性を混ぜると連携、同属性の仲間2体以上でその属性のHP+20%・攻撃/回復力+15%。防御力で被ダメージを軽減し、固有能力は自動発動。★3/4/5で基礎能力に1/1.2/1.5倍の補正。コインでLv.20まで育成。重複1体ごとにHPと攻撃・回復力が4%上昇（5回まで）し、★3/4/5で80/160/320コインも獲得できます。', 'Choose any 1–4 companions; no role slots are required. Mix elements for reactions, or select 2+ of an element for +20% HP and +15% attack/healing to that element. Defense reduces damage and unique abilities trigger automatically. ★3/4/5 multiply base stats by 1/1.2/1.5. Train to level 20 with coins. Each duplicate adds 4% HP and attack/healing power (up to 5 times), plus 80/160/320 coins for ★3/4/5.')}</p><h3>{tx('3. 出撃して、島々を取り戻す', '3. Reclaim the floating islands')}</h3><p>{tx('エネルギーを使って仲間を出撃させます。同じ仲間を繰り返し出撃でき、戦場には最大16体。仲間は自動で前進・攻撃します。星の砲撃は敵全体に140ダメージ、20秒で再充填。3分以内に敵拠点を破壊すれば勝利、自拠点のHPが0になるか時間切れで敗北です。', 'Spend regenerating energy to deploy companions, including multiple copies, up to 16 allies on the field. They move and attack automatically. Star cannon hits every enemy for 140 damage and recharges in 20 seconds. Destroy the fortress within 3 minutes to win. Losing your base or running out of time ends the battle.')}</p><p>{tx('火は風・氷に、水は火に、風は水に、氷は雷に、雷は水にダメージ1.5倍。同じ敵への火＋水で追加ダメージ、火＋風で範囲攻撃、水＋風で味方全体を回復。初回クリアで大きな報酬、周回でも星のしずく80個とコインを獲得。スタミナ制限や課金はありません。', 'Fire beats Wind/Ice, Water beats Fire, Wind beats Water, Ice beats Lightning, and Lightning beats Water for 1.5× damage. Combining Fire/Water adds damage, Fire/Wind spreads damage, and Water/Wind heals living allies. First clears award bonus rewards; replays give 80 Stardrops and coins. No stamina limits or purchases.')}</p><p>{tx('仲間・所持数・育成・編成・星のしずく・コイン・召喚の確定カウント・クリア状況を保存します。ゲストはこのブラウザ、ログイン中はゲームセンターと同じアカウントに自動保存し、別の端末でも復元できます。初めてのアカウントにはゲストの進行を引き継ぎ、記録があるアカウントではその記録を開きます。戦闘の途中は保存されず、マップから再挑戦になります。', 'Your companions, copies, levels, party, Stardrops, coins, wish guarantees, and cleared islands are saved. Guests save in this browser; members autosave to the same account as the medal center and can resume on another device. A new account adopts guest progress; an account with an existing journal opens that journal. Battles in progress are not saved; return to the map to retry.')}</p></div>
+      <div className={styles.guide}><h3>{tx('1. 星に願って、仲間を集める', '1. Make a wish, meet a companion')}</h3><p>{tx('星のしずく100個で1回召喚。通常の提供割合は★5が3%、★4が15%、★3が82%。同じレア度のキャラは均等確率です。', 'One wish costs 100 Stardrops. Base rates: ★5 3%, ★4 15%, ★3 82%. Characters of the same rarity are equally likely.')}</p><p>{tx('★4以上が9回連続で出なければ次は★4以上が確定（★5 3%、★4 97%）。★5が49回連続で出なければ次は★5確定。★5確定が優先され、それぞれのレア度を引くと対応するカウントがリセットされます。1回召喚と10回召喚で共有し、ページを閉じても保持されます。', 'After 9 wishes without a ★4+, the next is guaranteed (★5 3%, ★4 97%). After 49 without a ★5, the next is a ★5. The ★5 guarantee takes precedence. Each counter resets when its rarity or higher appears. Counters carry across single wishes, ten wishes, and visits.')}</p><h3>{tx('2. 育てて、チームを組む', '2. Train and build your party')}</h3><p>{tx('好きな仲間を1〜4体。4役を揃える必要はありません。属性を混ぜると連携、同属性の仲間2体以上でその属性のHP+20%・攻撃/回復力+15%。防御力で被ダメージを軽減し、固有能力は自動発動。★3/4/5で基礎能力に1/1.2/1.5倍の補正。コインでLv.20まで育成。重複1体ごとにHPと攻撃・回復力が4%上昇（5回まで）し、★3/4/5で80/160/320コインも獲得できます。', 'Choose any 1–4 companions; no role slots are required. Mix elements for reactions, or select 2+ of an element for +20% HP and +15% attack/healing to that element. Defense reduces damage and unique abilities trigger automatically. ★3/4/5 multiply base stats by 1/1.2/1.5. Train to level 20 with coins. Each duplicate adds 4% HP and attack/healing power (up to 5 times), plus 80/160/320 coins for ★3/4/5.')}</p><h3>{tx('3. 歩いて探して、島々を取り戻す', '3. Explore and reclaim the islands')}</h3><p>{tx('冒険マップは矢印キー・WASD・方向ボタンで歩けます。行き先をタップしても移動できます。灯守に話し、二つの宝箱を探し、影の砦を攻略して灯台を復元しよう。仲間は先頭に選んだキャラについて歩きます。', 'Walk with arrows, WASD, the direction buttons, or tap a destination. Meet the lightkeeper, find two chests, reclaim the fortress and restore the lantern. Your selected companions follow the party leader.')}</p><p>{tx('戦闘では編成した仲間が最初から一緒に戦います。移動と通常攻撃の連打は不要。矢印・WASD・方向ボタン・地面のタップで歩き、赤い予告範囲から離れよう。通常攻撃と固有能力は自動です。大技は星の絆ボタンかSpace。敵全体へ一撃を放ち、パーティーHPを10%回復します。約13秒でゲージが戻ります。すべての敵と最後のボスを倒すと勝利、パーティーHPが0か3分経過で再挑戦です。', 'Your selected companions enter battle together. Move with arrows, WASD, direction buttons or a ground tap. Step out of red attack warnings. Normal attacks and unique abilities are automatic. Press Star bond or Space for a powerful hit to all enemies and 10% party healing. Its gauge refills in about 13 seconds. Defeat all enemies and the final boss to win; zero party HP or three minutes means another try.')}</p><p>{tx('仲間・育成・編成・通貨・天井・クリアに加え、探索位置・宝箱・灯守との会話・灯火の復元も保存します。ゲストはこのブラウザ、ログイン中はゲームセンターと同じアカウントに自動保存し、別の端末でも復元できます。初めてのアカウントにはゲストの進行を引き継ぎ、記録があるアカウントではその記録を開きます。戦闘の途中は保存されず、マップから再挑戦になります。', 'Your companions, training, party, currencies, guarantees, clears, exploration position, chests, lightkeeper meetings and restored lanterns are saved. Guests save in this browser; members autosave to the same account as the medal center and can resume on another device. A new account adopts guest progress; an account with an existing journal opens that journal. Battles in progress are not saved; return to the map to retry.')}</p></div>
       <p className={styles.guideMore}><Link href={GUIDE_URL} target="_blank" rel="noopener noreferrer">{tx('編成・敵・途中結果・保存の解説を別タブで読む', 'Open the full guide in a new tab')}<ArrowRight size={15} /></Link></p>
     </InfoModal>
   </main>;

@@ -9,7 +9,7 @@ export const ELEMENT_ADVANTAGES: Record<Element, readonly Element[]> = { fire: [
 export const REACTIONS: Record<Reaction, { elements: readonly [Element, Element]; name: Words; detail: Words; color: string }> = {
   steam: { elements: ['fire', 'water'], name: { ja: '蒸気バースト', en: 'Steam burst' }, detail: { ja: '発動した攻撃の75%を追加ダメージ', en: 'Extra damage equal to 75% of the triggering attack' }, color: '#eac8f2' },
   flare: { elements: ['fire', 'wind'], name: { ja: '火花拡散', en: 'Spark spread' }, detail: { ja: '標的と周囲14以内の敵へ、攻撃の50%を追加ダメージ', en: 'Extra 50% attack damage to the target and enemies within 14 units' }, color: '#ffc18c' },
-  bloom: { elements: ['water', 'wind'], name: { ja: '恵みの風', en: 'Restoring breeze' }, detail: { ja: '戦場の味方全体を、発動した攻撃の50%分回復', en: 'Heal every living ally for 50% of the triggering attack' }, color: '#a6e8c5' },
+  bloom: { elements: ['water', 'wind'], name: { ja: '恵みの風', en: 'Restoring breeze' }, detail: { ja: 'パーティーHPを、発動した攻撃の50%分回復', en: 'Heal party HP for 50% of the triggering attack' }, color: '#a6e8c5' },
   melt: { elements: ['fire', 'ice'], name: { ja: '融雪の閃光', en: 'Thaw flash' }, detail: { ja: '標的へ攻撃力85%の追加ダメージ', en: 'Extra 85% attack damage to the target' }, color: '#f3ccbc' },
   freeze: { elements: ['water', 'ice'], name: { ja: '氷結', en: 'Deep freeze' }, detail: { ja: '標的へ25%の追撃と1.2秒の凍結。ボスは半分', en: 'Extra 25% damage and freeze for 1.2 seconds (half for bosses)' }, color: '#b5e6f6' },
   blizzard: { elements: ['wind', 'ice'], name: { ja: '霜の嵐', en: 'Frost gale' }, detail: { ja: '標的と周囲14以内へ45%の追撃と0.6秒の凍結。ボスは半分', en: 'Extra 45% damage and a 0.6-second freeze within 14 units (half freeze for bosses)' }, color: '#caefe7' },

@@ -27,9 +27,9 @@ describe('Starcat character catalog validation', () => {
   it.each([
     ['id', 'Uppercase'], ['id', 'with/slash'], ['id', 'constructor'], ['id', '__proto__'], ['id', 'x'.repeat(49)],
     ['name', { ja: '名前' }], ['name', { ja: ' ', en: 'Name' }], ['name', { ja: '猫', en: 'x'.repeat(81) }],
-    ['title', { ja: '猫', en: 'x'.repeat(121) }], ['rarity', 2], ['element', 'ice'], ['role', 'unknown'],
+    ['title', { ja: '猫', en: 'x'.repeat(121) }], ['rarity', 2], ['element', 'earth'], ['role', 'unknown'],
     ['fur', 'red'], ['accent', '#ffffff00'], ['hp', 0], ['hp', 100001], ['attack', 1.5], ['attack', Infinity],
-    ['range', 41], ['speed', 0], ['cooldown', NaN], ['cost', 201], ['cost', 0],
+    ['defense', -1], ['defense', 501], ['defense', 1.5], ['ability', 'constructor'], ['ability', '__proto__'], ['abilityName', { ja: '', en: 'Test' }], ['range', 41], ['speed', 0], ['cooldown', NaN], ['cost', 201], ['cost', 0],
   ])('rejects invalid %s: %j', (field, value) => {
     const characters = structuredClone(CHARACTERS);
     characters[0] = { ...characters[0], [field as string]: value };
@@ -49,6 +49,11 @@ describe('Starcat character catalog validation', () => {
     }
     const renamed = CHARACTERS.map((cat) => ({ ...cat, name: { ja: '表示名', en: 'Display name' } }));
     expect(validateCharacters(renamed)).toEqual(renamed);
+  });
+
+  it('reads legacy twelve-cat catalogs before migration without inventing new fields', () => {
+    const legacy = CHARACTERS.slice(0, 12).map(({ defense: _d, ability: _a, abilityName: _n, ...cat }) => cat);
+    expect(validateCharacters(legacy)).toEqual(legacy);
   });
 
   it.each([null, [], {}, { revision: 0, characters: CHARACTERS }, { revision: 1.5, characters: CHARACTERS }, { revision: '1', characters: CHARACTERS }])('rejects malformed catalog envelopes: %j', (value) => {

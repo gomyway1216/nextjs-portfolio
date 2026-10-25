@@ -3,7 +3,7 @@ import { CHARACTERS, STAGES, type Character, type Element } from '@/components/g
 import { REACTIONS, partyElements, reactionFor } from '@/components/game/StarcatCaravan/elements';
 import { catStats, deploy, fireCannon, newSave, parseSave, startBattle, tickBattle, type Battle, type Unit } from '@/components/game/StarcatCaravan/engine';
 
-const cats: Character[] = (['fire', 'water', 'wind'] as const).map((element) => ({ ...CHARACTERS[0], id: `test-${element}`, element, role: 'fighter' }));
+const cats: Character[] = (['fire', 'water', 'wind', 'ice', 'lightning'] as const).map((element) => ({ ...CHARACTERS[0], id: `test-${element}`, element, role: 'fighter' }));
 const unit = (element: Element, key: number): Unit => ({ key, catId: `test-${element}`, side: 'ally', x: 50, hp: 100, maxHp: 200, attack: 100, range: 10, speed: 0, element, cooldown: 0, flash: 0, boss: false });
 function arena(elements: Element[]): Battle {
   const battle = startBattle(newSave(), 0)!;
@@ -11,6 +11,25 @@ function arena(elements: Element[]): Battle {
 }
 
 describe('element reactions, with no required roles', () => {
+  it('supports every unordered pair of the five elements', () => {
+    expect(Object.keys(REACTIONS)).toHaveLength(10);
+    const elements = ['fire', 'water', 'wind', 'ice', 'lightning'] as const;
+    for (let i = 0; i < elements.length; i++) for (let j = i + 1; j < elements.length; j++) expect(reactionFor(elements[i], elements[j])).not.toBeNull();
+  });
+
+  it.each([false, true])('freezes for 1.2 seconds, halved for bosses (%s)', (boss) => {
+    const before = arena(['water', 'ice']); before.units.at(-1)!.boss = boss;
+    const after = tickBattle(before, .1, cats);
+    expect(after.units.at(-1)!.frozenUntil! - after.time).toBeCloseTo(boss ? .6 : 1.2);
+  });
+
+  it('chains a lightning reaction to only the two closest additional enemies', () => {
+    const before = arena(['water', 'lightning']); const target = before.units.at(-1)!;
+    before.units.push(...[65, 70, 74].map((x, i) => ({ ...target, x, key: 91 + i })));
+    const after = tickBattle(before, .1, cats);
+    for (const key of [91, 92]) { expect(after.units.find((unit) => unit.key === key)?.hp).toBe(1935); expect(after.units.find((unit) => unit.key === key)?.aura).toBeUndefined(); }
+    expect(after.units.find((unit) => unit.key === 93)?.hp).toBe(2000);
+  });
   it.each(Object.keys(REACTIONS) as (keyof typeof REACTIONS)[])('combines both attack orders for %s and preserves the previous battle', (id) => {
     const [first, second] = REACTIONS[id].elements;
     for (const order of [[first, second], [second, first]]) {

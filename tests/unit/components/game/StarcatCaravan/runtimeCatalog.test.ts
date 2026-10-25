@@ -40,7 +40,7 @@ describe('runtime character catalogs', () => {
     expect(parseSave(raw, first)).toEqual(save);
     expect(characterById('ember', first).name.en).toBe('Ember renamed');
     const expectedMultiplier = (1 + 3 * 0.14) * (1 + 2 * 0.04);
-    expect(catStats('ember', save.owned.ember, first)).toEqual({ hp: Math.round(900 * expectedMultiplier), attack: Math.round(80 * expectedMultiplier) });
+    expect(catStats('ember', save.owned.ember, first)).toEqual({ hp: Math.round(900 * expectedMultiplier), attack: Math.round(80 * expectedMultiplier), defense: 16 });
     const battle = startBattle(save, 0)!;
     const firstUnit = deploy(battle, save, 'ember', first).units[0];
     const secondUnit = deploy(battle, save, 'ember', second).units[0];
@@ -70,7 +70,7 @@ describe('runtime character catalogs', () => {
     state = gameReducer(state, { type: 'deploy', id: 'nova' }, characters);
     state = gameReducer(state, { type: 'tick' }, characters);
     // The added Wind companion joins the existing Wind members, so resonance applies.
-    expect(state.battle?.units[0]).toMatchObject({ catId: 'nova', maxHp: 274, attack: 53 });
+    expect(state.battle?.units[0]).toMatchObject({ catId: 'nova', maxHp: 410, attack: 78 });
     expect(state.battle?.time).toBe(0.1);
   });
 

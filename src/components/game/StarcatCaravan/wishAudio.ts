@@ -2,12 +2,12 @@ export type WishCue = 'charge' | 'launch' | 'reveal-3' | 'reveal-4' | 'reveal-5'
 export const WISH_AUDIO = Object.fromEntries(['charge', 'launch', 'reveal-3', 'reveal-4', 'reveal-5'].map((cue) => [cue, `/audio/starcat-caravan/${cue}-v2.mp3`])) as Record<WishCue, string>;
 
 /** One musical scene at a time. A queued cue must never play after skip/close/mute. */
-export function createWishAudio(makeContext: () => AudioContext = () => new AudioContext(), fetcher: typeof fetch = fetch) {
+export function createCueAudio<Cue extends string>(paths: Record<Cue, string>, makeContext: () => AudioContext = () => new AudioContext(), fetcher: typeof fetch = fetch, options: { loop?: Cue; volume?: number } = {}) {
   let context: AudioContext | null = null;
   let enabled = false;
   let version = 0;
   let active: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
-  const buffers = new Map<WishCue, Promise<AudioBuffer>>();
+  const buffers = new Map<Cue, Promise<AudioBuffer>>();
 
   function stop() {
     version++;
@@ -19,11 +19,11 @@ export function createWishAudio(makeContext: () => AudioContext = () => new Audi
     source.disconnect(); gain.disconnect();
   }
 
-  function load(cue: WishCue): Promise<AudioBuffer> {
+  function load(cue: Cue): Promise<AudioBuffer> {
     const cached = buffers.get(cue);
     if (cached) return cached;
-    const pending = fetcher(WISH_AUDIO[cue]).then((response) => {
-      if (!response.ok) throw new Error('Wish sound unavailable');
+    const pending = fetcher(paths[cue]).then((response) => {
+      if (!response.ok) throw new Error('Game sound unavailable');
       return response.arrayBuffer();
     }).then((bytes) => context!.decodeAudioData(bytes));
     buffers.set(cue, pending);
@@ -39,10 +39,10 @@ export function createWishAudio(makeContext: () => AudioContext = () => new Audi
         context ??= makeContext();
         void context.resume().catch(() => undefined);
         // Started by the explicit sound toggle; no audio or network work before consent.
-        for (const cue of Object.keys(WISH_AUDIO) as WishCue[]) void load(cue).catch(() => undefined);
+        for (const cue of Object.keys(paths) as Cue[]) void load(cue).catch(() => undefined);
       } catch { enabled = false; }
     },
-    play(cue: WishCue) {
+    play(cue: Cue) {
       stop();
       if (!enabled || !context) return;
       const ticket = version;
@@ -50,8 +50,8 @@ export function createWishAudio(makeContext: () => AudioContext = () => new Audi
         if (!enabled || ticket !== version || !context || context.state === 'closed') return;
         const source = context.createBufferSource();
         const gain = context.createGain();
-        source.buffer = buffer; source.loop = cue === 'charge';
-        gain.gain.value = cue === 'charge' ? .3 : .65;
+        source.buffer = buffer; source.loop = cue === options.loop;
+        gain.gain.value = cue === options.loop ? .3 : options.volume ?? .65;
         source.connect(gain); gain.connect(context.destination);
         active = { source, gain };
         source.onended = () => { source.disconnect(); gain.disconnect(); if (active?.source === source) active = null; };
@@ -62,3 +62,5 @@ export function createWishAudio(makeContext: () => AudioContext = () => new Audi
     dispose() { enabled = false; stop(); void context?.close().catch(() => undefined); },
   };
 }
+
+export function createWishAudio(makeContext?: () => AudioContext, fetcher?: typeof fetch) { return createCueAudio<WishCue>(WISH_AUDIO, makeContext, fetcher, { loop: 'charge' }); }

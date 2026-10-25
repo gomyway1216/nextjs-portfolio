@@ -9,6 +9,7 @@ import { auth } from '@/lib/firebaseConnect';
 import { CatSprite } from './CatSprite';
 import { ELEMENTS, ROLES, type Character } from './data';
 import { parseCharacterCatalog, validateCharacters, type CharacterCatalog } from './catalog';
+import { ABILITIES } from './abilities';
 
 const ENDPOINT = '/api/game/starcat/catalog';
 const inputClass = 'mt-1 block w-full rounded-lg border px-3 py-2 text-sm disabled:opacity-60';
@@ -18,7 +19,7 @@ const panelStyle: CSSProperties = { background: 'var(--admin-surface)', borderCo
 const actionStyle: CSSProperties = { background: 'var(--admin-accent)', color: 'var(--admin-primary-text)', borderColor: 'var(--admin-accent)' };
 
 function newCharacter(): Character {
-  return { id: '', name: { ja: '', en: '' }, title: { ja: '', en: '' }, rarity: 3, element: 'fire', role: 'fighter', fur: '#f6bd79', accent: '#ed9870', hp: 180, attack: 30, range: 6, speed: 7, cost: 45, cooldown: 3 };
+  return { id: '', name: { ja: '', en: '' }, title: { ja: '', en: '' }, rarity: 3, element: 'fire', role: 'fighter', fur: '#f6bd79', accent: '#ed9870', hp: 180, attack: 30, defense: 8, ability: 'none', range: 6, speed: 7, cost: 45, cooldown: 3 };
 }
 
 export async function readCatalogResponse(response: Response, operation: 'load' | 'save'): Promise<CharacterCatalog> {
@@ -42,6 +43,7 @@ async function readCatalog(signal?: AbortSignal): Promise<CharacterCatalog> {
 const combatFields = [
   { key: 'hp', label: 'HP', min: 1, max: 100000, step: 1 },
   { key: 'attack', label: '攻撃・回復力', min: 1, max: 10000, step: 1 },
+  { key: 'defense', label: '防御力', min: 0, max: 500, step: 1 },
   { key: 'range', label: '射程', min: 1, max: 40, step: 0.1 },
   { key: 'speed', label: '移動速度', min: 0.1, max: 30, step: 0.1 },
   { key: 'cost', label: '出撃エネルギー', min: 1, max: 200, step: 1 },
@@ -77,8 +79,11 @@ export function CharacterFields({ character, saved, onChange }: { character: Cha
     <div className="grid gap-4 sm:grid-cols-2">
       {([{ key: 'fur', label: '毛色' }, { key: 'accent', label: '衣装・アクセント色' }] as const).map(({ key, label }) => <label key={key} className="block text-sm font-medium">{label}<input type="color" className={`${inputClass} h-12`} style={fieldStyle} value={character[key]} onChange={(event) => change({ [key]: event.target.value })} /></label>)}
     </div>
+    <div className="space-y-4"><label className="block text-sm font-medium">固有能力の効果<select className={inputClass} style={fieldStyle} value={character.ability ?? 'none'} onChange={(event) => change({ ability: event.target.value as Character['ability'] })}>{(Object.keys(ABILITIES) as (keyof typeof ABILITIES)[]).map((id) => <option key={id} value={id}>{ABILITIES[id].name.ja}</option>)}</select><span className="mt-2 block text-xs font-normal">{ABILITIES[character.ability ?? 'none'].detail.ja}</span></label>
+      <div className="grid gap-4 sm:grid-cols-2">{(['ja', 'en'] as const).map((language) => <label className="block text-sm font-medium" key={language}>個別の能力名（{language === 'ja' ? '日本語' : 'English'}・任意）<input className={inputClass} style={fieldStyle} value={character.abilityName?.[language] ?? ''} maxLength={80} required={!!character.abilityName} onChange={(event) => { const names = { ja: character.abilityName?.ja ?? '', en: character.abilityName?.en ?? '', [language]: event.target.value }; change({ abilityName: names.ja || names.en ? names : undefined }); }} /></label>)}</div>
+    </div>
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {combatFields.map(({ key, label, min, max, step }) => <label key={key} className="block text-sm font-medium">{label}<input type="number" className={inputClass} style={fieldStyle} value={character[key] || ''} min={min} max={max} step={step} required onChange={(event) => change({ [key]: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>)}
+      {combatFields.map(({ key, label, min, max, step }) => <label key={key} className="block text-sm font-medium">{label}<input type="number" className={inputClass} style={fieldStyle} value={character[key] ?? 0} min={min} max={max} step={step} required onChange={(event) => change({ [key]: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>)}
     </div>
   </div>;
 }
@@ -180,7 +185,7 @@ function CatalogEditor({ currentUser }: { currentUser: NonNullable<ReturnType<ty
           {character && <fieldset disabled={busy} className="min-w-0 rounded-xl border p-5 sm:p-7" style={panelStyle}>
             <legend className="sr-only">選択したキャラクターの編集</legend>
             <CharacterFields character={character} saved={selected < saved.characters.length} onChange={(next) => { setDraft(draft.map((cat, index) => index === selected ? next : cat)); setMessage(''); }} />
-            <p className="mt-5 text-xs leading-5" style={{ color: 'var(--admin-text-muted)' }}>能力値はLv.1・重複なしの値です。追加した仲間は同じレア度の仲間と均等な確率で召喚されます。</p>
+            <p className="mt-5 text-xs leading-5" style={{ color: 'var(--admin-text-muted)' }}>補正前の基礎能力値です。★3は1倍・★4は1.2倍・★5は1.5倍のレア度補正と、育成・重複の補正が加わります。追加した仲間は同じレア度の仲間と均等な確率で召喚されます。</p>
             {selected >= saved.characters.length && <button type="button" className={`${buttonClass} mt-4`} style={fieldStyle} onClick={() => { setDraft(draft.filter((_, index) => index !== selected)); setSelected(Math.max(0, selected - 1)); }}>この未保存の追加を取り消す</button>}
           </fieldset>}
         </div>

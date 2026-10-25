@@ -66,9 +66,9 @@ describe('travel journal and the field guide', () => {
 
   it.each(['ja', 'en'] as const)('provides all guide anchors and distinguishes saved progress from in-battle state (%s)', (language) => {
     const html = renderToStaticMarkup(<GuideContent language={language} />);
-    for (const id of ['journey', 'roles', 'elements', 'enemies', 'growth', 'saving']) { expect(html).toContain(`id="${id}"`); expect(html).toContain(`href="#${id}"`); }
+    for (const id of ['journey', 'roles', 'elements', 'enemies', 'growth', 'abilities', 'saving']) { expect(html).toContain(`id="${id}"`); expect(html).toContain(`href="#${id}"`); }
     expect(html).toContain(language === 'ja' ? '水＋風なら回復役がいなくても' : 'Water + Wind can heal');
-    expect(html).toContain(language === 'ja' ? '戦闘途中のHP・敵の位置・残り時間' : 'In-battle HP, enemy positions and remaining time');
+    expect(html).toContain(language === 'ja' ? '戦闘途中のHP・敵の位置・残り時間' : 'In-battle HP, enemy positions, remaining time');
     expect(html).toContain(language === 'ja' ? '実績バッジ・称号・達成日時' : 'Dedicated achievement badges, titles and unlock timestamps');
     expect(html).toContain(language === 'ja' ? '現在まだありません' : 'not currently implemented');
     expect(html).not.toContain('luna-v1.webp');

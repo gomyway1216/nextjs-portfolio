@@ -1,4 +1,5 @@
-import { CHARACTERS, type Character, type Words } from './data';
+import { ELEMENTS, ORIGINAL_CHARACTER_IDS, type Ability, type Character, type Words } from './data';
+import { ABILITIES } from './abilities';
 
 export interface CharacterCatalog { revision: number; characters: Character[] }
 
@@ -9,7 +10,7 @@ export class CatalogError extends Error {
   }
 }
 
-const BOOTSTRAP_IDS = CHARACTERS.map((cat) => cat.id);
+const BOOTSTRAP_IDS = ORIGINAL_CHARACTER_IDS;
 const ID = /^[a-z][a-z0-9-]{0,47}$/;
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const RESERVED_IDS = new Set(['constructor', 'prototype', '__proto__']);
@@ -56,14 +57,18 @@ export function validateCharacters(value: unknown): Character[] {
     const { rarity, role, element, fur, accent } = entry;
     if (rarity !== 3 && rarity !== 4 && rarity !== 5) throw new CatalogError(`${id}.rarity must be 3, 4, or 5.`);
     if (role !== 'guard' && role !== 'fighter' && role !== 'ranger' && role !== 'healer') throw new CatalogError(`${id}.role is not supported.`);
-    if (element !== 'fire' && element !== 'water' && element !== 'wind') throw new CatalogError(`${id}.element is not supported.`);
+    if (typeof element !== 'string' || !Object.hasOwn(ELEMENTS, element)) throw new CatalogError(`${id}.element is not supported.`);
+    if (entry.ability !== undefined && (typeof entry.ability !== 'string' || !Object.hasOwn(ABILITIES, entry.ability))) throw new CatalogError(`${id}.ability is not supported.`);
     if (typeof fur !== 'string' || !COLOR.test(fur) || typeof accent !== 'string' || !COLOR.test(accent)) throw new CatalogError(`${id} colors must use #RRGGBB.`);
     return {
       id, name: words(entry.name, `${id}.name`, 80), title: words(entry.title, `${id}.title`, 120),
       ...(entry.portraitUrl !== undefined ? { portraitUrl: portraitUrl(entry.portraitUrl, id) } : {}),
-      rarity, role, element, fur, accent,
+      rarity, role, element: element as Character['element'], fur, accent,
       hp: number(entry.hp, `${id}.hp`, 1, 100000, true),
       attack: number(entry.attack, `${id}.attack`, 1, 10000, true),
+      ...(entry.defense !== undefined ? { defense: number(entry.defense, `${id}.defense`, 0, 500, true) } : {}),
+      ...(entry.ability !== undefined ? { ability: entry.ability as Ability } : {}),
+      ...(entry.abilityName !== undefined ? { abilityName: words(entry.abilityName, `${id}.abilityName`, 80) } : {}),
       range: number(entry.range, `${id}.range`, 1, 40),
       speed: number(entry.speed, `${id}.speed`, 0.1, 30),
       cost: number(entry.cost, `${id}.cost`, 1, 200, true),

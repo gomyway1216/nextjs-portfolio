@@ -118,3 +118,25 @@ for (const rarity of [3, 4, 5]) {
   }
   exportTrack(`reveal-${rarity}`, cue, rarity === 5 ? .5 : .36);
 }
+
+const impact = track(.8);
+impact.air(0, .2, .7, false);
+impact.add(.015, .55, .7, -.15, (t) => Math.sin(tau * (95 * t + 12 * (1 - Math.exp(-t * 15)))) * envelope(t, .003, .02, .09));
+impact.harp([50, 62], .03, .025, .06);
+exportTrack('battle-impact', impact, .1);
+
+const frost = track(1.4);
+frost.harp([90, 95, 102, 107, 114], 0, .035, .22);
+frost.air(.03, .6, .5, false);
+exportTrack('battle-frost', frost, .22);
+
+const thunder = track(1.1);
+thunder.air(0, .18, 1.1, false);
+for (let i = 0; i < 4; i++) thunder.add(i * .065, .18, .3, i % 2 ? .5 : -.5, (t) => (Math.sin(tau * (220 * t + 90 * t * t)) + noise() * .6) * envelope(t, .002, .01, .035));
+thunder.add(.02, .6, .4, 0, (t) => Math.sin(tau * 48 * t) * envelope(t, .008, .03, .15));
+exportTrack('battle-thunder', thunder, .16);
+
+const support = track(1.8);
+support.harp([74, 78, 81, 86], 0, .09, .2);
+support.strings([62, 69, 74], .04, 1.4, .2);
+exportTrack('battle-support', support, .27);

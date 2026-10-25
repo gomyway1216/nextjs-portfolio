@@ -21,7 +21,8 @@ function track(seconds) {
   function add(at, duration, amplitude, pan, voice) {
     const start = Math.round(at * rate);
     const gains = [Math.sqrt((1 - pan) / 2), Math.sqrt((1 + pan) / 2)];
-    for (let i = 0; i < duration * rate && start + i < channels[0].length; i++) {
+    const sampleCount = Math.ceil(duration * rate);
+    for (let i = 0; i < sampleCount && start + i < channels[0].length; i++) {
       const value = voice(i / rate, i) * amplitude;
       channels[0][start + i] += value * gains[0]; channels[1][start + i] += value * gains[1];
     }

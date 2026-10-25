@@ -14,9 +14,9 @@ function play(save:Save,stage:number):Arena{
 }
 describe('simple party adventure battles',()=>{
   it('fills phone viewports without empty bands and keeps the camera inside the arena',()=>{
-    for (const [width,height] of [[302,447],[372,624],[412,712],[550,300]]) {
+    for (const [width,height] of [[302,522],[372,699],[412,772],[550,175],[828,245]]) {
       for (const player of [{x:5,y:7},{x:50,y:30},{x:95,y:53}]) {
-        const [x,y,w,h]=arenaViewBox(player,width,height).split(' ').map(Number);
+        const [x,y,w,h]=arenaViewBox(player,width,height,true).split(' ').map(Number);
         expect(w/h).toBeCloseTo(width/height);
         expect(x).toBeGreaterThanOrEqual(0);expect(y).toBeGreaterThanOrEqual(0);
         expect(x+w).toBeLessThanOrEqual(960);expect(y+h).toBeLessThanOrEqual(600);

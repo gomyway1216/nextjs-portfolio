@@ -2,6 +2,10 @@
 
 Route: `/games/starcat-caravan`. A free collectible adventure with walkable islands, stories and simple party battles, using the existing account progress service.
 
+## Mobile viewport
+
+The Starcat game route owns its phone layout. The site toolbar is hidden on phone portrait widths and short landscape screens, while the guide, games index and other routes keep normal navigation. The game’s exit links remain available. Battle sizing uses the browser viewport height; CSS signals the compact layout to the camera so portrait and landscape frames both fill without empty SVG bands. Desktop framing stays unchanged. Guest sign-in invitations appear outside active battles.
+
 ## Walkable adventure
 
 `AdventureWorld.tsx` is the default screen. Lead with any selected companion and the rest of the party follow. Move using arrows/WASD, press E to interact, hold the touch direction buttons, or tap a destination. Tap navigation uses breadth-first paths around trees, rocks and the river, crossing only at the bridge. A responsive camera follows the leader on narrow screens. Landscapes and landmarks are native SVG; the existing transparent character artwork is reused, with a short walking sway rather than new directional sprite sheets.

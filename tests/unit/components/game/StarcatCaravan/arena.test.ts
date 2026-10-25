@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aimArena, battleDirection, castArenaBurst, createArena, encounterCount, steerArena, tickArena, type Arena, type ArenaEnemy } from '@/components/game/StarcatCaravan/arena';
+import { aimArena, arenaViewBox, battleDirection, castArenaBurst, createArena, encounterCount, steerArena, tickArena, type Arena, type ArenaEnemy } from '@/components/game/StarcatCaravan/arena';
 import { CHARACTERS, STAGES } from '@/components/game/StarcatCaravan/data';
 import { gameReducer, initialGame, newSave, parseSave, type GameState, type Save } from '@/components/game/StarcatCaravan/engine';
 
@@ -13,6 +13,20 @@ function play(save:Save,stage:number):Arena{
   return arena;
 }
 describe('simple party adventure battles',()=>{
+  it('fills phone viewports without empty bands and keeps the camera inside the arena',()=>{
+    for (const [width,height] of [[302,447],[372,624],[412,712],[550,300]]) {
+      for (const player of [{x:5,y:7},{x:50,y:30},{x:95,y:53}]) {
+        const [x,y,w,h]=arenaViewBox(player,width,height).split(' ').map(Number);
+        expect(w/h).toBeCloseTo(width/height);
+        expect(x).toBeGreaterThanOrEqual(0);expect(y).toBeGreaterThanOrEqual(0);
+        expect(x+w).toBeLessThanOrEqual(960);expect(y+h).toBeLessThanOrEqual(600);
+        expect(player.x*10).toBeGreaterThanOrEqual(x);expect(player.x*10).toBeLessThanOrEqual(x+w);
+        expect(player.y*10).toBeGreaterThanOrEqual(y);expect(player.y*10).toBeLessThanOrEqual(y+h);
+      }
+    }
+    expect(arenaViewBox({x:50,y:30},960,600)).toBe('0 0 960 600');
+    expect(arenaViewBox({x:50,y:30},0,0)).toBe('0 0 960 600');
+  });
   it('routes only exact arrow and WASD keys for both press and release',()=>{
     for (const [keys,direction] of [
       [['ArrowUp','w','W'],'up'], [['ArrowDown','s','S'],'down'],

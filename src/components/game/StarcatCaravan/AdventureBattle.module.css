@@ -44,13 +44,22 @@
 .rewards span { display:flex; align-items:center; gap:8px; }
 .tip { font-size:11px; color:#aebfc7 !important; margin-top:12px !important; line-height:1.8; }
 @media(max-width:599px){
-  .header { flex-wrap:wrap; }
-  .header > div:last-child { margin-left:auto; }
-  .scene { height:clamp(340px,calc(100dvh - 330px),450px); }
+  .battle { padding-block:4px; }
+  .header { gap:8px; margin-bottom:8px; }
+  .header > div:first-child { flex:1; min-width:0; }
+  .header > div:first-child > span,.back span,.howTo > span { display:none; }
+  .header h2 { font-size:clamp(17px,4.8vw,20px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .header > div:last-child { flex-shrink:0; gap:4px; }
+  .header button { padding:8px; }
+  .howTo { display:block; margin-bottom:8px; }
+  .howTo p { font-size:10px; line-height:1.5; }
+  /* The camera follows this shape instead of letterboxing a square view. */
+  .scene { height:max(300px,calc(100dvh - 205px)); }
   .hp { top:10px; left:10px; width:calc(100% - 20px); }
   .boss { top:75px; right:10px; width:55%; }
   .wave { top:75px; right:10px; font-size:10px; }
   .dpad { bottom:12px; left:12px; grid-template:repeat(2,44px)/repeat(3,44px); }
   .skill { right:12px; bottom:12px; min-width:125px; min-height:93px; padding:8px 12px; }
+  .tip { display:none; }
 }
 @media(prefers-reduced-motion:reduce){.walking,.effect,.burst{animation:none;}.companion{transition:none;}}

@@ -78,7 +78,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
     : status.where === 'unreadable' ? tx('アカウントの記録を読み込めません', 'Account journal unavailable')
     : tx('このブラウザに自動保存', 'Saved in this browser');
 
-  return <main className={styles.page}>
+  return <main className={styles.page} data-battle={hasBattle || undefined}>
     <div className={styles.shell}>
       <div className={styles.topline}><Link href="/games"><ArrowLeft size={15} />{tx('ゲーム一覧', 'All games')}</Link><span><i />{tx('無料で遊べるガチャRPG', 'A free collectible adventure')}</span></div>
       <header className={styles.header}>

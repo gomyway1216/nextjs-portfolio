@@ -319,4 +319,18 @@
   .page * { animation: none !important; transition: none !important; }
 }
 
+@media (max-width: 599px) {
+  .page { padding:8px 8px 12px; }
+  .topline { margin-bottom:4px; }
+  .header { gap:8px; padding-bottom:8px; }
+  .navigation { margin-bottom:8px; }
+  .navigation button { min-height:44px; }
+  .footer { gap:6px; margin-top:12px; }
+  .page[data-battle='true'] { min-height:calc(100dvh - 60px); }
+  /* Battle has its own back, pause and sound controls. */
+  .page[data-battle='true'] .topline,
+  .page[data-battle='true'] .header,
+  .page[data-battle='true'] .navigation { display:none; }
+}
+
 .reactionLog { flex-wrap: wrap; }

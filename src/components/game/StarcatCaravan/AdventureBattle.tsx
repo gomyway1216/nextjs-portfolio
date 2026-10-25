@@ -20,7 +20,7 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
   const audio=useRef<ReturnType<typeof createBattleAudio>|null>(null),lastSound=useRef(0),lastPlayed=useRef(0);
   const playing=arena.status==='playing',running=playing&&!arena.paused&&ready;
   const boss=arena.enemies.find(enemy=>enemy.boss);
-  useEffect(()=>{root.current?.focus({preventScroll:true});const observer=new ResizeObserver(([entry])=>setViewport({width:entry.contentRect.width,height:entry.contentRect.height}));if(svg.current)observer.observe(svg.current);return()=>observer.disconnect();},[]);
+  useEffect(()=>{root.current?.focus({preventScroll:true});const observer=new ResizeObserver(([entry])=>{const {width,height}=entry.target.getBoundingClientRect();setViewport({width,height});});if(svg.current)observer.observe(svg.current);return()=>observer.disconnect();},[]);
   useEffect(()=>{
     if(!running)return;
     const timer=window.setInterval(()=>{if(!document.hidden)dispatch({type:'arena-tick'});},100);

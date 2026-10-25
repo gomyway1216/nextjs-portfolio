@@ -7,7 +7,7 @@ vi.mock('@/providers/AuthProvider', () => ({ useAuth: auth }));
 vi.mock('@/lib/firebaseConnect', () => ({ auth: { currentUser: null } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
 
-import CharacterCatalogAdmin, { CharacterFields } from '@/components/game/StarcatCaravan/CharacterCatalogAdmin';
+import CharacterCatalogAdmin, { CharacterFields, readCatalogResponse } from '@/components/game/StarcatCaravan/CharacterCatalogAdmin';
 
 describe('character administration access and form', () => {
   it.each([
@@ -48,5 +48,32 @@ describe('character administration access and form', () => {
     expect(idInput).toBeDefined();
     expect(idInput).not.toContain('disabled=""');
     expect(idInput).toContain('maxLength="48"');
+  });
+});
+
+describe('catalog response failures', () => {
+  it.each(['load', 'save'] as const)('keeps a JSON API error readable during %s', async (operation) => {
+    await expect(readCatalogResponse(new Response(JSON.stringify({ error: '管理者としてログインしてください。' }), { status: 403 }), operation)).rejects.toThrow('管理者としてログインしてください。');
+  });
+
+  it.each([
+    [502, '<html>Bad Gateway</html>'],
+    [504, 'Gateway Timeout'],
+    [500, 'null'],
+    [503, '{"error":null}'],
+    [400, '{"error":""}'],
+  ] as const)('uses friendly load/save messages for HTTP %s with body %s', async (status, body) => {
+    await expect(readCatalogResponse(new Response(body, { status }), 'load')).rejects.toThrow('キャラクターを読み込めませんでした。時間をおいて再試行してください。');
+    await expect(readCatalogResponse(new Response(body, { status }), 'save')).rejects.toThrow('保存できませんでした。編集中の内容は残っています。時間をおいて再試行してください。');
+  });
+
+  it.each(['<html>Unavailable</html>', 'null', '{', '{}'])('does not accept a malformed successful response: %s', async (body) => {
+    await expect(readCatalogResponse(new Response(body, { status: 200 }), 'load')).rejects.toThrow('キャラクターデータの形式を確認できませんでした。');
+    await expect(readCatalogResponse(new Response(body, { status: 200 }), 'save')).rejects.toThrow('保存結果を確認できませんでした。編集中の内容を控えてから再読込してください。');
+  });
+
+  it('accepts a valid catalog response', async () => {
+    const catalog = { revision: 7, characters: CHARACTERS };
+    await expect(readCatalogResponse(new Response(JSON.stringify(catalog)), 'save')).resolves.toEqual(catalog);
   });
 });

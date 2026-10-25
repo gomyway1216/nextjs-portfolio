@@ -21,13 +21,22 @@ function newCharacter(): Character {
   return { id: '', name: { ja: '', en: '' }, title: { ja: '', en: '' }, rarity: 3, element: 'fire', role: 'fighter', fur: '#f6bd79', accent: '#ed9870', hp: 180, attack: 30, range: 6, speed: 7, cost: 45, cooldown: 3 };
 }
 
+export async function readCatalogResponse(response: Response, operation: 'load' | 'save'): Promise<CharacterCatalog> {
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    const fallback = operation === 'load' ? 'キャラクターを読み込めませんでした。時間をおいて再試行してください。' : '保存できませんでした。編集中の内容は残っています。時間をおいて再試行してください。';
+    const message = body !== null && typeof body === 'object' && 'error' in body && typeof body.error === 'string' && body.error.trim() ? body.error : fallback;
+    throw new Error(message);
+  }
+  const body: unknown = await response.json().catch(() => null);
+  const catalog = parseCharacterCatalog(body);
+  if (!catalog) throw new Error(operation === 'load' ? 'キャラクターデータの形式を確認できませんでした。再読込してください。' : '保存結果を確認できませんでした。編集中の内容を控えてから再読込してください。');
+  return catalog;
+}
+
 async function readCatalog(signal?: AbortSignal): Promise<CharacterCatalog> {
   const response = await fetch(ENDPOINT, { cache: 'no-store', signal });
-  const body = await response.json();
-  if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'キャラクターを読み込めませんでした。');
-  const catalog = parseCharacterCatalog(body);
-  if (!catalog) throw new Error('キャラクターデータの形式を確認できませんでした。再読込してください。');
-  return catalog;
+  return readCatalogResponse(response, 'load');
 }
 
 const combatFields = [
@@ -127,16 +136,14 @@ function CatalogEditor({ currentUser }: { currentUser: NonNullable<ReturnType<ty
       const token = await currentUser.getIdToken();
       if (!mounted.current || auth?.currentUser?.uid !== currentUser.uid) return;
       const response = await fetch(ENDPOINT, { method: 'PUT', cache: 'no-store', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: saved.revision, characters }) });
-      const body = await response.json();
       if (!mounted.current) return;
       if (response.status === 409) {
         setConflict(true);
         setError('別の画面でキャラクターが更新されました。編集中の内容は残っています。内容を控えてから、最新データを再読込してください。');
         return;
       }
-      if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : '保存できませんでした。再試行してください。');
-      const catalog = parseCharacterCatalog(body);
-      if (!catalog) throw new Error('保存結果を確認できませんでした。編集中の内容を控えてから再読込してください。');
+      const catalog = await readCatalogResponse(response, 'save');
+      if (!mounted.current) return;
       setSaved(catalog); setDraft(catalog.characters); setMessage('保存しました。ゲームを開き直すと、新しい内容が反映されます。');
     } catch (reason) {
       if (mounted.current) setError(reason instanceof Error ? reason.message : '保存できませんでした。編集中の内容は残っています。');

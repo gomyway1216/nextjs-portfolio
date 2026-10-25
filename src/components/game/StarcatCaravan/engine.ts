@@ -56,7 +56,7 @@ export function summon(save: Save, count: 1 | 10, random: () => number = Math.ra
     const rarity: Rarity = next.pityFive >= PITY_FIVE - 1 || roll < 0.03 ? 5 : next.pityFour >= PITY_FOUR - 1 || roll < 0.18 ? 4 : 3;
     const pool = characters.filter((cat) => cat.rarity === rarity);
     const cat = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(random() * pool.length)))];
-    const previous = next.owned[cat.id];
+    const previous = Object.hasOwn(next.owned, cat.id) ? next.owned[cat.id] : undefined;
     const coins = previous ? ({ 3: 80, 4: 160, 5: 320 }[rarity]) : 0;
     next.owned[cat.id] = { level: previous?.level ?? 1, copies: (previous?.copies ?? 0) + 1 };
     next.coins += coins;
@@ -69,12 +69,13 @@ export function summon(save: Save, count: 1 | 10, random: () => number = Math.ra
 
 export const upgradeCost = (level: number) => 60 + (level - 1) * 30;
 export function upgrade(save: Save, id: string): Save {
+  if (!Object.hasOwn(save.owned, id)) return save;
   const owned = save.owned[id];
   if (!owned || owned.level >= MAX_LEVEL || save.coins < upgradeCost(owned.level)) return save;
   return { ...save, coins: save.coins - upgradeCost(owned.level), owned: { ...save.owned, [id]: { ...owned, level: owned.level + 1 } } };
 }
 export function toggleTeam(save: Save, id: string): Save {
-  if (!save.owned[id]) return save;
+  if (!Object.hasOwn(save.owned, id) || !save.owned[id]) return save;
   if (save.team.includes(id)) return save.team.length > 1 ? { ...save, team: save.team.filter((entry) => entry !== id) } : save;
   return save.team.length < 4 ? { ...save, team: [...save.team, id] } : save;
 }
@@ -123,7 +124,7 @@ export function startBattle(save: Save, stage: number): Battle | null {
   return { stage, time: 0, status: 'playing', paused: false, baseHp: 1000, enemyHp: STAGES[stage].hp, energy: 100, cannon: 100, cannonFlash: 0, cooldowns: {}, spawned: 0, nextEnemy: 2, nextKey: 1, units: [] };
 }
 export function deploy(battle: Battle, save: Save, id: string, characters: readonly Character[] = CHARACTERS): Battle {
-  if (battle.status !== 'playing' || battle.paused || !save.team.includes(id) || !save.owned[id]) return battle;
+  if (battle.status !== 'playing' || battle.paused || !save.team.includes(id) || !Object.hasOwn(save.owned, id) || !save.owned[id]) return battle;
   const cat = characterById(id, characters);
   if (battle.energy < cat.cost || (battle.cooldowns[id] ?? 0) > 0 || battle.units.filter((unit) => unit.side === 'ally').length >= 16) return battle;
   const stats = catStats(id, save.owned[id], characters);

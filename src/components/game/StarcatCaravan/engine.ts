@@ -167,7 +167,7 @@ export function applyDamage(target: Unit, power: number, time: number) {
 function freezeUnit(target: Unit, duration: number, time: number) { target.frozenUntil = Math.max(target.frozenUntil ?? 0, time + duration * (target.boss ? 0.5 : 1)); }
 
 function react(battle: Battle, target: Unit, reaction: Reaction, power: number) {
-  const near = (radius: number) => battle.units.filter((enemy) => enemy.side === 'enemy' && (enemy.hp > 0 || enemy === target) && Math.abs(enemy.x - target.x) <= radius);
+  const near = (radius: number) => battle.units.filter((enemy) => enemy.side === target.side && (enemy.hp > 0 || enemy === target) && Math.abs(enemy.x - target.x) <= radius);
   if (reaction === 'steam' || reaction === 'melt' || reaction === 'shatter') applyDamage(target, power * ({ steam: 0.75, melt: 0.85, shatter: 1 }[reaction]), battle.time);
   if (reaction === 'flare' || reaction === 'overload' || reaction === 'blizzard') for (const enemy of near(14)) {
     applyDamage(enemy, power * ({ flare: 0.5, overload: 0.65, blizzard: 0.45 }[reaction]), battle.time);
@@ -206,7 +206,7 @@ function attackSkill(battle: Battle, unit: Unit, target: Unit, ability: Ability)
   if (unit.strikes % 4 !== 0 || !['strike', 'splash', 'chain', 'frost'].includes(ability)) return;
   if (ability === 'strike') applyDamage(target, unit.attack * 0.75, battle.time);
   if (ability === 'frost') { applyDamage(target, unit.attack * 0.5, battle.time); freezeUnit(target, 1, battle.time); }
-  const others = battle.units.filter((enemy) => enemy.side === 'enemy' && enemy.hp > 0 && enemy !== target).sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x));
+  const others = battle.units.filter((enemy) => enemy.side === target.side && enemy.hp > 0 && enemy !== target).sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x));
   if (ability === 'splash') for (const enemy of [target, ...others.filter((entry) => Math.abs(entry.x - target.x) <= 12)]) applyDamage(enemy, unit.attack * 0.6, battle.time);
   if (ability === 'chain') for (const enemy of others.filter((entry) => Math.abs(entry.x - target.x) <= 20).slice(0, 2)) applyDamage(enemy, unit.attack * 0.7, battle.time);
   skillEvent(battle, unit, ability);
@@ -220,7 +220,7 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
   const battle: Battle = { ...previous, time: previous.time + step, energy: Math.min(200, previous.energy + step * 14), cannon: Math.min(100, previous.cannon + step * 5), cannonFlash: Math.max(0, previous.cannonFlash - step), cooldowns: Object.fromEntries(Object.entries(previous.cooldowns).map(([id, value]) => [id, Math.max(0, value - step)])), units: previous.units.map((unit) => ({ ...unit, cooldown: Math.max(0, unit.cooldown - step), flash: Math.max(0, unit.flash - step) })) };
   battle.reactions = previous.reactions.filter((event) => battle.time - event.time < 1.6);
   battle.skills = previous.skills.filter((event) => battle.time - event.time < 1.6);
-  for (const unit of battle.units) if ((unit.shieldUntil ?? 0) <= battle.time) unit.shield = 0;
+  for (const unit of battle.units) if ((unit.shield ?? 0) > 0 && (unit.shieldUntil ?? 0) <= battle.time) unit.shield = 0;
   if (battle.spawned < stage.enemies && battle.time >= battle.nextEnemy) {
     const boss = battle.spawned === stage.enemies - 1;
     const hp = Math.round((boss ? 500 : 115) * stage.strength);

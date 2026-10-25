@@ -48,6 +48,12 @@ describe('defense, wards and rarity', () => {
     expect(catStats(cat.id, { level: 1, copies: 1 }, [cat]).defense).toBe(0);
     expect(abilityFor(cat).id).toBe('none');
   });
+
+  it('does not add empty shield state to an unshielded companion on every frame', () => {
+    const { cat, battle } = arena('none');
+    expect(Object.hasOwn(battle.units[0], 'shield')).toBe(false);
+    expect(Object.hasOwn(tickBattle(battle, .1, [cat]).units[0], 'shield')).toBe(false);
+  });
 });
 
 describe('automatic companion abilities', () => {

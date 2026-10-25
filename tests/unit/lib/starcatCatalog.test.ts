@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHARACTERS, ORIGINAL_CHARACTER_IDS } from '@/components/game/StarcatCaravan/data';
 import { getOrCreateStarcatCatalog, updateStarcatCatalog } from '@/lib/starcatCatalog';
 
@@ -13,6 +13,7 @@ describe('Starcat catalog database', () => {
   const get = vi.fn();
   const doc = vi.fn();
   const collection = vi.fn();
+  afterEach(() => vi.unstubAllEnvs());
 
   beforeEach(() => {
     document = undefined;
@@ -42,6 +43,20 @@ describe('Starcat catalog database', () => {
     expect(await getOrCreateStarcatCatalog()).toEqual(first);
     expect(create).toHaveBeenCalledTimes(1);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('keeps a preview deployment from publishing new companions into a shared live database', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    const legacy = CHARACTERS.slice(0, 12).map(({ defense: _d, ability: _a, abilityName: _n, ...cat }) => cat);
+    document = { revision: 2, characters: legacy };
+    expect(await getOrCreateStarcatCatalog()).toEqual({ revision: 2, characters: legacy });
+    expect(update).not.toHaveBeenCalled(); expect(create).not.toHaveBeenCalled();
+  });
+
+  it('does not bootstrap an empty shared database from a preview deployment', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    await expect(getOrCreateStarcatCatalog()).rejects.toMatchObject({ status: 503 });
+    expect(create).not.toHaveBeenCalled(); expect(update).not.toHaveBeenCalled();
   });
 
   it('updates display names and stats and adds companions without replacing any existing ID', async () => {

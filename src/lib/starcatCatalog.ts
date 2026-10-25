@@ -17,6 +17,12 @@ export async function getOrCreateStarcatCatalog(): Promise<CharacterCatalog> {
   const reference = db.collection(COLLECTION).doc(DOCUMENT);
   return db.runTransaction(async (transaction) => {
     const document = await transaction.get(reference);
+    // Preview deployments may share the live Firebase project. Never publish new
+    // schema/companions from an unmerged preview and strand older live clients.
+    if (process.env.VERCEL_ENV === 'preview') {
+      if (document.exists) return storedCatalog(document.data());
+      throw new CatalogError('The catalog must be initialized by the production deployment.', 503);
+    }
     if (document.exists) {
       const data = document.data();
       const current = storedCatalog(data);

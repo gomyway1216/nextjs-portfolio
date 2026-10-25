@@ -76,6 +76,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
   }, [view, hasBattle]);
 
   // A restored journal can belong to another account; reopen its map with the newly loaded progress.
+  // Read at that restore event only: a first clear must not reset the player's chosen battle speed.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setStageIndex(Math.min(progress.getSnapshot().game.save.cleared.length, STAGES.length - 1));

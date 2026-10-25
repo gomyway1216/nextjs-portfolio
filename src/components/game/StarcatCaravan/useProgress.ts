@@ -4,13 +4,15 @@ import { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react
 import { type AccountStore, type Player } from '../MedalPusher/account';
 import { createProgress } from './progress';
 
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 export function useProgress(player: Player, store: AccountStore | null) {
   const progress = useMemo(() => createProgress({ store, slots: () => localStorage }), [store]);
   const snapshot = useSyncExternalStore(progress.subscribe, progress.getSnapshot, progress.getServerSnapshot);
   const { uid, settled, expected } = player;
 
   // Match the account before paint, including when another member signs in.
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     progress.attend({ uid, settled, expected });
   }, [progress, uid, settled, expected]);
 

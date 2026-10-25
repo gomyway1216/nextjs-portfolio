@@ -15,6 +15,14 @@ export interface Arena {
 }
 export const encounterCount = (stage: number) => 5 + Math.min(4, stage);
 export const distance = (a: Point, b: Point) => Math.hypot(a.x-b.x,a.y-b.y);
+export function battleDirection(key: string): Direction | null {
+  return new Map<string, Direction>([
+    ['ArrowUp', 'up'], ['w', 'up'], ['W', 'up'],
+    ['ArrowDown', 'down'], ['s', 'down'], ['S', 'down'],
+    ['ArrowLeft', 'left'], ['a', 'left'], ['A', 'left'],
+    ['ArrowRight', 'right'], ['d', 'right'], ['D', 'right'],
+  ]).get(key) ?? null;
+}
 const bounds = (point: Point): Point => ({x:Math.max(5,Math.min(95,point.x)),y:Math.max(7,Math.min(53,point.y))});
 
 export function createArena(save: Save, stage: number, characters: readonly Character[] = CHARACTERS): Arena | null {
@@ -57,7 +65,7 @@ export function aimArena(arena: Arena, target: Point): Arena {
   return {...arena,direction:null,target:bounds(target)};
 }
 export function steerArena(arena: Arena, direction: Direction|null): Arena {
-  if(arena.status!=='playing'||arena.paused|| (direction!==null&&!['up','down','left','right'].includes(direction)))return arena;
+  if(arena.status!=='playing'||arena.paused||(direction!==null&&!['up','down','left','right'].includes(direction)))return arena;
   const delta=direction?{up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[direction]:[0,0];
   return {...arena,direction,target:null,player:bounds({x:arena.player.x+delta[0]*1.4,y:arena.player.y+delta[1]*1.4}),facing:direction??arena.facing};
 }

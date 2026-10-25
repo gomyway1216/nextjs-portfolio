@@ -145,4 +145,12 @@ describe('persistent adventure rewards', () => {
     expect(parseAdventure(newAdventure(),[])).toEqual(newAdventure());
     expect(checkpoint(save,{x:11,y:3})).toBe(save);
   });
+  it('rejects malformed chest collections before checking restored lantern fragments', () => {
+    const restored = {...newAdventure(),met:[0],restored:[0]};
+    for (const opened of [null,{},'0:west',[null],['0:west','invalid']]) {
+      expect(() => parseAdventure({...restored,opened},[0])).not.toThrow();
+      expect(parseAdventure({...restored,opened},[0])).toBeNull();
+    }
+    expect(parseAdventure({...restored,opened:['0:west','0:east']},[0])).toEqual({...restored,opened:['0:west','0:east']});
+  });
 });

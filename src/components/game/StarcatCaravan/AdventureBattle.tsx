@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Coins, Gem, Heart, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { type Arena } from './arena';
+import { battleDirection, type Arena } from './arena';
 import { ELEMENTS, STAGES, characterById, type Character, type Language } from './data';
 import { type Action, type GameState, type Save } from './engine';
 import { CHAPTERS, type Direction } from './adventure';
@@ -41,7 +41,7 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
   const steer=(direction:Direction|null)=>{if(!ready)return;root.current?.focus({preventScroll:true});dispatch({type:'arena-steer',direction});};
   const keys=(event:KeyboardEvent)=>{
     if(event.target instanceof HTMLElement&&event.target.closest('button,a,input'))return;
-    const direction=({ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'} as Record<string,Direction>)[event.key];
+    const direction=battleDirection(event.key);
     if(direction){event.preventDefault();if(!event.repeat)steer(direction);}
     if(event.code==='Space'){event.preventDefault();if(!event.repeat)dispatch({type:'arena-burst'});}
   };
@@ -52,7 +52,7 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
     root.current?.focus({preventScroll:true});dispatch({type:'arena-aim',point:{x:point.x/10,y:point.y/10}});
   };
   const camera=narrow?`${Math.max(0,Math.min(480,arena.player.x*10-240))} ${Math.max(0,Math.min(120,arena.player.y*10-240))} 480 480`:'0 0 960 600';
-  return <section ref={root} tabIndex={0} className={styles.battle} aria-label={tx('冒険バトル。移動して赤い攻撃を避け、Spaceで星の絆', 'Adventure battle. Move out of red attacks; Space uses Star bond')} onKeyDown={keys} onKeyUp={event=>{if(/^(Arrow|[wasdWASD]$)/.test(event.key)){event.preventDefault();steer(null);}}} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))dispatch({type:'arena-steer',direction:null});}}>
+  return <section ref={root} tabIndex={0} className={styles.battle} aria-label={tx('冒険バトル。移動して赤い攻撃を避け、Spaceで星の絆', 'Adventure battle. Move out of red attacks; Space uses Star bond')} onKeyDown={keys} onKeyUp={event=>{if(battleDirection(event.key)){event.preventDefault();steer(null);}}} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))dispatch({type:'arena-steer',direction:null});}}>
     <header className={styles.header}><div><span>ADVENTURE BATTLE · {String(arena.stage+1).padStart(2,'0')}</span><h2>{STAGES[arena.stage].name[language]}</h2></div><div><button aria-label={tx(`戦闘音 ${sound?'ON':'OFF'}`,`Battle sound ${sound?'ON':'OFF'}`)} aria-pressed={sound} onClick={()=>{const player=audio.current??=createBattleAudio();player.enable(!sound);setSound(!sound);}}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>}</button><button disabled={!playing||!ready} aria-label={arena.paused?tx('再開','Resume'):tx('一時停止','Pause')} onClick={()=>dispatch({type:'arena-pause'})}>{arena.paused?<Play size={18}/>:<Pause size={18}/>}</button><button onClick={()=>dispatch({type:'leave'})}>{tx('探索へ戻る','Back to the trail')}</button></div></header>
     <div className={styles.howTo}><span>{tx('歩いて、かわして、ここぞで一撃。','Move, dodge, and make your moment count.')}</span><p>{tx('通常攻撃は仲間が自動で行います。赤い円から離れよう。大技は「星の絆」ボタンだけ。','Your companions attack automatically. Step out of red circles. Your one big move: Star bond.')}</p></div>
     <div className={styles.field} style={{background:CHAPTERS[arena.stage].grass}}>

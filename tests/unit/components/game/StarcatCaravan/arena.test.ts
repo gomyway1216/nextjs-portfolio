@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aimArena, castArenaBurst, createArena, encounterCount, steerArena, tickArena, type Arena, type ArenaEnemy } from '@/components/game/StarcatCaravan/arena';
+import { aimArena, battleDirection, castArenaBurst, createArena, encounterCount, steerArena, tickArena, type Arena, type ArenaEnemy } from '@/components/game/StarcatCaravan/arena';
 import { CHARACTERS, STAGES } from '@/components/game/StarcatCaravan/data';
 import { gameReducer, initialGame, newSave, parseSave, type GameState, type Save } from '@/components/game/StarcatCaravan/engine';
 
@@ -13,6 +13,13 @@ function play(save:Save,stage:number):Arena{
   return arena;
 }
 describe('simple party adventure battles',()=>{
+  it('routes only exact arrow and WASD keys for both press and release',()=>{
+    for (const [keys,direction] of [
+      [['ArrowUp','w','W'],'up'], [['ArrowDown','s','S'],'down'],
+      [['ArrowLeft','a','A'],'left'], [['ArrowRight','d','D'],'right'],
+    ] as const) for (const key of keys) expect(battleDirection(key)).toBe(direction);
+    for (const key of ['Arrow','ArrowUpExtra','window','aw','Shift',' ','Enter','constructor','toString']) expect(battleDirection(key)).toBeNull();
+  });
   it('starts with the entire selected party and trained shared HP, without deployments or energy',()=>{
     const save=newSave(),arena=createArena(save,0)!;
     expect(arena.companions.map(c=>c.id)).toEqual(save.team);

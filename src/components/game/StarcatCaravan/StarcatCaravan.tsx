@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Coins, Compass, Gem, Heart, LockKeyhole, Pause, Play, Shield, Sparkles, Swords, Users, WandSparkles } from 'lucide-react';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { CHARACTERS, ELEMENTS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, ROLES, SAVE_KEY, STAGES, SUMMON_COST, characterById, type Character, type Language } from './data';
-import { catStats, gameReducer, initialGame, parseSave, upgradeCost, type Battle } from './engine';
+import { GUEST, type AccountStore, type Player } from '../MedalPusher/account';
+import { CHARACTERS, ELEMENTS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, ROLES, STAGES, SUMMON_COST, characterById, type Character, type Language } from './data';
+import { catStats, upgradeCost, type Battle } from './engine';
+import { useProgress } from './useProgress';
 import { CatSprite, ShadowSprite } from './CatSprite';
 import styles from './StarcatCaravan.module.css';
 
@@ -41,14 +43,20 @@ function Battlefield({ battle, language }: { battle: Battle; language: Language 
   </div>;
 }
 
-export default function StarcatCaravan() {
+interface StarcatCaravanProps {
+  player?: Player;
+  store?: AccountStore | null;
+  signInHref?: string;
+}
+
+export default function StarcatCaravan({ player = GUEST, store = null, signInHref }: StarcatCaravanProps = {}) {
   useFeatureLifecycle('game.starcat-caravan');
   const { language } = useGameLanguage();
   const tx = (ja: string, en: string) => language === 'ja' ? ja : en;
-  const [state, dispatch] = useReducer(gameReducer, undefined, initialGame);
-  const [ready, setReady] = useState(false);
-  const [storageError, setStorageError] = useState(false);
-  const [recovered, setRecovered] = useState(false);
+  const { progress, snapshot } = useProgress(player, store);
+  const { game: state, playable: ready, recovered, status } = snapshot;
+  const dispatch = progress.dispatch;
+  const storageError = !status.kept;
   const [view, setView] = useState<View>('summon');
   const [stageIndex, setStageIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -67,24 +75,12 @@ export default function StarcatCaravan() {
     previousScreen.current = screen;
   }, [view, hasBattle]);
 
-  /* Browser storage is an external system: read after hydration, then report persistence errors.
-     Keeping the first server/client render identical prevents overwriting a saved game on mount. */
+  // A restored journal can belong to another account; reopen its map with the newly loaded progress.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SAVE_KEY);
-      const loaded = parseSave(raw);
-      if (loaded) { dispatch({ type: 'load', save: loaded }); setStageIndex(Math.min(loaded.cleared.length, STAGES.length - 1)); }
-      else if (raw) setRecovered(true);
-    } catch { setStorageError(true); }
-    setReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); setStorageError(false); }
-    catch { setStorageError(true); }
-  }, [save, ready]);
+    setStageIndex(Math.min(progress.getSnapshot().game.save.cleared.length, STAGES.length - 1));
+    setSpeed(1);
+  }, [progress, snapshot.opened]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -96,11 +92,17 @@ export default function StarcatCaravan() {
     const visibility = () => { if (document.hidden) dispatch({ type: 'pause' }); };
     document.addEventListener('visibilitychange', visibility);
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', visibility); };
-  }, [running, speed]);
+  }, [running, speed, dispatch]);
 
   const draw = (count: 1 | 10) => dispatch({ type: 'summon', count, rolls: Array.from({ length: count * 2 }, () => Math.random()) });
   const openInfo = () => { if (running) dispatch({ type: 'pause' }); setShowInfo(true); };
   const collected = Object.keys(save.owned).length;
+  const saveLabel = storageError && status.where !== 'account' ? tx('この端末に保存できません', 'Device saving unavailable')
+    : status.where === 'account' ? tx('アカウントに自動保存', 'Account autosave')
+    : status.where === 'checking' ? tx('アカウントの記録を確認中', 'Checking account progress')
+    : status.where === 'offline' ? tx('通信待ち · この端末に保存', 'Offline · Saved on this device')
+    : status.where === 'unreadable' ? tx('アカウントの記録を読み込めません', 'Account journal unavailable')
+    : tx('このブラウザに自動保存', 'Saved in this browser');
 
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -115,8 +117,11 @@ export default function StarcatCaravan() {
         </nav><button className={styles.help} type="button" onClick={openInfo} aria-label={tx('遊び方', 'How to play')}><BookOpen size={17} /><span>{tx('遊び方', 'Guide')}</span></button>
       </div>
 
-      {!ready && <p role="status" className={styles.notice}>{tx('旅の記録を読み込んでいます…', 'Opening your travel journal…')}</p>}
-      {storageError && <p role="status" className={styles.notice}>{tx('ブラウザに保存できません。この画面では遊べますが、閉じると進行が失われます。', 'Browser saving is unavailable. You can play, but progress will be lost when you close this page.')}</p>}
+      {(!snapshot.ready || !player.settled || status.where === 'checking') && <p role="status" className={styles.notice}>{tx('旅の記録を読み込んでいます…', 'Opening your travel journal…')}</p>}
+      {storageError && <p role="status" className={styles.notice}>{status.where === 'account' ? tx('端末への保存はできません。アカウントへの自動保存を利用しています。', 'Device storage is unavailable. Account autosave is active.') : player.uid ? tx('端末に保存できません。アカウントとの同期が完了するまで、この画面を開いたままにしてください。', 'Device saving is unavailable. Keep this page open until account sync completes.') : tx('ブラウザに保存できません。この画面では遊べますが、閉じると進行が失われます。', 'Browser saving is unavailable. You can play, but progress will be lost when you close this page.')}</p>}
+      {status.where === 'offline' && <p role="status" className={styles.notice}>{ready ? tx('通信できないため、進行はこの端末に保存しています。接続が戻るとアカウントへ再送します。', 'Progress is kept on this device while offline. Account sync retries when the connection returns.') : tx('アカウントの記録に接続できません。進行を保護するため、読み込みを再試行しています。', 'Your account journal is unreachable. Retrying before opening the game to protect your progress.')}</p>}
+      {status.where === 'unreadable' && <p role="status" className={styles.notice}>{tx('このバージョンではアカウントの記録を読み込めません。記録は上書きせず保護しています。ページを更新してお試しください。', 'This version cannot open your account journal. It has been protected from overwriting. Try updating this page.')}</p>}
+      {player.settled && !player.uid && signInHref && <p className={styles.notice}>{tx('ログインすると、仲間・育成・冒険の記録を別の端末でも引き継げます。', 'Sign in to carry your companions, training, and adventure to another device.')} <Link href={signInHref}>{tx('ログインして引き継ぐ', 'Sign in & keep progress')}<ArrowRight size={14} /></Link></p>}
       {recovered && <p role="status" className={styles.notice}>{tx('保存データを読み込めなかったため、新しい冒険を始めました。', 'The saved journal could not be read. A new adventure has started.')}</p>}
 
       {view === 'summon' && <section ref={contentRef} className={styles.content} aria-label={tx('星の召喚', 'Wish upon a star')}>
@@ -158,18 +163,18 @@ export default function StarcatCaravan() {
         </> : <div className={styles.battlePanel}>
           <div className={styles.battleHeading}><div><p className={styles.eyebrow}>ISLAND {String(battle.stage + 1).padStart(2, '0')}</p><h2>{STAGES[battle.stage].name[language]}</h2></div><div><span className={styles.timer}>{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}</span><button disabled={battle.status !== 'playing'} onClick={() => setSpeed(speed === 1 ? 2 : 1)} aria-label={tx(`戦闘速度 ${speed}倍`, `Battle speed ${speed}×`)}>{speed}×</button><button disabled={battle.status !== 'playing'} aria-label={battle.paused ? tx('再開', 'Resume') : tx('一時停止', 'Pause')} onClick={() => dispatch({ type: 'pause' })}>{battle.paused ? <Play size={17} /> : <Pause size={17} />}</button></div></div>
           <Battlefield battle={battle} language={language} />
-          {battle.status === 'playing' ? <><div className={styles.energyBar}><span><WandSparkles size={17} />{tx('出撃エネルギー', 'Deploy energy')} <b>{Math.floor(battle.energy)} / 200</b></span><div><i style={{ width: `${battle.energy / 2}%` }} /></div><small>{tx('毎秒 +14', '+14 / second')}</small></div><div className={styles.deployRow}>{save.team.map((id) => { const cat = characterById(id); const cooldown = battle.cooldowns[id] ?? 0; return <button key={id} disabled={battle.paused || battle.energy < cat.cost || cooldown > 0 || battle.units.filter((unit) => unit.side === 'ally').length >= 16} onClick={() => dispatch({ type: 'deploy', id })} aria-label={tx(`${cat.name.ja}を出撃`, `Deploy ${cat.name.en}`)} style={colorStyle(cat)}><CatSprite cat={cat} /><span><strong>{cat.name[language]}</strong><small>{ROLES[cat.role][language]} · Lv. {save.owned[id].level}</small><b>{cooldown > 0 ? `${cooldown.toFixed(1)}s` : `✦ ${cat.cost}`}</b></span></button>; })}<button className={styles.cannon} disabled={battle.paused || battle.cannon < 100} onClick={() => dispatch({ type: 'cannon' })}><Sparkles size={25} /><strong>{tx('星の砲撃', 'Star cannon')}</strong><small>{battle.cannon < 100 ? `${Math.ceil((100 - battle.cannon) / 5)}s` : tx('発射！', 'Fire!')}</small></button></div><div className={styles.battleTip}><p>{tx('仲間をタップして出撃。自動で前進・攻撃します。盾役で守り、遠距離と回復役で支えよう。', 'Tap a companion to deploy. They move and fight automatically. Protect your rangers and healers with a guardian.')}</p><button onClick={() => dispatch({ type: 'leave' })}>{tx('撤退する', 'Retreat')}</button></div></> : <div className={styles.battleResult} role="status"><span>{battle.status === 'won' ? '✧' : '☾'}</span><p className={styles.eyebrow}>{battle.status === 'won' ? 'ISLAND RECLAIMED' : 'A MOMENT TO REST'}</p><h3>{battle.status === 'won' ? tx('星の光が、戻った！', 'The starlight returns!') : tx('次の冒険に、備えよう。', 'Your next adventure awaits.')}</h3><p>{battle.status === 'won' ? reward?.first ? save.cleared.length === STAGES.length ? tx('最後の砦を攻略！ すべての島に光が戻りました。', 'The final fortress is reclaimed. Starlight shines over every island.') : tx('初回クリア！ 新しい島への道が開きました。', 'First clear! Your journey continues to the next island.') : tx('この島を守りました。報酬を受け取りました。', 'The island is safe. Your rewards have been saved.') : tx('仲間を育成したり、盾役・回復役を編成して再挑戦しよう。星石やコインは減りません。', 'Train your companions or bring a guardian and healer, then try again. You lose no gems or coins.')}</p>{battle.status === 'won' && reward && <div className={styles.rewards}><span><Gem size={20} />+{reward.gems}</span><span><Coins size={20} />+{reward.coins}</span></div>}{save.cleared.length === STAGES.length && battle.status === 'won' && <p>{tx('全6島クリア！ 星ねこたちとの旅は、これからも続きます。', 'All six islands cleared! Keep collecting and growing your constellation.')}</p>}<button className={styles.primary} onClick={() => { dispatch({ type: 'leave' }); setStageIndex(Math.min(save.cleared.length, STAGES.length - 1)); }}>{tx('冒険マップへ', 'Back to the islands')}<ArrowRight size={17} /></button></div>}
+          {battle.status === 'playing' ? <><div className={styles.energyBar}><span><WandSparkles size={17} />{tx('出撃エネルギー', 'Deploy energy')} <b>{Math.floor(battle.energy)} / 200</b></span><div><i style={{ width: `${battle.energy / 2}%` }} /></div><small>{tx('毎秒 +14', '+14 / second')}</small></div><div className={styles.deployRow}>{save.team.map((id) => { const cat = characterById(id); const cooldown = battle.cooldowns[id] ?? 0; return <button key={id} disabled={battle.paused || battle.energy < cat.cost || cooldown > 0 || battle.units.filter((unit) => unit.side === 'ally').length >= 16} onClick={() => dispatch({ type: 'deploy', id })} aria-label={tx(`${cat.name.ja}を出撃`, `Deploy ${cat.name.en}`)} style={colorStyle(cat)}><CatSprite cat={cat} /><span><strong>{cat.name[language]}</strong><small>{ROLES[cat.role][language]} · Lv. {save.owned[id].level}</small><b>{cooldown > 0 ? `${cooldown.toFixed(1)}s` : `✦ ${cat.cost}`}</b></span></button>; })}<button className={styles.cannon} disabled={battle.paused || battle.cannon < 100} onClick={() => dispatch({ type: 'cannon' })}><Sparkles size={25} /><strong>{tx('星の砲撃', 'Star cannon')}</strong><small>{battle.cannon < 100 ? `${Math.ceil((100 - battle.cannon) / 5)}s` : tx('発射！', 'Fire!')}</small></button></div><div className={styles.battleTip}><p>{tx('仲間をタップして出撃。自動で前進・攻撃します。盾役で守り、遠距離と回復役で支えよう。', 'Tap a companion to deploy. They move and fight automatically. Protect your rangers and healers with a guardian.')}</p><button onClick={() => dispatch({ type: 'leave' })}>{tx('撤退する', 'Retreat')}</button></div></> : <div className={styles.battleResult} role="status"><span>{battle.status === 'won' ? '✧' : '☾'}</span><p className={styles.eyebrow}>{battle.status === 'won' ? 'ISLAND RECLAIMED' : 'A MOMENT TO REST'}</p><h3>{battle.status === 'won' ? tx('星の光が、戻った！', 'The starlight returns!') : tx('次の冒険に、備えよう。', 'Your next adventure awaits.')}</h3><p>{battle.status === 'won' ? reward?.first ? save.cleared.length === STAGES.length ? tx('最後の砦を攻略！ すべての島に光が戻りました。', 'The final fortress is reclaimed. Starlight shines over every island.') : tx('初回クリア！ 新しい島への道が開きました。', 'First clear! Your journey continues to the next island.') : tx('この島を守りました。報酬を受け取りました。', 'The island is safe. Your rewards have been saved.') : tx('仲間を育成したり、盾役・回復役を編成して再挑戦しよう。星石やコインは減りません。', 'Train your companions or bring a guardian and healer, then try again. You lose no gems or coins.')}</p>{battle.status === 'won' && reward && <div className={styles.rewards}><span><Gem size={20} />+{reward.gems}</span><span><Coins size={20} />+{reward.coins}</span></div>}{save.cleared.length === STAGES.length && battle.status === 'won' && <p>{tx(`全${STAGES.length}島クリア！ 星ねこたちとの旅は、これからも続きます。`, `All ${STAGES.length} islands cleared! Keep collecting and growing your constellation.`)}</p>}<button className={styles.primary} onClick={() => { dispatch({ type: 'leave' }); setStageIndex(Math.min(save.cleared.length, STAGES.length - 1)); }}>{tx('冒険マップへ', 'Back to the islands')}<ArrowRight size={17} /></button></div>}
         </div>}
       </section>}
 
-      <footer className={styles.footer}><span><Shield size={13} />{storageError ? tx('保存できません', 'Saving unavailable') : tx('このブラウザに自動保存', 'Saved in this browser')}</span><span>{tx('課金なし · 全12キャラ · 全6ステージ', 'No purchases · 12 companions · 6 islands')}</span></footer>
+      <footer className={styles.footer}><span role="status" data-testid="starcat-save-status"><Shield size={13} />{saveLabel}</span><span>{tx(`課金なし · 全${CHARACTERS.length}キャラ · 全${STAGES.length}ステージ`, `No purchases · ${CHARACTERS.length} companions · ${STAGES.length} islands`)}</span></footer>
     </div>
 
     <InfoModal isOpen={pulls.length > 0} onClose={() => dispatch({ type: 'close-pulls' })} title={tx('星がつないだ出会い', 'Written in the stars')}>
       <p className={styles.modalIntro}>{tx('新しい旅の仲間たち。重複した仲間は覚醒し、コインも獲得します。', 'Your companions have arrived. Duplicates grant awakening progress and coins.')}</p><div className={styles.pullGrid}>{pulls.map((pull, index) => { const cat = characterById(pull.id); return <div key={index} className={styles.pullCard} style={{ ...colorStyle(cat), '--reveal-delay': `${index * 80}ms` } as CSSProperties}><span className={styles.stars}>{'★'.repeat(cat.rarity)}</span><CatSprite cat={cat} /><strong>{cat.name[language]}</strong><small>{pull.isNew ? 'NEW!' : `+${pull.coins} ${tx('コイン', 'coins')}`}</small></div>; })}</div><button className={styles.modalContinue} onClick={() => { dispatch({ type: 'close-pulls' }); setView('collection'); }}>{tx('仲間を編成する', 'Build your party')}<ArrowRight size={17} /></button>
     </InfoModal>
     <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={tx('星ねこキャラバンの遊び方', 'Your guide to Starcat Caravan')}>
-      <div className={styles.guide}><h3>{tx('1. 星に願って、仲間を集める', '1. Make a wish, meet a companion')}</h3><p>{tx('星石100個で1回召喚。通常の提供割合は★5が3%、★4が15%、★3が82%。同じレア度のキャラは均等確率です。', 'One wish costs 100 star gems. Base rates: ★5 3%, ★4 15%, ★3 82%. Characters of the same rarity are equally likely.')}</p><p>{tx('★4以上が9回連続で出なければ次は★4以上が確定（★5 3%、★4 97%）。★5が49回連続で出なければ次は★5確定。★5確定が優先され、それぞれのレア度を引くと対応するカウントがリセットされます。1回召喚と10回召喚で共有し、ページを閉じても保持されます。', 'After 9 wishes without a ★4+, the next is guaranteed (★5 3%, ★4 97%). After 49 without a ★5, the next is a ★5. The ★5 guarantee takes precedence. Each counter resets when its rarity or higher appears. Counters carry across single wishes, ten wishes, and visits.')}</p><h3>{tx('2. 育てて、チームを組む', '2. Train and build your party')}</h3><p>{tx('編成は1〜4体。盾役・近接・遠距離・回復の役割があります。コインでLv.20まで育成。重複1体ごとにHPと攻撃・回復力が4%上昇（5回まで）し、★3/4/5で80/160/320コインも獲得できます。', 'Build a party of 1–4 guardians, fighters, rangers, and healers. Train to level 20 with coins. Each duplicate adds 4% HP and attack/healing power (up to 5 times), plus 80/160/320 coins for ★3/4/5.')}</p><h3>{tx('3. 出撃して、島々を取り戻す', '3. Reclaim the floating islands')}</h3><p>{tx('エネルギーを使って仲間を出撃させます。同じ仲間を繰り返し出撃でき、戦場には最大16体。仲間は自動で前進・攻撃します。星の砲撃は敵全体に140ダメージ、20秒で再充填。3分以内に敵拠点を破壊すれば勝利、自拠点のHPが0になるか時間切れで敗北です。', 'Spend regenerating energy to deploy companions, including multiple copies, up to 16 allies on the field. They move and attack automatically. Star cannon hits every enemy for 140 damage and recharges in 20 seconds. Destroy the fortress within 3 minutes to win. Losing your base or running out of time ends the battle.')}</p><p>{tx('火は風に、風は水に、水は火にダメージ1.5倍。初回クリアで大きな報酬、周回でも星石80個とコインを獲得。スタミナ制限や課金はありません。', 'Fire beats Wind, Wind beats Water, and Water beats Fire for 1.5× damage. First clears award bonus rewards; replays give 80 gems and coins. No stamina limits or purchases.')}</p><p>{tx('進行はこのブラウザに保存されます。戦闘の途中経過は保存されず、再読込でマップから再挑戦になります。ブラウザのサイトデータを削除すると進行も消えます。', 'Progress is saved in this browser. Battles in progress are not saved; reload to retry from the map. Clearing browser site data also clears your progress.')}</p></div>
+      <div className={styles.guide}><h3>{tx('1. 星に願って、仲間を集める', '1. Make a wish, meet a companion')}</h3><p>{tx('星石100個で1回召喚。通常の提供割合は★5が3%、★4が15%、★3が82%。同じレア度のキャラは均等確率です。', 'One wish costs 100 star gems. Base rates: ★5 3%, ★4 15%, ★3 82%. Characters of the same rarity are equally likely.')}</p><p>{tx('★4以上が9回連続で出なければ次は★4以上が確定（★5 3%、★4 97%）。★5が49回連続で出なければ次は★5確定。★5確定が優先され、それぞれのレア度を引くと対応するカウントがリセットされます。1回召喚と10回召喚で共有し、ページを閉じても保持されます。', 'After 9 wishes without a ★4+, the next is guaranteed (★5 3%, ★4 97%). After 49 without a ★5, the next is a ★5. The ★5 guarantee takes precedence. Each counter resets when its rarity or higher appears. Counters carry across single wishes, ten wishes, and visits.')}</p><h3>{tx('2. 育てて、チームを組む', '2. Train and build your party')}</h3><p>{tx('編成は1〜4体。盾役・近接・遠距離・回復の役割があります。コインでLv.20まで育成。重複1体ごとにHPと攻撃・回復力が4%上昇（5回まで）し、★3/4/5で80/160/320コインも獲得できます。', 'Build a party of 1–4 guardians, fighters, rangers, and healers. Train to level 20 with coins. Each duplicate adds 4% HP and attack/healing power (up to 5 times), plus 80/160/320 coins for ★3/4/5.')}</p><h3>{tx('3. 出撃して、島々を取り戻す', '3. Reclaim the floating islands')}</h3><p>{tx('エネルギーを使って仲間を出撃させます。同じ仲間を繰り返し出撃でき、戦場には最大16体。仲間は自動で前進・攻撃します。星の砲撃は敵全体に140ダメージ、20秒で再充填。3分以内に敵拠点を破壊すれば勝利、自拠点のHPが0になるか時間切れで敗北です。', 'Spend regenerating energy to deploy companions, including multiple copies, up to 16 allies on the field. They move and attack automatically. Star cannon hits every enemy for 140 damage and recharges in 20 seconds. Destroy the fortress within 3 minutes to win. Losing your base or running out of time ends the battle.')}</p><p>{tx('火は風に、風は水に、水は火にダメージ1.5倍。初回クリアで大きな報酬、周回でも星石80個とコインを獲得。スタミナ制限や課金はありません。', 'Fire beats Wind, Wind beats Water, and Water beats Fire for 1.5× damage. First clears award bonus rewards; replays give 80 gems and coins. No stamina limits or purchases.')}</p><p>{tx('仲間・所持数・育成・編成・星石・コイン・召喚の確定カウント・クリア状況を保存します。ゲストはこのブラウザ、ログイン中はゲームセンターと同じアカウントに自動保存し、別の端末でも復元できます。初めてのアカウントにはゲストの進行を引き継ぎ、記録があるアカウントではその記録を開きます。戦闘の途中は保存されず、マップから再挑戦になります。', 'Your companions, copies, levels, party, gems, coins, wish guarantees, and cleared islands are saved. Guests save in this browser; members autosave to the same account as the medal center and can resume on another device. A new account adopts guest progress; an account with an existing journal opens that journal. Battles in progress are not saved; return to the map to retry.')}</p></div>
     </InfoModal>
   </main>;
 }

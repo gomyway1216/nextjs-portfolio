@@ -70,7 +70,7 @@ describe('travel journal and the field guide', () => {
     expect(html).toContain(language === 'ja' ? '水＋風なら回復役がいなくても' : 'Water + Wind can heal');
     expect(html).toContain(language === 'ja' ? '戦闘途中のHP・敵の位置・残り時間' : 'In-battle HP, enemy positions, remaining time');
     expect(html).toContain(language === 'ja' ? '実績バッジ・称号・達成日時' : 'Dedicated achievement badges, titles and unlock timestamps');
-    expect(html).toContain(language === 'ja' ? '現在まだありません' : 'not currently implemented');
+    expect(html).toContain(language === 'ja' ? '未実装です' : 'not implemented');
     expect(html).not.toContain('luna-v1.webp');
   });
 });

@@ -23,7 +23,7 @@ export const games: Game[] = [
   {
     id: 'starcat-caravan',
     title: 'Starcat Caravan',
-    description: 'Wish for a team of star-traveling cats, train your companions, and reclaim six floating islands in a free gacha tower-defense adventure.',
+    description: 'Collect and train a party of cats, explore six islands, find treasure, restore starlight and command companions in real-time fortress battles.',
     thumbnail: '✨',
     path: '/games/starcat-caravan',
     difficulty: 'Medium',

@@ -3,6 +3,7 @@ import { GUEST, RETRY_AFTER, slotFor, type Player } from '@/components/game/Meda
 import { SAVE_KEY } from '@/components/game/StarcatCaravan/data';
 import { newSave, parseSave } from '@/components/game/StarcatCaravan/engine';
 import { createProgress } from '@/components/game/StarcatCaravan/progress';
+import { adventureOf, pathTo, PLACES, type Place } from '@/components/game/StarcatCaravan/adventure';
 import { FakeAccounts, FakeSlots, RESTORING, settled, signedIn } from '../MedalPusher/accountFakes';
 
 function rig() {
@@ -34,6 +35,67 @@ function finishBattle(progress: Progress, deploy: boolean) {
 }
 
 describe('Starcat account progress', () => {
+  it('restores exploration, chests, conversations and lanterns on an independent account device', async () => {
+    const { start, accounts, clock } = rig();
+    const progress = await start(signedIn('ann'));
+    const walk = (place: Place) => {
+      const game=progress.getSnapshot().game;
+      for(const point of pathTo(game.journey ?? adventureOf(game.save).position,PLACES.find(p=>p.id===place)!)){
+        const current=progress.getSnapshot().game;
+        const here=current.journey ?? adventureOf(current.save).position;
+        progress.dispatch({type:'walk',direction:point.x>here.x?'right':point.x<here.x?'left':point.y>here.y?'down':'up'});
+      }
+    };
+    progress.dispatch({type:'upgrade',id:'ember'});
+    progress.dispatch({type:'leader',id:'brook'});
+    for(const place of ['guide','west','east'] as Place[]) {walk(place);progress.dispatch({type:'interact',place});}
+    walk('fortress');progress.dispatch({type:'encounter'});finishBattle(progress,true);
+    expect(progress.getSnapshot().game.battle?.status).toBe('won');
+    progress.dispatch({type:'leave'});walk('beacon');progress.dispatch({type:'interact',place:'beacon'});
+    const expected=structuredClone(progress.getSnapshot().game.save);
+    expect(expected).toMatchObject({gems:3850,coins:1230,owned:{ember:{level:2}},team:['brook','ember','breeze','moss'],adventure:{met:[0],opened:['0:west','0:east'],restored:[0]}});
+    progress.close();await settled();
+    const newDevice = createProgress({store:accounts.store,slots:()=>newDeviceSlots,now:()=>clock.now,mark:()=> 'independent-adventure-device'});
+    const newDeviceSlots = new FakeSlots();
+    newDevice.attend(signedIn('ann'));newDevice.start();await settled();
+    expect(newDevice.getSnapshot().game.save).toEqual(expected);
+    expect(newDevice.getSnapshot().game.battle).toBeNull();
+    newDevice.dispatch({type:'interact',place:'beacon'});
+    expect(newDevice.getSnapshot().game.save).toEqual(expected);
+    newDevice.close();
+  });
+
+  it('checkpoints walking on save/close without sending a reward or losing the last position', async () => {
+    const {start,accounts}=rig();const progress=await start(signedIn('ann'));
+    progress.dispatch({type:'walk',direction:'right'});
+    expect(progress.getSnapshot().game.save.adventure).toBeUndefined();
+    progress.save('hidden');
+    expect(progress.getSnapshot().game.save.adventure?.position).toEqual({x:4,y:11});
+    progress.dispatch({type:'walk',direction:'up'});progress.close();await settled();
+    expect(parseSave(accounts.text('ann'))).toMatchObject({gems:3000,coins:600,adventure:{position:{x:4,y:10}}});
+  });
+
+  it('keeps the old member’s final walking position when another account signs in', async () => {
+    const {start,accounts}=rig();
+    accounts.put('bob',JSON.stringify({...newSave(),coins:900}),'bob-original');
+    const progress=await start(signedIn('ann'));
+    progress.dispatch({type:'walk',direction:'right'});
+    progress.attend(signedIn('bob'));await settled();
+    // Signing out retains unsent work in the old account's slot, without using its old credentials.
+    expect(parseSave(accounts.text('ann'))?.adventure).toBeUndefined();
+    expect(progress.getSnapshot().game.save.coins).toBe(900);
+    expect(progress.getSnapshot().game.save.adventure).toBeUndefined();
+    progress.dispatch({type:'walk',direction:'up'});
+    progress.attend(signedIn('ann'));await settled();
+    expect(progress.getSnapshot().game.save.adventure?.position).toEqual({x:4,y:11});
+    expect(progress.getSnapshot().game.save.coins).toBe(600);
+    progress.attend(signedIn('bob'));await settled();
+    expect(progress.getSnapshot().game.save.adventure?.position).toEqual({x:3,y:10});
+    expect(progress.getSnapshot().game.save.coins).toBe(900);
+    progress.close();await settled();
+    expect(parseSave(accounts.text('bob'))?.adventure?.position).toEqual({x:3,y:10});
+  });
+
   it('saves and restores currency, companions, training, party, pity, and battle records from real actions', async () => {
     const { start, accounts } = rig();
     const progress = await start(signedIn('ann'));

@@ -301,6 +301,7 @@ export function GlobalToolbar() {
   return (
     <div
       className={`${styles.toolbar} sticky top-0 z-50`}
+      data-mobile-immersive={pathname === '/games/starcat-caravan' || undefined}
       style={
         {
           backgroundColor: toolbarBg,

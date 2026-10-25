@@ -16,11 +16,21 @@ type Props = { arena: Arena; save: Save; characters: readonly Character[]; langu
 export default function AdventureBattle({arena,characters,language,ready,dispatch,reward}:Props){
   const tx=(ja:string,en:string)=>language==='ja'?ja:en;
   const root=useRef<HTMLElement>(null),svg=useRef<SVGSVGElement>(null);
-  const [viewport,setViewport]=useState({width:960,height:600}),[sound,setSound]=useState(false);
+  const [viewport,setViewport]=useState({width:960,height:600,compact:false}),[sound,setSound]=useState(false);
   const audio=useRef<ReturnType<typeof createBattleAudio>|null>(null),lastSound=useRef(0),lastPlayed=useRef(0);
   const playing=arena.status==='playing',running=playing&&!arena.paused&&ready;
   const boss=arena.enemies.find(enemy=>enemy.boss);
-  useEffect(()=>{root.current?.focus({preventScroll:true});const observer=new ResizeObserver(([entry])=>{const {width,height}=entry.target.getBoundingClientRect();setViewport({width,height});});if(svg.current)observer.observe(svg.current);return()=>observer.disconnect();},[]);
+  useEffect(()=>{
+    root.current?.focus({preventScroll:true});
+    const observer=new ResizeObserver(([entry])=>{
+      if(!entry)return;
+      const {width,height}=entry.target.getBoundingClientRect();
+      const compact=getComputedStyle(entry.target)?.getPropertyValue('--compact-camera').trim()==='1';
+      setViewport({width,height,compact});
+    });
+    if(svg.current)observer.observe(svg.current);
+    return()=>observer.disconnect();
+  },[]);
   useEffect(()=>{
     if(!running)return;
     const timer=window.setInterval(()=>{if(!document.hidden)dispatch({type:'arena-tick'});},100);
@@ -52,7 +62,7 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
     const point=new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse());
     root.current?.focus({preventScroll:true});dispatch({type:'arena-aim',point:{x:point.x/10,y:point.y/10}});
   };
-  const camera=arenaViewBox(arena.player,viewport.width,viewport.height);
+  const camera=arenaViewBox(arena.player,viewport.width,viewport.height,viewport.compact);
   return <section ref={root} tabIndex={0} className={styles.battle} aria-label={tx('冒険バトル。移動して赤い攻撃を避け、Spaceで星の絆', 'Adventure battle. Move out of red attacks; Space uses Star bond')} onKeyDown={keys} onKeyUp={event=>{if(battleDirection(event.key)){event.preventDefault();steer(null);}}} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))dispatch({type:'arena-steer',direction:null});}}>
     <header className={styles.header}><div><span>ADVENTURE BATTLE · {String(arena.stage+1).padStart(2,'0')}</span><h2>{STAGES[arena.stage].name[language]}</h2></div><div><button aria-label={tx(`戦闘音 ${sound?'ON':'OFF'}`,`Battle sound ${sound?'ON':'OFF'}`)} aria-pressed={sound} onClick={()=>{root.current?.focus({preventScroll:true});const player=audio.current??=createBattleAudio();player.enable(!sound);setSound(!sound);}}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>}</button><button disabled={!playing||!ready} aria-label={arena.paused?tx('再開','Resume'):tx('一時停止','Pause')} onClick={togglePause}>{arena.paused?<Play size={18}/>:<Pause size={18}/>}</button><button className={styles.back} aria-label={tx('探索へ戻る','Back to the trail')} onClick={()=>dispatch({type:'leave'})}><ArrowLeft size={18}/><span>{tx('探索へ戻る','Back to the trail')}</span></button></div></header>
     <div className={styles.howTo}><span>{tx('歩いて、かわして、ここぞで一撃。','Move, dodge, and make your moment count.')}</span><p>{tx('通常攻撃は仲間が自動で行います。赤い円から離れよう。大技は「星の絆」ボタンだけ。','Your companions attack automatically. Step out of red circles. Your one big move: Star bond.')}</p></div>

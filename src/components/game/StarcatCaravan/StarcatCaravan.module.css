@@ -1,9 +1,9 @@
 .page { --ink: #f6efdf; --muted: #aab7c6; --gold: #edd298; --line: #ffffff16; color: var(--ink); background: #101c2c; background-image: radial-gradient(ellipse at 10% 0%, #23364788, transparent 50%); min-height: 100vh; padding: 26px 24px 44px; font-size: 14px; line-height: 1.6; }
 .page * { box-sizing: border-box; }
 .page h1, .page h2, .page h3, .page p { margin: 0; color: inherit; }
-.page button, .modalContinue { font: inherit; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+.page button { font: inherit; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
 .page button:disabled { cursor: not-allowed; opacity: .42; }
-.page button:focus-visible, .page a:focus-visible, .modalContinue:focus-visible { outline: 3px solid #f4dca0; outline-offset: 4px; }
+.page button:focus-visible, .page a:focus-visible { outline: 3px solid #f4dca0; outline-offset: 4px; }
 .shell { max-width: 1160px; margin: 0 auto; }
 .content { scroll-margin-top: 80px; }
 .topline { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 11px; letter-spacing: .06em; margin-bottom: 24px; }
@@ -38,6 +38,8 @@
 .heroCopy > p { white-space: pre-line; color: #d0d9e4; line-height: 1.9; font-size: 12px; }
 .heroLink { display: flex; align-items: center; gap: 16px; background: transparent; color: #f2deae; padding: 10px 0; margin-top: 15px; min-height: 44px; border: 0; font-size: 12px !important; }
 .featured { max-width: 44%; overflow-wrap: anywhere; position: absolute; bottom: 25px; right: 32px; text-align: right; text-shadow: 0 2px 12px #0c152c; }
+.heroPortrait { position: absolute; right: 4%; top: 0; width: 43%; height: 100%; pointer-events: none; }
+.heroPortrait > svg { height: 100%; width: 100%; filter: drop-shadow(0 12px 22px #03091580); }
 .featured span { display: block; color: #fadd8b; font-size: 13px; letter-spacing: .14em; }
 .featured strong { font-family: Georgia, 'Yu Mincho', serif; font-size: 29px; font-weight: 400; }
 .featured small { display: block; color: #e6e8df; font-size: 11px; }
@@ -170,21 +172,9 @@
 .battleResult p:not(.eyebrow) { color: var(--muted); font-size: 12px; }
 .battleResult .rewards { justify-content: center; margin: 10px 0; }
 .battleResult > button { margin-top: 14px; }
-.modalIntro { font-size: 12px; line-height: 1.8; margin: 15px 0 20px; opacity: .8; }
-.pullGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.pullCard { background: #1d2c40; border: 1px solid color-mix(in srgb, var(--rarity) 60%, transparent); border-radius: 8px; padding: 12px 5px 10px; text-align: center; color: #f5efdf; animation: reveal .5s both; animation-delay: var(--reveal-delay); }
-.pullCard svg { display: block; width: 100%; max-height: 110px; margin: 5px auto; }
-.pullCard strong, .pullCard small { display: block; }
-.pullCard strong { font-size: 12px; font-weight: 500; }
-.pullCard small { color: #f2d39a; font-size: 9px; margin-top: 5px; }
-.pullCard .stars { font-size: 8px; letter-spacing: 1px; }
-.pullGrid:has(> :only-child) { grid-template-columns: minmax(0, 190px); justify-content: center; }
-.pullGrid:has(> :only-child) svg { max-height: 190px; }
-.modalContinue { width: 100%; margin-top: 22px; display: flex; justify-content: center; align-items: center; gap: 12px; min-height: 48px; border-radius: 6px; background: #ead39f; border: 1px solid #ead39f; color: #29303b; font-size: 13px; }
 .guide { font-size: 13px; line-height: 1.9; }
 .guide h3 { font-size: 15px; margin: 22px 0 10px; }
 .guide p { margin-bottom: 12px; }
-@keyframes reveal { from { opacity: 0; transform: translateY(16px) scale(.9); } to { opacity: 1; transform: none; } }
 @media (max-width: 950px) {
   .summonPanel { align-items: flex-start; padding: 24px; }
   .summonActions button { min-width: 100px; }
@@ -281,11 +271,8 @@
   .battleTip { flex-direction: column; gap: 3px; align-items: flex-start; padding: 14px; }
   .battleResult { padding: 20px 16px; }
   .battleResult h3 { font-size: 23px; }
-  .pullGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pullCard { padding: 12px; }
-  .pullCard svg { max-height: 130px; }
   .footer { font-size: 9px; margin-top: 26px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .page *, .pullCard { animation: none !important; transition: none !important; }
+  .page * { animation: none !important; transition: none !important; }
 }

@@ -57,6 +57,32 @@ describe('Starcat catalog database', () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  it('adds portraits to an existing database once without resetting edited names, abilities or added companions', async () => {
+    const old = CHARACTERS.map(({ portraitUrl: _portrait, ...cat }) => ({ ...cat }));
+    old[0].name = { ja: '管理者がつけた名前', en: 'Edited name' };
+    old[0].hp = 420;
+    old.push({ ...old[0], id: 'later-companion' });
+    document = { revision: 8, characters: old, createdAt: 'original-date' };
+    const upgraded = await getOrCreateStarcatCatalog();
+    expect(upgraded.revision).toBe(9);
+    expect(upgraded.characters.map((cat) => cat.id)).toEqual(old.map((cat) => cat.id));
+    expect(upgraded.characters[0]).toMatchObject({ name: old[0].name, hp: 420, portraitUrl: CHARACTERS[0].portraitUrl });
+    expect(upgraded.characters.at(-1)?.portraitUrl).toBeUndefined();
+    expect(document?.createdAt).toBe('original-date');
+    expect(await getOrCreateStarcatCatalog()).toEqual(upgraded);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('preserves an administrator image and an explicit choice to use vector artwork', async () => {
+    const characters = structuredClone(CHARACTERS);
+    characters[0].portraitUrl = 'https://example.com/custom-ember.webp';
+    characters[1].portraitUrl = null;
+    document = { revision: 3, characters };
+    expect(await getOrCreateStarcatCatalog()).toEqual({ revision: 3, characters });
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('rejects stale revisions without clobbering a newer edit', async () => {
     const initial = await getOrCreateStarcatCatalog();
     const latest = await updateStarcatCatalog(initial, 'first-admin');

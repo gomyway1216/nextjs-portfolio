@@ -59,6 +59,10 @@ export function CharacterFields({ character, saved, onChange }: { character: Cha
       <input className={inputClass} style={fieldStyle} value={character.id} disabled={saved} required pattern="[a-z][a-z0-9\-]*" maxLength={48} autoComplete="off" spellCheck={false} onChange={(event) => change({ id: event.target.value })} aria-describedby="starcat-id-help" />
       <span id="starcat-id-help" className="mt-1 block text-xs font-normal" style={{ color: 'var(--admin-text-muted)' }}>{saved ? '保存済みIDは変更できません。プレイヤーの所持データと結びついています。' : '半角英小文字で始め、英小文字・数字・ハイフンを使います。保存後は変更できません。'}</span>
     </label>
+    <label className="block text-sm font-medium">キャラクター画像URL
+      <input className={inputClass} style={fieldStyle} value={character.portraitUrl ?? ''} maxLength={2048} placeholder="https://… または /img/games/starcat-caravan/characters/…" autoComplete="off" spellCheck={false} onChange={(event) => change({ portraitUrl: event.target.value.trim() || null })} aria-describedby="starcat-portrait-help" />
+      <span id="starcat-portrait-help" className="mt-1 block text-xs font-normal" style={{ color: 'var(--admin-text-muted)' }}>公開HTTPS画像（Firebase Storageなど）かサイト内の画像パスを指定します。空欄では標準のキャラ表示を使います。</span>
+    </label>
     <div className="grid gap-4 sm:grid-cols-2">
       {(['ja', 'en'] as const).map((language) => <div key={language} className="space-y-4">
         <label className="block text-sm font-medium">名前（{language === 'ja' ? '日本語' : 'English'}）<input className={inputClass} style={fieldStyle} value={character.name[language]} required maxLength={80} onChange={(event) => change({ name: { ...character.name, [language]: event.target.value } })} /></label>

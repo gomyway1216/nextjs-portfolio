@@ -96,6 +96,21 @@ describe('Starcat account progress', () => {
     expect(parseSave(accounts.text('bob'))?.adventure?.position).toEqual({x:3,y:10});
   });
 
+  it('walks a queued route synchronously even when React has not rendered any intermediate position', async () => {
+    const {start}=rig();const progress=await start();
+    const points=pathTo(adventureOf(progress.getSnapshot().game.save).position,PLACES.find(p=>p.id==='east')!);
+    let currentPoint=adventureOf(progress.getSnapshot().game.save).position;
+    for(const next of points){
+      const direction=next.x>currentPoint.x?'right':next.x<currentPoint.x?'left':next.y>currentPoint.y?'down':'up';
+      currentPoint=next;
+      progress.dispatch({type:'walk',direction});
+      expect(progress.getSnapshot().game.journey).toEqual(next);
+    }
+    progress.save('hidden');
+    expect(progress.getSnapshot().game.save.adventure?.position).toEqual(points.at(-1));
+    progress.close();
+  });
+
   it('saves and restores currency, companions, training, party, pity, and battle records from real actions', async () => {
     const { start, accounts } = rig();
     const progress = await start(signedIn('ann'));

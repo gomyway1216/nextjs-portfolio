@@ -43,4 +43,10 @@ describe('manual companion skills',()=>{
     const ready={...cast,time:20};
     expect(commandSkill(ready,save,'ember').energy).toBe(120);
   });
+  it.each([undefined,'none'] as const)('respects a missing or administrator-disabled ability (%s)',ability=>{
+    const chars=CHARACTERS.map(cat=>cat.id==='ember'?{...cat,ability}:cat);
+    const save=newSave();let battle=deploy(startBattle(save,0)!,save,'ember',chars);
+    battle={...battle,energy:100,units:[...battle.units,enemy()]};
+    expect(commandSkill(battle,save,'ember',chars)).toBe(battle);
+  });
 });

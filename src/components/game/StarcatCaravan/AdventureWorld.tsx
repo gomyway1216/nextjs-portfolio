@@ -8,14 +8,14 @@ import { adventureOf, CHAPTERS, fragmentCount, MAP_HEIGHT, MAP_WIDTH, near, obje
 import { CatSprite } from './CatSprite';
 import styles from './AdventureWorld.module.css';
 
-type Props = { game: GameState; characters: readonly Character[]; language: Language; ready: boolean; dispatch: (action: Exclude<Action, { type: 'load' }>) => void; onParty: () => void; onWish: () => void };
+type Props = { game: GameState; characters: readonly Character[]; language: Language; ready: boolean; readGame: () => GameState; dispatch: (action: Exclude<Action, { type: 'load' }>) => void; onParty: () => void; onWish: () => void };
 type Conversation = { place: Place; lines: string[]; page: number; battle?: boolean };
 const arrows: { direction: Direction; Icon: typeof ArrowUp; ja: string; en: string }[] = [
   { direction: 'up', Icon: ArrowUp, ja: '上へ歩く', en: 'Walk up' }, { direction: 'left', Icon: ArrowLeft, ja: '左へ歩く', en: 'Walk left' },
   { direction: 'down', Icon: ArrowDown, ja: '下へ歩く', en: 'Walk down' }, { direction: 'right', Icon: ArrowRight, ja: '右へ歩く', en: 'Walk right' },
 ];
 
-export default function AdventureWorld({ game, characters, language, ready, dispatch, onParty, onWish }: Props) {
+export default function AdventureWorld({ game, characters, language, ready, readGame, dispatch, onParty, onWish }: Props) {
   const tx = (ja: string, en: string) => language === 'ja' ? ja : en;
   const a = adventureOf(game.save);
   const position = game.journey ?? a.position;
@@ -30,7 +30,6 @@ export default function AdventureWorld({ game, characters, language, ready, disp
   const regionRef = useRef<HTMLElement>(null);
   const mapRef = useRef<SVGSVGElement>(null);
   const talkRef = useRef<HTMLButtonElement>(null);
-  const latest = useRef(game);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const route = useRef<Point[]>([]);
   const lastPoint = useRef(position);
@@ -38,7 +37,6 @@ export default function AdventureWorld({ game, characters, language, ready, disp
   const nearest = PLACES.find((place) => near(position, place));
   const locked = !ready || !!conversation || journal;
 
-  useEffect(() => { latest.current = game; }, [game]);
   useEffect(() => {
     const element = regionRef.current;
     if (!element) return;
@@ -69,9 +67,10 @@ export default function AdventureWorld({ game, characters, language, ready, disp
   }, [dispatch, stop]);
 
   function openPlace(place: Place) {
-    const save = latest.current.save;
+    const currentGame = readGame();
+    const save = currentGame.save;
     const current = adventureOf(save);
-    const point = latest.current.journey ?? current.position;
+    const point = currentGame.journey ?? current.position;
     if (!ready || !near(point, PLACES.find((entry) => entry.id === place)!)) return;
     stop();
     const story = CHAPTERS[current.region];
@@ -126,16 +125,18 @@ export default function AdventureWorld({ game, characters, language, ready, disp
     const location = PLACES.find((place) => place.id === clickedPlace);
     const destination = location ?? { x: Math.floor(point.x / TILE), y: Math.floor(point.y / TILE) };
     const target = PLACES.find((p) => p.x === destination.x && p.y === destination.y);
-    const current = latest.current.journey ?? adventureOf(latest.current.save).position;
+    const currentGame = readGame();
+    const current = currentGame.journey ?? adventureOf(currentGame.save).position;
     const path = pathTo(current, destination);
     stop(); regionRef.current?.focus({ preventScroll: true });
     if (!path.length) { if (target && near(current, target)) openPlace(target.id); return; }
+    let currentPoint = current;
     route.current = path; setMoving(true);
     timer.current = setInterval(() => {
       const next = route.current.shift();
       if (!next) { stop(); if (target) openPlace(target.id); return; }
-      const here = latest.current.journey ?? adventureOf(latest.current.save).position;
-      const direction = next.x > here.x ? 'right' : next.x < here.x ? 'left' : next.y > here.y ? 'down' : 'up';
+      const direction = next.x > currentPoint.x ? 'right' : next.x < currentPoint.x ? 'left' : next.y > currentPoint.y ? 'down' : 'up';
+      currentPoint = next;
       setFacing(direction); dispatch({ type: 'walk', direction });
     }, 145);
   };

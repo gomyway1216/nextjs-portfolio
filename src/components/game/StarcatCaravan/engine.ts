@@ -233,13 +233,14 @@ export function commandSkill(previous: Battle, save: Save, id: string, character
   const source = previous.units.filter((unit) => unit.side === 'ally' && unit.catId === id && unit.hp > 0).sort((a,b) => b.x-a.x)[0];
   if (!source) return previous;
   const ability = characterById(id, characters).ability ?? 'none';
+  if (ability === 'none') return previous;
   const support = ability === 'ward' || ability === 'mend';
   const enemy = previous.units.filter((unit) => unit.side === 'enemy' && unit.hp > 0 && Math.abs(unit.x-source.x) <= source.range + 8).sort((a,b) => Math.abs(a.x-source.x)-Math.abs(b.x-source.x))[0];
   if (!support && !enemy) return previous;
   const battle = { ...previous, energy: previous.energy - COMMAND_COST, commands: { ...previous.commands, [id]: previous.time + COMMAND_COOLDOWN }, units: previous.units.map((unit) => ({ ...unit })), skills: [...previous.skills] };
   const unit = battle.units.find((entry) => entry.key === source.key)!;
   if (support) supportEffect(battle, unit, ability);
-  else attackEffect(battle, unit, battle.units.find((entry) => entry.key === enemy!.key)!, ability === 'none' ? 'strike' : ability);
+  else attackEffect(battle, unit, battle.units.find((entry) => entry.key === enemy!.key)!, ability);
   battle.units = battle.units.filter((entry) => entry.hp > 0);
   battle.skills = battle.skills.slice(-3);
   return battle;

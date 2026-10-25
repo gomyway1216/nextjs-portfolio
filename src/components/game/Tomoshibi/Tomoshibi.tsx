@@ -21,6 +21,9 @@
  * `onLoad` is deliberate: the document has to exist before it can be given
  * anything, and Godot only starts booting after that.
  *
+ * The cloud copy goes through the site's existing per-user save slots
+ * (`/api/game/saves`), not an endpoint of its own — see tomoshibiSaveClient.
+ *
  * ## Why the save is fetched before the iframe mounts
  *
  * Godot reads `window.tomoshibiCloudLoaded` synchronously at startup, because

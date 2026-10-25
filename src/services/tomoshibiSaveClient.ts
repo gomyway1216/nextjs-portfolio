@@ -1,34 +1,35 @@
 /**
- * Client for the Tomoshibi roguelike's cloud save.
+ * Cloud save for the Tomoshibi roguelike.
  *
- * See the matching backend handlers at:
- *   Yudai-new-portfolio-backend-ts:functions/src/game/tomoshibiSave.ts
+ * **This does not have its own endpoint.** It goes through the site's existing
+ * per-user save slots at `/api/game/saves`, the same ones MedalPusher,
+ * StarcatCaravan and ShogiImproved use. An earlier version of this file called
+ * a pair of Cloud Functions written specially for it, which was a duplicate of
+ * something already built and already deployed.
  *
- * Tomoshibi is a Godot HTML5 build embedded from `public/games/tomoshibi/`. The game
- * keeps its real save in the browser (Godot maps `user://` to IndexedDB) and
- * only mirrors it here, so this endpoint exists to let a run continue on
- * another machine — not to make the game playable. Every call here is
- * best-effort for that reason.
+ * Tomoshibi is a Godot HTML5 build embedded from `public/games/tomoshibi/`. The
+ * game keeps its real save in the browser (Godot maps `user://` to IndexedDB)
+ * and only mirrors it here, so this exists to let a run continue on another
+ * machine — not to make the game playable. Every call is best-effort for that
+ * reason, and none of them throw.
  *
- * Guests are covered without a signup: `ensureGameSignIn()` returns the real
+ * Godot hands us one opaque JSON string, so it is wrapped in an object: the
+ * slot API stores objects, and a bare string is not one.
+ *
+ * Guests are covered without a signup. `ensureGameSignIn()` returns the real
  * user when there is a session and an anonymous Firebase account when there is
- * not, so there is always one uid for the save to hang off.
+ * not, so `getGameSave` always finds somebody signed in to hang the save off.
  */
 
-import { fetchCloudFunction } from '@/lib/cloudFunctionFetch';
 import { ensureGameSignIn } from '@/lib/gameAuth';
-import { getCloudFunctionUrl } from '@/app/api/constants';
+import { deleteGameSave, getGameSave, saveGameSave } from '@/services/gameSaveService';
 
-const SAVE_ENDPOINT = getCloudFunctionUrl('tomoshibiSaveGame');
-const LOAD_ENDPOINT = getCloudFunctionUrl('tomoshibiLoadSave');
+/** The slot name. Shared with nothing else; one save per player. */
+const GAME_KEY = 'tomoshibi';
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const user = await ensureGameSignIn();
-  // Fetched per call rather than cached: a long session outlives the token.
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${await user.getIdToken()}`,
-  };
+interface TomoshibiSlot {
+  /** Godot's own save file, as the game wrote it. Opaque to this layer. */
+  json: string;
 }
 
 /**
@@ -37,13 +38,9 @@ async function authHeaders(): Promise<Record<string, string>> {
  */
 export async function loadTomoshibiSave(): Promise<string> {
   try {
-    const res = await fetchCloudFunction(LOAD_ENDPOINT, {
-      method: 'GET',
-      headers: await authHeaders(),
-    });
-    if (!res.ok) return '';
-    const body = (await res.json()) as { save?: unknown };
-    return typeof body.save === 'string' ? body.save : '';
+    await ensureGameSignIn();
+    const slot = await getGameSave<TomoshibiSlot>(GAME_KEY);
+    return typeof slot?.state?.json === 'string' ? slot.state.json : '';
   } catch (error) {
     console.error('[tomoshibi] loading the cloud save failed:', error);
     return '';
@@ -51,16 +48,17 @@ export async function loadTomoshibiSave(): Promise<string> {
 }
 
 /**
- * Store a save, or delete it when `save` is ''. Never throws: the local save is
- * the real one, so a failure here must not interrupt play.
+ * Store a save, or clear the slot when `save` is ''. Never throws: the local
+ * save is the real one, so a failure here must not interrupt play.
  */
 export async function saveTomoshibiSave(save: string): Promise<void> {
   try {
-    await fetchCloudFunction(SAVE_ENDPOINT, {
-      method: 'POST',
-      headers: await authHeaders(),
-      body: JSON.stringify({ save }),
-    });
+    await ensureGameSignIn();
+    if (save === '') {
+      await deleteGameSave(GAME_KEY);
+      return;
+    }
+    await saveGameSave<TomoshibiSlot>(GAME_KEY, { json: save });
   } catch (error) {
     console.error('[tomoshibi] storing the cloud save failed:', error);
   }

@@ -3,10 +3,13 @@
 Route: `/games/starcat-caravan`. A free collectible tower-defense game with account progress.
 
 - `data.ts`: the twelve companions, six stages, and shared economy constants.
+- `elements.ts`: unordered element reactions and party resonance; role slots are never required.
 - `engine.ts`: pure wish, party, training, battle, reward, and save-validation logic.
 - `StarcatCaravan.tsx`: Japanese/English UI and browser persistence under `starcat-caravan-v1`.
 - `CatSprite.tsx`: transparent character artwork inside the shared SVG frame, with vector fallback when an image is absent or fails.
-- `SummonShow.tsx`: pull-and-release/tap/keyboard launch, rarity-colored flight, individual reveals and a skippable result gallery. The game reducer grants/saves rewards once, at launch; closing the presentation never rolls again.
+- `SummonShow.tsx`: pull-and-release/upward-flick/keyboard launch, rarity-colored flight, individual reveals and a skippable result gallery. A tap does not launch; returning a drawn star cancels. The game reducer grants/saves rewards once, at launch; closing the presentation never rolls again.
+- `Companions.tsx`: acquired companions only (including starters), role explanations for the current party, and a travel journal derived from existing save fields.
+- `/games/starcat-caravan/guide`: bilingual field guide covering deployment, all four roles, the two enemy types, elements, islands, training, and the exact saved/unsaved progress boundary. The in-game guide link opens separately so it does not abandon a running battle.
 - `progress.ts` / `useProgress.ts`: use the medal center's existing account keeper, per-account device slots, retry behavior, and authenticated save service.
 - `StarcatCaravanForPlayer.tsx`: connects the site's signed-in member to the game.
 - `catalog.ts` / `catalogClient.ts`: validate and load DB character definitions, with a validated offline cache.
@@ -16,7 +19,11 @@ Guests keep progress under `starcat-caravan-v1`. Signed-in members also keep it 
 
 Companions, copies, levels, party, gems, coins, pity counters, campaign clears, and win/loss counts are saved. Combat in progress is deliberately not saved. Re-entering a stage is free. There are no purchases.
 
-The wish currency is **星のしずく / Stardrops**. Its persisted `gems` key stays compatible with existing saves. Opening the launcher costs nothing; releasing/tapping the star or pressing Enter starts the wish. Optional synthesized chimes default off, and reduced-motion preferences shorten flight and disable movement effects.
+The wish currency is **星のしずく / Stardrops**. Its persisted `gems` key stays compatible with existing saves. Opening the launcher costs nothing; releasing a draw of at least 52px, a quick upward flick of at least 64px within 450ms, or pressing Enter/Space starts the wish. A previously drawn star cannot turn into an upward flick on returning to its origin. Reduced-motion preferences shorten flight and disable movement effects.
+
+Optional audio defaults off. `wishAudio.ts` plays five original stereo MP3 cues (charge loop, launch, and ★3/★4/★5 reveals), replacing the earlier sine-only chimes. Wind/noise sweeps, plucked/FM bells, layered strings, a formant-shaped instrumental pad and diffuse stereo reflections are synthesized offline by `scripts/generate-starcat-audio.mjs` (Node + ffmpeg); shipping files are under `public/audio/starcat-caravan/`. These are designed effects, not AI-generated speech or a human voice recording. Audio work begins only after the sound toggle. Skip/close/mute cancels queued playback as well as active playback, preventing a late cue from sounding over another scene. Regenerate with `node scripts/generate-starcat-audio.mjs`; intermediate WAV files stay in `.artifacts/starcat-audio/`.
+
+The travel journal displays existing clears, completed wins/losses and wish count. This change adds no new save format or achievement-award schema. Dedicated badges, unlock timestamps, per-battle history and unfinished battlefield snapshots remain unimplemented and are explicitly described as such in the guide.
 
 ## Adding companions
 
@@ -48,3 +55,9 @@ Created with the built-in `image_gen` tool. Project assets:
 Generation prompt:
 
 Use case: stylized-concept. Asset type: original browser game hero background and cover for Starcat Caravan, a cozy collectible-cat fantasy tower-defense adventure. Create a beautifully painted 16:9 wide illustration, 1536x864 or similar. Scene: a moonlit grassy floating island above a vast indigo sea of clouds, old stone arches, distant luminous floating islands, a magical ring of stars in the sky, fireflies, teal grasses and warm golden starlight. On the RIGHT half, three adorable small original chibi cats adventuring together: white cat wizard with navy cape and a golden star-tipped staff, ginger cat knight with tiny sword and teal scarf, dark gray cat explorer with green hood. Hand-painted high-end indie game art, soft gouache texture, whimsical details and atmospheric depth. LEFT half should be quieter dark midnight blue sky and distant clouds, leaving negative space for title and UI overlay. Rich navy, teal and buttery gold palette. No text, no letters, no logo, no interface, no watermark. Original characters, not existing franchise designs.
+
+## Element parties
+
+Roles still describe each DB companion’s behavior and require no save/catalog migration. Any 1–4 owned companions can be selected. Two distinct selected companions of one element give that element +20% deployed HP and +15% attack/healing, applied after level/duplicate stats. Extra copies deployed in battle do not count as party members; 3+ of an element do not stack more bonuses.
+
+Only ally normal attacks apply a four-second aura to enemies; native enemy element remains a separate 1.5× weakness rule. A different element consumes the aura in either order, with a two-second per-enemy cooldown: Fire/Water adds 75% triggering attack damage, Fire/Wind adds 50% to the target and enemies within 14 battle units, Water/Wind heals all living allies for 50%. These effects use attack power before weakness (half for healers’ normal attacks), never trigger recursively, and never revive. Up to three recent reactions are shown visually. Aura and reaction events are battle-only; owned levels, team and completed rewards use the unchanged save format.

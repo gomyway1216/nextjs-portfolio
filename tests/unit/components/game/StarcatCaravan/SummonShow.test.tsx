@@ -8,15 +8,19 @@ import { CHARACTERS, characterById } from '@/components/game/StarcatCaravan/data
 import { gameReducer, initialGame, parseSave } from '@/components/game/StarcatCaravan/engine';
 
 describe('summon presentation and portrait assets', () => {
-  it('cancels a drag returned to its origin, while retaining true taps and fully drawn releases', () => {
-    expect(shouldLaunchStar(5, true)).toBe(false);
-    expect(shouldLaunchStar(0, true)).toBe(false);
-    expect(shouldLaunchStar(30, true)).toBe(false);
-    expect(shouldLaunchStar(-80, true)).toBe(false);
-    expect(shouldLaunchStar(0, false)).toBe(true);
-    expect(shouldLaunchStar(5, false)).toBe(true);
-    expect(shouldLaunchStar(48, true)).toBe(true);
-    expect(shouldLaunchStar(80, true)).toBe(true);
+  it('requires a full draw or a quick upward flick; a tap or returned draw never spends currency', () => {
+    expect(shouldLaunchStar(5, 80, 250)).toBe(false);
+    expect(shouldLaunchStar(0, 80, 200)).toBe(false);
+    expect(shouldLaunchStar(30, 30, 150)).toBe(false);
+    expect(shouldLaunchStar(-80, 80, 200)).toBe(false);
+    expect(shouldLaunchStar(0, 0, 100)).toBe(false);
+    expect(shouldLaunchStar(5, 5, 100)).toBe(false);
+    expect(shouldLaunchStar(52, 52, 1000)).toBe(true);
+    expect(shouldLaunchStar(80, 80, 250)).toBe(true);
+    expect(shouldLaunchStar(-64, 0, 180)).toBe(true);
+    expect(shouldLaunchStar(-100, 0, 450)).toBe(true);
+    expect(shouldLaunchStar(-100, 0, 800)).toBe(false);
+    expect(shouldLaunchStar(-100, 0, 0)).toBe(false);
   });
 
   it.each([['ember', 3], ['maple', 4], ['luna', 5]] as const)('presents %s with its actual rarity, identity and new-companion reward', (id, rarity) => {

@@ -206,7 +206,8 @@ describe('island battles', () => {
     battle = deploy({ ...battle, energy: 200 }, save, 'moss');
     battle.units[0].hp = 50;
     const healed = tickBattle(battle);
-    expect(healed.units[0].hp).toBe(68);
+    // Breeze + Moss now grant Wind resonance: round(18 × 1.15) = 21 healing.
+    expect(healed.units[0].hp).toBe(71);
     expect(healed.units[1].cooldown).toBe(1);
   });
   it('cannon damages enemies only, requires charge and pause protection', () => {

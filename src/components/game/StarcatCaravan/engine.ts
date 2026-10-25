@@ -1,4 +1,5 @@
 import { CHARACTERS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, STAGES, SUMMON_COST, characterById, type Character, type Element, type Rarity } from './data';
+import { AURA_SECONDS, REACTION_COOLDOWN, RESONANCE_ATTACK, RESONANCE_HP, partyElements, reactionFor, type Reaction } from './elements';
 
 export interface OwnedCat { level: number; copies: number }
 export interface Save {
@@ -102,6 +103,9 @@ export interface Unit {
   cooldown: number;
   flash: number;
   boss: boolean;
+  aura?: Element;
+  auraUntil?: number;
+  reactionReadyAt?: number;
 }
 export interface Battle {
   stage: number;
@@ -118,16 +122,21 @@ export interface Battle {
   nextEnemy: number;
   nextKey: number;
   units: Unit[];
+  reactions: { kind: Reaction; x: number; time: number; key: number }[];
 }
 export function startBattle(save: Save, stage: number): Battle | null {
   if (!whole(stage, STAGES.length - 1) || (stage > 0 && !save.cleared.includes(stage - 1)) || !save.team.length) return null;
-  return { stage, time: 0, status: 'playing', paused: false, baseHp: 1000, enemyHp: STAGES[stage].hp, energy: 100, cannon: 100, cannonFlash: 0, cooldowns: {}, spawned: 0, nextEnemy: 2, nextKey: 1, units: [] };
+  return { stage, time: 0, status: 'playing', paused: false, baseHp: 1000, enemyHp: STAGES[stage].hp, energy: 100, cannon: 100, cannonFlash: 0, cooldowns: {}, spawned: 0, nextEnemy: 2, nextKey: 1, units: [], reactions: [] };
 }
 export function deploy(battle: Battle, save: Save, id: string, characters: readonly Character[] = CHARACTERS): Battle {
   if (battle.status !== 'playing' || battle.paused || !save.team.includes(id) || !Object.hasOwn(save.owned, id) || !save.owned[id]) return battle;
   const cat = characterById(id, characters);
   if (battle.energy < cat.cost || (battle.cooldowns[id] ?? 0) > 0 || battle.units.filter((unit) => unit.side === 'ally').length >= 16) return battle;
   const stats = catStats(id, save.owned[id], characters);
+  if (partyElements(save.team.filter((entry) => Object.hasOwn(save.owned, entry)), characters).resonances.includes(cat.element)) {
+    stats.hp = Math.round(stats.hp * RESONANCE_HP);
+    stats.attack = Math.round(stats.attack * RESONANCE_ATTACK);
+  }
   const unit: Unit = { key: battle.nextKey, catId: id, side: 'ally', x: 9, hp: stats.hp, maxHp: stats.hp, attack: stats.attack, range: cat.range, speed: cat.speed, element: cat.element, cooldown: 0, flash: 0, boss: false };
   return { ...battle, energy: battle.energy - cat.cost, nextKey: battle.nextKey + 1, cooldowns: { ...battle.cooldowns, [id]: cat.cooldown }, units: [...battle.units, unit] };
 }
@@ -142,6 +151,7 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
   const step = Math.min(dt, 0.25);
   const stage = STAGES[previous.stage];
   const battle: Battle = { ...previous, time: previous.time + step, energy: Math.min(200, previous.energy + step * 14), cannon: Math.min(100, previous.cannon + step * 5), cannonFlash: Math.max(0, previous.cannonFlash - step), cooldowns: Object.fromEntries(Object.entries(previous.cooldowns).map(([id, value]) => [id, Math.max(0, value - step)])), units: previous.units.map((unit) => ({ ...unit, cooldown: Math.max(0, unit.cooldown - step), flash: Math.max(0, unit.flash - step) })) };
+  battle.reactions = previous.reactions.filter((event) => battle.time - event.time < 1.6);
   if (battle.spawned < stage.enemies && battle.time >= battle.nextEnemy) {
     const boss = battle.spawned === stage.enemies - 1;
     const hp = Math.round((boss ? 500 : 115) * stage.strength);
@@ -162,7 +172,31 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
     }
     if (target && Math.abs(target.x - unit.x) <= unit.range) {
       if (unit.cooldown <= 0) {
-        target.hp -= Math.round(unit.attack * (healer ? 0.5 : 1) * elementMultiplier(unit.element, target.element));
+        const power = unit.attack * (healer ? 0.5 : 1);
+        target.hp -= Math.round(power * elementMultiplier(unit.element, target.element));
+        // An enemy's native element affects weakness, not its applied aura. Only ally hits combine.
+        if (unit.side === 'ally' && battle.time >= (target.reactionReadyAt ?? 0)) {
+          const reaction = target.aura && (target.auraUntil ?? 0) > battle.time ? reactionFor(target.aura, unit.element) : null;
+          if (reaction) {
+            if (reaction === 'steam') target.hp -= Math.round(power * 0.75);
+            if (reaction === 'flare') for (const enemy of battle.units) {
+              if (enemy.side === 'enemy' && (enemy.hp > 0 || enemy === target) && Math.abs(enemy.x - target.x) <= 14) {
+                enemy.hp -= Math.round(power * 0.5);
+                enemy.flash = 0.3;
+              }
+            }
+            if (reaction === 'bloom') for (const ally of battle.units) {
+              if (ally.side === 'ally' && ally.hp > 0) ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(power * 0.5));
+            }
+            target.aura = undefined;
+            target.auraUntil = 0;
+            target.reactionReadyAt = battle.time + REACTION_COOLDOWN;
+            battle.reactions.push({ kind: reaction, x: target.x, time: battle.time, key: battle.nextKey++ });
+          } else {
+            target.aura = unit.element;
+            target.auraUntil = battle.time + AURA_SECONDS;
+          }
+        }
         target.flash = 0.2;
         unit.cooldown = 1;
       }
@@ -177,6 +211,7 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
     }
   }
   battle.units = battle.units.filter((unit) => unit.hp > 0);
+  battle.reactions = battle.reactions.slice(-3);
   battle.enemyHp = Math.max(0, battle.enemyHp);
   battle.baseHp = Math.max(0, battle.baseHp);
   if (battle.baseHp <= 0 || battle.time >= 180) battle.status = 'lost';

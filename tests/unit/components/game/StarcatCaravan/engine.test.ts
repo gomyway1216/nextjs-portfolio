@@ -97,6 +97,45 @@ describe('progress, training, and party', () => {
     expect(parseSave(JSON.stringify(save))).toEqual(save);
     for (const raw of [null, '', '{', 'null', '[]', JSON.stringify({ ...save, version: 2 }), JSON.stringify({ ...save, gems: -1 }), JSON.stringify({ ...save, coins: 1.5 }), JSON.stringify({ ...save, pityFive: 50 }), JSON.stringify({ ...save, pityFour: 10 }), JSON.stringify({ ...save, team: ['missing'] }), JSON.stringify({ ...save, team: ['ember', 'ember'] }), JSON.stringify({ ...save, team: [] }), JSON.stringify({ ...save, team: ['toString'] }), JSON.stringify({ ...save, cleared: [1] }), JSON.stringify({ ...save, cleared: [0, 0] }), JSON.stringify({ ...save, cleared: [6] }), JSON.stringify({ ...save, owned: { ember: { level: 21, copies: 1 } } }), JSON.stringify({ ...save, owned: { ember: { level: 1, copies: 0 } } })]) expect(parseSave(raw)).toBeNull();
   });
+  it.each([3, 4, 5] as const)('keeps existing progress and makes an added ★%s companion summonable without a save reset', (rarity) => {
+    const existing: Save = {
+      ...newSave(),
+      gems: 1725,
+      coins: 930,
+      owned: { ...newSave().owned, ember: { level: 7, copies: 4 }, luna: { level: 12, copies: 3 } },
+      team: ['luna', 'moss', 'ember'],
+      cleared: [0, 1, 2],
+      pityFive: 37,
+      pityFour: 6,
+      pulls: 87,
+      wins: 14,
+      losses: 3,
+    };
+    const journalBeforeUpdate = JSON.stringify(existing);
+    const originalCatalog = [...CHARACTERS];
+    const added = { ...structuredClone(CHARACTERS.find((cat) => cat.rarity === rarity)!), id: `future-companion-${rarity}` };
+    try {
+      CHARACTERS.push(added);
+      const restored = parseSave(journalBeforeUpdate)!;
+      expect(restored).toEqual(existing);
+      expect(restored.owned).not.toHaveProperty(added.id);
+
+      const result = summon(restored, 1, sequence(rarity === 5 ? 0.01 : rarity === 4 ? 0.1 : 0.9, 0.999))!;
+      expect(result.pulls).toEqual([{ id: added.id, isNew: true, coins: 0 }]);
+      expect(result.save).toEqual({
+        ...existing,
+        gems: existing.gems - 100,
+        owned: { ...existing.owned, [added.id]: { level: 1, copies: 1 } },
+        pityFive: rarity === 5 ? 0 : existing.pityFive + 1,
+        pityFour: rarity >= 4 ? 0 : existing.pityFour + 1,
+        pulls: existing.pulls + 1,
+      });
+      expect(parseSave(JSON.stringify(result.save))).toEqual(result.save);
+      expect(restored).toEqual(existing);
+    } finally {
+      CHARACTERS.splice(0, CHARACTERS.length, ...originalCatalog);
+    }
+  });
   it('spends coins to train and never passes max level or trains an unowned cat', () => {
     const save = newSave();
     const next = upgrade(save, 'ember');

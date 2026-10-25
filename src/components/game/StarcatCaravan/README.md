@@ -1,18 +1,26 @@
 # Starcat Caravan
 
-Route: `/games/starcat-caravan`. A free, browser-local collectible tower-defense game.
+Route: `/games/starcat-caravan`. A free collectible tower-defense game with account progress.
 
 - `data.ts`: the twelve companions, six stages, and shared economy constants.
 - `engine.ts`: pure wish, party, training, battle, reward, and save-validation logic.
 - `StarcatCaravan.tsx`: Japanese/English UI and browser persistence under `starcat-caravan-v1`.
 - `CatSprite.tsx`: original SVG game pieces. No external character assets.
+- `progress.ts` / `useProgress.ts`: use the medal center's existing account keeper, per-account device slots, retry behavior, and authenticated save service.
+- `StarcatCaravanForPlayer.tsx`: connects the site's signed-in member to the game.
 
-Progress is saved locally; combat in progress is deliberately not saved. Re-entering a stage is free. There are no purchases, accounts, or cloud saves for this game.
+Guests keep progress under `starcat-caravan-v1`. Signed-in members also keep it in `game_saves/{uid}/saves/starcat-caravan` through the same `/api/game/saves` service as the medal center. A first-time account adopts the guest journal once; an account with its own journal opens that instead. Account switches use separate device slots. Unreadable cloud journals are never overwritten. An existing account's cached journal remains playable offline and retries synchronization; a member without a cached journal waits for the account read before spending currency. When devices have both changed, the existing keeper uses the most recently played journal rather than adding currencies or duplicate rewards together.
+
+Companions, copies, levels, party, gems, coins, pity counters, campaign clears, and win/loss counts are saved. Combat in progress is deliberately not saved. Re-entering a stage is free. There are no purchases.
+
+## Adding companions
+
+Add a new definition with a unique, permanent `id` to `CHARACTERS` in `data.ts`. Keep existing IDs: saves store ownership by ID, so adding a new entry leaves existing levels, copies, currencies, and progression intact. The collection, same-rarity wish pools, sprites, and in-game counts derive from the catalog automatically. A new companion starts unowned and can be summoned normally. Keep at least one character of each rarity, and update marketing descriptions in the catalog locales when relevant. This is a code catalog; there is no in-browser character editor.
 
 Run the relevant checks with the repository's Node version:
 
 ```sh
-npm test -- tests/unit/components/game/StarcatCaravan/engine.test.ts tests/unit/lib/games/gameMetadata.test.ts tests/unit/lib/homeGames.test.ts
+npm test -- tests/unit/components/game/StarcatCaravan tests/unit/services/gameSaveService.test.ts tests/unit/lib/games/gameMetadata.test.ts tests/unit/lib/homeGames.test.ts
 ```
 
 ## Artwork

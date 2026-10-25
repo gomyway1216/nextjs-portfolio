@@ -1,7 +1,16 @@
+'use client';
+
+import { useState } from 'react';
 import { type Character } from './data';
 
 /** Small, resolution-independent game pieces, shared by cards and the battlefield. */
 export function CatSprite({ cat, className }: { cat: Character; className?: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (cat.portraitUrl && cat.portraitUrl !== failedUrl) {
+    return <svg viewBox="0 0 120 140" fill="none" aria-hidden="true" className={className} data-artwork={cat.id}>
+      <image href={cat.portraitUrl} width="120" height="140" preserveAspectRatio="xMidYMid meet" onError={() => setFailedUrl(cat.portraitUrl ?? null)} />
+    </svg>;
+  }
   return (
     <svg viewBox="0 0 120 140" fill="none" aria-hidden="true" className={className}>
       <ellipse cx="59" cy="127" rx="33" ry="7" fill="#081322" opacity=".22" />

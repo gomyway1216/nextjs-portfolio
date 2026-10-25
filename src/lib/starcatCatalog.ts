@@ -17,7 +17,23 @@ export async function getOrCreateStarcatCatalog(): Promise<CharacterCatalog> {
   const reference = db.collection(COLLECTION).doc(DOCUMENT);
   return db.runTransaction(async (transaction) => {
     const document = await transaction.get(reference);
-    if (document.exists) return storedCatalog(document.data());
+    if (document.exists) {
+      const current = storedCatalog(document.data());
+      // Add the first portrait set once. Keep administrator artwork (including an
+      // explicit null), names, stats and every permanent ID exactly as stored.
+      let changed = false;
+      const characters = current.characters.map((cat) => {
+        const portraitUrl = CHARACTERS.find((seed) => seed.id === cat.id)?.portraitUrl;
+        if (Object.hasOwn(cat, 'portraitUrl') || !portraitUrl) return cat;
+        changed = true;
+        return { ...cat, portraitUrl };
+      });
+      if (!changed) return current;
+      if (current.revision === Number.MAX_SAFE_INTEGER) throw new CatalogError('The catalog revision cannot be increased further.', 503);
+      const catalog = { revision: current.revision + 1, characters };
+      transaction.update(reference, { ...catalog, updatedAt: new Date(), updatedBy: 'portraits-v1' });
+      return catalog;
+    }
     const catalog = validateCharacterCatalog({ revision: 1, characters: CHARACTERS });
     const now = new Date();
     transaction.create(reference, { ...catalog, createdAt: now, updatedAt: now, updatedBy: 'bootstrap' });

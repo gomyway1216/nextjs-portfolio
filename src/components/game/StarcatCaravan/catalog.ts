@@ -32,6 +32,17 @@ function number(value: unknown, label: string, min: number, max: number, integer
   return value;
 }
 
+function portraitUrl(value: unknown, id: string): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'string' || value.length > 2048 || /[\s\\]/.test(value)) throw new CatalogError(`${id}.portraitUrl needs a public HTTPS image URL or a local character image path.`);
+  if (/^\/img\/games\/starcat-caravan\/[a-z0-9/_-]+\.(webp|png|avif|jpe?g)$/i.test(value)) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'https:' && !url.username && !url.password) return value;
+  } catch { /* Reject unsafe image sources before storing them. */ }
+  throw new CatalogError(`${id}.portraitUrl needs a public HTTPS image URL or a local character image path.`);
+}
+
 /** IDs belong to saved companions permanently; editable display names and stats do not. */
 export function validateCharacters(value: unknown): Character[] {
   if (!Array.isArray(value) || value.length > 200) throw new CatalogError('The catalog must be an array of up to 200 companions.');
@@ -49,6 +60,7 @@ export function validateCharacters(value: unknown): Character[] {
     if (typeof fur !== 'string' || !COLOR.test(fur) || typeof accent !== 'string' || !COLOR.test(accent)) throw new CatalogError(`${id} colors must use #RRGGBB.`);
     return {
       id, name: words(entry.name, `${id}.name`, 80), title: words(entry.title, `${id}.title`, 120),
+      ...(entry.portraitUrl !== undefined ? { portraitUrl: portraitUrl(entry.portraitUrl, id) } : {}),
       rarity, role, element, fur, accent,
       hp: number(entry.hp, `${id}.hp`, 1, 100000, true),
       attack: number(entry.attack, `${id}.attack`, 1, 10000, true),

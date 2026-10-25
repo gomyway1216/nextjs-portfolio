@@ -5,7 +5,8 @@ Route: `/games/starcat-caravan`. A free collectible tower-defense game with acco
 - `data.ts`: the twelve companions, six stages, and shared economy constants.
 - `engine.ts`: pure wish, party, training, battle, reward, and save-validation logic.
 - `StarcatCaravan.tsx`: Japanese/English UI and browser persistence under `starcat-caravan-v1`.
-- `CatSprite.tsx`: original SVG game pieces. No external character assets.
+- `CatSprite.tsx`: transparent character artwork inside the shared SVG frame, with vector fallback when an image is absent or fails.
+- `SummonShow.tsx`: pull-and-release/tap/keyboard launch, rarity-colored flight, individual reveals and a skippable result gallery. The game reducer grants/saves rewards once, at launch; closing the presentation never rolls again.
 - `progress.ts` / `useProgress.ts`: use the medal center's existing account keeper, per-account device slots, retry behavior, and authenticated save service.
 - `StarcatCaravanForPlayer.tsx`: connects the site's signed-in member to the game.
 - `catalog.ts` / `catalogClient.ts`: validate and load DB character definitions, with a validated offline cache.
@@ -14,6 +15,8 @@ Route: `/games/starcat-caravan`. A free collectible tower-defense game with acco
 Guests keep progress under `starcat-caravan-v1`. Signed-in members also keep it in `game_saves/{uid}/saves/starcat-caravan` through the same `/api/game/saves` service as the medal center. A first-time account adopts the guest journal once; an account with its own journal opens that instead. Account switches use separate device slots. Unreadable cloud journals are never overwritten. An existing account's cached journal remains playable offline and retries synchronization; a member without a cached journal waits for the account read before spending currency. When devices have both changed, the existing keeper uses the most recently played journal rather than adding currencies or duplicate rewards together.
 
 Companions, copies, levels, party, gems, coins, pity counters, campaign clears, and win/loss counts are saved. Combat in progress is deliberately not saved. Re-entering a stage is free. There are no purchases.
+
+The wish currency is **星のしずく / Stardrops**. Its persisted `gems` key stays compatible with existing saves. Opening the launcher costs nothing; releasing/tapping the star or pressing Enter starts the wish. Optional synthesized chimes default off, and reduced-motion preferences shorten flight and disable movement effects.
 
 ## Adding companions
 
@@ -25,6 +28,8 @@ Existing IDs cannot be deleted or renamed, including companions added later. Own
 
 The game loads the catalog before opening progress and keeps the last validated catalog for offline use. A save containing a companion missing from an older catalog remains intact and cannot be played until current definitions are available. Malformed local journals and unreadable cloud journals are also protected from overwriting. Catalogs are scoped to each game instance rather than mutating a shared global roster.
 
+`portraitUrl` accepts a public HTTPS image URL (including Firebase Storage) or a versioned local image path, and is editable in the same administrator form. Image bytes are served separately from Firestore. The initial six portraits live under `public/img/games/starcat-caravan/characters/` and deploy with the site. Existing catalogs receive only missing portrait URLs transactionally once, with a revision increase; administrator artwork and explicit `null` (vector rendering) are preserved. This migration never reads or changes player saves. Character edits to name, color or role do not regenerate raster artwork; replace the image URL to change the illustration.
+
 Run the relevant checks with the repository's Node version:
 
 ```sh
@@ -34,6 +39,8 @@ npm test -- tests/unit/components/game/StarcatCaravan tests/unit/services/gameSa
 ## Artwork
 
 Created with the built-in `image_gen` tool. Project assets:
+
+- Six 960 × 960 transparent WebP portraits in `public/img/games/starcat-caravan/characters/`: Maple, Luna, Sol, Ember, Brook and Moss. Distinct silhouettes, clothing and personalities in a cohesive painted storybook style. Prompts and provenance: [character art notes](../../../../docs/starcat-character-art.md).
 
 - `public/img/games/starcat-caravan/sky.webp` (1600 × 900)
 - `public/img/games/covers/starcat-caravan.webp` (960 × 540)

@@ -1,5 +1,8 @@
-import { CHARACTERS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, RARITY_POWER, STAGES, SUMMON_COST, characterById, type Ability, type Character, type Element, type Rarity } from './data';
+import { CHARACTERS, MAX_LEVEL, PITY_FIVE, PITY_FOUR, STAGES, SUMMON_COST, characterById, type Ability, type Character, type Element, type Rarity } from './data';
 import { AURA_SECONDS, ELEMENT_ADVANTAGES, REACTION_COOLDOWN, RESONANCE_ATTACK, RESONANCE_HP, partyElements, reactionFor, type Reaction } from './elements';
+import { catStats } from './stats';
+export { catStats } from './stats';
+import { aimArena, castArenaBurst, createArena, steerArena, tickArena, type Arena } from './arena';
 import { adventureOf, checkpoint, interact, movePoint, near, parseAdventure, PLACES, visitRegion, type AdventureSave, type Direction, type Place, type Point } from './adventure';
 
 export interface OwnedCat { level: number; copies: number }
@@ -84,12 +87,6 @@ export function toggleTeam(save: Save, id: string): Save {
   if (save.team.includes(id)) return save.team.length > 1 ? { ...save, team: save.team.filter((entry) => entry !== id) } : save;
   return save.team.length < 4 ? { ...save, team: [...save.team, id] } : save;
 }
-export function catStats(id: string, owned: OwnedCat, characters: readonly Character[] = CHARACTERS) {
-  const cat = characterById(id, characters);
-  const multiplier = RARITY_POWER[cat.rarity] * (1 + (owned.level - 1) * 0.14) * (1 + Math.min(5, owned.copies - 1) * 0.04);
-  const armor = RARITY_POWER[cat.rarity] * (1 + (owned.level - 1) * 0.07) * (1 + Math.min(5, owned.copies - 1) * 0.04);
-  return { hp: Math.round(cat.hp * multiplier), attack: Math.round(cat.attack * multiplier), defense: Math.round((cat.defense ?? 0) * armor) };
-}
 export function elementMultiplier(attack: Element, defense: Element): number {
   return ELEMENT_ADVANTAGES[attack].includes(defense) ? 1.5 : 1;
 }
@@ -135,7 +132,6 @@ export interface Battle {
   units: Unit[];
   reactions: { kind: Reaction; x: number; time: number; key: number }[];
   skills: { ability: Ability; catId: string; x: number; time: number; key: number }[];
-  commands?: Record<string, number>;
 }
 export function startBattle(save: Save, stage: number): Battle | null {
   if (!whole(stage, STAGES.length - 1) || (stage > 0 && !save.cleared.includes(stage - 1)) || !save.team.length) return null;
@@ -225,27 +221,6 @@ function attackEffect(battle: Battle, unit: Unit, target: Unit, ability: Ability
   skillEvent(battle, unit, ability);
 }
 
-export const COMMAND_COST = 40;
-export const COMMAND_COOLDOWN = 20;
-/** One deployed companion acts on a manual order; ordinary attacks keep their own counters. */
-export function commandSkill(previous: Battle, save: Save, id: string, characters: readonly Character[] = CHARACTERS): Battle {
-  if (previous.status !== 'playing' || previous.paused || !save.team.includes(id) || !Object.hasOwn(save.owned, id) || previous.energy < COMMAND_COST || (previous.commands?.[id] ?? 0) > previous.time) return previous;
-  const source = previous.units.filter((unit) => unit.side === 'ally' && unit.catId === id && unit.hp > 0).sort((a,b) => b.x-a.x)[0];
-  if (!source) return previous;
-  const ability = characterById(id, characters).ability ?? 'none';
-  if (ability === 'none') return previous;
-  const support = ability === 'ward' || ability === 'mend';
-  const enemy = previous.units.filter((unit) => unit.side === 'enemy' && unit.hp > 0 && Math.abs(unit.x-source.x) <= source.range + 8).sort((a,b) => Math.abs(a.x-source.x)-Math.abs(b.x-source.x))[0];
-  if (!support && !enemy) return previous;
-  const battle = { ...previous, energy: previous.energy - COMMAND_COST, commands: { ...previous.commands, [id]: previous.time + COMMAND_COOLDOWN }, units: previous.units.map((unit) => ({ ...unit })), skills: [...previous.skills] };
-  const unit = battle.units.find((entry) => entry.key === source.key)!;
-  if (support) supportEffect(battle, unit, ability);
-  else attackEffect(battle, unit, battle.units.find((entry) => entry.key === enemy!.key)!, ability);
-  battle.units = battle.units.filter((entry) => entry.hp > 0);
-  battle.skills = battle.skills.slice(-3);
-  return battle;
-}
-
 /** A fixed simulation step. UI scheduling never changes combat speed or the draw order. */
 export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Character[] = CHARACTERS): Battle {
   if (previous.status !== 'playing' || previous.paused || dt <= 0 || !Number.isFinite(dt)) return previous;
@@ -313,29 +288,44 @@ export function tickBattle(previous: Battle, dt = 0.1, characters: readonly Char
   return battle;
 }
 
-export function battleReward(save: Save, battle: Battle): { gems: number; coins: number; first: boolean } {
+export function battleReward(save: Save, battle: Pick<Battle, 'stage' | 'status'>): { gems: number; coins: number; first: boolean } {
   if (battle.status !== 'won') return { gems: 0, coins: 0, first: false };
   const first = !save.cleared.includes(battle.stage);
   return { gems: first ? STAGES[battle.stage].gems : 80, coins: first ? STAGES[battle.stage].coins : 120 + battle.stage * 30, first };
 }
 
-export interface GameState { save: Save; battle: Battle | null; pulls: Pull[]; reward: ReturnType<typeof battleReward> | null; journey?: Point }
+export interface GameState { save: Save; battle: Battle | null; pulls: Pull[]; reward: ReturnType<typeof battleReward> | null; journey?: Point; arena?: Arena | null }
 export type Action =
   | { type: 'load'; save: Save } | { type: 'summon'; count: 1 | 10; rolls: number[] }
-  | { type: 'upgrade' | 'team' | 'deploy' | 'leader' | 'skill'; id: string }
+  | { type: 'upgrade' | 'team' | 'deploy' | 'leader'; id: string }
   | { type: 'start'; stage: number }
   | { type: 'travel'; region: number }
   | { type: 'walk'; direction: Direction }
   | { type: 'interact'; place: Place }
   | { type: 'checkpoint' | 'encounter' }
+  | { type: 'arena-tick' | 'arena-burst' | 'arena-pause' }
+  | { type: 'arena-steer'; direction: Direction | null }
+  | { type: 'arena-aim'; point: Point }
   | { type: 'tick' | 'cannon' | 'pause' | 'leave' | 'close-pulls' };
 export const initialGame = (): GameState => ({ save: newSave(), battle: null, pulls: [], reward: null });
 
 /** Currency and victory are committed in the same transition, once per finished battle. */
 export function gameReducer(state: GameState, action: Action, characters: readonly Character[] = CHARACTERS): GameState {
-  if (action.type === 'load') return { ...state, save: action.save, journey: undefined };
+  if (action.type === 'load') return { ...state, save: action.save, journey: undefined, arena: undefined };
+  if (action.type === 'arena-steer' || action.type === 'arena-aim' || action.type === 'arena-pause' || action.type === 'arena-tick' || action.type === 'arena-burst') {
+    if (!state.arena) return state;
+    if (action.type === 'arena-steer') return { ...state, arena: steerArena(state.arena, action.direction) };
+    if (action.type === 'arena-aim') return { ...state, arena: aimArena(state.arena, action.point) };
+    if (action.type === 'arena-pause') return state.arena.status !== 'playing' ? state : { ...state, arena: { ...state.arena, paused: !state.arena.paused, direction: null, target: null } };
+    const arena = action.type === 'arena-tick' ? tickArena(state.arena) : castArenaBurst(state.arena);
+    if (arena === state.arena) return state;
+    if (state.arena.status !== 'playing' || arena.status === 'playing') return { ...state, arena };
+    const reward = battleReward(state.save, arena);
+    const save = { ...state.save, gems: state.save.gems + reward.gems, coins: state.save.coins + reward.coins, wins: state.save.wins + (arena.status === 'won' ? 1 : 0), losses: state.save.losses + (arena.status === 'lost' ? 1 : 0), cleared: reward.first ? [...state.save.cleared, arena.stage] : state.save.cleared };
+    return { ...state, arena, save, reward };
+  }
   if (['travel', 'walk', 'checkpoint', 'interact', 'encounter'].includes(action.type)) {
-    if (state.battle || state.pulls.length) return state;
+    if (state.battle || state.arena || state.pulls.length) return state;
     const position = state.journey ?? adventureOf(state.save).position;
     if (action.type === 'travel') { const save = visitRegion(state.save, action.region); return save === state.save ? state : { ...state, save, journey: undefined }; }
     if (action.type === 'walk') { const journey = movePoint(position, action.direction); return journey === position ? state : { ...state, journey }; }
@@ -343,32 +333,31 @@ export function gameReducer(state: GameState, action: Action, characters: readon
     if (action.type === 'interact') { const save = interact(state.save, position, action.place); return save === state.save ? state : { ...state, save }; }
     if (action.type === 'encounter') {
       if (!near(position, PLACES.find((place) => place.id === 'fortress')!)) return state;
-      return { ...state, save: checkpoint(state.save, position), battle: startBattle(state.save, adventureOf(state.save).region), reward: null };
+      return { ...state, save: checkpoint(state.save, position), arena: createArena(state.save, adventureOf(state.save).region, characters), reward: null };
     }
   }
   if (action.type === 'close-pulls') return { ...state, pulls: [] };
-  if (action.type === 'leave') return { ...state, battle: null, reward: null };
+  if (action.type === 'leave') return { ...state, battle: null, arena: undefined, reward: null };
   if (action.type === 'start') {
-    if (state.battle) return state;
+    if (state.battle || state.arena) return state;
     return { ...state, battle: startBattle(state.save, action.stage), reward: null };
   }
   if (action.type === 'summon') {
-    if (state.battle || state.pulls.length || action.rolls.length !== action.count * 2 || action.rolls.some((value) => !Number.isFinite(value) || value < 0 || value >= 1)) return state;
+    if (state.battle || state.arena || state.pulls.length || action.rolls.length !== action.count * 2 || action.rolls.some((value) => !Number.isFinite(value) || value < 0 || value >= 1)) return state;
     let index = 0;
     const result = summon(state.save, action.count, () => action.rolls[index++], characters);
     return result ? { ...state, ...result } : state;
   }
   if (action.type === 'leader') {
-    if (state.battle || !state.save.team.includes(action.id) || state.save.team[0] === action.id) return state;
+    if (state.battle || state.arena || !state.save.team.includes(action.id) || state.save.team[0] === action.id) return state;
     return { ...state, save: { ...state.save, team: [action.id, ...state.save.team.filter((id) => id !== action.id)] } };
   }
   if (action.type === 'upgrade' || action.type === 'team') {
-    if (state.battle) return state;
+    if (state.battle || state.arena) return state;
     return { ...state, save: action.type === 'upgrade' ? upgrade(state.save, action.id) : toggleTeam(state.save, action.id) };
   }
   if (!state.battle) return state;
   if (action.type === 'deploy') return { ...state, battle: deploy(state.battle, state.save, action.id, characters) };
-  if (action.type === 'skill') return { ...state, battle: commandSkill(state.battle, state.save, action.id, characters) };
   if (action.type === 'cannon') return { ...state, battle: fireCannon(state.battle) };
   if (action.type === 'pause') return { ...state, battle: { ...state.battle, paused: !state.battle.paused } };
   if (action.type === 'tick') {

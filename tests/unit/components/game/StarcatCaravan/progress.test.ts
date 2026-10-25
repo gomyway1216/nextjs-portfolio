@@ -49,8 +49,13 @@ describe('Starcat account progress', () => {
     progress.dispatch({type:'upgrade',id:'ember'});
     progress.dispatch({type:'leader',id:'brook'});
     for(const place of ['guide','west','east'] as Place[]) {walk(place);progress.dispatch({type:'interact',place});}
-    walk('fortress');progress.dispatch({type:'encounter'});finishBattle(progress,true);
-    expect(progress.getSnapshot().game.battle?.status).toBe('won');
+    walk('fortress');progress.dispatch({type:'encounter'});
+    for(let step=0;step<1801&&progress.getSnapshot().game.arena?.status==='playing';step++){
+      const arena=progress.getSnapshot().game.arena!;
+      if(arena.charge>=100&&(arena.enemies.length>=2||arena.enemies.some(e=>e.boss)))progress.dispatch({type:'arena-burst'});
+      progress.dispatch({type:'arena-tick'});
+    }
+    expect(progress.getSnapshot().game.arena?.status).toBe('won');
     progress.dispatch({type:'leave'});walk('beacon');progress.dispatch({type:'interact',place:'beacon'});
     const expected=structuredClone(progress.getSnapshot().game.save);
     expect(expected).toMatchObject({gems:3850,coins:1230,owned:{ember:{level:2}},team:['brook','ember','breeze','moss'],adventure:{met:[0],opened:['0:west','0:east'],restored:[0]}});

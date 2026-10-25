@@ -23,7 +23,7 @@ export const games: Game[] = [
   {
     id: 'starcat-caravan',
     title: 'Starcat Caravan',
-    description: 'Collect and train a party of cats, explore six islands, find treasure, restore starlight and command companions in real-time fortress battles.',
+    description: 'Collect and train a party of cats, explore six islands, find treasure, restore starlight and dodge enemy attacks and unleash a big move in simple 2D party battles.',
     thumbnail: '✨',
     path: '/games/starcat-caravan',
     difficulty: 'Medium',

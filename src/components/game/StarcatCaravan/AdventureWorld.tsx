@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, Compass, Gem, MapPin, MessageCircle, MousePointer2, Sparkles, Tent, Users, X } from 'lucide-react';
-import { STAGES, characterById, type Character, type Language } from './data';
+import { STAGES, type Character, type Language } from './data';
 import type { Action, GameState } from './engine';
 import { adventureOf, CHAPTERS, fragmentCount, MAP_HEIGHT, MAP_WIDTH, near, objective, pathTo, PLACES, terrain, TILE, type Direction, type Place, type Point } from './adventure';
 import { CatSprite } from './CatSprite';
@@ -20,7 +20,7 @@ export default function AdventureWorld({ game, characters, language, ready, read
   const a = adventureOf(game.save);
   const position = game.journey ?? a.position;
   const chapter = CHAPTERS[a.region];
-  const party = game.save.team.map((id) => characterById(id, characters));
+  const party = game.save.team.flatMap((id) => { const cat = characters.find((entry) => entry.id === id); return cat && Object.hasOwn(game.save.owned, id) ? [cat] : []; });
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [journal, setJournal] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -87,7 +87,7 @@ export default function AdventureWorld({ game, characters, language, ready, read
       : !save.cleared.includes(current.region) ? [tx('かけらが淡く光る。でも砦の影が、灯台を覆っている。仲間と影の砦を攻略しよう。', 'The fragments glow faintly, but the fortress casts a shadow over the lantern. Reclaim it with your companions.')]
       : current.region === 5 && current.restored.length < 5 ? [tx('最後の灯火を結ぶには、ほかの五つの灯台にも光が必要。上の島名から戻って、灯火を届けよう。', 'The final light needs all five earlier lanterns. Travel back using the island names and restore their starlight first.')]
       : [tx('二つのかけらを重ねると、仲間たちの願いが光になった。', 'As the two fragments meet, your companions’ wishes turn into light.'), story.ending[language], tx('灯火を取り戻した！ 星のしずく +150、コイン +200。旅の記録に保存しました。', 'Starlight restored! Stardrops +150, coins +200. Your journey is kept in the journal.')];
-    else if (place === 'fortress') lines = [tx('影の兵士と、この島を守るボスが待ち受けている。仲間を出撃させ、エネルギーと属性連携で道を開こう。', 'Shadow soldiers and the island’s boss await. Deploy your companions and use energy and elemental reactions to break through.'), tx('途中で撤退しても探索・育成は残る。戦闘中のHPや敵の位置は保存されず、再挑戦は最初から。準備はいい？', 'Retreating keeps exploration and training. In-battle HP and enemy positions are not saved; a retry starts a fresh battle. Ready?')];
+    else if (place === 'fortress') lines = [tx('影の群れと、この島を守るボスが待ち受けている。仲間は最初から一緒に戦うよ。歩いて赤い攻撃を避け、星の絆で大きな一撃を出そう。', 'The shadows and their guardian await. Your companions fight alongside you from the start. Walk out of red attack warnings and use Star bond for a big hit.'), tx('途中で撤退しても探索・育成は残る。戦闘中のHPや敵の位置は保存されず、再挑戦は最初から。準備はいい？', 'Retreating keeps exploration and training. In-battle HP and enemy positions are not saved; a retry starts a fresh battle. Ready?')];
     else if (place === 'sign') lines = [tx('西に旅のキャンプ、中央に星渡りの橋。東に影の砦、北東に星の灯台。道に迷ったら、マップをタップして歩いてみよう。', 'Camp lies west, the star bridge in the middle, the fortress east, and the lantern northeast. Tap a place on the map to walk there.')];
     else lines = [tx(`${party[0].name.ja}「みんな、準備はいい？ 一緒なら、もう少し先まで行けそうだね。」`, `${party[0].name.en}: “Ready, everyone? Together, we can go a little farther.”`), tx('仲間を変えても、宝箱や灯火の進行はそのまま。コインで育成してから、またここへ帰ってこよう。', 'Changing companions keeps your chests and story progress. Train with coins, then return to the trail.')];
     setConversation({ place, lines, page: 0, battle: place === 'fortress' });

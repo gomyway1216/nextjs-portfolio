@@ -21,4 +21,11 @@ describe('adventure map presentation',()=>{
     expect(html).toContain('Set off for the next island');
     expect(html).toContain('2/2');
   });
+  it('keeps an unknown saved companion protected while a newer catalog is still unavailable',()=>{
+    const game=initialGame();game.save={...game.save,owned:{'future-cat':{level:8,copies:2}},team:['future-cat']};
+    const html=renderToStaticMarkup(<AdventureWorld game={game} characters={CHARACTERS} language="en" ready={false} readGame={()=>game} dispatch={vi.fn()} onParty={vi.fn()} onWish={vi.fn()}/>);
+    expect(html.includes('The missing starlight')).toBe(true);
+    expect(html).not.toContain('ember-v1.webp');
+    expect(game.save.owned['future-cat']).toEqual({level:8,copies:2});
+  });
 });

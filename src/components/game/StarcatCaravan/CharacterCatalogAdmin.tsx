@@ -45,9 +45,6 @@ const combatFields = [
   { key: 'attack', label: '攻撃・回復力', min: 1, max: 10000, step: 1 },
   { key: 'defense', label: '防御力', min: 0, max: 500, step: 1 },
   { key: 'range', label: '射程', min: 1, max: 40, step: 0.1 },
-  { key: 'speed', label: '移動速度', min: 0.1, max: 30, step: 0.1 },
-  { key: 'cost', label: '出撃エネルギー', min: 1, max: 200, step: 1 },
-  { key: 'cooldown', label: '再出撃までの秒数', min: 0.1, max: 60, step: 0.1 },
 ] as const;
 
 export function CharacterFields({ character, saved, onChange }: { character: Character; saved: boolean; onChange: (next: Character) => void }) {
@@ -85,6 +82,7 @@ export function CharacterFields({ character, saved, onChange }: { character: Cha
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {combatFields.map(({ key, label, min, max, step }) => <label key={key} className="block text-sm font-medium">{label}<input type="number" className={inputClass} style={fieldStyle} value={character[key] ?? 0} min={min} max={max} step={step} required onChange={(event) => change({ [key]: event.target.value === '' ? 0 : Number(event.target.value) })} /></label>)}
     </div>
+    <p className="text-xs" style={{ color: 'var(--admin-text-muted)' }}>冒険バトルは仲間全員で同行し、パーティー共通の速度で移動します。出撃コストはありません。基本射程は戦闘時に「8＋射程×0.55」へ換算します。</p>
   </div>;
 }
 

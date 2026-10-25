@@ -11,7 +11,7 @@ describe('acquired companions and party help', () => {
     expect(html.match(/data-testid="cat-/g)).toHaveLength(4);
     for (const name of ['コハク', 'ミナモ', 'ソヨ', 'ワカバ']) expect(html).toContain(name);
     for (const absent of ['ルナ', 'ソル', 'カエデ', '未発見', 'luna-v1.webp', 'sol-v1.webp', 'maple-v1.webp']) expect(html).not.toContain(absent);
-    for (const role of ['前線を支える', '離れた場所から攻撃', '傷ついた仲間を回復']) expect(html).toContain(role);
+    for (const role of ['仲間を支える', '離れた場所から攻撃', '傷ついた仲間を回復']) expect(html).toContain(role);
   });
 
   it('adds a newly acquired runtime companion with its existing level and current DB role', () => {
@@ -34,11 +34,11 @@ describe('acquired companions and party help', () => {
     expect(html.match(/data-testid="cat-/g)).toHaveLength(4);
   });
 
-  it('explains the actual selected companions and manual deployment without listing the rest', () => {
+  it('explains the actual selected companions and simple party combat without listing the rest', () => {
     const save = newSave(); save.team = ['brook', 'moss'];
     const html = renderToStaticMarkup(<PartyOverview save={save} characters={CHARACTERS} language="ja" />);
     expect(html).toContain('ミナモ'); expect(html).toContain('ワカバ');
-    expect(html).toContain('画面下の仲間を押して');
+    expect(html).toContain('通常攻撃と固有能力は自動');
     expect(html).toContain('/games/starcat-caravan/guide#roles');
     expect(html).not.toContain('コハク'); expect(html).not.toContain('ルナ');
   });
@@ -49,7 +49,7 @@ describe('acquired companions and party help', () => {
     for (const text of ['4役の必須枠はありません', '火の共鳴', '蒸気バースト', '火花拡散', '恵みの風']) expect(html).toContain(text);
     expect(html).toContain('/guide#elements');
     const solo = renderToStaticMarkup(<ElementSynergy save={{ ...save, team: ['ember'] }} characters={CHARACTERS} language="en" />);
-    expect(solo).toContain('A solo companion can still deploy');
+    expect(solo).toContain('A solo companion can still adventure');
     expect(solo).not.toContain('resonance</strong>');
   });
 });

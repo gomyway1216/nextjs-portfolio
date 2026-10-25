@@ -320,11 +320,3 @@
 }
 
 .reactionLog { flex-wrap: wrap; }
-
-.skillCommands { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; align-items: stretch; }
-.skillCommands > span { flex: 1 0 150px; display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: #e0cb9e; }
-.skillCommands > span small { font-size: 10px; color: #9fb2c2; margin-top: 3px; }
-.skillCommands button { display: grid; grid-template-columns: 18px 1fr; gap: 2px 5px; min-width: 115px; flex: 1; text-align: left; padding: 9px 12px; border: 1px solid #d3bf8a55; border-radius: 6px; color: #ead5ab; background: #cfbb8b0d; min-height: 54px; }
-.skillCommands button svg { grid-row: span 2; align-self: center; }
-.skillCommands strong { font-size: 11px; font-weight: 500; }
-.skillCommands button small { font-size: 10px; color: #a7b7c4; }

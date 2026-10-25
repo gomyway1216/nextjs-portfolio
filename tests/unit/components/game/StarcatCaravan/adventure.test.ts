@@ -108,13 +108,14 @@ describe('persistent adventure rewards', () => {
     expect(gameReducer(initialGame(),{type:'encounter'}).battle).toBeNull();
     let state=walkTo(initialGame(),'fortress');
     state=gameReducer(state,{type:'encounter'});
-    expect(state.battle?.stage).toBe(0);
+    expect(state.arena?.stage).toBe(0);
     expect(state.save.adventure?.position).toEqual(state.journey);
     expect(gameReducer(state,{type:'walk',direction:'up'})).toBe(state);
     expect(gameReducer(state,{type:'travel',region:0})).toBe(state);
     const saved=parseSave(JSON.stringify(state.save))!;
     expect(saved.adventure?.position).toEqual(state.journey);
     expect(saved).not.toHaveProperty('battle');
+    expect(saved).not.toHaveProperty('arena');
   });
   it('offers all six complete stories and preserves a separate pair of chests per island', () => {
     let state:GameState={...initialGame(),save:{...newSave(),cleared:[0,1,2,3,4,5]}};

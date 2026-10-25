@@ -184,6 +184,30 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // The Tomoshibi build is a Godot HTML5 export served from public/ and shown
+        // in a same-origin iframe, so the site-wide X-Frame-Options: DENY below
+        // blocks it — DENY refuses framing even by the same site. Without this the
+        // page renders its play button and the iframe stays empty (403).
+        //
+        // frame-ancestors 'self' is the modern equivalent and takes precedence over
+        // X-Frame-Options where both are sent; SAMEORIGIN is repeated here for
+        // browsers that only read the old header. Nothing else gains framing rights.
+        source: '/games/tomoshibi/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
+        // index.wasm is the Godot engine template — identical across exports unless
+        // the engine version changes — so it is worth caching hard. index.pck holds
+        // the game itself and changes on every update, so it is deliberately not here.
+        source: '/games/tomoshibi/index.wasm',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
     ];
   },
 };

@@ -797,6 +797,46 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
   },
+  'tomoshibi': {
+    en: {
+      title: 'Tomoshibi — Ruins of the Lantern',
+      description: 'Twenty-one floors down, carrying a torch that burns a point every turn. Let it go out and you can barely see — and the things that live down there hit harder in the dark.',
+      longDescription: 'An original roguelike written in Godot. It owes its shape to a Fujitsu GAMEPACK game I played as a kid — the shape only: every name, monster, floor, sprite and sound in it is mine. Twenty-one floors across five regions, and twenty-three monsters whose stats do not scale with depth, so a sword you were lucky to find stays worth carrying. Light is part of the fight rather than a timer: eight of the monsters are stronger in the dark, so burning the torch to fight them is a decision with a cost. Autosaves every turn, and signing in carries the run to another device.',
+      howToPlay: [
+        'Arrow keys or WASD to move — hold to keep walking',
+        'Space attacks whatever you are facing (it can miss; techniques cannot)',
+        'I opens the bag: read, use, drop or throw',
+        'Cards do their work when thrown, sutras when read',
+        'Keep the torch lit and reach the bottom',
+      ],
+      features: [
+        'Twenty-one floors, twenty-three monsters, sixteen special attacks',
+        'Darkness is dangerous, not just inconvenient — eight monsters feed on it',
+        'Fourteen tiers of sword and armour, found rather than bought',
+        'Autosave every turn; cloud save across devices',
+        'Permadeath — dying leaves only the record',
+      ],
+    },
+    ja: {
+      title: 'ともしびの遺跡',
+      description: '地下20階へ潜るローグライク。たいまつは1ターンに1ずつ減り、絶やすとほとんど何も見えなくなる。そして闇に棲むものは、暗いほど強い。',
+      longDescription: '子供のころ遊んだ富士通GAMEPACKのゲームに着想を得て、Godotで一から作ったローグライク。借りたのは「形」だけで、名前も敵も階層もスプライトも音も、中身はすべて自分で作ったもの。全21階・5つの地形、敵23種。敵は階層で強くなるのではなく深い階に強い種類が出るので、運よく拾った剣はずっと使える。灯りは制限時間ではなく戦いの一部で、23種のうち8種は暗いほど強い。たいまつを燃やして戦うかどうかが選択になる。1手ごとに自動保存。ログインすれば別の端末でも続きから遊べる。',
+      howToPlay: [
+        '矢印キー / WASD で移動(押しっぱなしで歩き続ける)',
+        'スペースで向いている方向を斬る(空振りあり。技は必中)',
+        'I で持ち物 — よむ / つかう / おく / なげる',
+        'カードは投げて使う。経典は読んで使う',
+        'たいまつを絶やさず、最深部まで潜る',
+      ],
+      features: [
+        '全21階・敵23種・特殊能力16種',
+        '暗闇は不便ではなく危険。敵8種は闇で強くなる',
+        '剣と服は14段階。買うのではなく拾って揃える',
+        '毎ターン自動保存。端末をまたいだクラウドセーブ',
+        'ローグライクなので、死ぬと記録だけが残る',
+      ],
+    },
+  },
 };
 
 export function getGameTranslation(gameId: string, lang: GameLanguage): GameTranslation {

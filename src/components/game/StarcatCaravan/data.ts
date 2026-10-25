@@ -36,8 +36,8 @@ export const CHARACTERS: Character[] = [
   { id: 'sol', name: { ja: 'ソル', en: 'Sol' }, title: { ja: '暁の守護騎士', en: 'Dawn paladin' }, rarity: 5, element: 'fire', role: 'guard', fur: '#f8d395', accent: '#edb659', hp: 750, attack: 65, range: 7, speed: 5, cost: 130, cooldown: 8 },
 ];
 
-export function characterById(id: string): Character {
-  const character = CHARACTERS.find((entry) => entry.id === id);
+export function characterById(id: string, characters: readonly Character[] = CHARACTERS): Character {
+  const character = characters.find((entry) => entry.id === id);
   if (!character) throw new Error(`Unknown starcat: ${id}`);
   return character;
 }

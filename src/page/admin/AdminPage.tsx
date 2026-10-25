@@ -2365,6 +2365,11 @@ const AdminPage = () => {
               }}
             />
 
+            <Link href="/admin/games/starcat-caravan" style={{ ...styles.navButton, ...styles.navButtonInactive, textDecoration: 'none' }}>
+              <Gamepad2 size={18} />
+              星ねこ · キャラクター管理
+            </Link>
+
             {/* Security Settings Link */}
             <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${adminColors.border}` }}>
               <Link

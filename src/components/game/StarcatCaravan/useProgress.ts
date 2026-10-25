@@ -3,11 +3,12 @@
 import { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import { type AccountStore, type Player } from '../MedalPusher/account';
 import { createProgress } from './progress';
+import { CHARACTERS, type Character } from './data';
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-export function useProgress(player: Player, store: AccountStore | null) {
-  const progress = useMemo(() => createProgress({ store, slots: () => localStorage }), [store]);
+export function useProgress(player: Player, store: AccountStore | null, characters: readonly Character[] = CHARACTERS) {
+  const progress = useMemo(() => createProgress({ store, slots: () => localStorage, characters }), [store, characters]);
   const snapshot = useSyncExternalStore(progress.subscribe, progress.getSnapshot, progress.getServerSnapshot);
   const { uid, settled, expected } = player;
 

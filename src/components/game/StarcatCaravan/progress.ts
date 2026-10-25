@@ -1,5 +1,5 @@
 import { createSync, decide, GUEST, type AccountStore, type Player, type Slots, type Status, type Sync, type Why } from '../MedalPusher/account';
-import { SAVE_KEY } from './data';
+import { CHARACTERS, SAVE_KEY, type Character } from './data';
 import { gameReducer, initialGame, parseSave, type Action, type GameState } from './engine';
 
 export const PROGRESS_GAME_KEY = 'starcat-caravan';
@@ -10,10 +10,12 @@ export interface ProgressSnapshot {
   ready: boolean;
   playable: boolean;
   recovered: boolean;
+  catalogMissing: boolean;
   status: Status;
 }
 
 interface ProgressOptions {
+  characters?: readonly Character[];
   store: AccountStore | null;
   slots: () => Slots;
   now?: () => number;
@@ -21,12 +23,12 @@ interface ProgressOptions {
 }
 
 /** The medal center's account keeper, with this game's journal as its document. */
-export function createProgress({ store, slots, now = Date.now, mark = () => crypto.randomUUID() }: ProgressOptions) {
+export function createProgress({ store, slots, characters = CHARACTERS, now = Date.now, mark = () => crypto.randomUUID() }: ProgressOptions) {
   let player = GUEST;
   let keeper: Sync | null = null;
   const listeners = new Set<() => void>();
   let snapshot: ProgressSnapshot = {
-    game: initialGame(), opened: 0, ready: false, playable: false, recovered: false,
+    game: initialGame(), opened: 0, ready: false, playable: false, recovered: false, catalogMissing: false,
     status: { where: 'device', kept: true },
   };
   const serverSnapshot = snapshot;
@@ -35,7 +37,8 @@ export function createProgress({ store, slots, now = Date.now, mark = () => cryp
     snapshot = { ...snapshot, ...changes };
     // An unread account must be opened before play can spend its currency.
     // Offline play is available when this device already has that account's copy.
-    snapshot.playable = snapshot.ready && player.settled && snapshot.status.where !== 'checking'
+    snapshot.catalogMissing = Object.keys(snapshot.game.save.owned).some((id) => !characters.some((cat) => cat.id === id));
+    snapshot.playable = snapshot.ready && !snapshot.catalogMissing && player.settled && snapshot.status.where !== 'checking'
       && snapshot.status.where !== 'unreadable' && (!store || player.uid === null || keeper?.owner() === player.uid);
     for (const listener of listeners) listener();
   };
@@ -43,10 +46,11 @@ export function createProgress({ store, slots, now = Date.now, mark = () => cryp
   const open = () => {
     if (!keeper) return;
     const text = keeper.open();
-    const save = parseSave(text);
+    const save = parseSave(text, characters, true);
+    const unreadable = text !== null && save === null;
     snapshot = {
       ...snapshot, game: { ...initialGame(), ...(save ? { save } : {}) },
-      opened: snapshot.opened + 1, ready: true, recovered: text !== null && save === null,
+      opened: snapshot.opened + 1, ready: !unreadable, recovered: unreadable,
     };
     keeper.save('tick');
     publish();
@@ -70,7 +74,7 @@ export function createProgress({ store, slots, now = Date.now, mark = () => cryp
         kept: {
           slot: SAVE_KEY,
           current: () => snapshot.ready ? JSON.stringify(snapshot.game.save) : null,
-          reads: (text) => parseSave(text) !== null,
+          reads: (text) => parseSave(text, characters, true) !== null,
           print: (text) => text,
           settle: decide,
           reopen: open,
@@ -84,7 +88,7 @@ export function createProgress({ store, slots, now = Date.now, mark = () => cryp
     dispatch(action: Exclude<Action, { type: 'load' }>) {
       if (!snapshot.playable) return;
       const previous = snapshot.game;
-      const game = gameReducer(previous, action);
+      const game = gameReducer(previous, action, characters);
       if (game === previous) return;
       snapshot = { ...snapshot, game };
       // Battle animation is transient. Only lasting progress needs a write.

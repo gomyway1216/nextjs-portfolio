@@ -37,7 +37,7 @@
 .heroCopy h2 em { color: #f0d99e; font-style: normal; }
 .heroCopy > p { white-space: pre-line; color: #d0d9e4; line-height: 1.9; font-size: 12px; }
 .heroLink { display: flex; align-items: center; gap: 16px; background: transparent; color: #f2deae; padding: 10px 0; margin-top: 15px; min-height: 44px; border: 0; font-size: 12px !important; }
-.featured { position: absolute; bottom: 25px; right: 32px; text-align: right; text-shadow: 0 2px 12px #0c152c; }
+.featured { max-width: 44%; overflow-wrap: anywhere; position: absolute; bottom: 25px; right: 32px; text-align: right; text-shadow: 0 2px 12px #0c152c; }
 .featured span { display: block; color: #fadd8b; font-size: 13px; letter-spacing: .14em; }
 .featured strong { font-family: Georgia, 'Yu Mincho', serif; font-size: 29px; font-weight: 400; }
 .featured small { display: block; color: #e6e8df; font-size: 11px; }
@@ -76,7 +76,7 @@
 .teamStrip > div { display: flex; gap: 10px; }
 .teamSlot { position: relative; display: flex; align-items: center; gap: 5px; min-width: 75px; min-height: 54px; border-left: 1px solid var(--line); padding-left: 10px; }
 .teamSlot svg { width: 40px; height: 50px; }
-.teamSlot > span { font-size: 11px; }
+.teamSlot > span { min-width: 0; overflow-wrap: anywhere; font-size: 11px; }
 .teamSlot button { border: 0; background: transparent; color: var(--muted); width: 32px; min-height: 44px; font-size: 20px; }
 .collectionGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .catCard { background: #1a293a; border: 1px solid var(--line); border-radius: 10px; padding: 15px; overflow: hidden; }
@@ -90,8 +90,8 @@
 .inParty { right: 0; color: #b7d9c5; }
 .catTitle { font-size: 9px; color: var(--muted) !important; letter-spacing: .05em; }
 .catName { display: flex; justify-content: space-between; align-items: baseline; margin-top: 3px; }
-.catName h3 { font-size: 20px; font-weight: 500; }
-.catName span { font-size: 12px; color: var(--gold); }
+.catName h3 { min-width: 0; overflow-wrap: anywhere; font-size: 20px; font-weight: 500; }
+.catName span { flex-shrink: 0; font-size: 12px; color: var(--gold); }
 .role { color: var(--muted) !important; font-size: 10px; margin: 3px 0 10px !important; }
 .catStats { display: flex; justify-content: space-between; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 10px; color: #bac8d4; }
 .catStats span { display: flex; align-items: center; gap: 4px; }
@@ -155,6 +155,7 @@
 .deployRow button:not(:disabled):hover { background: #ffffff0e; }
 .deployRow button > svg { width: 52px; height: 65px; flex-shrink: 0; }
 .deployRow strong, .deployRow small, .deployRow b { display: block; }
+.deployRow button > span { min-width: 0; overflow-wrap: anywhere; }
 .deployRow strong { font-size: 12px; font-weight: 500; }
 .deployRow small { font-size: 9px; color: var(--muted); margin: 3px 0; }
 .deployRow b { font-size: 13px; color: var(--gold); }
@@ -272,7 +273,8 @@
   .energyBar small { display: none; }
   .deployRow { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 0 10px; }
   .deployRow button { padding: 7px 3px; min-height: 118px; }
-  .deployRow strong { font-size: 10px; }
+  .deployRow button > span { min-width: 0; overflow-wrap: anywhere; }
+.deployRow strong { font-size: 10px; }
   .deployRow small { font-size: 8px; }
   .deployRow .cannon { grid-column: 1 / -1; flex-direction: row; min-height: 44px; gap: 15px; }
   .deployRow .cannon svg { margin: 0; }

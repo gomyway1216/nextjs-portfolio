@@ -15,6 +15,15 @@ export interface Arena {
 }
 export const encounterCount = (stage: number) => 5 + Math.min(4, stage);
 export const distance = (a: Point, b: Point) => Math.hypot(a.x-b.x,a.y-b.y);
+/** Fill a phone's viewport without empty SVG bands, keeping the party in view. */
+export function arenaViewBox(player: Point, width: number, height: number): string {
+  if (width >= 600 || width <= 0 || height <= 0) return '0 0 960 600';
+  const ratio = width / height;
+  const w = Math.min(480, 600 * ratio), h = w / ratio;
+  const x = Math.max(0, Math.min(960 - w, player.x * 10 - w / 2));
+  const y = Math.max(0, Math.min(600 - h, player.y * 10 - h / 2));
+  return `${x} ${y} ${w} ${h}`;
+}
 export function battleDirection(key: string): Direction | null {
   return new Map<string, Direction>([
     ['ArrowUp', 'up'], ['w', 'up'], ['W', 'up'],

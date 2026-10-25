@@ -80,13 +80,19 @@
   .journal ol { grid-template-columns: 1fr; }
 }
 @media (max-width: 599px) {
-  .map { aspect-ratio: 1; min-height: 390px; }
+  .world { padding-block:4px; }
+  .chapterBar { gap:6px; margin-bottom:8px; }
+  .chapterBar > div > span { display:none; }
+  .chapterBar h2 { margin-top:0 !important; font-size:22px; }
+  .chapterBar button { padding:7px 10px; }
+  .regions { margin-bottom:6px; }
+  .map { aspect-ratio: 1; min-height:0; }
   .objective { top: 10px; left: 10px; padding: 9px 12px; max-width: calc(100% - 20px); }
   .objective strong { font-size: 11px; }
   .fragmentBadge { top: 100px; left: 10px; right: auto; font-size: 10px; }
   .dpad { left: 12px; bottom: 12px; grid-template: repeat(2, 44px) / repeat(3, 44px); }
   .interact { right: 12px; bottom: 12px; min-width: 130px; padding: 9px 10px; }
   .dialogue > p { font-size: 13px; min-height: 105px; }
-  .trailFooter { font-size: 10px; }
+  .trailFooter { font-size: 10px; gap:4px; padding:6px 0; }
 }
 @media (prefers-reduced-motion: reduce) { .stride { animation: none; } .walker { transition: none; } }

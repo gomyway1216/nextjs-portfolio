@@ -2,12 +2,23 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { WishReveal, WishSummary } from '@/components/game/StarcatCaravan/SummonShow';
+import { shouldLaunchStar, WishReveal, WishSummary } from '@/components/game/StarcatCaravan/SummonShow';
 import { CatSprite } from '@/components/game/StarcatCaravan/CatSprite';
 import { CHARACTERS, characterById } from '@/components/game/StarcatCaravan/data';
 import { gameReducer, initialGame, parseSave } from '@/components/game/StarcatCaravan/engine';
 
 describe('summon presentation and portrait assets', () => {
+  it('cancels a drag returned to its origin, while retaining true taps and fully drawn releases', () => {
+    expect(shouldLaunchStar(5, true)).toBe(false);
+    expect(shouldLaunchStar(0, true)).toBe(false);
+    expect(shouldLaunchStar(30, true)).toBe(false);
+    expect(shouldLaunchStar(-80, true)).toBe(false);
+    expect(shouldLaunchStar(0, false)).toBe(true);
+    expect(shouldLaunchStar(5, false)).toBe(true);
+    expect(shouldLaunchStar(48, true)).toBe(true);
+    expect(shouldLaunchStar(80, true)).toBe(true);
+  });
+
   it.each([['ember', 3], ['maple', 4], ['luna', 5]] as const)('presents %s with its actual rarity, identity and new-companion reward', (id, rarity) => {
     const cat = characterById(id);
     const html = renderToStaticMarkup(<WishReveal pull={{ id, isNew: true, coins: 0 }} cat={cat} language="ja" />);

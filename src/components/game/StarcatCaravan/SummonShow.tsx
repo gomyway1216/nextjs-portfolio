@@ -12,6 +12,9 @@ type Phase = 'ready' | 'flight' | 'reveal' | 'summary';
 const tint = (rarity: number) => rarity === 5 ? '#f5cf79' : rarity === 4 ? '#c9a3ff' : '#93d9f0';
 const theme = (rarity: number) => ({ '--wish-color': tint(rarity) }) as CSSProperties;
 
+/** Moving back to the origin cancels a drag; it must never turn into a tap. */
+export const shouldLaunchStar = (distance: number, dragged: boolean) => distance >= 48 || (!dragged && Math.abs(distance) < 12);
+
 /** Result presentation only: awards and the single charge stay in the game reducer. */
 export function WishReveal({ pull, cat, language }: { pull: Pull; cat: Character; language: Language }) {
   const ja = language === 'ja';
@@ -56,8 +59,7 @@ export default function SummonShow({ count, pulls, characters, language, onLaunc
   const [error, setError] = useState(false);
   const [sound, setSound] = useState(false);
   const launched = useRef(false);
-  const pointer = useRef<{ id: number; y: number } | null>(null);
-  const distance = useRef(0);
+  const pointer = useRef<{ id: number; y: number; dragged: boolean } | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const audio = useRef<AudioContext | null>(null);
   const ja = language === 'ja';
@@ -105,9 +107,10 @@ export default function SummonShow({ count, pulls, characters, language, onLaunc
   }
 
   function release(event: PointerEvent<HTMLButtonElement>) {
-    if (pointer.current?.id !== event.pointerId) return;
+    const gesture = pointer.current;
+    if (gesture?.id !== event.pointerId) return;
     pointer.current = null;
-    if (distance.current >= 48 || Math.abs(distance.current) < 12) launch();
+    if (shouldLaunchStar(event.clientY - gesture.y, gesture.dragged)) launch();
     setStretch(0);
   }
 
@@ -135,8 +138,8 @@ export default function SummonShow({ count, pulls, characters, language, onLaunc
         <p className={styles.instruction}>{tx('星を下に引いて、指を離そう。', 'Pull the star down, then let go.')}</p>
         <div className={styles.launchpad}><div className={styles.orbit} aria-hidden="true" /><div className={styles.orbitInner} aria-hidden="true" /><div className={styles.slingshot} aria-hidden="true" />
           <button type="button" className={styles.wishStar} aria-label={tx('星を弾いて召喚する', 'Launch the star and wish')} onClick={(event) => { if (event.detail === 0) launch(); }}
-            onPointerDown={(event) => { if (!event.isPrimary || event.button !== 0) return; pointer.current = { id: event.pointerId, y: event.clientY }; distance.current = 0; event.currentTarget.setPointerCapture(event.pointerId); }}
-            onPointerMove={(event) => { if (pointer.current?.id !== event.pointerId) return; distance.current = event.clientY - pointer.current.y; setStretch(Math.max(0, Math.min(120, distance.current))); }}
+            onPointerDown={(event) => { if (!event.isPrimary || event.button !== 0) return; pointer.current = { id: event.pointerId, y: event.clientY, dragged: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
+            onPointerMove={(event) => { if (pointer.current?.id !== event.pointerId) return; const distance = event.clientY - pointer.current.y; if (Math.abs(distance) >= 12) pointer.current.dragged = true; setStretch(Math.max(0, Math.min(120, distance))); }}
             onPointerUp={release} onPointerCancel={() => { pointer.current = null; setStretch(0); }}>
             <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 3L62 36L97 50L62 64L50 97L38 64L3 50L38 36Z" fill="currentColor" /><path d="M50 20L56 43L80 50L56 57L50 80L44 57L20 50L44 43Z" fill="#fff9dc" /></svg>
           </button>

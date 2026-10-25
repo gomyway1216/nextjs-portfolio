@@ -21,6 +21,15 @@ export const GAME_COVER_SIZE = { width: 960, height: 540 } as const;
 
 export const games: Game[] = [
   {
+    id: 'starcat-caravan',
+    title: 'Starcat Caravan',
+    description: 'Wish for a team of star-traveling cats, train your companions, and reclaim six floating islands in a free gacha tower-defense adventure.',
+    thumbnail: '✨',
+    path: '/games/starcat-caravan',
+    difficulty: 'Medium',
+    category: 'RPG',
+  },
+  {
     id: 'jump-game',
     title: 'Jump Game',
     description: 'Time your jumps, clear each obstacle, and keep the run alive for a new high score.',

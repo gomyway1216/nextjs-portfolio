@@ -535,6 +535,21 @@
     }
   },
   "games": {
+    "starcat-caravan": {
+      "title": "Starcat Caravan",
+      "description": "Wish for a team of cats, train your companions, and reclaim six floating islands in a free gacha adventure.",
+      "longDescription": "Collect 12 original cat companions, build a party of four, and deploy them in real-time tower-defense battles. Train your team with battle rewards and explore six floating islands. Progress is saved in this browser.",
+      "howToPlay": [
+        "Use star gems to collect companions. A ★4+ is guaranteed within 10 wishes and a ★5 within 50.",
+        "Build a party of up to four cats and train them with coins.",
+        "Deploy companions with regenerating energy and destroy the enemy fortress."
+      ],
+      "features": [
+        "12 companions with three rarities and three elements",
+        "Real-time battles across six islands",
+        "Free wishes, duplicate upgrades, and browser saves"
+      ]
+    },
     "blackjack": {
       "subtitle1": "Basic strategy makes blackjack a nearly fair game (house edge ~0.5%).",
       "subtitle2": "Playing Mimic Dealer or Always Stand without thinking loses tens of times more — see the difference in real play and simulation.",

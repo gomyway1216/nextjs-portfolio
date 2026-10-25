@@ -41,6 +41,7 @@ import React,{ Suspense,useEffect,useState } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-http';
 import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-json';
@@ -53,9 +54,31 @@ import 'prismjs/themes/prism-tomorrow.css';
 
 import { formatArticleMetadataDate, getArticleGenerationDetail } from '@/lib/studyArticleMetadata';
 
+// Both article and chat bodies can contain either Markdown fence style.
+function readCodeFence(lines: string[], start: number) {
+  const opening = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(lines[start]);
+  if (!opening) return null;
+  const [, indent, fence, info] = opening;
+  if (fence[0] === '`' && info.includes('`')) return null;
+
+  const codeLines: string[] = [];
+  let next = start + 1;
+  for (; next < lines.length; next++) {
+    const closing = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(lines[next]);
+    if (closing && closing[1][0] === fence[0] && closing[1].length >= fence.length) {
+      next++;
+      break;
+    }
+    // Remove only the opening fence's indentation; keep relative code indentation.
+    const spaces = Math.min(indent.length, /^ */.exec(lines[next])![0].length);
+    codeLines.push(lines[next].slice(spaces));
+  }
+  return { language: info.trim().split(/\s+/)[0], code: codeLines.join('\n'), next };
+}
+
 // Simple markdown renderer for chat messages
 function renderMarkdown(text: string): React.ReactNode {
-  const lines = text.split('\n');
+  const lines = text.split(/\r?\n/);
   const elements: React.ReactNode[] = [];
   let i = 0;
   let keyCounter = 0;
@@ -64,21 +87,14 @@ function renderMarkdown(text: string): React.ReactNode {
     const line = lines[i];
     const key = keyCounter++;
 
-    // Code block (```)
-    if (line.trim().startsWith('```')) {
-      const lang = line.trim().slice(3);
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
+    const codeBlock = readCodeFence(lines, i);
+    if (codeBlock) {
       elements.push(
         <pre key={key} style={{ backgroundColor: '#1f2937', color: '#e5e7eb', padding: '12px', borderRadius: '8px', overflow: 'auto', margin: '12px 0', fontSize: '13px' }}>
-          <code className={lang ? `language-${lang}` : undefined}>{codeLines.join('\n')}</code>
+          <code className={codeBlock.language ? `language-${codeBlock.language}` : undefined}>{codeBlock.code}</code>
         </pre>
       );
-      i++;
+      i = codeBlock.next;
       continue;
     }
 
@@ -247,7 +263,7 @@ function renderInlineMarkdown(text: string): React.ReactNode {
 function renderArticleMarkdown(text: string): React.ReactNode {
   if (!text) return null;
 
-  const lines = text.split('\n');
+  const lines = text.split(/\r?\n/);
   const elements: React.ReactNode[] = [];
   let i = 0;
   let keyCounter = 0;
@@ -256,19 +272,12 @@ function renderArticleMarkdown(text: string): React.ReactNode {
     const line = lines[i];
     const key = keyCounter++;
 
-    // Code block (```)
-    if (line.trim().startsWith('```')) {
-      const lang = line.trim().slice(3);
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
+    const codeBlock = readCodeFence(lines, i);
+    if (codeBlock) {
       elements.push(
-        <StudyCodeBlock key={key} language={lang} code={codeLines.join('\n')} />
+        <StudyCodeBlock key={key} language={codeBlock.language} code={codeBlock.code} />
       );
-      i++;
+      i = codeBlock.next;
       continue;
     }
 

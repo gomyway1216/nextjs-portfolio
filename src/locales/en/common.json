@@ -535,6 +535,10 @@
     }
   },
   "games": {
+    "tomoshibi": {
+      "title": "Tomoshibi — Ruins of the Lantern",
+      "description": "Twenty-one floors down, carrying a torch that burns a point every turn. Let it go out and you can barely see — and the things that live down there hit harder in the dark."
+    },
     "starcat-caravan": {
       "title": "Starcat Caravan",
       "description": "Explore six islands with your collectible cat party. Find treasure, follow their stories and restore the starlight.",

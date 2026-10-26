@@ -44,6 +44,26 @@ import { loadTomoshibiSave, saveTomoshibiSave } from '@/services/tomoshibiSaveCl
 
 const GAME_URL = '/games/tomoshibi/index.html';
 
+/**
+ * Whether this browser can run the build at all.
+ *
+ * Godot's web export needs WebGL2, and without it the engine boots far enough
+ * to show its own splash and then a raw "The following features required to run
+ * Godot projects on the Web are missing: WebGL2" over it — which tells a player
+ * nothing they can act on. Checked here instead so the page can say what to try.
+ *
+ * It is usually not the machine: hardware acceleration turned off in the
+ * browser, or an anti-fingerprinting extension that disables WebGL, will both
+ * land here on hardware that is perfectly capable.
+ */
+function hasWebGL2(): boolean {
+  try {
+    return !!document.createElement('canvas').getContext('webgl2');
+  } catch {
+    return false;
+  }
+}
+
 /** Writes are coalesced: the game only mirrors on floor changes and suspend,
  *  but a fast descent can still fire a couple in quick succession. */
 const WRITE_DELAY_MS = 1500;
@@ -54,12 +74,16 @@ interface TomoshibiWindow extends Window {
 }
 
 export function Tomoshibi() {
-  const [phase, setPhase] = useState<'idle' | 'preparing' | 'playing'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'preparing' | 'playing' | 'no-webgl'>('idle');
   const cloudSave = useRef('');
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef('');
 
   const start = useCallback(async () => {
+    if (!hasWebGL2()) {
+      setPhase('no-webgl');
+      return;
+    }
     setPhase('preparing');
     cloudSave.current = await loadTomoshibiSave();
     setPhase('playing');
@@ -103,6 +127,40 @@ export function Tomoshibi() {
       }, WRITE_DELAY_MS);
     };
   }, []);
+
+  if (phase === 'no-webgl') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: '0.75rem',
+          width: '100%',
+          aspectRatio: '16 / 9',
+          padding: '1.5rem',
+          borderRadius: 8,
+          background: '#1b1a22',
+          color: '#f0d78c',
+          fontSize: '0.95rem',
+          lineHeight: 1.7,
+        }}
+      >
+        <strong>このブラウザでは動かせません(WebGL2 が使えません)</strong>
+        <span style={{ opacity: 0.85 }}>
+          端末の性能の問題ではないことがほとんどです。次のどれかで直ります:
+        </span>
+        <ul style={{ margin: 0, paddingLeft: '1.2rem', opacity: 0.85 }}>
+          <li>ブラウザの設定で「ハードウェア アクセラレーション」を有効にする</li>
+          <li>拡張機能(とくに指紋対策・プライバシー系)を切って開き直す</li>
+          <li>別のブラウザか、シークレットウィンドウで開く</li>
+        </ul>
+        <span style={{ opacity: 0.6, fontSize: '0.85rem' }}>
+          Chrome なら chrome://gpu で WebGL2 の状態を確認できます。
+        </span>
+      </div>
+    );
+  }
 
   if (phase !== 'playing') {
     return (

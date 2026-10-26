@@ -70,3 +70,21 @@
   .skill { bottom:8px; right:8px; min-height:80px; min-width:110px; padding:6px 10px; }
 }
 @media(prefers-reduced-motion:reduce){.walking,.effect,.burst{animation:none;}.companion{transition:none;}}
+
+.wave { display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; }
+.wave > small { font-size:inherit; opacity:.8; }
+.wave[data-boss='true'] { left:18px; right:auto; top:90px; }
+@media(max-width:599px), (max-width:1023px) and (max-height:500px) {
+  .wave[data-boss='true'] { left:10px; top:75px; max-width:35%; padding:6px 8px; border-radius:7px; }
+}
+@media(max-width:1023px) and (max-height:500px) {
+  .wave { top:68px; left:8px; right:auto; padding:6px 8px; }
+  .wave[data-boss='true'] { top:68px; left:8px; max-width:none; }
+  .overlay { padding:8px; gap:6px; overflow-y:auto; }
+  .overlay > svg { display:none; }
+  .overlay h3 { font-size:22px; }
+  .overlay p { font-size:11px; line-height:1.5; }
+  .overlay button { flex-shrink:0; min-height:44px; padding:6px 16px; margin-top:0; }
+  .overlay[role='status'] { justify-content:flex-start; }
+  .rewards { font-size:14px; }
+}

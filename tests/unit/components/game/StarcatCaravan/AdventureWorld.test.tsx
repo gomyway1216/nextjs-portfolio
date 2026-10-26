@@ -14,12 +14,15 @@ describe('adventure map presentation',()=>{
     expect(html).toContain('ember-v1.webp');expect(html).not.toContain('luna-v1.webp');
     expect(html).toContain('aria-label="'+(language==='ja'?'ソヨを先頭にする':'Lead with Breeze')+'"');
     expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain(`aria-label="${language==='ja'?'旅の手帳 0/6':'Travel journal 0/6'}"`);
+    expect(html).toContain(`aria-label="${language==='ja'?'仲間・育成':'Party &amp; training'}"`);
   });
   it('shows an already restored journal without replaying or claiming rewards',()=>{
     const game=initialGame();game.save={...game.save,cleared:[0],adventure:{...newAdventure(),met:[0],opened:['0:west','0:east'],restored:[0]}};
     const html=renderToStaticMarkup(<AdventureWorld game={game} characters={CHARACTERS} language="en" ready readGame={initialGame} dispatch={vi.fn()} onParty={vi.fn()} onWish={vi.fn()}/>);
     expect(html).toContain('Set off for the next island');
     expect(html).toContain('2/2');
+    expect(html).toContain('aria-label="Travel journal 1/6"');
   });
   it('keeps an unknown saved companion protected while a newer catalog is still unavailable',()=>{
     const game=initialGame();game.save={...game.save,owned:{'future-cat':{level:8,copies:2}},team:['future-cat']};

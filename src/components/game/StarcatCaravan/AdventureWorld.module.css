@@ -12,7 +12,7 @@
 .regions button[aria-pressed='true'] { background: #d0bd9719; border-color: #cdb98b88; color: #f5e4bd; }
 .field { position: relative; overflow: hidden; border: 1px solid #c1b48a77; border-radius: 12px; background: #5b856d; box-shadow: 0 22px 50px #0003; isolation: isolate; }
 .field::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 80px #163c3b4d; border-radius: inherit; z-index: 1; }
-.map { display: block; width: 100%; aspect-ratio: 3 / 2; max-height: 650px; touch-action: manipulation; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+.map { --compact-camera:0; display: block; width: 100%; aspect-ratio: 3 / 2; max-height: 650px; touch-action: manipulation; user-select: none; -webkit-user-select: none; cursor: crosshair; }
 .walker { transition: transform 145ms linear; }
 .faceLeft { transform: scaleX(-1); }
 .stride { animation: step .29s ease-in-out infinite alternate; transform-origin: center bottom; }
@@ -96,3 +96,38 @@
   .trailFooter { font-size: 10px; gap:4px; padding:6px 0; }
 }
 @media (prefers-reduced-motion: reduce) { .stride { animation: none; } .walker { transition: none; } }
+
+@media (max-width:599px), (max-width:1023px) and (max-height:500px) {
+  .world { padding-block:4px; }
+  .chapterBar { flex-direction:row; align-items:center; gap:6px; margin-bottom:6px; }
+  .chapterBar > div:first-child { flex:1; min-width:0; }
+  .chapterBar > div:first-child > span { display:none; }
+  .chapterBar h2 { font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:0 !important; }
+  .chapterBar > div:last-child { width:auto; flex-wrap:nowrap; gap:4px; }
+  .chapterBar button { min-width:44px; padding:7px; }
+  .chapterBar button > span { display:none; }
+  .regions { margin-bottom:6px; }
+  .map { --compact-camera:1; }
+  .dialogue { max-height:100%; overflow-y:auto; }
+  .speaker button,.journal header button { min-width:44px; min-height:44px; }
+}
+@media (max-width:1023px) and (max-height:500px) {
+  .scrim { padding:8px; }
+  .dialogue { padding:8px 12px; }
+  .speaker { padding-bottom:4px; }
+  .dialogue > p { min-height:0; margin-block:6px !important; font-size:12px; line-height:1.6; }
+  .map { aspect-ratio:auto; height:max(170px,calc(100dvh - 210px)); }
+  .objective { top:8px; left:8px; max-width:55%; padding:6px 9px; }
+  .objective > span,.objective small { display:none; }
+  .objective strong { font-size:11px; margin:0; }
+  .fragmentBadge { top:8px; right:8px; left:auto; font-size:10px; padding:5px 8px; }
+  .dpad { left:8px; bottom:8px; grid-template:repeat(2,44px)/repeat(3,44px); }
+  .interact { right:8px; bottom:8px; min-width:130px; min-height:60px; padding:8px 10px; }
+}
+@media(max-width:1023px) and (max-height:350px) {
+  .world { position:relative; }
+  .chapterBar { position:absolute; top:4px; right:0; width:100px; height:44px; z-index:2; margin:0; }
+  .chapterBar > div:first-child { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .chapterBar > div:last-child { width:100%; }
+  .regions { width:calc(100% - 108px); margin-bottom:2px; }
+}

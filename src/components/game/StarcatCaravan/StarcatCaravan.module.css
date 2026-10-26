@@ -339,3 +339,27 @@
 .ascension p { font-size:11px; color:var(--gold); }
 .ascension button { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; min-height:44px; border:1px solid #dac28d77; background:#e5c88c12; color:#eed49e; border-radius:5px; margin:7px 0; font-size:12px; }
 .ascension small { display:block; font-size:9px; color:var(--muted); line-height:1.6; }
+
+@media (max-width:599px), (max-width:1023px) and (max-height:500px) {
+  /* Keep the trail and its touch controls visible before scrolling. */
+  .page[data-view='adventure']:not([data-battle]) .shell { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+  .page[data-view='adventure']:not([data-battle]) .shell > :not(.topline):not(.header) { grid-column:1 / -1; }
+  .page[data-view='adventure']:not([data-battle]) .topline { grid-column:1; grid-row:1; margin-bottom:0; }
+  .page[data-view='adventure']:not([data-battle]) .topline > span { display:none; }
+  .page[data-view='adventure']:not([data-battle]) .header { grid-column:2; grid-row:1; padding:0; }
+  .page[data-view='adventure']:not([data-battle]) .brand { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .page[data-view='adventure']:not([data-battle]) .wallet { gap:12px; }
+  .page[data-view='adventure']:not([data-battle]) .wallet > div { gap:4px; }
+  .page[data-view='adventure']:not([data-battle]) .wallet svg { width:14px; }
+  .page[data-view='adventure']:not([data-battle]) .wallet b { font-size:13px; }
+  .page[data-view='adventure']:not([data-battle]) .wallet small { font-size:8px; }
+  .navigation { flex-wrap:nowrap; }
+  .navigation nav { flex:1; min-width:0; gap:2px; }
+  .navigation nav button { flex:1; min-width:0; flex-direction:column; justify-content:center; gap:2px; padding:4px 2px; font-size:9px; line-height:1.2; }
+  .navigation nav button > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .navigation .guideLink { min-width:44px; margin:0; justify-content:center; }
+  .navigation .help { min-width:44px; width:44px; }
+}
+@media(max-width:1023px) and (max-height:350px) {
+  .page[data-view='adventure']:not([data-battle]) .navigation { margin-bottom:4px; }
+}

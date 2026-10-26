@@ -7,6 +7,13 @@
   content: none;
 }
 
+/* Starcat has its own game controls and exit link; its guide keeps the site bar. */
+@media (max-width: 599px), (max-width: 1023px) and (max-height: 500px) {
+  .toolbar[data-mobile-immersive='true'] {
+    display: none;
+  }
+}
+
 /* A section's accent as text (the games link, the game's name): darkened on the light toolbar, where the bright
    accents are under 3:1 on white (#0ea5e9 is 2.7:1), and as it is on the dark one. */
 .accentText {

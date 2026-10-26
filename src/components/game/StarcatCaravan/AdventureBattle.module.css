@@ -9,7 +9,7 @@
 .howTo > span { color:#e7d6ab; font-size:14px; }
 .howTo p { color:#adbfc6 !important; font-size:11px; }
 .field { position:relative; border-radius:12px; border:1px solid #c5b48777; overflow:hidden; background:#71977a; }
-.scene { display:block; width:100%; height:clamp(340px,calc(100dvh - 260px),560px); touch-action:manipulation; user-select:none; cursor:crosshair; }
+.scene { --compact-camera:0; display:block; width:100%; height:clamp(340px,calc(100dvh - 260px),560px); touch-action:manipulation; user-select:none; cursor:crosshair; }
 .companion { transition:transform .1s linear; }
 .walking { animation:walking .22s ease-in-out infinite alternate; }
 @keyframes walking { to { transform:translateY(-4px) rotate(2deg); } }
@@ -43,14 +43,30 @@
 .rewards { display:flex; gap:24px; font-size:17px; }
 .rewards span { display:flex; align-items:center; gap:8px; }
 .tip { font-size:11px; color:#aebfc7 !important; margin-top:12px !important; line-height:1.8; }
-@media(max-width:599px){
-  .header { flex-wrap:wrap; }
-  .header > div:last-child { margin-left:auto; }
-  .scene { height:clamp(340px,calc(100dvh - 330px),450px); }
+@media(max-width:599px), (max-width:1023px) and (max-height:500px){
+  .battle { padding-block:4px; }
+  .header { gap:8px; margin-bottom:8px; }
+  .header > div:first-child { flex:1; min-width:0; }
+  .header > div:first-child > span,.back span,.howTo > span { display:none; }
+  .header h2 { font-size:clamp(17px,4.8vw,20px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .header > div:last-child { flex-shrink:0; gap:4px; }
+  .header button { padding:8px; }
+  .howTo { display:block; margin-bottom:8px; }
+  .howTo p { font-size:10px; line-height:1.5; }
+  /* The camera follows this shape instead of letterboxing a square view. */
+  .scene { --compact-camera:1; height:max(170px,calc(100dvh - 147px)); }
   .hp { top:10px; left:10px; width:calc(100% - 20px); }
   .boss { top:75px; right:10px; width:55%; }
   .wave { top:75px; right:10px; font-size:10px; }
   .dpad { bottom:12px; left:12px; grid-template:repeat(2,44px)/repeat(3,44px); }
   .skill { right:12px; bottom:12px; min-width:125px; min-height:93px; padding:8px 12px; }
+  .tip { display:none; }
+}
+@media (max-width:1023px) and (max-height:500px) {
+  .hp { top:8px; left:8px; width:45%; padding:6px 8px; }
+  .boss { top:8px; right:8px; width:40%; padding:6px 8px; }
+  .wave { top:8px; right:8px; }
+  .dpad { bottom:8px; left:8px; }
+  .skill { bottom:8px; right:8px; min-height:80px; min-width:110px; padding:6px 10px; }
 }
 @media(prefers-reduced-motion:reduce){.walking,.effect,.burst{animation:none;}.companion{transition:none;}}

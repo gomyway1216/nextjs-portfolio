@@ -3,11 +3,14 @@ import { AURA_SECONDS, ELEMENT_ADVANTAGES, REACTION_COOLDOWN, RESONANCE_ATTACK, 
 import { catStats } from './stats';
 export { catStats } from './stats';
 import { aimArena, castArenaBurst, createArena, steerArena, tickArena, type Arena } from './arena';
+import { featureSave } from './achievements';
+import { ascensionOffer } from './growth';
+import { checkpointArena, parseEncounter, resumeArena, type EncounterCheckpoint } from './resume';
 import { adventureOf, checkpoint, interact, movePoint, near, parseAdventure, PLACES, visitRegion, type AdventureSave, type Direction, type Place, type Point } from './adventure';
 
-export interface OwnedCat { level: number; copies: number }
+export interface OwnedCat { level: number; copies: number; stars?: Rarity }
 export interface Save {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   gems: number;
   coins: number;
   owned: Record<string, OwnedCat>;
@@ -19,6 +22,8 @@ export interface Save {
   wins: number;
   losses: number;
   adventure?: AdventureSave;
+  achievements?: string[];
+  encounter?: EncounterCheckpoint | null;
 }
 export interface Pull { id: string; isNew: boolean; coins: number }
 
@@ -34,14 +39,15 @@ export function parseSave(raw: string | null, characters: readonly Character[] =
   if (!raw) return null;
   try {
     const value = JSON.parse(raw);
-    if (!value || (value.version !== 1 && value.version !== 2) || (value.version === 2 && value.adventure === undefined) || !['gems', 'coins', 'pulls', 'wins', 'losses'].every((key) => whole(value[key])) || !whole(value.pityFive, PITY_FIVE - 1) || !whole(value.pityFour, PITY_FOUR - 1)) return null;
+    if (!value || ![1,2,3].includes(value.version) || (value.version >= 2 && value.adventure === undefined) || !['gems', 'coins', 'pulls', 'wins', 'losses'].every((key) => whole(value[key])) || !whole(value.pityFive, PITY_FIVE - 1) || !whole(value.pityFour, PITY_FOUR - 1)) return null;
     if (!value.owned || typeof value.owned !== 'object' || Array.isArray(value.owned)) return null;
     const owned: Record<string, OwnedCat> = {};
     for (const [id, cat] of Object.entries(value.owned)) {
       if ((!allowUnknownCharacters && !characters.some((entry) => entry.id === id)) || !/^[a-z][a-z0-9-]{0,47}$/.test(id) || ['constructor', 'prototype'].includes(id) || !cat || typeof cat !== 'object') return null;
       const item = cat as OwnedCat;
       if (!whole(item.level, MAX_LEVEL) || item.level < 1 || !whole(item.copies) || item.copies < 1) return null;
-      owned[id] = { level: item.level, copies: item.copies };
+      if (item.stars !== undefined && (value.version !== 3 || !whole(item.stars,5) || item.stars < 3)) return null;
+      owned[id] = { level: item.level, copies: item.copies, ...(item.stars !== undefined ? { stars:item.stars } : {}) };
     }
     if (!Array.isArray(value.team) || value.team.length < 1 || value.team.length > 4 || new Set(value.team).size !== value.team.length || !value.team.every((id: unknown) => typeof id === 'string' && Object.hasOwn(owned, id))) return null;
     if (!Array.isArray(value.cleared) || new Set(value.cleared).size !== value.cleared.length || !value.cleared.every((stage: unknown) => whole(stage, STAGES.length - 1))) return null;
@@ -50,7 +56,11 @@ export function parseSave(raw: string | null, characters: readonly Character[] =
     if (cleared.some((stage, index) => stage !== index)) return null;
     const adventure = value.adventure === undefined ? undefined : parseAdventure(value.adventure, cleared);
     if (adventure === null) return null;
-    return { version: value.version, gems: value.gems, coins: value.coins, owned, team: [...value.team], cleared, pityFive: value.pityFive, pityFour: value.pityFour, pulls: value.pulls, wins: value.wins, losses: value.losses, ...(adventure ? { adventure } : {}) };
+    if(value.version!==3 && (value.achievements!==undefined||value.encounter!==undefined))return null;
+    if(value.version===3 && (!Array.isArray(value.achievements)||value.achievements.length>200||new Set(value.achievements).size!==value.achievements.length||!value.achievements.every((id:unknown)=>typeof id==='string'&&/^[a-z][a-z0-9-]{0,47}$/.test(id))||value.encounter===undefined))return null;
+    const encounter=value.version===3 && value.encounter!==null?parseEncounter(value.encounter,owned,cleared):null;
+    if(value.version===3 && value.encounter!==null && !encounter)return null;
+    return { version: value.version, gems: value.gems, coins: value.coins, owned, team: [...value.team], cleared, pityFive: value.pityFive, pityFour: value.pityFour, pulls: value.pulls, wins: value.wins, losses: value.losses, ...(adventure ? { adventure } : {}), ...(value.version===3?{achievements:[...value.achievements],encounter}: {}) };
   } catch { return null; }
 }
 
@@ -66,7 +76,7 @@ export function summon(save: Save, count: 1 | 10, random: () => number = Math.ra
     const cat = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(random() * pool.length)))];
     const previous = Object.hasOwn(next.owned, cat.id) ? next.owned[cat.id] : undefined;
     const coins = previous ? ({ 3: 80, 4: 160, 5: 320 }[rarity]) : 0;
-    next.owned[cat.id] = { level: previous?.level ?? 1, copies: (previous?.copies ?? 0) + 1 };
+    next.owned[cat.id] = { ...(previous ?? {}), level: previous?.level ?? 1, copies: (previous?.copies ?? 0) + 1 };
     next.coins += coins;
     next.pityFive = rarity === 5 ? 0 : next.pityFive + 1;
     next.pityFour = rarity >= 4 ? 0 : next.pityFour + 1;
@@ -297,12 +307,12 @@ export function battleReward(save: Save, battle: Pick<Battle, 'stage' | 'status'
 export interface GameState { save: Save; battle: Battle | null; pulls: Pull[]; reward: ReturnType<typeof battleReward> | null; journey?: Point; arena?: Arena | null }
 export type Action =
   | { type: 'load'; save: Save } | { type: 'summon'; count: 1 | 10; rolls: number[] }
-  | { type: 'upgrade' | 'team' | 'deploy' | 'leader'; id: string }
+  | { type: 'upgrade' | 'ascend' | 'team' | 'deploy' | 'leader'; id: string }
   | { type: 'start'; stage: number }
   | { type: 'travel'; region: number }
   | { type: 'walk'; direction: Direction }
   | { type: 'interact'; place: Place }
-  | { type: 'checkpoint' | 'encounter' }
+  | { type: 'checkpoint' | 'encounter' | 'resume' | 'restart-encounter' | 'abandon-encounter' }
   | { type: 'arena-tick' | 'arena-burst' | 'arena-pause' }
   | { type: 'arena-steer'; direction: Direction | null }
   | { type: 'arena-aim'; point: Point }
@@ -311,18 +321,43 @@ export const initialGame = (): GameState => ({ save: newSave(), battle: null, pu
 
 /** Currency and victory are committed in the same transition, once per finished battle. */
 export function gameReducer(state: GameState, action: Action, characters: readonly Character[] = CHARACTERS): GameState {
+  const next=reduceGame(state,action,characters);
+  return action.type!=='load' && next.save!==state.save ? {...next,save:featureSave(next.save)} : next;
+}
+function keepEncounter(save: Save, arena: Arena): Save {
+  const encounter=checkpointArena(arena);
+  if(JSON.stringify(save.encounter)===JSON.stringify(encounter))return save;
+  return {...featureSave(save),encounter};
+}
+function reduceGame(state: GameState, action: Action, characters: readonly Character[]): GameState {
   if (action.type === 'load') return { ...state, save: action.save, journey: undefined, arena: undefined };
+  if(action.type==='checkpoint' && state.arena?.status==='playing')return {...state,save:keepEncounter(state.save,state.arena)};
+  if(action.type==='resume'||action.type==='restart-encounter'||action.type==='abandon-encounter'){
+    if(state.arena||state.battle||state.pulls.length||!state.save.encounter)return state;
+    if(action.type==='abandon-encounter')return {...state,save:{...state.save,encounter:null}};
+    if(action.type==='resume')return {...state,arena:resumeArena(state.save.encounter),save:featureSave(state.save,['resumed']),reward:null};
+    const arena=createArena(state.save,state.save.encounter.arena.stage,characters);
+    return arena?{...state,arena,save:keepEncounter(state.save,arena),reward:null}:state;
+  }
+  if(action.type==='ascend'){
+    if(state.arena||state.battle||!Object.hasOwn(state.save.owned,action.id))return state;
+    const cat=characters.find(c=>c.id===action.id),owned=state.save.owned[action.id];
+    if(!cat)return state;
+    const offer=ascensionOffer(cat,owned);
+    if(!offer||owned.level<offer.level||state.save.coins<offer.coins)return state;
+    return {...state,save:{...state.save,coins:state.save.coins-offer.coins,owned:{...state.save.owned,[action.id]:{...owned,stars:offer.stars}}}};
+  }
   if (action.type === 'arena-steer' || action.type === 'arena-aim' || action.type === 'arena-pause' || action.type === 'arena-tick' || action.type === 'arena-burst') {
     if (!state.arena) return state;
     if (action.type === 'arena-steer') return { ...state, arena: steerArena(state.arena, action.direction) };
     if (action.type === 'arena-aim') return { ...state, arena: aimArena(state.arena, action.point) };
-    if (action.type === 'arena-pause') return state.arena.status !== 'playing' ? state : { ...state, arena: { ...state.arena, paused: !state.arena.paused, direction: null, target: null } };
+    if (action.type === 'arena-pause') { if(state.arena.status!=='playing')return state; const arena={...state.arena,paused:!state.arena.paused,direction:null,target:null};return {...state,arena,save:keepEncounter(state.save,arena)}; }
     const arena = action.type === 'arena-tick' ? tickArena(state.arena) : castArenaBurst(state.arena);
     if (arena === state.arena) return state;
-    if (state.arena.status !== 'playing' || arena.status === 'playing') return { ...state, arena };
+    if (state.arena.status !== 'playing' || arena.status === 'playing') return { ...state, arena, ...(action.type==='arena-burst'?{save:keepEncounter(featureSave(state.save,['star-bond']),arena)}:{}) };
     const reward = battleReward(state.save, arena);
-    const save = { ...state.save, gems: state.save.gems + reward.gems, coins: state.save.coins + reward.coins, wins: state.save.wins + (arena.status === 'won' ? 1 : 0), losses: state.save.losses + (arena.status === 'lost' ? 1 : 0), cleared: reward.first ? [...state.save.cleared, arena.stage] : state.save.cleared };
-    return { ...state, arena, save, reward };
+    const save = { ...state.save, encounter:null, gems: state.save.gems + reward.gems, coins: state.save.coins + reward.coins, wins: state.save.wins + (arena.status === 'won' ? 1 : 0), losses: state.save.losses + (arena.status === 'lost' ? 1 : 0), cleared: reward.first ? [...state.save.cleared, arena.stage] : state.save.cleared };
+    return { ...state, arena, save:featureSave(save,[...(arena.status==='won'&&arena.hits===0?['flawless']:[]),...(action.type==='arena-burst'?['star-bond']:[])]), reward };
   }
   if (['travel', 'walk', 'checkpoint', 'interact', 'encounter'].includes(action.type)) {
     if (state.battle || state.arena || state.pulls.length) return state;
@@ -332,14 +367,15 @@ export function gameReducer(state: GameState, action: Action, characters: readon
     if (action.type === 'checkpoint') { const save = checkpoint(state.save, position); return save === state.save ? state : { ...state, save }; }
     if (action.type === 'interact') { const save = interact(state.save, position, action.place); return save === state.save ? state : { ...state, save }; }
     if (action.type === 'encounter') {
-      if (!near(position, PLACES.find((place) => place.id === 'fortress')!)) return state;
-      return { ...state, save: checkpoint(state.save, position), arena: createArena(state.save, adventureOf(state.save).region, characters), reward: null };
+      if (state.save.encounter || !near(position, PLACES.find((place) => place.id === 'fortress')!)) return state;
+      const arena=createArena(state.save,adventureOf(state.save).region,characters);
+      return arena?{ ...state, save: keepEncounter(checkpoint(state.save,position),arena), arena, reward: null }:state;
     }
   }
   if (action.type === 'close-pulls') return { ...state, pulls: [] };
-  if (action.type === 'leave') return { ...state, battle: null, arena: undefined, reward: null };
+  if (action.type === 'leave') return { ...state, save:state.arena?.status==='playing'?keepEncounter(state.save,state.arena):state.save, battle: null, arena: undefined, reward: null };
   if (action.type === 'start') {
-    if (state.battle || state.arena) return state;
+    if (state.battle || state.arena || state.save.encounter) return state;
     return { ...state, battle: startBattle(state.save, action.stage), reward: null };
   }
   if (action.type === 'summon') {

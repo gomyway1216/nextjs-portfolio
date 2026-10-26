@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Coins, Gem, Heart, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { battleDirection, type Arena } from './arena';
+import { arenaViewBox, battleDirection, type Arena } from './arena';
 import { ELEMENTS, STAGES, characterById, type Character, type Language } from './data';
 import { type Action, type GameState, type Save } from './engine';
 import { CHAPTERS, type Direction } from './adventure';
-import { abilityFor } from './abilities';
+import { ABILITIES, abilityFor } from './abilities';
 import { REACTIONS } from './elements';
 import { createBattleAudio } from './battleAudio';
 import { CatSprite, ShadowSprite } from './CatSprite';
@@ -16,11 +16,21 @@ type Props = { arena: Arena; save: Save; characters: readonly Character[]; langu
 export default function AdventureBattle({arena,characters,language,ready,dispatch,reward}:Props){
   const tx=(ja:string,en:string)=>language==='ja'?ja:en;
   const root=useRef<HTMLElement>(null),svg=useRef<SVGSVGElement>(null);
-  const [narrow,setNarrow]=useState(false),[sound,setSound]=useState(false);
+  const [viewport,setViewport]=useState({width:960,height:600,compact:false}),[sound,setSound]=useState(false);
   const audio=useRef<ReturnType<typeof createBattleAudio>|null>(null),lastSound=useRef(0),lastPlayed=useRef(0);
   const playing=arena.status==='playing',running=playing&&!arena.paused&&ready;
   const boss=arena.enemies.find(enemy=>enemy.boss);
-  useEffect(()=>{root.current?.focus({preventScroll:true});const observer=new ResizeObserver(([entry])=>setNarrow(entry.contentRect.width<600));if(root.current)observer.observe(root.current);return()=>observer.disconnect();},[]);
+  useEffect(()=>{
+    root.current?.focus({preventScroll:true});
+    const observer=new ResizeObserver(([entry])=>{
+      if(!entry)return;
+      const {width,height}=entry.target.getBoundingClientRect();
+      const compact=getComputedStyle(entry.target)?.getPropertyValue('--compact-camera').trim()==='1';
+      setViewport({width,height,compact});
+    });
+    if(svg.current)observer.observe(svg.current);
+    return()=>observer.disconnect();
+  },[]);
   useEffect(()=>{
     if(!running)return;
     const timer=window.setInterval(()=>{if(!document.hidden)dispatch({type:'arena-tick'});},100);
@@ -52,9 +62,10 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
     const point=new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse());
     root.current?.focus({preventScroll:true});dispatch({type:'arena-aim',point:{x:point.x/10,y:point.y/10}});
   };
-  const camera=narrow?`${Math.max(0,Math.min(480,arena.player.x*10-240))} ${Math.max(0,Math.min(120,arena.player.y*10-240))} 480 480`:'0 0 960 600';
+  const skillName=(id:string)=>{const cat=characterById(id,characters),companion=arena.companions.find(c=>c.id===id);return companion&&companion.ability!==(cat.ability??'none')?ABILITIES[companion.ability].name[language]:abilityFor(cat).name[language];};
+  const camera=arenaViewBox(arena.player,viewport.width,viewport.height,viewport.compact);
   return <section ref={root} tabIndex={0} className={styles.battle} aria-label={tx('冒険バトル。移動して赤い攻撃を避け、Spaceで星の絆', 'Adventure battle. Move out of red attacks; Space uses Star bond')} onKeyDown={keys} onKeyUp={event=>{if(battleDirection(event.key)){event.preventDefault();steer(null);}}} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))dispatch({type:'arena-steer',direction:null});}}>
-    <header className={styles.header}><div><span>ADVENTURE BATTLE · {String(arena.stage+1).padStart(2,'0')}</span><h2>{STAGES[arena.stage].name[language]}</h2></div><div><button aria-label={tx(`戦闘音 ${sound?'ON':'OFF'}`,`Battle sound ${sound?'ON':'OFF'}`)} aria-pressed={sound} onClick={()=>{root.current?.focus({preventScroll:true});const player=audio.current??=createBattleAudio();player.enable(!sound);setSound(!sound);}}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>}</button><button disabled={!playing||!ready} aria-label={arena.paused?tx('再開','Resume'):tx('一時停止','Pause')} onClick={togglePause}>{arena.paused?<Play size={18}/>:<Pause size={18}/>}</button><button onClick={()=>dispatch({type:'leave'})}>{tx('探索へ戻る','Back to the trail')}</button></div></header>
+    <header className={styles.header}><div><span>ADVENTURE BATTLE · {String(arena.stage+1).padStart(2,'0')}</span><h2>{STAGES[arena.stage].name[language]}</h2></div><div><button aria-label={tx(`戦闘音 ${sound?'ON':'OFF'}`,`Battle sound ${sound?'ON':'OFF'}`)} aria-pressed={sound} onClick={()=>{root.current?.focus({preventScroll:true});const player=audio.current??=createBattleAudio();player.enable(!sound);setSound(!sound);}}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>}</button><button disabled={!playing||!ready} aria-label={arena.paused?tx('再開','Resume'):tx('一時停止','Pause')} onClick={togglePause}>{arena.paused?<Play size={18}/>:<Pause size={18}/>}</button><button className={styles.back} aria-label={playing?tx('戦闘を中断して探索へ','Save battle and return to the trail'):tx('探索へ戻る','Back to the trail')} onClick={()=>dispatch({type:'leave'})}><ArrowLeft size={18}/><span>{playing?tx('中断して探索へ','Save & leave'):tx('探索へ戻る','Back to the trail')}</span></button></div></header>
     <div className={styles.howTo}><span>{tx('歩いて、かわして、ここぞで一撃。','Move, dodge, and make your moment count.')}</span><p>{tx('通常攻撃は仲間が自動で行います。赤い円から離れよう。大技は「星の絆」ボタンだけ。','Your companions attack automatically. Step out of red circles. Your one big move: Star bond.')}</p></div>
     <div className={styles.field} style={{background:CHAPTERS[arena.stage].grass}}>
       <svg ref={svg} className={styles.scene} viewBox={camera} onPointerDown={target} role="img" aria-label={tx(`戦場：パーティーHP ${Math.ceil(arena.hp)}/${arena.maxHp}、敵${arena.enemies.length}体`,`Battlefield: Party HP ${Math.ceil(arena.hp)}/${arena.maxHp}, ${arena.enemies.length} enemies`)}>
@@ -69,7 +80,7 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
           {effect.kind==='attack'&&<><path d={`M${(arena.player.x-effect.x)*10} ${(arena.player.y-effect.y)*10}L0 0`} stroke={effect.element?ELEMENTS[effect.element].color:'#efe1a2'} strokeWidth="3" opacity=".7"/><path d="M-9 0H9M0-9V9" stroke="#fff2c6" strokeWidth="3"/></>}
           {effect.kind==='hit'&&<circle r="70" fill="#e6a18b22" stroke="#eeb3a3" strokeWidth="3"/>}
           {effect.kind==='burst'&&<><circle r="95" fill="#fff0ac33" stroke="#ffe2a1" strokeWidth="6"/><path d="M0-95L22-25L95 0L22 25L0 95L-22 25L-95 0L-22-25Z" fill="#fff0b999"/></>}
-          {(effect.kind==='skill'||effect.kind==='reaction')&&<text textAnchor="middle" y="-25" fontSize="13" fill="#fff0b7" stroke="#314947" strokeWidth="4" paintOrder="stroke">{effect.reaction?REACTIONS[effect.reaction].name[language]:effect.catId?abilityFor(characterById(effect.catId,characters)).name[language]:''}</text>}
+          {(effect.kind==='skill'||effect.kind==='reaction')&&<text textAnchor="middle" y="-25" fontSize="13" fill="#fff0b7" stroke="#314947" strokeWidth="4" paintOrder="stroke">{effect.reaction?REACTIONS[effect.reaction].name[language]:effect.catId?skillName(effect.catId):''}</text>}
         </g>)}
       </svg>
       <div className={styles.hp}><span><Heart size={14}/>{tx('パーティーHP','PARTY HP')}<b>{Math.ceil(arena.hp)} / {arena.maxHp}</b></span><meter min={0} max={arena.maxHp} value={arena.hp} aria-label={tx('パーティーHP','Party HP')}/>{arena.shield>0&&<small>{tx('結界','Ward')} +{arena.shield}</small>}</div>

@@ -326,3 +326,80 @@ describe('Starcat account progress', () => {
     expect(accounts.forgotten).toEqual(['ann']);
   });
 });
+
+describe('ascension, badges and resumable account encounters',()=>{
+  it('restores promotion, badges and the same battle on an independent device, then checkpoints back without changing ownership',async()=>{
+    const {start,accounts,clock}=rig();
+    const legacy={...newSave(),coins:5000,owned:{...newSave().owned,ember:{level:5,copies:3}}};
+    accounts.put('ann',JSON.stringify(legacy),'legacy');
+    const first=await start(signedIn('ann'));
+    first.dispatch({type:'ascend',id:'ember'});
+    const walk=(progress:Progress)=>{
+      const game=progress.getSnapshot().game;
+      for(const point of pathTo(adventureOf(game.save).position,PLACES.find(p=>p.id==='fortress')!)){
+        const current=progress.getSnapshot().game,here=current.journey??adventureOf(current.save).position;
+        progress.dispatch({type:'walk',direction:point.x>here.x?'right':point.x<here.x?'left':point.y>here.y?'down':'up'});
+      }
+    };
+    walk(first);first.dispatch({type:'encounter'});
+    for(let n=0;n<41;n++)first.dispatch({type:'arena-tick'});
+    first.dispatch({type:'arena-steer',direction:'up'});
+    first.dispatch({type:'leave'});await settled();
+    const expected=structuredClone(first.getSnapshot().game.save);
+    expect(expected.owned.ember).toEqual({level:5,copies:3,stars:4});
+    expect(expected.achievements).toContain('first-ascension');
+    expect(expected.encounter!.arena).toMatchObject({paused:true,time:expect.closeTo(4.1),direction:null,target:null});
+    // Save & leave must reach the account even though only four seconds passed since battle entry.
+    expect(parseSave(accounts.text('ann'))).toEqual(expected);
+    first.close();await settled();
+    const otherSlots=new FakeSlots(),second=createProgress({store:accounts.store,slots:()=>otherSlots,now:()=>clock.now,mark:()=> 'second-resume-device'});
+    clock.now+=60_000;second.attend(signedIn('ann'));second.start();await settled();
+    expect(second.getSnapshot().game.save).toEqual(expected);
+    expect(second.getSnapshot().game.arena).toBeUndefined();
+    second.dispatch({type:'resume'});
+    expect(second.getSnapshot().game.arena).toEqual({...expected.encounter!.arena,paused:false});
+    second.dispatch({type:'arena-tick'});second.dispatch({type:'leave'});
+    const returned=structuredClone(second.getSnapshot().game.save);
+    expect(returned.encounter!.arena.time).toBeCloseTo(4.2);
+    expect(returned.achievements).toContain('resumed');
+    expect(returned.owned).toEqual(expected.owned);expect(returned.coins).toBe(4400);expect(returned.wins).toBe(0);
+    second.close();await settled();
+    const back=await start(signedIn('ann'));expect(back.getSnapshot().game.save).toEqual(returned);back.close();
+  });
+  it('keeps a battle local to the former account when switching and retries the checkpoint after offline play',async()=>{
+    const {start,accounts,clock}=rig();
+    const first=await start(signedIn('ann'));
+    const game=first.getSnapshot().game;
+    for(const point of pathTo(adventureOf(game.save).position,PLACES.find(p=>p.id==='fortress')!)){
+      const current=first.getSnapshot().game,here=current.journey??adventureOf(current.save).position;
+      first.dispatch({type:'walk',direction:point.x>here.x?'right':point.x<here.x?'left':point.y>here.y?'down':'up'});
+    }
+    first.dispatch({type:'encounter'});for(let n=0;n<15;n++)first.dispatch({type:'arena-tick'});
+    accounts.down=true;first.save('hidden');await settled();
+    const frozen=structuredClone(first.getSnapshot().game.save.encounter);
+    first.attend(GUEST);await settled();expect(first.getSnapshot().game.save.encounter).toBeUndefined();
+    first.attend(signedIn('ann'));await settled();
+    expect(first.getSnapshot().playable).toBe(true);expect(first.getSnapshot().game.save.encounter).toEqual(frozen);
+    first.dispatch({type:'resume'});first.dispatch({type:'arena-tick'});first.dispatch({type:'leave'});
+    const newer=structuredClone(first.getSnapshot().game.save);
+    accounts.down=false;clock.now+=RETRY_AFTER[0]*1000;first.save('tick');await settled();first.close();await settled();
+    expect(parseSave(accounts.text('ann'))).toEqual(newer);
+    const bob=await start(signedIn('bob'));expect(bob.getSnapshot().game.save.encounter).toBeUndefined();expect(bob.getSnapshot().game.save.coins).toBe(600);bob.close();
+  });
+  it('protects malformed cloud battle data without stripping a promotion or overwriting the cloud',async()=>{
+    const {start,accounts}=rig();
+    const malformed=JSON.stringify({...newSave(),version:3,adventure:{version:1,region:0,position:{x:3,y:11},met:[],opened:[],restored:[]},owned:{...newSave().owned,ember:{level:10,copies:4,stars:5}},achievements:['first-ascension'],encounter:{version:1,arena:{stage:0,hp:10}}});
+    accounts.put('ann',malformed,'protect-battle');
+    const progress=await start(signedIn('ann'));
+    expect(progress.getSnapshot().playable).toBe(false);expect(progress.getSnapshot().status.where).toBe('unreadable');
+    progress.dispatch({type:'ascend',id:'ember'});progress.dispatch({type:'abandon-encounter'});progress.save('hidden');progress.close();await settled();
+    expect(accounts.text('ann')).toBe(malformed);expect(accounts.count('store')).toBe(0);
+  });
+  it('does not rewrite a loaded legacy journal merely to award badges while a newer cloud record is being read',async()=>{
+    const {start,accounts}=rig();const legacy={...newSave(),pulls:30,coins:2350};
+    accounts.put('ann',JSON.stringify(legacy),'legacy-migration');
+    const progress=await start(signedIn('ann'));await settled();
+    expect(progress.getSnapshot().game.save).toEqual(legacy);expect(accounts.count('store')).toBe(0);
+    progress.close();await settled();expect(accounts.text('ann')).toBe(JSON.stringify(legacy));
+  });
+});

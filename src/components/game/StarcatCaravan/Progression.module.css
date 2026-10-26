@@ -7,7 +7,7 @@
 .grid article { display:flex; align-items:center; gap:10px; min-width:0; padding:13px; border:1px solid #aabbcc25; border-radius:7px; color:#93a6b3; }
 .grid article[data-earned='true'] { border-color:#e4c87e88; color:#eed49c; background:#e9c57b0a; }
 .medal { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; border:1px solid currentColor; border-radius:50%; }
-.grid h4 { font-size:12px; font-weight:500; margin:0; }
+.grid h4 { color:inherit; font-size:12px; font-weight:500; margin:0; }
 .grid p { color:#afc0c8 !important; font-size:10px; margin-top:4px !important; }
 .grid small { display:flex; align-items:center; gap:4px; font-size:10px; margin-top:6px; }
 .resume > div > span { font-size:10px; letter-spacing:.12em; }

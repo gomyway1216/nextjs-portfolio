@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, Compass, Gem, MapPin, MessageCircle, MousePointer2, Sparkles, Tent, Users, X } from 'lucide-react';
 import { STAGES, type Character, type Language } from './data';
 import type { Action, GameState } from './engine';
@@ -121,7 +121,7 @@ export default function AdventureWorld({ game, characters, language, ready, read
     if ((event.key === 'e' || event.key === 'E' || event.key === 'Enter') && !locked) { event.preventDefault(); if (nearest) openPlace(nearest.id); }
     if (event.key === 'Escape') { stop(); setConversation(null); setJournal(false); }
   };
-  const tapMap = (event: PointerEvent<SVGSVGElement>) => {
+  const tapMap = (event: MouseEvent<SVGSVGElement>) => {
     if (locked || event.button !== 0) return;
     const matrix = mapRef.current?.getScreenCTM();
     if (!matrix) return;
@@ -166,7 +166,8 @@ export default function AdventureWorld({ game, characters, language, ready, read
     <div className={styles.chapterBar}><div><span>THE STARLIGHT CHRONICLES · {String(a.region + 1).padStart(2, '0')}</span><h2>{chapter.title[language]}</h2></div><div><button aria-label={tx(`旅の手帳 ${a.restored.length}/6`,`Travel journal ${a.restored.length}/6`)} onClick={() => { stop(); setJournal(true); }} disabled={!ready || !!conversation || journal}><BookOpen size={16} /><span>{tx('旅の手帳', 'Journal')}</span><b>{a.restored.length}/6</b></button><button aria-label={tx('仲間・育成','Party & training')} disabled={!ready || !!conversation || journal} onClick={() => { stop(); onParty(); }}><Users size={16} /><span>{tx('仲間・育成', 'Party & training')}</span></button></div></div>
     <nav className={styles.regions} aria-label={tx('島を選ぶ', 'Choose an island')}>{STAGES.map((region, i) => <button key={i} disabled={!ready || (i > 0 && !game.save.cleared.includes(i - 1)) || !!conversation || journal} aria-pressed={a.region === i} onClick={() => { stop(); dispatch({ type: 'travel', region: i }); }}><span>{a.restored.includes(i) ? '✧' : String(i + 1).padStart(2, '0')}</span>{region.name[language]}</button>)}</nav>
     <div className={styles.field}>
-      <svg ref={mapRef} viewBox={camera} className={styles.map} onPointerDown={tapMap} role="img" aria-label={tx(`探索マップ：${STAGES[a.region].name.ja}。現在位置 ${position.x},${position.y}`, `Exploration: ${STAGES[a.region].name.en}. Position ${position.x},${position.y}`)}>
+      {/* Start a route after a completed tap, once native touch focus and scrolling have settled. */}
+      <svg ref={mapRef} viewBox={camera} className={styles.map} onClick={tapMap} role="img" aria-label={tx(`探索マップ：${STAGES[a.region].name.ja}。現在位置 ${position.x},${position.y}`, `Exploration: ${STAGES[a.region].name.en}. Position ${position.x},${position.y}`)}>
         <defs><linearGradient id={`${paletteId}water`} x2="0" y2="1"><stop stopColor={chapter.water}/><stop offset="1" stopColor="#81bac3"/></linearGradient><radialGradient id={`${paletteId}light`}><stop stopColor="#fff3ae" stopOpacity=".6"/><stop offset="1" stopColor="#fff3ae" stopOpacity="0"/></radialGradient></defs>
         <rect width="960" height="640" fill={chapter.grass}/>
         {Array.from({ length: MAP_WIDTH * MAP_HEIGHT }, (_, index) => {

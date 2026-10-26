@@ -344,13 +344,14 @@ describe('ascension, badges and resumable account encounters',()=>{
     walk(first);first.dispatch({type:'encounter'});
     for(let n=0;n<41;n++)first.dispatch({type:'arena-tick'});
     first.dispatch({type:'arena-steer',direction:'up'});
-    first.save('hidden');await settled();
+    first.dispatch({type:'leave'});await settled();
     const expected=structuredClone(first.getSnapshot().game.save);
     expect(expected.owned.ember).toEqual({level:5,copies:3,stars:4});
     expect(expected.achievements).toContain('first-ascension');
     expect(expected.encounter!.arena).toMatchObject({paused:true,time:expect.closeTo(4.1),direction:null,target:null});
-    first.close();await settled();
+    // Save & leave must reach the account even though only four seconds passed since battle entry.
     expect(parseSave(accounts.text('ann'))).toEqual(expected);
+    first.close();await settled();
     const otherSlots=new FakeSlots(),second=createProgress({store:accounts.store,slots:()=>otherSlots,now:()=>clock.now,mark:()=> 'second-resume-device'});
     clock.now+=60_000;second.attend(signedIn('ann'));second.start();await settled();
     expect(second.getSnapshot().game.save).toEqual(expected);

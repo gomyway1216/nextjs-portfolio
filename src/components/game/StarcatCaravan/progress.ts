@@ -98,8 +98,8 @@ export function createProgress({ store, slots, characters = CHARACTERS, now = Da
       const game = gameReducer(previous, action, characters);
       if (game === previous) return;
       snapshot = { ...snapshot, game };
-      // Battle animation is transient. Only lasting progress needs a write.
-      if (game.save !== previous.save) keeper?.save('moment');
+      // Explicit suspension flushes the checkpoint, including within the ordinary write throttle.
+      if (game.save !== previous.save) keeper?.save(action.type === 'leave' && previous.arena?.status === 'playing' ? 'hidden' : 'moment');
       publish();
     },
     save(why: Why = 'tick') {

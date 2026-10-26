@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Coins, Gem, Heart, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { arenaViewBox, battleDirection, type Arena } from './arena';
+import { arenaViewBox, battleDirection, encounterCount, type Arena } from './arena';
 import { ELEMENTS, STAGES, characterById, type Character, type Language } from './data';
 import { type Action, type GameState, type Save } from './engine';
 import { CHAPTERS, type Direction } from './adventure';
@@ -20,6 +20,8 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
   const audio=useRef<ReturnType<typeof createBattleAudio>|null>(null),lastSound=useRef(0),lastPlayed=useRef(0);
   const playing=arena.status==='playing',running=playing&&!arena.paused&&ready;
   const boss=arena.enemies.find(enemy=>enemy.boss);
+  const remaining=Math.max(0,Math.ceil(180-arena.time));
+  const clock=`${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}`;
   useEffect(()=>{
     root.current?.focus({preventScroll:true});
     const observer=new ResizeObserver(([entry])=>{
@@ -85,7 +87,7 @@ export default function AdventureBattle({arena,characters,language,ready,dispatc
       </svg>
       <div className={styles.hp}><span><Heart size={14}/>{tx('パーティーHP','PARTY HP')}<b>{Math.ceil(arena.hp)} / {arena.maxHp}</b></span><meter min={0} max={arena.maxHp} value={arena.hp} aria-label={tx('パーティーHP','Party HP')}/>{arena.shield>0&&<small>{tx('結界','Ward')} +{arena.shield}</small>}</div>
       {boss&&<div className={styles.boss}><span>{tx('影の守り手','Shadow guardian')}</span><meter min={0} max={boss.maxHp} value={boss.hp} aria-label={tx('ボスHP','Boss HP')}/></div>}
-      {!boss&&playing&&<div className={styles.wave}>{tx('仲間と影を追い払おう','Drive back the shadows together')}</div>}
+      {playing&&<div className={styles.wave} data-boss={boss ? true : undefined} role="timer" aria-label={tx('戦闘の残り時間と敵の出現状況','Time remaining and enemy spawns')}><span>{tx('残り','Time left')} {clock}</span><small>{tx('敵の出現','Spawned')} {arena.spawned}/{encounterCount(arena.stage)}</small></div>}
       {playing&&<><div className={styles.dpad}>{(['up','left','down','right'] as Direction[]).map((direction,i)=>{const Icon=[ArrowUp,ArrowLeft,ArrowDown,ArrowRight][i];return <button key={direction} data-direction={direction} aria-label={tx({up:'上へ移動',down:'下へ移動',left:'左へ移動',right:'右へ移動'}[direction],`Move ${direction}`)} disabled={!running} onPointerDown={event=>{event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);steer(direction);}} onPointerUp={()=>steer(null)} onPointerCancel={()=>steer(null)} onLostPointerCapture={()=>steer(null)} onClick={event=>{if(event.detail===0){steer(direction);steer(null);}}}><Icon size={22}/></button>;})}</div><button className={styles.skill} disabled={!running||arena.charge<100||!arena.enemies.length} onClick={()=>{root.current?.focus({preventScroll:true});dispatch({type:'arena-burst'});}} aria-label={tx('大技・星の絆','Big move: Star bond')} data-ready={arena.charge>=100}><Sparkles size={28}/><strong>{tx('星の絆','Star bond')}</strong><span>{!arena.enemies.length?tx('敵が来たら使える','Ready when enemies arrive'):arena.charge>=100?tx('大技！ · Space','Big move! · Space'):`${Math.floor(arena.charge)}%`}</span><i style={{width:`${arena.charge}%`}}/></button></>}
       {arena.paused&&playing&&<div className={styles.overlay}><Pause size={28}/><h3>{tx('ひとやすみ','A little breather')}</h3><button onClick={togglePause}>{tx('つづける','Continue')}<Play size={17}/></button></div>}
       {!playing&&<div className={styles.overlay} role="status"><Sparkles size={32}/><span>{arena.status==='won'?'A LITTLE VICTORY':'YOUR NEXT TRY'}</span><h3>{arena.status==='won'?tx('みんなで、乗り越えた！','We did it, together!'):tx('もう一度、仲間と。','Another try, together.')}</h3><p>{arena.status==='won'?tx('探索へ戻って、灯火の物語を進めよう。','Return to the trail and continue the lantern’s story.'):tx('赤い円から歩いて離れてみよう。育成・所持品はそのまま、何度でも挑戦できるよ。','Try stepping out of red circles. Your training and treasure are safe; you can try again.')}</p>{arena.status==='won'&&reward&&<div className={styles.rewards}><span><Gem size={18}/>+{reward.gems}</span><span><Coins size={18}/>+{reward.coins}</span></div>}<button onClick={()=>dispatch({type:'leave'})}>{tx('探索の続きへ','Back to the adventure')}<ArrowRight size={18}/></button></div>}

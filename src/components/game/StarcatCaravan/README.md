@@ -4,7 +4,7 @@ Route: `/games/starcat-caravan`. A free collectible adventure with walkable isla
 
 ## Mobile viewport
 
-The Starcat game route owns its phone layout. The site toolbar is hidden on phone portrait widths and short landscape screens, while the guide, games index and other routes keep normal navigation. The game’s exit links remain available. Battle sizing uses the browser viewport height; CSS signals the compact layout to the camera so portrait and landscape frames both fill without empty SVG bands. Desktop framing stays unchanged. Guest sign-in invitations appear outside active battles.
+The Starcat game route owns its phone layout. The site toolbar is hidden on phone portrait widths and short landscape screens, while the guide, games index and other routes keep normal navigation. The game’s exit links remain available. Battle sizing uses the browser viewport height; CSS signals the compact layout to the camera so portrait and landscape frames both fill without empty SVG bands. Desktop framing stays unchanged. On mobile exploration, the exit link and compact wallet share a row; the branded header and guest invitation no longer push the movement pad below the first screen. Journal/party buttons keep accessible labels as icons. Short landscape maps use a camera that matches their shape, and dialogue/results retain reachable actions. Battle cameras zoom out in landscape enough to read a boss warning circle; an on-field countdown and spawn counter show encounter progress. Guest sign-in invitations appear outside active battles.
 
 ## Walkable adventure
 
@@ -78,3 +78,9 @@ Cards and arena battles share `stats.ts`: ★3/4/5 base multipliers 1/1.2/1.5; l
 All ten unordered element reactions, the original weakness relationships and six automatic ability types continue in the arena. Attack abilities trigger each fourth normal hit. Support pulses occur every ten seconds, healing or shielding the shared party HP. Damage is reduced by 100/(100+defense), then a live non-additive ward absorbs it; positive damage is at least 1. Boss freeze duration is halved. Star bond is a separate charged party move and does not advance attack counters or generate recursive reactions.
 
 Legacy cost, speed and redeploy fields remain stored for catalog compatibility but are not part of the new deployment-free battle controls. Character art provenance remains in the two linked prompt documents. Sixteen transparent WebP portraits and nine stereo MP3 cues are static site assets; Firestore holds the definition URLs and account journals, not image/audio bytes.
+
+## Mobile play verification
+
+The mobile pass used isolated guest progress on a separate localhost origin, with the live public character definitions compared against the bundled fixture (all fields matched). Browser viewports covered 320×568, 390×844, 568×320 and 844×390. Walk/hold/release, tap pathfinding across the bridge, dialogue, both chests, first battle, lantern completion, island switching, a ten-wish pull gesture and cancel, training/ascension, party edits, pause/resume and reload were exercised through the normal UI. These are desktop-browser viewport checks, not physical iOS/Android device tests.
+
+A deterministic simulation checked 360 combinations: four party types, five level tiers, six islands, and idle/occasional-burst/dodge strategies. Defaults remain unchanged: the initial free party can clear the first island in under a minute without prior training, later islands reward training and movement, and a trained party without a healer can clear all six with occasional Star bond. No currency, roster, stats, costs, saves or encounter outcomes are changed by this presentation pass.

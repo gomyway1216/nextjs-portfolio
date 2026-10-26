@@ -19,7 +19,8 @@ export const distance = (a: Point, b: Point) => Math.hypot(a.x-b.x,a.y-b.y);
 export function arenaViewBox(player: Point, width: number, height: number, compact = width < 600): string {
   if (!compact || width <= 0 || height <= 0) return '0 0 960 600';
   const ratio = width / height;
-  const w = Math.min(480, 600 * ratio), h = w / ratio;
+  // Wide screens need enough vertical space to read a boss attack circle.
+  const w = Math.min(width > height ? 960 : 480, 600 * ratio), h = w / ratio;
   const x = Math.max(0, Math.min(960 - w, player.x * 10 - w / 2));
   const y = Math.max(0, Math.min(600 - h, player.y * 10 - h / 2));
   return `${x} ${y} ${w} ${h}`;

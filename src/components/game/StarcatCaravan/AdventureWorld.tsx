@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, ty
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, Compass, Gem, MapPin, MessageCircle, MousePointer2, Sparkles, Tent, Users, X } from 'lucide-react';
 import { STAGES, type Character, type Language } from './data';
 import type { Action, GameState } from './engine';
-import { adventureOf, CHAPTERS, fragmentCount, MAP_HEIGHT, MAP_WIDTH, near, objective, pathTo, PLACES, terrain, TILE, type Direction, type Place, type Point } from './adventure';
+import { adventureOf, worldViewBox, CHAPTERS, fragmentCount, MAP_HEIGHT, MAP_WIDTH, near, objective, pathTo, PLACES, terrain, TILE, type Direction, type Place, type Point } from './adventure';
 import { CatSprite } from './CatSprite';
 import styles from './AdventureWorld.module.css';
 
@@ -25,7 +25,7 @@ export default function AdventureWorld({ game, characters, language, ready, read
   const [journal, setJournal] = useState(false);
   const [moving, setMoving] = useState(false);
   const [facing, setFacing] = useState<Direction>('down');
-  const [narrow, setNarrow] = useState(false);
+  const [viewport, setViewport] = useState({width:960,height:640,compact:false});
   const [trail, setTrail] = useState<Point[]>([]);
   const regionRef = useRef<HTMLElement>(null);
   const mapRef = useRef<SVGSVGElement>(null);
@@ -38,9 +38,14 @@ export default function AdventureWorld({ game, characters, language, ready, read
   const locked = !ready || !!conversation || journal;
 
   useEffect(() => {
-    const element = regionRef.current;
+    const element = mapRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < 600));
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const {width,height} = entry.target.getBoundingClientRect();
+      const compact = getComputedStyle(entry.target).getPropertyValue('--compact-camera').trim() === '1';
+      setViewport({width,height,compact});
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -155,10 +160,10 @@ export default function AdventureWorld({ game, characters, language, ready, read
     return () => document.removeEventListener('keydown',trap);
   },[conversation,journal]);
 
-  const camera = narrow ? `${Math.max(0, Math.min(480, position.x * TILE - 240))} ${Math.max(0, Math.min(160, position.y * TILE - 240))} 480 480` : `0 0 ${MAP_WIDTH * TILE} ${MAP_HEIGHT * TILE}`;
+  const camera = worldViewBox(position,viewport.width,viewport.height,viewport.compact);
   const beaconLit = a.restored.includes(a.region);
   return <section ref={regionRef} className={styles.world} tabIndex={0} aria-label={tx('冒険マップ。矢印キーかWASDで移動、Eで調べる', 'Adventure map. Move with arrows or WASD; E to interact')} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) stop(); }} onKeyDown={keyDown} onKeyUp={(event) => { if (/^(Arrow|[wasdWASD]$)/.test(event.key)) stop(); }}>
-    <div className={styles.chapterBar}><div><span>THE STARLIGHT CHRONICLES · {String(a.region + 1).padStart(2, '0')}</span><h2>{chapter.title[language]}</h2></div><div><button onClick={() => { stop(); setJournal(true); }} disabled={!ready || !!conversation || journal}><BookOpen size={16} />{tx('旅の手帳', 'Journal')}<b>{a.restored.length}/6</b></button><button disabled={!ready || !!conversation || journal} onClick={() => { stop(); onParty(); }}><Users size={16} />{tx('仲間・育成', 'Party & training')}</button></div></div>
+    <div className={styles.chapterBar}><div><span>THE STARLIGHT CHRONICLES · {String(a.region + 1).padStart(2, '0')}</span><h2>{chapter.title[language]}</h2></div><div><button aria-label={tx('旅の手帳','Travel journal')} onClick={() => { stop(); setJournal(true); }} disabled={!ready || !!conversation || journal}><BookOpen size={16} /><span>{tx('旅の手帳', 'Journal')}</span><b>{a.restored.length}/6</b></button><button aria-label={tx('仲間・育成','Party & training')} disabled={!ready || !!conversation || journal} onClick={() => { stop(); onParty(); }}><Users size={16} /><span>{tx('仲間・育成', 'Party & training')}</span></button></div></div>
     <nav className={styles.regions} aria-label={tx('島を選ぶ', 'Choose an island')}>{STAGES.map((region, i) => <button key={i} disabled={!ready || (i > 0 && !game.save.cleared.includes(i - 1)) || !!conversation || journal} aria-pressed={a.region === i} onClick={() => { stop(); dispatch({ type: 'travel', region: i }); }}><span>{a.restored.includes(i) ? '✧' : String(i + 1).padStart(2, '0')}</span>{region.name[language]}</button>)}</nav>
     <div className={styles.field}>
       <svg ref={mapRef} viewBox={camera} className={styles.map} onPointerDown={tapMap} role="img" aria-label={tx(`探索マップ：${STAGES[a.region].name.ja}。現在位置 ${position.x},${position.y}`, `Exploration: ${STAGES[a.region].name.en}. Position ${position.x},${position.y}`)}>

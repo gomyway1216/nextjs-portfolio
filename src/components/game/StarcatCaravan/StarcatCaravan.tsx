@@ -79,7 +79,9 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
     : status.where === 'unreadable' ? tx('アカウントの記録を読み込めません', 'Account journal unavailable')
     : tx('このブラウザに自動保存', 'Saved in this browser');
 
-  return <main className={styles.page} data-battle={hasBattle || undefined}>
+  const guestInvitation = player.settled && !player.uid && signInHref && !arena ? <p className={styles.notice}>{tx('ログインすると、仲間・育成・冒険の記録を別の端末でも引き継げます。', 'Sign in to carry your companions, training, and adventure to another device.')} <Link href={signInHref}>{tx('ログインして引き継ぐ', 'Sign in & keep progress')}<ArrowRight size={14} /></Link></p> : null;
+
+  return <main className={styles.page} data-view={view} data-battle={hasBattle || undefined}>
     <div className={styles.shell}>
       <div className={styles.topline}><Link href="/games"><ArrowLeft size={15} />{tx('ゲーム一覧', 'All games')}</Link><span><i />{tx('無料で遊べるガチャRPG', 'A free collectible adventure')}</span></div>
       <header className={styles.header}>
@@ -98,7 +100,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
       {status.where === 'unreadable' && <p role="status" className={styles.notice}>{tx('このバージョンではアカウントの記録を読み込めません。記録は上書きせず保護しています。ページを更新してお試しください。', 'This version cannot open your account journal. It has been protected from overwriting. Try updating this page.')}</p>}
       {snapshot.catalogMissing && <p role="status" className={styles.notice}>{tx('所持している仲間の最新情報が必要です。進行データは保護しています。接続後にページを更新してください。', 'Some owned companions need a newer catalog. Your progress is protected. Reload when connected to get their information.')}</p>}
       {catalogOffline && <p role="status" className={styles.notice}>{tx('キャラ一覧は前回取得したデータを使用しています。最新の仲間を確認するには、接続後にページを更新してください。', 'Using your previously saved companions catalog. Reload when connected to see the latest additions.')}</p>}
-      {player.settled && !player.uid && signInHref && !arena && <p className={styles.notice}>{tx('ログインすると、仲間・育成・冒険の記録を別の端末でも引き継げます。', 'Sign in to carry your companions, training, and adventure to another device.')} <Link href={signInHref}>{tx('ログインして引き継ぐ', 'Sign in & keep progress')}<ArrowRight size={14} /></Link></p>}
+      {view !== 'adventure' && guestInvitation}
       {recovered && <p role="status" className={styles.notice}>{tx('保存データを読み込めません。記録は上書きせず保護しています。最新のデータを読み込み直してください。', 'Your journal cannot be read with this catalog. It has been protected from overwriting. Reload to get the latest companions.')}</p>}
 
       {view === 'summon' && <section ref={contentRef} className={styles.content} aria-label={tx('星の召喚', 'Wish upon a star')}>
@@ -126,7 +128,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
 
       {/* A new account/region remounts the world: followers, routes and dialogue never cross maps. */}
       {view === 'adventure' && <section ref={contentRef} className={styles.content}>
-        {!arena ? <><ResumeEncounter save={save} characters={characters} language={language} ready={ready} dispatch={dispatch}/><AdventureWorld key={`${snapshot.opened}:${adventureOf(save).region}`} game={state} characters={characters} language={language} ready={ready} readGame={() => progress.getSnapshot().game} dispatch={dispatch} onParty={() => setView('collection')} onWish={() => setView('summon')} /><TravelRecord save={save} language={language} /><AchievementBadges save={save} language={language}/></> : <AdventureBattle arena={arena} save={save} characters={characters} language={language} ready={ready} dispatch={dispatch} reward={reward} />}
+        {!arena ? <><ResumeEncounter save={save} characters={characters} language={language} ready={ready} dispatch={dispatch}/><AdventureWorld key={`${snapshot.opened}:${adventureOf(save).region}`} game={state} characters={characters} language={language} ready={ready} readGame={() => progress.getSnapshot().game} dispatch={dispatch} onParty={() => setView('collection')} onWish={() => setView('summon')} />{guestInvitation}<TravelRecord save={save} language={language} /><AchievementBadges save={save} language={language}/></> : <AdventureBattle arena={arena} save={save} characters={characters} language={language} ready={ready} dispatch={dispatch} reward={reward} />}
       </section>}
 
       <footer className={styles.footer}><span role="status" data-testid="starcat-save-status"><Shield size={13} />{saveLabel}</span><span>{tx(`課金なし · 全${characters.length}キャラ · 全${STAGES.length}ステージ`, `No purchases · ${characters.length} companions · ${STAGES.length} islands`)}</span></footer>

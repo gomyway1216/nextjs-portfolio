@@ -14,6 +14,8 @@ describe('adventure map presentation',()=>{
     expect(html).toContain('ember-v1.webp');expect(html).not.toContain('luna-v1.webp');
     expect(html).toContain('aria-label="'+(language==='ja'?'ソヨを先頭にする':'Lead with Breeze')+'"');
     expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain(`aria-label="${language==='ja'?'旅の手帳':'Travel journal'}"`);
+    expect(html).toContain(`aria-label="${language==='ja'?'仲間・育成':'Party &amp; training'}"`);
   });
   it('shows an already restored journal without replaying or claiming rewards',()=>{
     const game=initialGame();game.save={...game.save,cleared:[0],adventure:{...newAdventure(),met:[0],opened:['0:west','0:east'],restored:[0]}};

@@ -4,6 +4,15 @@ import type { Save } from './engine';
 export const MAP_WIDTH = 24;
 export const MAP_HEIGHT = 16;
 export const TILE = 40;
+/** Match compact map geometry to the viewport, including short landscape screens. */
+export function worldViewBox(position: Point, width: number, height: number, compact: boolean): string {
+  if (!compact || width <= 0 || height <= 0) return `0 0 ${MAP_WIDTH*TILE} ${MAP_HEIGHT*TILE}`;
+  const ratio=width/height, w=Math.min(MAP_WIDTH*TILE,480*ratio), h=w/ratio;
+  const x=Math.max(0,Math.min(MAP_WIDTH*TILE-w,position.x*TILE+TILE/2-w/2));
+  const y=Math.max(0,Math.min(MAP_HEIGHT*TILE-h,position.y*TILE+TILE/2-h/2));
+  return `${x} ${y} ${w} ${h}`;
+}
+
 export const TRAIL_START = { x: 3, y: 11 };
 export type Point = { x: number; y: number };
 export type Direction = 'up' | 'down' | 'left' | 'right';

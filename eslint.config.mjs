@@ -23,6 +23,11 @@ const eslintConfig = defineConfig([
     "scripts/**",
     "docs/**",
     "native/**",
+    // Godot HTML5 export glue shipped under public/: generated engine code, not ours
+    // to fix. It is also big enough that including it changes what the project-wide
+    // rules report elsewhere — adding it turned seven unrelated warnings in
+    // src/hooks/useStudy.ts into errors, with the file itself untouched.
+    "public/games/**",
     // AssemblyScript sources (WASM engine): use AS decorators/syntax that the TS parser rejects.
     "wasm-spike/**",
   ]),

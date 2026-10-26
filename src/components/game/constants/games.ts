@@ -569,4 +569,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'tomoshibi',
+    title: 'Tomoshibi',
+    description: 'Twenty-one floors down, carrying a torch that burns a point every turn. Let it go out and you can barely see — and the things that live down there hit harder in the dark.',
+    thumbnail: '🏮',
+    path: '/games/tomoshibi',
+    difficulty: 'Hard',
+    category: 'RPG',
+  },
 ];

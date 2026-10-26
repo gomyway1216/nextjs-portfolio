@@ -200,12 +200,15 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // index.wasm is the Godot engine template — identical across exports unless
-        // the engine version changes — so it is worth caching hard. index.pck holds
-        // the game itself and changes on every update, so it is deliberately not here.
+        // index.wasm is the Godot engine template, identical across exports unless the
+        // engine version changes. It is NOT content-hashed, though: upgrading Godot
+        // replaces this same filename, and a visitor holding a year-old immutable copy
+        // would pair an old engine with a new index.pck and fail to boot, with no way
+        // to tell them to refresh. Revalidation keeps the win (the 38MB body is not
+        // resent while it matches) without that trap.
         source: '/games/tomoshibi/index.wasm',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
         ],
       },
     ];

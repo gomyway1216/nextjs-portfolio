@@ -21,6 +21,12 @@
  * `onLoad` is deliberate: the document has to exist before it can be given
  * anything, and Godot only starts booting after that.
  *
+ * **It has to be `onLoad`, not a `ref` callback.** A ref fires when the element
+ * is mounted, while `contentWindow` is still the initial `about:blank`;
+ * navigating to the build then replaces that window and takes the two functions
+ * with it, so the game would find nothing and the cloud save would be dead
+ * without ever erroring. This was written as a ref and caught in review.
+ *
  * The cloud copy goes through the site's existing per-user save slots
  * (`/api/game/saves`), not an endpoint of its own — see tomoshibiSaveClient.
  *
@@ -33,7 +39,7 @@
  * losing the cross-device handoff.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadTomoshibiSave, saveTomoshibiSave } from '@/services/tomoshibiSaveClient';
 
 const GAME_URL = '/games/tomoshibi/index.html';
@@ -57,6 +63,17 @@ export function Tomoshibi() {
     setPhase('preparing');
     cloudSave.current = await loadTomoshibiSave();
     setPhase('playing');
+  }, []);
+
+  // 離脱時に、待たせているセーブを捨てずに送る。
+  //
+  // 書き込みは 1.5 秒まとめているので、その間にページを離れると
+  // タイマーごと消えて最後の数手が失われる。タイマーを止めて即送る。
+  useEffect(() => () => {
+    if (!pending.current) return;
+    clearTimeout(pending.current);
+    pending.current = null;
+    void saveTomoshibiSave(latest.current);
   }, []);
 
   /** Hand the game its two entry points, now that the iframe has a document. */
@@ -114,7 +131,7 @@ export function Tomoshibi() {
   return (
     <div>
       <iframe
-        ref={attachBridge}
+        onLoad={(event) => attachBridge(event.currentTarget)}
         src={GAME_URL}
         title="ともしびの遺跡"
         allow="autoplay"

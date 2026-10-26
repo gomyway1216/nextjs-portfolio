@@ -12,7 +12,7 @@ describe('simple adventure battle controls',()=>{
     expect(html.includes(language==='ja'?'大技・星の絆':'Big move: Star bond')).toBe(true);
     expect(html.match(/data-direction=/g)).toHaveLength(4);
     expect(html.includes(language==='ja'?'通常攻撃は仲間が自動':'Your companions attack automatically')).toBe(true);
-    expect(html).toContain(`aria-label="${language==='ja'?'探索へ戻る':'Back to the trail'}"`);
+    expect(html).toContain(`aria-label="${language==='ja'?'戦闘を中断して探索へ':'Save battle and return to the trail'}"`);
     expect(html).not.toContain('Deploy energy');expect(html).not.toContain('出撃エネルギー');
     expect(html).not.toContain('Star cannon');expect(html).not.toContain('luna-v1.webp');
     for(const id of save.team)expect(html.includes(`${id}-v1.webp`)).toBe(true);

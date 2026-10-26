@@ -92,13 +92,13 @@ export function visitRegion(save: Save, region: number): Save {
   if (!unlockedRegion(save, region)) return save;
   const adventure = adventureOf(save);
   if (region === adventure.region && save.adventure) return save;
-  return { ...save, version: 2, adventure: { ...adventure, region, position: { ...TRAIL_START } } };
+  return { ...save, version: save.version===1?2:save.version, adventure: { ...adventure, region, position: { ...TRAIL_START } } };
 }
 export function checkpoint(save: Save, position: Point): Save {
   if (!walkable(position)) return save;
   const adventure = adventureOf(save);
-  if (save.version === 2 && save.adventure && adventure.position.x === position.x && adventure.position.y === position.y) return save;
-  return { ...save, version: 2, adventure: { ...adventure, position: { ...position } } };
+  if (save.version !== 1 && save.adventure && adventure.position.x === position.x && adventure.position.y === position.y) return save;
+  return { ...save, version: save.version===1?2:save.version, adventure: { ...adventure, position: { ...position } } };
 }
 export function interact(save: Save, position: Point, place: Place): Save {
   const location = PLACES.find((p) => p.id === place);

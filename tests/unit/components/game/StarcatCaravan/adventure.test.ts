@@ -63,8 +63,10 @@ describe('persistent adventure rewards', () => {
     expect(state.save).toBe(old);
     state=gameReducer(state,{type:'checkpoint'});
     expect(state.save.adventure?.position).toEqual({x:4,y:11});
-    expect({...state.save,version:1,adventure:undefined}).toEqual({...legacy,adventure:undefined});
-    expect(state.save.version).toBe(2);
+    expect({...state.save,version:1,adventure:undefined,achievements:undefined,encounter:undefined}).toEqual({...legacy,adventure:undefined,achievements:undefined,encounter:undefined});
+    expect(state.save.achievements).toEqual(['first-wish','ten-wishes','first-training']);
+    expect(state.save.encounter).toBeNull();
+    expect(state.save.version).toBe(3);
     expect(parseSave(JSON.stringify(state.save))).toEqual(state.save);
   });
   it('does not grant remotely requested chest, keeper or lantern rewards', () => {

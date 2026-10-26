@@ -334,3 +334,8 @@
 }
 
 .reactionLog { flex-wrap: wrap; }
+
+.ascension { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
+.ascension p { font-size:11px; color:var(--gold); }
+.ascension button { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; min-height:44px; border:1px solid #dac28d77; background:#e5c88c12; color:#eed49e; border-radius:5px; margin:7px 0; font-size:12px; }
+.ascension small { display:block; font-size:9px; color:var(--muted); line-height:1.6; }

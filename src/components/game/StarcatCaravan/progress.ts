@@ -34,7 +34,7 @@ export function createProgress({ store, slots, characters = CHARACTERS, now = Da
   const serverSnapshot = snapshot;
 
   const checkpointPosition = () => {
-    if (!snapshot.playable || !snapshot.game.journey) return;
+    if (!snapshot.playable || (!snapshot.game.journey && !snapshot.game.arena)) return;
     const game = gameReducer(snapshot.game, { type: 'checkpoint' }, characters);
     if (game !== snapshot.game) { snapshot = { ...snapshot, game }; publish(); }
   };

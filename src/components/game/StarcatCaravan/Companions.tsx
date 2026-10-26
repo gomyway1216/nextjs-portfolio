@@ -6,28 +6,31 @@ import { ELEMENTS, MAX_LEVEL, ROLES, STAGES, type Character, type Language } fro
 import { catStats, upgradeCost, type Save } from './engine';
 import { GUIDE_URL, ROLE_DETAILS } from './guide';
 import { partyElements, REACTIONS } from './elements';
+import { ascensionOffer, trainedRarity } from './growth';
 import { abilityFor } from './abilities';
 import styles from './StarcatCaravan.module.css';
 
 interface Props { save: Save; characters: readonly Character[]; language: Language }
 
-export function CompanionCollection({ save, characters, language, ready, onAction }: Props & { ready: boolean; onAction: (action: { type: 'team' | 'upgrade'; id: string }) => void }) {
+export function CompanionCollection({ save, characters, language, ready, onAction }: Props & { ready: boolean; onAction: (action: { type: 'team' | 'upgrade' | 'ascend'; id: string }) => void }) {
   const tx = (ja: string, en: string) => language === 'ja' ? ja : en;
-  const owned = characters.filter((cat) => Object.hasOwn(save.owned, cat.id)).sort((a, b) => b.rarity - a.rarity);
+  const owned = characters.filter((cat) => Object.hasOwn(save.owned, cat.id)).sort((a, b) => trainedRarity(b,save.owned[b.id]) - trainedRarity(a,save.owned[a.id]));
   return <div className={styles.collectionGrid}>{owned.map((cat) => {
     const companion = save.owned[cat.id];
+    const stars=trainedRarity(cat,companion),offer=ascensionOffer(cat,companion);
     const selected = save.team.includes(cat.id);
     const stats = catStats(cat.id, companion, characters);
     const ability = abilityFor(cat);
-    const color = { '--cat-accent': cat.accent, '--rarity': cat.rarity === 5 ? '#f2d584' : cat.rarity === 4 ? '#c0a4e9' : '#8ac6d0' } as CSSProperties;
+    const color = { '--cat-accent': cat.accent, '--rarity': stars === 5 ? '#f2d584' : stars === 4 ? '#c0a4e9' : '#8ac6d0' } as CSSProperties;
     return <article key={cat.id} className={styles.catCard} style={color} data-testid={`cat-${cat.id}`}>
-      <div className={styles.cardTop}><span className={styles.stars}>{'★'.repeat(cat.rarity)}</span><span style={{ color: ELEMENTS[cat.element].color }}>{ELEMENTS[cat.element].symbol} {ELEMENTS[cat.element].name[language]}</span></div>
+      <div className={styles.cardTop}><span className={styles.stars}>{'★'.repeat(stars)}</span><span style={{ color: ELEMENTS[cat.element].color }}>{ELEMENTS[cat.element].symbol} {ELEMENTS[cat.element].name[language]}</span></div>
       <div className={styles.portrait}><CatSprite cat={cat} />{selected && <span className={styles.inParty}><Check size={12} />{tx('編成中', 'In party')}</span>}</div>
       <p className={styles.catTitle}>{cat.title[language]}</p><div className={styles.catName}><h3>{cat.name[language]}</h3><span>Lv. {companion.level}</span></div>
       <p className={styles.role}>{ROLES[cat.role][language]}</p><p className={styles.roleHint}>{ROLE_DETAILS[cat.role].brief[language]}</p>
       <div className={styles.catStats}><span title="HP"><Heart size={13} />HP {stats.hp}</span><span title={tx('攻撃・回復力', 'Attack/healing')}><Swords size={13} />{tx('攻撃', 'ATK')} {stats.attack}</span><span title={tx('防御力', 'Defense')}><Shield size={13} />{tx('防御', 'DEF')} {stats.defense}</span><span title={tx('重複1体につき能力+4%、最大+20%', '+4% stats per duplicate, up to +20%')}>✦ {tx('重複', 'Copies')} {Math.min(companion.copies - 1, 5)}/5</span></div>
       <div className={styles.ability}><h4>{ability.name[language]}</h4><p>{ability.detail[language]}</p></div>
       <div className={styles.cardActions}><button aria-pressed={selected} disabled={!ready || (!selected && save.team.length >= 4) || (selected && save.team.length <= 1)} onClick={() => onAction({ type: 'team', id: cat.id })}>{selected ? tx('外す', 'Remove') : tx('編成する', 'Add to party')}</button><button disabled={!ready || companion.level >= MAX_LEVEL || save.coins < upgradeCost(companion.level)} onClick={() => onAction({ type: 'upgrade', id: cat.id })}>{companion.level >= MAX_LEVEL ? 'MAX' : <>{tx('育成', 'Train')} <Coins size={12} />{upgradeCost(companion.level)}</>}</button></div>
+      <div className={styles.ascension}>{offer?<><p>{tx(`★${offer.stars}へ昇格 · Lv.${offer.level}以上`,`Ascend to ★${offer.stars} · Lv.${offer.level}+`)}</p><button disabled={!ready||companion.level<offer.level||save.coins<offer.coins} onClick={()=>onAction({type:'ascend',id:cat.id})}>{tx('★昇格','Ascend')} <Coins size={12}/>{offer.coins}</button></>:<p>{tx('★5 · 昇格MAX','★5 · Ascension MAX')}</p>}<small>{tx(`排出レア度 ★${cat.rarity} · レベルと重複は維持`,`Wish rarity ★${cat.rarity} · Keeps level and copies`)}</small></div>
     </article>;
   })}</div>;
 }

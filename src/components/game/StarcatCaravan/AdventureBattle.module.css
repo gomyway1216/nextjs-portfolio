@@ -80,8 +80,6 @@
 @media(max-width:1023px) and (max-height:500px) {
   .wave { top:68px; left:8px; right:auto; padding:6px 8px; }
   .wave[data-boss='true'] { top:68px; left:8px; max-width:none; }
-}
-@media(max-width:1023px) and (max-height:500px) {
   .overlay { padding:8px; gap:6px; overflow-y:auto; }
   .overlay > svg { display:none; }
   .overlay h3 { font-size:22px; }

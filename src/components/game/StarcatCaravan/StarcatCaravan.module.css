@@ -353,15 +353,13 @@
   .page[data-view='adventure']:not([data-battle]) .wallet svg { width:14px; }
   .page[data-view='adventure']:not([data-battle]) .wallet b { font-size:13px; }
   .page[data-view='adventure']:not([data-battle]) .wallet small { font-size:8px; }
-}
-@media(max-width:1023px) and (max-height:350px) {
-  .page[data-view='adventure']:not([data-battle]) .navigation { margin-bottom:4px; }
-}
-@media(max-width:599px), (max-width:1023px) and (max-height:500px) {
   .navigation { flex-wrap:nowrap; }
   .navigation nav { flex:1; min-width:0; gap:2px; }
   .navigation nav button { flex:1; min-width:0; flex-direction:column; justify-content:center; gap:2px; padding:4px 2px; font-size:9px; line-height:1.2; }
   .navigation nav button > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .navigation .guideLink { min-width:44px; margin:0; justify-content:center; }
   .navigation .help { min-width:44px; width:44px; }
+}
+@media(max-width:1023px) and (max-height:350px) {
+  .page[data-view='adventure']:not([data-battle]) .navigation { margin-bottom:4px; }
 }

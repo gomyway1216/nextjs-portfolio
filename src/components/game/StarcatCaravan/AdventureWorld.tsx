@@ -43,7 +43,7 @@ export default function AdventureWorld({ game, characters, language, ready, read
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
       const {width,height} = entry.target.getBoundingClientRect();
-      const compact = getComputedStyle(entry.target).getPropertyValue('--compact-camera').trim() === '1';
+      const compact = (getComputedStyle(entry.target)?.getPropertyValue('--compact-camera') ?? '').trim() === '1';
       setViewport({width,height,compact});
     });
     observer.observe(element);
@@ -163,7 +163,7 @@ export default function AdventureWorld({ game, characters, language, ready, read
   const camera = worldViewBox(position,viewport.width,viewport.height,viewport.compact);
   const beaconLit = a.restored.includes(a.region);
   return <section ref={regionRef} className={styles.world} tabIndex={0} aria-label={tx('冒険マップ。矢印キーかWASDで移動、Eで調べる', 'Adventure map. Move with arrows or WASD; E to interact')} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) stop(); }} onKeyDown={keyDown} onKeyUp={(event) => { if (/^(Arrow|[wasdWASD]$)/.test(event.key)) stop(); }}>
-    <div className={styles.chapterBar}><div><span>THE STARLIGHT CHRONICLES · {String(a.region + 1).padStart(2, '0')}</span><h2>{chapter.title[language]}</h2></div><div><button aria-label={tx('旅の手帳','Travel journal')} onClick={() => { stop(); setJournal(true); }} disabled={!ready || !!conversation || journal}><BookOpen size={16} /><span>{tx('旅の手帳', 'Journal')}</span><b>{a.restored.length}/6</b></button><button aria-label={tx('仲間・育成','Party & training')} disabled={!ready || !!conversation || journal} onClick={() => { stop(); onParty(); }}><Users size={16} /><span>{tx('仲間・育成', 'Party & training')}</span></button></div></div>
+    <div className={styles.chapterBar}><div><span>THE STARLIGHT CHRONICLES · {String(a.region + 1).padStart(2, '0')}</span><h2>{chapter.title[language]}</h2></div><div><button aria-label={tx(`旅の手帳 ${a.restored.length}/6`,`Travel journal ${a.restored.length}/6`)} onClick={() => { stop(); setJournal(true); }} disabled={!ready || !!conversation || journal}><BookOpen size={16} /><span>{tx('旅の手帳', 'Journal')}</span><b>{a.restored.length}/6</b></button><button aria-label={tx('仲間・育成','Party & training')} disabled={!ready || !!conversation || journal} onClick={() => { stop(); onParty(); }}><Users size={16} /><span>{tx('仲間・育成', 'Party & training')}</span></button></div></div>
     <nav className={styles.regions} aria-label={tx('島を選ぶ', 'Choose an island')}>{STAGES.map((region, i) => <button key={i} disabled={!ready || (i > 0 && !game.save.cleared.includes(i - 1)) || !!conversation || journal} aria-pressed={a.region === i} onClick={() => { stop(); dispatch({ type: 'travel', region: i }); }}><span>{a.restored.includes(i) ? '✧' : String(i + 1).padStart(2, '0')}</span>{region.name[language]}</button>)}</nav>
     <div className={styles.field}>
       <svg ref={mapRef} viewBox={camera} className={styles.map} onPointerDown={tapMap} role="img" aria-label={tx(`探索マップ：${STAGES[a.region].name.ja}。現在位置 ${position.x},${position.y}`, `Exploration: ${STAGES[a.region].name.en}. Position ${position.x},${position.y}`)}>

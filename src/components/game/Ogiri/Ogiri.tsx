@@ -124,8 +124,8 @@ export function OgiriLanding() {
   const [create, setCreate] = useState(false),
     [lastRoom, setLastRoom] = useState('');
   // Restoring browser-only storage after hydration is intentional.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastRoom(localStorage.getItem('ogiri:lastRoom') ?? '');
   }, []);
   return (
@@ -233,8 +233,8 @@ function AnswerForm({
     [busy, setBusy] = useState(false),
     [saved, setSaved] = useState(assignment.answer);
   // This also restores the unsent Japanese draft after a full reload.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setText(localStorage.getItem(key) ?? assignment.answer);
   }, [key, assignment.answer]);
   async function submit(e: FormEvent) {

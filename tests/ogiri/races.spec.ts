@@ -65,7 +65,7 @@ test('racing duplicate votes, stale host commands, foreign rooms and expired roo
     expect(room.match?.result?.points).toEqual([0, 0]);
     expect(room.players.reduce((sum, p) => sum + p.score, 0)).toBe(0);
     const other: RoomView = await (
-      await voters[0].request.post('/api/ogiri', { data: { name: '別ルーム', avatar: '🐸' } })
+      await contexts[1].request.post('/api/ogiri', { data: { name: '別ルーム', avatar: '🐸' } })
     ).json();
     expect(
       (await host.post(`/api/ogiri/${other.code}`, { data: { type: 'finish' } })).status(),

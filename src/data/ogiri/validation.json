@@ -1,0 +1,31 @@
+{
+  "total": 1008,
+  "enabled": 1008,
+  "original": 1008,
+  "categories": {
+    "daily": 84,
+    "work": 84,
+    "travel": 84,
+    "food": 84,
+    "relationships": 84,
+    "animals": 84,
+    "tech": 84,
+    "surreal": 84,
+    "halloween": 84,
+    "classic": 84,
+    "japan": 84,
+    "random": 84
+  },
+  "formats": {
+    "situation": 747,
+    "reason": 50,
+    "dialogue": 95,
+    "rule": 36,
+    "twist": 37,
+    "naming": 23,
+    "invention": 20
+  },
+  "normalizedDuplicates": 0,
+  "nearPairs": [],
+  "method": "NFKC, punctuation/space removal, Japanese orthographic normalization, character trigram Dice >= 0.42. Similarities are editorial candidates, not proof of semantic uniqueness."
+}

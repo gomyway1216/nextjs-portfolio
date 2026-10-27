@@ -21,6 +21,11 @@ export const GAME_COVER_SIZE = { width: 960, height: 540 } as const;
 
 export const games: Game[] = [
   {
+    id: 'ogiri', title: 'みんなの大喜利王',
+    description: '3〜12人で、スマホから回答してテレビで大笑い。日本語の大喜利パーティーゲーム。',
+    thumbnail: '💬', path: '/games/ogiri', difficulty: 'Easy', category: 'Party',
+  },
+  {
     id: 'starcat-caravan',
     title: 'Starcat Caravan',
     description: 'Collect and train a party of cats, explore six islands, find treasure, restore starlight and dodge enemy attacks and unleash a big move in simple 2D party battles.',

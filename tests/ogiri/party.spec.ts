@@ -35,7 +35,9 @@ for (const count of [10, 12])
       await Promise.all(
         pages.slice(1).map(async (page, i) => {
           await page.goto(`/games/ogiri/${code}`, { waitUntil: 'domcontentloaded' });
-          await page.getByRole('textbox', { name: 'ニックネーム' }).fill(`参加者${i + 1}🐱`);
+          await page.getByRole('textbox', { name: 'ニックネーム' }).fill(
+            count === 12 ? `長い日本語の名前です長い日本${String(i).padStart(2, '0')}` : `参加者${i + 1}🐱`,
+          );
           await page.getByRole('button', { name: 'ルームに参加 →', exact: true }).click();
           await expect(page.getByRole('textbox', { name: 'ニックネーム' })).toHaveCount(0);
         }),

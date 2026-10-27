@@ -908,7 +908,8 @@
   gap: 0.8vw;
 }
 .tv .rankName {
-  font-size: 1.6vw;
+  font-size: 1.5vw;
+  line-height: 1.2;
 }
 .tv .rankName small {
   font-size: 1vw;

@@ -712,7 +712,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     <div className={styles.champion}>
                       <span>👑</span>
                       <h2>
-                        {v.players.filter((p) => p.rank === 1).length > 2
+                        {v.players.filter((p) => p.rank === 1).length > 1
                           ? `${v.players.filter((p) => p.rank === 1).length}人の大喜利王！`
                           : v.players
                               .filter((p) => p.rank === 1)

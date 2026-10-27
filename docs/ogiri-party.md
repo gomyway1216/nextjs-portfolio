@@ -34,8 +34,8 @@
 `src/data/ogiri/*.txt` が編集元、`prompts.json` が実行時データです。ID/本文/ジャンル/形式/難易度/タグ/由来/URL/利用情報/有効フラグ/作成日を保持。既存IDを維持するには行の並べ替えを避け、JSONインポートも利用できます。
 
 ```sh
-npm run ogiri:catalog  # txtから生成・検証
-npm run ogiri:validate
+npx tsx scripts/ogiri/catalog.ts --write  # txtから生成・検証
+npx tsx scripts/ogiri/catalog.ts --check
 npx tsx scripts/ogiri/catalog.ts --import ./reviewed-prompts.json --write
 ```
 
@@ -61,7 +61,7 @@ NFKC、空白・句読点除去、表記統一、文字trigram Diceを検査。0
 ```sh
 npm test -- tests/unit/ogiri tests/unit/gameCoverAssets.test.ts tests/unit/locales/gameCatalogStrings.test.ts
 npm run build
-npx --yes firebase-tools@15.34.1 emulators:exec --project demo-ogiri --config tests/ogiri/firebase.json --only firestore 'npm run test:ogiri:e2e'
+npx --yes firebase-tools@15.34.1 emulators:exec --project demo-ogiri --config tests/ogiri/firebase.json --only firestore 'npx playwright test --config playwright.ogiri.config.ts'
 ```
 
 エミュレーター利用は `OGIRI_EMULATOR=1` と `FIRESTORE_EMULATOR_HOST` の両方が必要。Vercelでは選択できません。実際のFirestoreエミュレーターとHTTP APIを使い、各参加者は独立したCookieを持つブラウザコンテキストです。インメモリの偽サーバーへの差し替えはありません。CIはChromium/WebKitで10人・12人+テレビを開始→回答→全対戦投票→結果→再戦まで操作します。

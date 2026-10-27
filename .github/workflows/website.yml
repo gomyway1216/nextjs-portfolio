@@ -14,8 +14,7 @@ on:
       - 'scripts/*floodgate*'
       - 'scripts/*halfkp*'
       - 'scripts/*exact24k*'
-      - 'docs/**'
-      - '**/*.md'
+      - 'docs/*shogi*'
   push:
     branches: [main]
     paths-ignore:
@@ -29,8 +28,7 @@ on:
       - 'scripts/*floodgate*'
       - 'scripts/*halfkp*'
       - 'scripts/*exact24k*'
-      - 'docs/**'
-      - '**/*.md'
+      - 'docs/*shogi*'
   workflow_dispatch:
 
 concurrency:
@@ -52,8 +50,27 @@ env:
   NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:ci'
 
 jobs:
+  changes:
+    name: Select website checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      website: ${{ steps.select.outputs.website }}
+      gate_name: ${{ steps.select.outputs.gate_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+      - id: select
+        run: node scripts/ci-website-routing.mjs
+
   quality:
     name: Website quality
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -70,6 +87,8 @@ jobs:
 
   build:
     name: Shared website build
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -93,11 +112,8 @@ jobs:
 
   e2e:
     name: Website E2E (${{ matrix.shard }}/4)
-    needs: build
-    runs-on: ubuntu-24.04
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.1-noble
-      options: --ipc=host
+    needs: [changes, build]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -111,6 +127,7 @@ jobs:
           cache: npm
       - run: npm install -g npm@11.14.1
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - uses: actions/download-artifact@v8
         with:
           name: website-build
@@ -158,14 +175,22 @@ jobs:
           retention-days: 14
 
   website_checks:
-    name: Website checks
+    name: ${{ needs.changes.outputs.gate_name || 'Test and build' }}
     if: ${{ always() }}
-    needs: [quality, build, e2e, ogiri]
+    needs:
+      - changes
+      - quality
+      - build
+      - e2e
+      - ogiri
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - run: |
-          test "${{ needs.quality.result }}" = "success"
-          test "${{ needs.build.result }}" = "success"
-          test "${{ needs.e2e.result }}" = "success"
-          test "${{ needs.ogiri.result }}" = "success"
+          test "${{ needs.changes.result }}" = "success"
+          expected=skipped
+          if [ "${{ needs.changes.outputs.website }}" = "true" ]; then expected=success; fi
+          test "${{ needs.quality.result }}" = "$expected"
+          test "${{ needs.build.result }}" = "$expected"
+          test "${{ needs.e2e.result }}" = "$expected"
+          test "${{ needs.ogiri.result }}" = "$expected"

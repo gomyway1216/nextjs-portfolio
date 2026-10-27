@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
+import { classifyWebsiteChanges } from '../../scripts/ci-website-routing.mjs';
 import { parseStrictWorkflowYaml } from '../../scripts/strict-workflow-yaml.mjs';
 
 const require = createRequire(import.meta.url);
@@ -24,6 +25,17 @@ function runs(id: string, event: string, paths: string[]) {
 }
 
 describe('CI change routing', () => {
+  it('keeps exactly one required aggregate and fails if selection fails', () => {
+    expect(workflows.website.jobs.website_checks.name).toBe(
+      "${{ needs.changes.outputs.gate_name || 'Test and build' }}",
+    );
+    expect(workflows.website.jobs.website_checks.needs).toEqual(
+      ['changes', 'quality', 'build', 'e2e', 'ogiri'],
+    );
+    expect(workflows.website.jobs.website_checks.steps[0].run).toContain(
+      'test "${{ needs.changes.result }}" = "success"',
+    );
+  });
   for (const event of ['pull_request', 'push']) {
     it(`${event}: website changes avoid unrelated training/native gates`, () => {
       for (const paths of [
@@ -33,6 +45,10 @@ describe('CI change routing', () => {
       ]) {
         expect(runs('website', event, paths)).toBe(true);
         expect(runs('ci', event, paths)).toBe(false);
+        expect(classifyWebsiteChanges(paths, workflows.ci.on[event].paths,
+          workflows.website.on[event]['paths-ignore'])).toEqual({
+          website: true, legacyCi: false, gateName: 'Test and build',
+        });
       }
     });
     it(`${event}: training-only work keeps its contracts without website tests`, () => {
@@ -44,6 +60,10 @@ describe('CI change routing', () => {
       ]) {
         expect(runs('ci', event, paths)).toBe(true);
         expect(runs('website', event, paths)).toBe(false);
+        expect(classifyWebsiteChanges(paths, workflows.ci.on[event].paths,
+          workflows.website.on[event]['paths-ignore'])).toEqual({
+          website: false, legacyCi: true, gateName: 'Website checks',
+        });
       }
     });
     it(`${event}: shared dependencies and mixed changes keep both suites`, () => {
@@ -56,11 +76,19 @@ describe('CI change routing', () => {
       ]) {
         expect(runs('ci', event, paths)).toBe(true);
         expect(runs('website', event, paths)).toBe(true);
+        expect(classifyWebsiteChanges(paths, workflows.ci.on[event].paths,
+          workflows.website.on[event]['paths-ignore'])).toEqual({
+          website: true, legacyCi: true, gateName: 'Website checks',
+        });
       }
     });
-    it(`${event}: documentation-only changes avoid both expensive suites`, () => {
+    it(`${event}: documentation-only changes retain the required check without expensive jobs`, () => {
       expect(runs('ci', event, ['docs/ogiri-party.md'])).toBe(false);
-      expect(runs('website', event, ['docs/ogiri-party.md'])).toBe(false);
+      expect(runs('website', event, ['docs/ogiri-party.md'])).toBe(true);
+      expect(classifyWebsiteChanges(['docs/ogiri-party.md'], workflows.ci.on[event].paths,
+        workflows.website.on[event]['paths-ignore'])).toEqual({
+        website: false, legacyCi: false, gateName: 'Test and build',
+      });
     });
   }
 });

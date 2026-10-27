@@ -20,6 +20,10 @@ for (const count of [10, 12])
     try {
       await host.goto('/games/ogiri', { waitUntil: 'domcontentloaded' });
       await host.getByRole('button', { name: '主催する', exact: true }).click();
+      await host.getByRole('textbox', { name: 'ニックネーム' }).fill('あ'.repeat(17));
+      await expect(host.getByRole('button', { name: 'ルームを作成 →', exact: true })).toBeDisabled();
+      await host.getByRole('textbox', { name: 'ニックネーム' }).fill('😀'.repeat(16));
+      await expect(host.getByRole('button', { name: 'ルームを作成 →', exact: true })).toBeEnabled();
       await host.getByRole('textbox', { name: 'ニックネーム' }).fill('主催者🌟');
       await host.getByRole('button', { name: 'ルームを作成 →', exact: true }).click();
       await expect(host).toHaveURL(/\/games\/ogiri\/[A-Z2-9]{6}$/);
@@ -103,13 +107,18 @@ for (const count of [10, 12])
         data: { type: 'join', name: '途中参加', avatar: '🐸' },
       });
       expect(late.status()).toBe(409);
+      const hostForm = host.getByTestId('answer-form').first();
+      await hostForm.getByRole('textbox', { name: '回答', exact: true }).fill('あ'.repeat(101));
+      await expect(hostForm.getByRole('button')).toBeDisabled();
+      await hostForm.getByRole('textbox', { name: '回答', exact: true }).fill('😀'.repeat(100));
+      await expect(hostForm.getByRole('button')).toBeEnabled();
       await Promise.all(
         pages.map(async (page, i) => {
           for (let j = 0; j < 2; j++) {
             const form = page.getByTestId('answer-form').nth(j);
             await form
               .getByRole('textbox', { name: '回答', exact: true })
-              .fill(`大爆笑の日本語回答 ${i}-${j} 🎃`);
+              .fill(i === 0 ? '大爆笑の日本語😀🎃'.repeat(10) : `大爆笑の日本語回答 ${i}-${j} 🎃`);
             await form.getByRole('button', { name: 'この回答を送る', exact: true }).click();
             await expect(
               form.getByRole('button', { name: '送信済み ✓', exact: true }),

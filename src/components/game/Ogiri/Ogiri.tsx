@@ -85,12 +85,14 @@ function JoinForm({
         <input
           aria-label="ニックネーム"
           autoComplete="nickname"
+          // HTML counts UTF-16 units; the server counts Unicode code points.
           maxLength={32}
           placeholder="呼んでほしい名前（16文字まで）"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
         />
+        <small>{[...name.normalize('NFKC')].length} / 16文字</small>
       </label>
       <fieldset>
         <legend>あなたのアバター</legend>
@@ -113,7 +115,7 @@ function JoinForm({
           {error}
         </p>
       )}
-      <button className={styles.primary} disabled={busy}>
+      <button className={styles.primary} disabled={busy || [...name.normalize('NFKC')].length > 16}>
         {busy ? '接続中…' : create ? 'ルームを作成 →' : 'ルームに参加 →'}
       </button>
       <small>登録不要・無料。同じブラウザなら、更新しても戻れます。</small>
@@ -252,6 +254,7 @@ function AnswerForm({
       <textarea
         aria-label="回答"
         rows={3}
+        // Allow 100 supplementary-plane emoji; the code-point counter gates submission.
         maxLength={200}
         placeholder="あなたのひらめきを、ここに。"
         value={text}
@@ -411,7 +414,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       if (!stopped) timeout = setTimeout(poll, document.hidden ? 5000 : 1500);
     }
     void poll();
-    const interval = setInterval(() => setClock(Date.now()), 250);
+    const interval = setInterval(() => setClock(Date.now()), 1000);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser preference after hydration
     setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     QRCode.toDataURL(`${window.location.origin}/games/ogiri/${code}`, {

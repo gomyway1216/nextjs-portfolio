@@ -19,6 +19,7 @@ function grams(text: string) {
   return new Set(Array.from({ length: Math.max(0, s.length - 2) }, (_, i) => s.slice(i, i + 3)));
 }
 function similarity(a: Set<string>, b: Set<string>) {
+  if (!a.size || !b.size) return 0;
   let common = 0;
   for (const g of a) if (b.has(g)) common++;
   return (2 * common) / (a.size + b.size);
@@ -33,6 +34,8 @@ function format(text: string) {
   return 'situation';
 }
 const imported = process.argv.indexOf('--import');
+if (imported >= 0 && (!process.argv[imported + 1] || process.argv[imported + 1].startsWith('--')))
+  throw new Error('--import requires a JSON file path.');
 const prompts: Prompt[] = process.argv.includes('--check')
   ? JSON.parse(readFileSync(resolve(root, 'prompts.json'), 'utf8'))
   : imported >= 0
@@ -71,6 +74,7 @@ for (const p of prompts) {
   if (
     typeof p.text !== 'string' ||
     [...p.text].length < 10 ||
+    normalize(p.text).length < 3 ||
     [...p.text].length > 100 ||
     /[<>\p{Cc}]/u.test(p.text)
   )

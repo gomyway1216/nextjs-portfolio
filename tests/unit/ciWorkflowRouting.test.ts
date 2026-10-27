@@ -8,13 +8,19 @@ const picomatch = require('picomatch') as (pattern: string) => (path: string) =>
 const workflows = Object.fromEntries(
   ['ci', 'website'].map((id) => [
     id,
-    parseStrictWorkflowYaml(readFileSync(`.github/workflows/${id}.yml`, 'utf8')),
+    parseStrictWorkflowYaml(
+      readFileSync(new URL(`../../.github/workflows/${id}.yml`, import.meta.url), 'utf8'),
+    ),
   ]),
 );
 function runs(id: string, event: string, paths: string[]) {
-  const trigger = workflows[id].on[event];
+  const events = workflows[id].on;
+  if (!Object.hasOwn(events, event)) return false;
+  const trigger = events[event] ?? {};
   if (trigger.paths) return paths.some((path) => trigger.paths.some((p: string) => picomatch(p)(path)));
-  return paths.some((path) => !trigger['paths-ignore'].some((p: string) => picomatch(p)(path)));
+  if (trigger['paths-ignore'])
+    return paths.some((path) => !trigger['paths-ignore'].some((p: string) => picomatch(p)(path)));
+  return true;
 }
 
 describe('CI change routing', () => {
@@ -34,6 +40,7 @@ describe('CI change routing', () => {
         ['ml/train.py', 'tests/unit/ml/exact24kVitestInventory.test.ts'],
         ['native/floodgate-v7-aws-witness-adapter-contract/Package.swift'],
         ['scripts/shogi-ai-match-output/game.csv'],
+        ['docs/blog-shogi-floodgate-v7-runtime-policy-preimages.md'],
       ]) {
         expect(runs('ci', event, paths)).toBe(true);
         expect(runs('website', event, paths)).toBe(false);

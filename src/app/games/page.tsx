@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { games, getGameCoverPath } from '@/components/game/constants/games';
 import styles from './games-page.module.css';
 
-type Category = 'Arcade' | 'Strategy' | 'Puzzle' | 'RPG' | 'Card';
+type Category = 'Arcade' | 'Strategy' | 'Puzzle' | 'RPG' | 'Card' | 'Party';
 
 const difficultyKey = (d: string) => {
   switch (d) {
@@ -20,6 +20,7 @@ const difficultyKey = (d: string) => {
 
 const categoryKey = (c: string) => {
   switch (c) {
+    case 'Party': return 'games.category.party';
     case 'Arcade': return 'games.category.arcade';
     case 'Strategy': return 'games.category.strategy';
     case 'Puzzle': return 'games.category.puzzle';
@@ -29,9 +30,10 @@ const categoryKey = (c: string) => {
   }
 };
 
-const categoryOrder: Category[] = ['Arcade', 'Strategy', 'Puzzle', 'RPG', 'Card'];
+const categoryOrder: Category[] = ['Party', 'Arcade', 'Strategy', 'Puzzle', 'RPG', 'Card'];
 
 const categoryAccent: Record<Category, { accent: string; surface: string; soft: string }> = {
+  Party: { accent: '#8250df', surface: '#ddfa73', soft: '#ad87f4' },
   Arcade: { accent: '#007aff', surface: '#9bd7ff', soft: '#5e5ce6' },
   Strategy: { accent: '#34c759', surface: '#a8f0c6', soft: '#30b0c7' },
   Puzzle: { accent: '#ff9500', surface: '#ffd59b', soft: '#ff375f' },

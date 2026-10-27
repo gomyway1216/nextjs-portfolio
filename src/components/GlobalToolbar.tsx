@@ -45,7 +45,7 @@ const HIDDEN_PATHS = ['/', '/signin'];
 // render their own chrome (e.g. /admin has its own sidebar with a built-in
 // "← meetyudai.com" link, so a second top toolbar is redundant + visually
 // collides with the fixed sidebar).
-const HIDDEN_PREFIXES = ['/admin'];
+const HIDDEN_PREFIXES = ['/admin', '/games/ogiri'];
 
 interface ThemeConfig {
   bg: string;

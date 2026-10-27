@@ -1,0 +1,81 @@
+# みんなの大喜利王
+
+## 遊び方
+
+- 開始ページ: `/games/ogiri`。Gamesのパーティーカードから開けます。
+- 主催者・参加者: `/games/ogiri/ABC234`。コードは例です。
+- テレビ: `/games/ogiri/ABC234/tv`。このURLにホストの秘密情報はありません。
+- 主催者がスマホでルーム作成→「テレビ画面を開く」のURLをPCで開く→HDMIまたはChromeのキャストでテレビへ。テレビ内蔵ブラウザでも表示できます。
+- QRを読み取った各自が名前とアバターで参加。3〜12人、アカウント・アプリ不要。主催者もプレイヤーです。
+- 標準3ラウンド、回答90秒・投票15秒・結果8秒・中間順位15秒。10人なら約17分。受付中に設定変更、ハロウィン専用テーマ・お題に切り替えできます。
+- 各ラウンド2問。自分の対戦は投票できません。1票100点、勝利200点、同点は勝利ボーナスなし。未回答・非表示は0点。順位も同点を保持します。
+- 新規の途中参加は再戦まで待機。参加済みの端末は更新・切断後も同じブラウザのCookieで復帰します。1ルームの累積参加履歴は64人までです。別端末へのホスト移譲はありません。
+- 音は最初はミュート。テレビ側で一度音ボタンを押すとオリジナルの合成効果音が有効になります（ブラウザの自動再生制限）。BGMはありません。動きの軽減とOS設定に対応。
+
+## 実装と既存機能との分離
+
+調査結果: Next.js 16.4 / App Router、React 19、Firebase Admin SDK、FirestoreとRealtime Database、Firebaseゲスト認証、QR生成、Vitest、Playwright、Vercel/GitHub Actionsが既存。既存対戦ゲームはRTDB `gameRooms`、メダル・ランキングは別領域です。
+
+本ゲームは既存のFirestore Admin SDKを再利用し、`ogiri_party_rooms/{code}` に専用の部屋を保存します。既存ゲームの緩い共有RTDB書き込みモデルをそのまま流用すると未公開回答を守れないため、ゲーム操作はすべてNext.js API経由にしました。
+
+- ゲストに256ビットのランダム秘密を発行。DBにはSHA-256ハッシュのみ。ルームごとのHttpOnly / SameSite=Strict Cookie、HTTPSではSecure。参加者が送ったID・権限・得点は採用しません。
+- Firestoreの更新時刻を条件にする原子的な更新で参加・回答・投票・得点・進行を直列化（競合時は最新データを再読込し権限・期限から再検証）。部屋コードは暗号学的乱数とcreate-if-absentで衝突を処理。ホストの次へ操作はフェーズ識別子を検証し再送で飛ばしません。
+- 公開応答は明示的な項目リストから組み立てます。回答中は本人の2問だけ、投票時は現在の2回答だけ、投票結果で初めて作者名を公開。TV指定は同じブラウザでも参加セッションを使いません。
+- クライアントは1.5秒間隔（非表示タブ5秒）で同期。締め切りはサーバー時刻。期限到達を検知したAPIがサーバー側で次の状態を確定するためホストの短時間の切断中もテレビ/他の参加者で進行します。全画面が閉じた場合は、再接続時に期限切れのフェーズを一つ進めます。
+- 同一ラウンドでランダムな巡回ペアを使い、奇数・偶数とも各自2人の異なる相手と対戦。過去の対戦回数が少ない巡回を選択します。出題はゲーム内重複なし、再戦にも履歴を引き継ぎ（選択ジャンルが不足する場合に再戦時リセット）、隣接ジャンルを分散。
+- 100文字まで、NFKC・制御文字除去、JSONリクエスト4KiB上限、Origin検証、操作別IPレート制限。テキストはReactでエスケープ。レート制限は既存のインスタンス内方式であり、分散した大規模攻撃に対する全体上限ではありません。
+- 最後のゲーム操作から8時間でAPIアクセス不可。Firestore TTL `deleteAfter` によって削除。TTL削除は即時ではなく通常24時間以内。本人の端末の下書きは送信時に削除します。
+- Firebaseルールの変更は不要。既存の本番Firestoreルールは一般利用者の直接読み書きを拒否し、管理者のみ許可します。既存RTDBルール、メダル、ランキング、ログインは変更しません。
+
+## お題と編集
+
+1,008問、12ジャンル各84問。全て今回作成した独自文、外部原文取り込み0問。日本語入力・初級、一般的な身近な状況を中心に、場面、台詞、理由、ルール、命名、発明、意外な展開を用意。
+
+`src/data/ogiri/*.txt` が編集元、`prompts.json` が実行時データです。ID/本文/ジャンル/形式/難易度/タグ/由来/URL/利用情報/有効フラグ/作成日を保持。既存IDを維持するには行の並べ替えを避け、JSONインポートも利用できます。
+
+```sh
+npx tsx scripts/ogiri/catalog.ts --write  # txtから生成・検証
+npx tsx scripts/ogiri/catalog.ts --check
+npx tsx scripts/ogiri/catalog.ts --import ./reviewed-prompts.json --write
+```
+
+JSON追加は開発者のPRでのみ行い、プレイヤー向け編集APIはありません。外部由来の場合はURLと許可情報が必要です。ツールは記載内容の法的な妥当性まで自動判定しないため、編集者が根拠を確認してください。
+
+NFKC、空白・句読点除去、表記統一、文字trigram Diceを検査。0.42以上を編集候補、0.70以上を生成エラーにします。`validation.json` に結果を記録。候補5組を見直し、発想や問いの違いが弱いものを差し替え。再検査で完全一致0・閾値以上の類似候補0。意味的な独自性や笑いの好みを自動スコアで保証するものではありません。人が集まる当日の笑いの評価は未実施です。
+
+## 参考資料と利用条件（2026-10-27確認）
+
+調査は形式と初心者の答えやすさの参考に限定し、以下のお題本文・回答・画像をデータに保存していません。
+
+|資料|確認と扱い|
+|---|---|
+|[ちんすこう大喜利のお題まとめ](https://chinsukoustudy.com/og-top/og-summary/)|ページに家族・友人・ライブ・番組などの自由利用案内あり。原文取り込みなし。|
+|[Laughteria お題メーカー](https://laughteria.com/odai/inspiration)・[利用規約](https://laughteria.com/tos)|生成結果のサービス外利用を認める案内あり。「主語・場面・型」の整理を参考。投稿お題の一括再配布許可と混同せず未取り込み。|
+|[森下ゆうじ お題バンク](https://note.com/yuji_log/n/ne752b856b6bd)|イベント等で利用可、使用報告・クレジット不要の案内。丸ごと自作として再配布・転載販売等は不可。今回は取り込みなし。|
+|[YANS ogiri-keitai](https://huggingface.co/datasets/YANS-official/ogiri-keitai)|公開データであることだけでは再配布許可を確認できず。未ダウンロード・未取り込み。|
+|[大喜利ファクトリー](https://oogiri-factory.com/odai)・[利用規約](https://oogiri-factory.com/terms)|ジャンルや回答形式を調査。今回の利用範囲に必要な原文一括再配布許可を確証できず未取り込み。|
+|[オモコロの制作者インタビュー](https://omocoro.jp/bros/kiji/231407/)|初心者向けの答えやすさ、問いの絞り方を参考。具体的な作例は取り込みなし。|
+
+## 検証方法
+
+```sh
+npm test -- tests/unit/ogiri tests/unit/gameCoverAssets.test.ts tests/unit/locales/gameCatalogStrings.test.ts
+npm run build
+npx --yes firebase-tools@15.34.1 emulators:exec --project demo-ogiri --config tests/ogiri/firebase.json --only firestore 'npx playwright test --config playwright.ogiri.config.ts'
+```
+
+エミュレーター利用は `OGIRI_EMULATOR=1` と `FIRESTORE_EMULATOR_HOST` の両方が必要。Vercelでは選択できません。実際のFirestoreエミュレーターとHTTP APIを使い、各参加者は独立したCookieを持つブラウザコンテキストです。インメモリの偽サーバーへの差し替えはありません。CIはChromium/WebKitで10人・12人+テレビを開始→回答→全対戦投票→結果→再戦まで操作します。
+
+実機のiPhone/Android、HDMI、Castの物理接続、Wi-Fiからセルラーへの実回線切替は別途当日の確認が必要です。自動テストはモバイル幅・ブラウザオフライン切替・ページ更新で代替しています。
+
+## 運用
+
+本番は既存VercelのmainデプロイとFirebaseサービスアカウント設定を使用。新しい有料サービスや外部生成APIは不要です。同期はWebSocketではなくHTTPポーリングなので、Firestore読み取りとVercel呼び出しは発生します（10人+TV、20分でおよそ8,800読み取りと操作分）。
+
+TTLの設定（当該コレクションだけに適用）:
+
+```sh
+gcloud firestore fields ttls update deleteAfter --collection-group=ogiri_party_rooms --enable-ttl --project=yudai-portfolio
+```
+
+ゲーム設計・秘密情報の投影・公平なペア割り当ては独立した小さいモジュール。将来ゲーム用の汎用フレームワークは導入していません。

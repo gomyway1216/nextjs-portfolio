@@ -535,6 +535,7 @@
     }
   },
   "games": {
+    "ogiri": {"title": "みんなの大喜利王 · Ogiri Party", "description": "A Japanese party game for 3–12 players. Answer on your phone, vote together, and laugh on the big screen."},
     "tomoshibi": {
       "title": "Tomoshibi — Ruins of the Lantern",
       "description": "Twenty-one floors down, carrying a torch that burns a point every turn. Let it go out and you can barely see — and the things that live down there hit harder in the dark."
@@ -639,6 +640,7 @@
       "hard": "Hard"
     },
     "category": {
+      "party": "Party",
       "label": "Category",
       "labelPlural": "Categories",
       "arcade": "Arcade",

@@ -1,0 +1,196 @@
+name: Website CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'ml/**'
+      - 'native/**'
+      - 'tests/unit/ml/**'
+      - '.github/ci/**'
+      - 'scripts/shogi*'
+      - 'scripts/shogi*/**'
+      - 'scripts/archive-shogi*'
+      - 'scripts/*floodgate*'
+      - 'scripts/*halfkp*'
+      - 'scripts/*exact24k*'
+      - 'docs/*shogi*'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'ml/**'
+      - 'native/**'
+      - 'tests/unit/ml/**'
+      - '.github/ci/**'
+      - 'scripts/shogi*'
+      - 'scripts/shogi*/**'
+      - 'scripts/archive-shogi*'
+      - 'scripts/*floodgate*'
+      - 'scripts/*halfkp*'
+      - 'scripts/*exact24k*'
+      - 'docs/*shogi*'
+  workflow_dispatch:
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_PUBLIC_API_KEY: ci-placeholder
+  NEXT_PUBLIC_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+  NEXT_PUBLIC_PROJECT_ID: ci-placeholder
+  NEXT_PUBLIC_STORAGE_BUCKET: ci-placeholder.appspot.com
+  NEXT_PUBLIC_MESSAGING_SENDER_ID: '000000000000'
+  NEXT_PUBLIC_APP_ID: '1:000000000000:web:ci'
+  NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+  NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:ci'
+
+jobs:
+  changes:
+    name: Select website checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      website: ${{ steps.select.outputs.website }}
+      gate_name: ${{ steps.select.outputs.gate_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+      - id: select
+        run: node scripts/ci-website-routing.mjs
+
+  quality:
+    name: Website quality
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - run: npm install -g npm@11.14.1
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test -- --exclude 'tests/unit/ml/**'
+      - run: npx tsx scripts/ogiri/catalog.ts --check
+
+  build:
+    name: Shared website build
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - run: npm install -g npm@11.14.1
+      - run: npm ci
+      - run: npm run build
+      # Keep native dependencies in each runner's npm install. Only Next's build is shared.
+      - run: tar --exclude='.next/cache' --exclude='.next/dev' -czf /tmp/website-build.tgz .next
+      - uses: actions/upload-artifact@v7
+        with:
+          name: website-build
+          path: /tmp/website-build.tgz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  e2e:
+    name: Website E2E (${{ matrix.shard }}/4)
+    needs: [changes, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - run: npm install -g npm@11.14.1
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v8
+        with:
+          name: website-build
+          path: /tmp
+      - run: tar -xzf /tmp/website-build.tgz
+      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: website-e2e-${{ matrix.shard }}
+          path: test-results
+          retention-days: 7
+
+  ogiri:
+    name: Ogiri multiplayer
+    needs: build
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      options: --ipc=host
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm install -g npm@11.14.1
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: website-build
+          path: /tmp
+      - run: tar -xzf /tmp/website-build.tgz
+      - run: npx --yes firebase-tools@15.34.1 emulators:exec --project demo-ogiri --config tests/ogiri/firebase.json --only firestore 'npx playwright test --config playwright.ogiri.config.ts'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ogiri-browser-results
+          path: test-results
+          retention-days: 14
+
+  website_checks:
+    name: ${{ needs.changes.outputs.gate_name || 'Test and build' }}
+    if: ${{ always() }}
+    needs:
+      - changes
+      - quality
+      - build
+      - e2e
+      - ogiri
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: |
+          test "${{ needs.changes.result }}" = "success"
+          expected=skipped
+          if [ "${{ needs.changes.outputs.website }}" = "true" ]; then expected=success; fi
+          test "${{ needs.quality.result }}" = "$expected"
+          test "${{ needs.build.result }}" = "$expected"
+          test "${{ needs.e2e.result }}" = "$expected"
+          test "${{ needs.ogiri.result }}" = "$expected"

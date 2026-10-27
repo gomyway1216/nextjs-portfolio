@@ -1,10 +1,67 @@
 name: CI
 
+# Training/native contracts keep their existing independently verified job definitions.
+# Website-only changes are covered by website.yml instead of running these ML gates.
+
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'ml/**'
+      - 'native/**'
+      - 'tests/unit/ml/**'
+      - 'src/components/game/Shogi*/**'
+      - 'src/services/shogi*'
+      - 'public/shogi*'
+      - 'public/shogi*/**'
+      - 'src/app/games/shogi/**'
+      - 'src/lib/shogi*/**'
+      - 'src/workers/shogi*'
+      - 'tests/unit/shogi*'
+      - 'scripts/shogi*'
+      - 'scripts/shogi*/**'
+      - 'scripts/archive-shogi*'
+      - 'scripts/*floodgate*'
+      - 'scripts/*halfkp*'
+      - 'scripts/*exact24k*'
+      - 'scripts/strict-workflow-yaml.mjs'
+      - '.github/ci/**'
+      - '.github/workflows/ci.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.*'
+      - 'tsconfig.json'
+      - '.npmrc'
+      - '.nvmrc'
   push:
     branches: [main]
+    paths:
+      - 'ml/**'
+      - 'native/**'
+      - 'tests/unit/ml/**'
+      - 'src/components/game/Shogi*/**'
+      - 'src/services/shogi*'
+      - 'public/shogi*'
+      - 'public/shogi*/**'
+      - 'src/app/games/shogi/**'
+      - 'src/lib/shogi*/**'
+      - 'src/workers/shogi*'
+      - 'tests/unit/shogi*'
+      - 'scripts/shogi*'
+      - 'scripts/shogi*/**'
+      - 'scripts/archive-shogi*'
+      - 'scripts/*floodgate*'
+      - 'scripts/*halfkp*'
+      - 'scripts/*exact24k*'
+      - 'scripts/strict-workflow-yaml.mjs'
+      - '.github/ci/**'
+      - '.github/workflows/ci.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.*'
+      - 'tsconfig.json'
+      - '.npmrc'
+      - '.nvmrc'
 
 # Cancel in-progress runs when new commits are pushed to the same ref, so
 # rapid pushes don't pile up redundant CI runs (only the latest matters).

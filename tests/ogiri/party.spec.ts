@@ -21,7 +21,9 @@ for (const count of [10, 12])
       await host.goto('/games/ogiri', { waitUntil: 'domcontentloaded' });
       await host.getByRole('button', { name: '主催する', exact: true }).click();
       await host.getByRole('textbox', { name: 'ニックネーム' }).fill('あ'.repeat(17));
-      await expect(host.getByRole('button', { name: 'ルームを作成 →', exact: true })).toBeDisabled();
+      await expect(
+        host.getByRole('button', { name: 'ルームを作成 →', exact: true }),
+      ).toBeDisabled();
       await host.getByRole('textbox', { name: 'ニックネーム' }).fill('😀'.repeat(16));
       await expect(host.getByRole('button', { name: 'ルームを作成 →', exact: true })).toBeEnabled();
       await host.getByRole('textbox', { name: 'ニックネーム' }).fill('主催者🌟');
@@ -35,9 +37,13 @@ for (const count of [10, 12])
       await Promise.all(
         pages.slice(1).map(async (page, i) => {
           await page.goto(`/games/ogiri/${code}`, { waitUntil: 'domcontentloaded' });
-          await page.getByRole('textbox', { name: 'ニックネーム' }).fill(
-            count === 12 ? `長い日本語の名前です長い日本${String(i).padStart(2, '0')}` : `参加者${i + 1}🐱`,
-          );
+          await page
+            .getByRole('textbox', { name: 'ニックネーム' })
+            .fill(
+              count === 12
+                ? `長い日本語の名前です長い日本${String(i).padStart(2, '0')}`
+                : `参加者${i + 1}🐱`,
+            );
           await page.getByRole('button', { name: 'ルームに参加 →', exact: true }).click();
           await expect(page.getByRole('textbox', { name: 'ニックネーム' })).toHaveCount(0);
         }),
@@ -139,6 +145,14 @@ for (const count of [10, 12])
       let totalPoints = 0;
       for (let i = 0; i < count; i++) {
         await expect.poll(async () => (await view(host)).phase).toBe('voting');
+        // API state can lead a phone/TV by one polling interval. Observe this
+        // match on both screens before clicking controls or reading a result.
+        for (const page of [host, tv]) {
+          await expect(
+            page.getByRole('heading', { name: '笑ったほうに、一票。', exact: true }),
+          ).toBeVisible();
+          await expect(page.getByText(`お題 ${i + 1} / ${count}`, { exact: true })).toBeVisible();
+        }
         const states = await Promise.all(pages.map(view));
         expect(states[0].match?.index).toBe(i + 1);
         expect(states.filter((v) => v.match?.canVote)).toHaveLength(count - 2);
@@ -187,11 +201,17 @@ for (const count of [10, 12])
           data: { type: 'vote', matchId: states[0].match!.id, choice: 1 },
         });
         expect(duplicate.status()).toBe(409);
+        await expect(
+          host.getByRole('heading', { name: 'この一言の作者は…', exact: true }),
+        ).toBeVisible();
         await expect(tv.getByText('引き分け！').first()).toBeVisible();
         await host.getByRole('button', { name: '次へ進む', exact: true }).click();
       }
       await expect.poll(async () => (await view(host)).phase).toBe('ranking');
       expect((await view(host)).players.reduce((sum, p) => sum + p.score, 0)).toBe(totalPoints);
+      await expect(
+        host.getByRole('heading', { name: 'ここまでの大喜利王', exact: true }),
+      ).toBeVisible();
       await host.getByRole('button', { name: '次へ進む', exact: true }).click();
       await expect(
         tv.getByRole('heading', { name: '今夜の大喜利王！', exact: true }),

@@ -22,8 +22,13 @@ describe('every catalog game has card text in both locales', () => {
       it(`${game.id} has a ${lang} title and description`, () => {
         const entry = bundle.games?.[game.id];
         expect(entry, `games.${game.id} missing from src/locales/${lang}/common.json`).toBeDefined();
-        expect(entry?.title?.trim()).toBeTruthy();
-        expect(entry?.description?.trim()).toBeTruthy();
+        // Check the type before trimming: a number or boolean in the bundle would
+        // throw inside the assertion rather than fail it, and "expected undefined
+        // to be truthy" does not say which field of which game is wrong.
+        expect(typeof entry?.title, `games.${game.id}.title (${lang})`).toBe('string');
+        expect(entry?.title?.trim(), `games.${game.id}.title (${lang}) is empty`).not.toBe('');
+        expect(typeof entry?.description, `games.${game.id}.description (${lang})`).toBe('string');
+        expect(entry?.description?.trim(), `games.${game.id}.description (${lang}) is empty`).not.toBe('');
       });
     }
   }

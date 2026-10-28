@@ -42,6 +42,19 @@ describe('CI change routing', () => {
       'test "${{ needs.changes.result }}" = "success"',
     );
   });
+  it('runs both party browser suites in parallel from one build with separate reports', () => {
+    const job = workflows.website.jobs.ogiri;
+    expect(job.needs).toBe('build');
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { browser: ['chromium', 'webkit'] } });
+    expect(job.steps.find((step: { run?: string }) => step.run?.includes('firebase-tools')).run)
+      .toContain('--project=${{ matrix.browser }}');
+    const download = job.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/download-artifact@'));
+    expect(download.with.name).toBe('website-build');
+    expect(job.steps.some((step: { run?: string }) => step.run === 'npm run build')).toBe(false);
+    const report = job.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/upload-artifact@'));
+    expect(report.with.name).toBe('ogiri-browser-results-${{ matrix.browser }}');
+    expect(report.if).toBe('always()');
+  });
   for (const event of ['pull_request']) {
     it(`${event}: website changes avoid unrelated training/native gates`, () => {
       for (const paths of [

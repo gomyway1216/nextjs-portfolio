@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { canReusePrChecks, workflowsForChanges } from '../../scripts/ci-main.mjs';
+import { canReusePrChecks, workflowsForChanges, workflowsForPush } from '../../scripts/ci-main.mjs';
 import { parseStrictWorkflowYaml } from '../../scripts/strict-workflow-yaml.mjs';
 
 const names = ['ci.yml', 'website.yml', 'security.yml'];
@@ -13,6 +16,37 @@ const success = () => ({ sha: 'merge', parents: ['base', 'head'], tree: 'same', 
   runs: names.map((name, index) => ({ id: index + 1, path: `.github/workflows/${name}`,
     event: 'pull_request', head_sha: 'head', status: 'completed', conclusion: 'success' })),
 });
+
+function withPush(commits: string[][], check: (fixture: {
+  before: string; sha: string; eventPath: string; repo: string;
+  git: (...args: string[]) => string;
+}) => void) {
+  const dir = mkdtempSync(join(tmpdir(), 'main-ci-push-'));
+  const repo = join(dir, 'repo');
+  mkdirSync(repo);
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  try {
+    git('init', '-q', '--initial-branch=main');
+    git('config', 'user.name', 'CI test');
+    git('config', 'user.email', 'ci@example.invalid');
+    git('config', 'commit.gpgsign', 'false');
+    git('commit', '-q', '--allow-empty', '-m', 'before push');
+    const before = git('rev-parse', 'HEAD').trim();
+    for (const paths of commits) {
+      for (const path of paths) {
+        const file = join(repo, path);
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, `${path}\n`);
+      }
+      git('add', '.');
+      git('commit', '-q', '-m', 'pushed changes');
+    }
+    const sha = git('rev-parse', 'HEAD').trim();
+    const eventPath = join(dir, 'event.json');
+    writeFileSync(eventPath, JSON.stringify({ before, after: sha }));
+    check({ before, sha, eventPath, repo, git });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
 
 describe('main CI deduplication', () => {
   it('reuses only the identical tree of a successfully checked normal PR merge', () => {
@@ -49,6 +83,65 @@ describe('main CI deduplication', () => {
     expect(workflowsForChanges(['README.md'], definitions)).toEqual(['website.yml', 'security.yml']);
     const evidence = success();
     expect(canReusePrChecks({ ...evidence, required: ['website.yml', 'security.yml'], runs: evidence.runs.slice(1) })).toBe(true);
+  });
+  it.each([
+    { paths: ['src/lib/ogiri/engine.ts'], expected: ['website.yml', 'security.yml'] },
+    { paths: ['src/app/layout.tsx'], expected: ['website.yml', 'security.yml'] },
+    { paths: ['unknown-file.json'], expected: ['website.yml', 'security.yml'] },
+    { paths: ['ml/train.py'], expected: ['ci.yml', 'security.yml'] },
+    { paths: ['native/Package.swift'], expected: ['ci.yml', 'security.yml'] },
+    { paths: ['.github/ci/contract.json'], expected: ['ci.yml', 'security.yml'] },
+    { paths: ['ml/train.py', 'src/lib/ogiri/engine.ts'], expected: names },
+    { paths: ['package-lock.json'], expected: names },
+    { paths: ['README.md', 'docs/party.md'], expected: ['website.yml', 'security.yml'] },
+    { paths: ['docs/blog-shogi-policy.md'], expected: ['ci.yml', 'security.yml'] },
+  ])('main fallback follows current path filters for $paths', ({ paths, expected }) => {
+    withPush([paths], ({ eventPath, sha, git }) => {
+      expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(expected);
+    });
+  });
+  it('includes earlier commits in a multi-commit push instead of only the final commit', () => {
+    withPush([['ml/train.py'], ['src/lib/ogiri/engine.ts']], ({ eventPath, sha, git }) => {
+      expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(names);
+    });
+    withPush([['src/app/layout.tsx'], ['src/lib/ogiri/engine.ts']], ({ eventPath, sha, git }) => {
+      expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(['website.yml', 'security.yml']);
+    });
+  });
+  it('keeps all workflows for missing, invalid, zero, or unavailable push revisions', () => {
+    withPush([['src/lib/ogiri/engine.ts']], ({ eventPath, sha, git }) => {
+      for (const before of [undefined, '', 'invalid', '0'.repeat(40), 'a'.repeat(40)]) {
+        writeFileSync(eventPath, JSON.stringify({ before }));
+        expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(names);
+      }
+      writeFileSync(eventPath, JSON.stringify({ before: git('rev-parse', 'HEAD^').trim() }));
+      for (const head of ['', 'invalid', '0'.repeat(40), 'b'.repeat(40)])
+        expect(workflowsForPush(eventPath, head, definitions, git)).toEqual(names);
+    });
+  });
+  it('keeps all workflows for missing or unreadable event/range evidence', () => {
+    withPush([['src/lib/ogiri/engine.ts']], ({ eventPath, sha, repo, git }) => {
+      expect(workflowsForPush(`${eventPath}.missing`, sha, definitions, git)).toEqual(names);
+      expect(workflowsForPush(repo, sha, definitions, git)).toEqual(names);
+      const unreadableDiff = (...args: string[]) => {
+        if (args[0] === 'diff') throw new Error('unreadable diff');
+        return git(...args);
+      };
+      expect(workflowsForPush(eventPath, sha, definitions, unreadableDiff)).toEqual(names);
+      for (const event of ['{', 'null']) {
+        writeFileSync(eventPath, event);
+        expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(names);
+      }
+    });
+  });
+  it('keeps all workflows when the before revision is not an ancestor of the pushed head', () => {
+    withPush([['ml/train.py']], ({ before, sha, eventPath, git }) => {
+      git('checkout', '-q', '--detach', before);
+      git('commit', '-q', '--allow-empty', '-m', 'divergent push');
+      const divergent = git('rev-parse', 'HEAD').trim();
+      writeFileSync(eventPath, JSON.stringify({ before: sha }));
+      expect(workflowsForPush(eventPath, divergent, definitions, git)).toEqual(names);
+    });
   });
   it('keeps PR and manual entry points, with one lightweight main push entry point', () => {
     for (const definition of Object.values(definitions)) {

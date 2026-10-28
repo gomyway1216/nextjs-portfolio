@@ -673,6 +673,11 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </p>
                 <h1>{phaseName[v.phase]}</h1>
               </div>
+              {manualResult && !v.paused && (
+                <p className={styles.manualWait} role="status">
+                  結果を確認したら、主催者が「次へ進む」を押してください。
+                </p>
+              )}
               {v.deadline > 0 && !manualResult && !['finished', 'lobby'].includes(v.phase) && (
                 <div
                   className={`${styles.timer} ${remaining <= 10 ? styles.urgent : ''}`}
@@ -684,7 +689,6 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </div>
               )}
             </header>
-            {manualResult && !v.paused && <p className={styles.pause} role="status">結果を確認したら、主催者が「次へ進む」を押してください。</p>}
             {v.paused && (
               <p className={styles.pause} role="status">
                 ☕ 一時停止中です。主催者の再開をお待ちください。

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
-import { startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
+import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, phaseSound } from '@/lib/ogiri/sound';
@@ -528,6 +528,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const remaining = v
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
+  const manualResult = isManualResult(v);
+  const gameWinners = v?.players.filter((p) => p.rank === 1 && p.playingThisGame !== false) ?? [];
   const tickKey = useRef('');
   useEffect(() => {
     if (
@@ -535,6 +537,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       !sound ||
       document.hidden ||
       v.paused ||
+      manualResult ||
       !v.deadline ||
       remaining < 1 ||
       remaining > 5
@@ -545,7 +548,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     if (tickKey.current === key) return;
     tickKey.current = key;
     audio.current?.play('tick', volume);
-  }, [remaining, v, sound, volume, tv]);
+  }, [remaining, v, sound, volume, tv, manualResult]);
   return (
     <main
       lang="ja"
@@ -671,7 +674,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </p>
                 <h1>{phaseName[v.phase]}</h1>
               </div>
-              {v.deadline > 0 && !['finished', 'lobby'].includes(v.phase) && (
+              {manualResult && !v.paused && (
+                <p className={styles.manualWait} role="status">
+                  結果を確認したら、主催者が「次へ進む」を押してください。
+                </p>
+              )}
+              {v.deadline > 0 && !manualResult && !['finished', 'lobby'].includes(v.phase) && (
                 <div
                   className={`${styles.timer} ${remaining <= 10 ? styles.urgent : ''}`}
                   role="timer"
@@ -868,20 +876,16 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     <div className={styles.champion}>
                       <p className={styles.eyebrow}>このゲームの優勝</p>
                       <div className={styles.championCharacters}>
-                        {v.players
-                          .filter((p) => p.rank === 1)
+                        {gameWinners
                           .slice(0, 4)
                           .map((p) => (
                             <Character key={p.id} avatar={p.avatar} size="hero" crowned />
                           ))}
                       </div>
                       <h2>
-                        {v.players.filter((p) => p.rank === 1).length > 1
-                          ? `${v.players.filter((p) => p.rank === 1).length}人の大喜利王！`
-                          : v.players
-                              .filter((p) => p.rank === 1)
-                              .map((p) => p.name)
-                              .join(' ＆ ')}
+                        {gameWinners.length > 1
+                          ? `${gameWinners.length}人の大喜利王！`
+                          : gameWinners.map((p) => p.name).join(' ＆ ')}
                       </h2>
                       <p>そのひらめきに、盛大な拍手を。</p>
                     </div>

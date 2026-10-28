@@ -18,6 +18,9 @@ for (const count of [3, 4, 10, 12])
       });
       contexts.push(context);
       const page = await context.newPage();
+      // Game-flow tests need stationary controls under multi-page WebKit load.
+      // Character motion has its own presentation coverage.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       page.on('pageerror', (e) => errors.push(e.message));
       page.on('dialog', (d) => d.accept());
       return page;
@@ -201,9 +204,13 @@ for (const count of [3, 4, 10, 12])
           voterIndices.map(async (index, j) => {
             const page = pages[index];
             const choice = j % 2;
-            await page
-              .getByRole('button', { name: `${choice ? 'B' : 'A'} に投票`, exact: true })
-              .click();
+            await expect(page.getByText(`お題 ${i + 1} / ${count}`, { exact: true })).toBeVisible();
+            const response = page.waitForResponse((response) => {
+              if (response.request().method() !== 'POST' || !response.url().endsWith(`/api/ogiri/${code}`)) return false;
+              return response.request().postDataJSON()?.type === 'vote';
+            });
+            await page.getByRole('button', { name: `${choice ? 'B' : 'A'} に投票`, exact: true }).click();
+            expect((await response).ok()).toBe(true);
           }),
         );
         await expect.poll(async () => (await view(host)).phase).toBe('reveal');

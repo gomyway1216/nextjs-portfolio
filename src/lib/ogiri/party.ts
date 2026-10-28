@@ -1,6 +1,14 @@
 import { partyPointsForRank } from '../party/points';
 import type { GameHighlights, Prompt, Room } from './types';
 
+/** Assignment to any round counts, including a pass or a later disconnect. */
+export function gamePlayerIds(room: Room): Set<string> {
+  return new Set(
+    [...(room.pastRounds ?? []).flatMap((r) => r.matches), ...room.matches]
+      .flatMap((match) => match.players),
+  );
+}
+
 /** Called inside the same conditional commit as the game result and immutable archive. */
 export function settlePartyPoints(room: Room, standings: { id: string; rank: number }[]) {
   if (room.phase !== 'finished' || room.partyAwardedGame === room.game) return;
@@ -9,7 +17,9 @@ export function settlePartyPoints(room: Room, standings: { id: string; rank: num
   );
   room.partyAwardedGame = room.game;
   if (!played) return;
+  const participants = gamePlayerIds(room);
   for (const { id, rank } of standings) {
+    if (!participants.has(id)) continue;
     const player = room.players[id];
     player.partyEarned = partyPointsForRank(rank);
     player.partyPoints = (player.partyPoints ?? 0) + player.partyEarned;

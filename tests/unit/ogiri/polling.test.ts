@@ -29,6 +29,16 @@ it('backs off idle rooms, while a running game stays responsive', () => {
   expect(pollingDelay({ ...active, paused: true }, IDLE_STOP_MS)).toBeNull();
 });
 
+it('suspends manual results while keeping timed answers and votes responsive', () => {
+  for (const phase of ['reveal', 'ranking'] as const) {
+    const manual = { ...active, phase, settings: { autoAdvance: false } } as RoomView;
+    expect([0, 15_000, 60_000, IDLE_STOP_MS].map((t) => pollingDelay(manual, t))).toEqual([1500, 5000, 15000, null]);
+    expect(pollingDelay({ ...manual, settings: { autoAdvance: true } } as RoomView, IDLE_STOP_MS)).toBe(1500);
+  }
+  for (const phase of ['answering', 'voting'] as const)
+    expect(pollingDelay({ ...active, phase, settings: { autoAdvance: false } } as RoomView, IDLE_STOP_MS)).toBe(1500);
+});
+
 it('sends no hidden/offline polls or heartbeats and resumes immediately', async () => {
   const p = setup();
   await vi.advanceTimersByTimeAsync(0);

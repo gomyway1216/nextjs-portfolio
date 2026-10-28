@@ -12,15 +12,10 @@ import {
 } from './types';
 import { gameHighlights, gamePlayerIds } from './party';
 import { normalizePlayerText } from './text';
+import { GameError } from './errors';
+import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
 
-export class GameError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
+export { GameError } from './errors';
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (
   ok,
   message,
@@ -38,6 +33,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
     'ラウンド数は1〜5です。',
@@ -61,6 +57,7 @@ export function settingsInput(value: unknown): Settings {
     'ジャンルが正しくありません。',
   );
   return {
+    gameType: s.gameType ?? 'ogiri',
     rounds: s.rounds,
     answerSeconds: s.answerSeconds,
     voteSeconds: s.voteSeconds,
@@ -266,6 +263,16 @@ function rescoreMatch(room: Room, match: Match) {
   scoreMatch(room, match);
 }
 function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) {
+  if (room.phase === 'lobby') {
+    room.gameType = room.settings.gameType ?? 'ogiri';
+    if (isSideGame(room)) {
+      beginSideRound(room, now, rng);
+      return;
+    }
+  } else if (isSideGame(room)) {
+    advanceSideGame(room, now, rng);
+    return;
+  }
   switch (room.phase) {
     case 'lobby':
       beginRound(room, now, prompts, rng);
@@ -312,6 +319,10 @@ export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.rand
   return true;
 }
 function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: () => number) {
+  if (isSideGame(room)) {
+    syncSideProgress(room, now, rng);
+    return;
+  }
   if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
   const assigned = new Set(room.matches.flatMap((m) => m.players));
   const players = Object.values(room.players).filter((p) => assigned.has(p.id) && p.active && !p.kicked && !p.spectator);
@@ -328,7 +339,7 @@ export function act(
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'leave', 'heartbeat'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'leave', 'heartbeat'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -366,7 +377,7 @@ export function act(
           : !settings.categories.length || settings.categories.includes(p.category)),
     );
     requireThat(
-      pool.length >= settings.rounds * 12,
+      settings.gameType !== 'ogiri' || pool.length >= settings.rounds * 12,
       'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。',
     );
     room.settings = settings;
@@ -390,6 +401,7 @@ export function act(
     room.round = 0;
     room.matches = [];
     room.pastRounds = [];
+    room.sideRounds = [];
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -426,6 +438,12 @@ export function act(
     for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
     const current = room.matches[room.matchIndex];
     if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
+    const side = currentSideRound(room);
+    if (side && !side.results.some(result => result.index === room.matchIndex)) {
+      const votes = side.ballots[String(room.matchIndex)];
+      if (votes) for (const [id, choice] of Object.entries(votes))
+        if (id === action.playerId || (side.type === 'identity' && choice === action.playerId)) delete votes[id];
+    }
   } else if (action.type === 'hide') {
     const m = room.matches.find((m) => m.id === action.matchId);
     requireThat(
@@ -447,6 +465,10 @@ export function act(
     } else if (action.type === 'next') {
       requireThat(!['lobby', 'finished'].includes(room.phase), '今は進められません。');
       advance(room, now, prompts, rng);
+    } else if (isSideGame(room)) {
+      sideAction(room, playerId, action, now);
+    } else if (action.type === 'partyAnswer' || action.type === 'partyVote') {
+      throw new GameError('このゲームでは使えない操作です。');
     } else if (action.type === 'answer') {
       requireThat(
         room.phase === 'answering' && player.active,
@@ -503,8 +525,11 @@ export function project(
   const current = room.matches[room.matchIndex];
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   const participants = gamePlayerIds(room);
-  const roundParticipants = new Set(room.matches.flatMap((m) => m.players));
+  const side = isSideGame(room) ? currentSideRound(room) : undefined;
+  const roundParticipants = new Set(side?.players ?? room.matches.flatMap((m) => m.players));
   return {
+    gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
+    sideGame: projectSideGame(room, me),
     turn: `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`,
     history: room.history ?? [],
     partyGames: room.partyGames ?? 0,
@@ -549,7 +574,7 @@ export function project(
       previousRank: p.previousRank,
       active: p.active,
       connected: now - p.lastSeen < 65000,
-      answered: room.matches.filter((m) => m.answers[p.id]).length,
+      answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
     })),
     assignments:
       me && room.phase === 'answering'

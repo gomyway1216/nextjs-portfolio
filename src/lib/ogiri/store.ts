@@ -9,11 +9,12 @@ import {
   GameError,
   joinRoom,
   newPlayer,
+  settingsInput,
   project,
   rankPlayers,
   tick,
 } from './engine';
-import type { Action, GameHistory, Room } from './types';
+import { DEFAULT_SETTINGS, type Action, type GameHistory, type Room } from './types';
 import { prompts } from './prompts';
 import { snapshotHistory, validHistoryId } from './history';
 import { settlePartyPoints } from './party';
@@ -54,14 +55,16 @@ function saved(room: Room) {
   return { ...room, deleteAfter: Timestamp.fromMillis(room.expiresAt) };
 }
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export async function makeRoom(name: unknown, avatar: unknown, hostPlays: unknown = true) {
+export async function makeRoom(name: unknown, avatar: unknown, hostPlays: unknown = true, gameType: unknown = 'ogiri') {
   if (typeof hostPlays !== 'boolean') throw new GameError('主催者の参加方法を選んでください。');
+  const settings = settingsInput({ ...DEFAULT_SETTINGS, gameType });
   const session = identity();
   const host = newPlayer(session.id, session.hash, name, avatar, Date.now());
   host.spectator = !hostPlays;
   for (let tries = 0; tries < 8; tries++) {
     const code = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join('');
     const room = createRoom(code, host, Date.now());
+    room.settings = settings;
     room.historyId = randomBytes(16).toString('hex');
     try {
       await collection().doc(code).create(saved(room));
@@ -97,8 +100,8 @@ async function mutate(
       const archive = snapshotHistory(room, room.historyId, now, prompts);
       archives.push(archive);
       room.archivedGame = room.game;
-      const { id, code, game, finishedAt, expiresAt } = archive;
-      room.history = [...(room.history ?? []), { id, code, game, finishedAt, expiresAt }].slice(
+      const { id, code, game, finishedAt, expiresAt, gameType } = archive;
+      room.history = [...(room.history ?? []), { id, code, game, finishedAt, expiresAt, gameType }].slice(
         -50,
       );
     };
@@ -182,7 +185,7 @@ export async function command(
     if (!id) throw new GameError('参加し直してください。', 401);
     tick(room, now, prompts);
     if (
-      ['next', 'extend', 'start', 'rematch', 'answerReady'].includes(action.type) &&
+      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote'].includes(action.type) &&
       turn !== `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`
     )
       throw new GameError('画面が更新されました。もう一度操作してください。', 409);

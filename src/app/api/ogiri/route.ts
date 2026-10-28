@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     guard(request, true, true);
     const data = await body(request);
-    const { view, token } = await makeRoom(data.name, data.avatar, data.hostPlays);
+    const { view, token } = await makeRoom(data.name, data.avatar, data.hostPlays, data.gameType);
     return response(view, view.code, token);
   } catch (error) {
     return failure(error);

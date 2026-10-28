@@ -1014,7 +1014,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                               disabled={busy || !connected}
                               onClick={() => void send({ type: 'extend' })}
                             >
-                              {v.phase === 'answering' ? '回答時間を＋60秒' : '表示時間を＋30秒'}
+                              {v.phase === 'answering' ? '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
                             </button>
                           )}
                           <button

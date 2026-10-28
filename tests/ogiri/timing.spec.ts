@@ -60,7 +60,7 @@ test('waits past the answer guide, accepts the last player and keeps results rea
     const voteDeadline = room.deadline;
     expect((await contexts[0].request.post(path, { data: { type: 'extend', turn: room.turn } })).status()).toBe(403);
     await host.getByText('主催者の操作').click();
-    await host.getByRole('button', { name: '表示時間を＋30秒', exact: true }).click();
+    await host.getByRole('button', { name: '投票時間を＋30秒', exact: true }).click();
     await expect.poll(async () => (await read(host.context())).deadline).toBe(voteDeadline + 30000);
     for (const context of contexts) {
       const mine = await read(context);

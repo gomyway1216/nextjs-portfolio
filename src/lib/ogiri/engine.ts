@@ -11,6 +11,7 @@ import {
   type Settings,
 } from './types';
 import { gameHighlights, gamePlayerIds } from './party';
+import { normalizePlayerText } from './text';
 
 export class GameError extends Error {
   constructor(
@@ -30,11 +31,7 @@ const requireThat: (ok: unknown, message: string, status?: number) => asserts ok
 export const ROOM_TTL = 8 * 60 * 60 * 1000;
 export function textInput(value: unknown, max: number): string {
   requireThat(typeof value === 'string', '文字で入力してください。');
-  // Preserve emoji ZWJ sequences, while stripping control/bidi characters.
-  const text = value
-    .normalize('NFKC')
-    .replace(/[\p{Cc}\u200B\u200E-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/gu, '')
-    .trim();
+  const text = normalizePlayerText(value);
   requireThat([...text].length > 0 && [...text].length <= max, `1〜${max}文字で入力してください。`);
   return text;
 }

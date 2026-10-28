@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext } from '@playwright/test';
+import { test, expect, request as playwrightRequest, type APIRequestContext, type BrowserContext } from '@playwright/test';
 import type { RoomView } from '../../src/lib/ogiri/types';
 
 test.use({ extraHTTPHeaders: { 'x-real-ip': '198.51.100.145' } });
@@ -131,7 +131,7 @@ test('wrong recovery attempts are throttled and a kicked participant cannot reco
     expect((await host.request.post(path, { data: { type: 'kick', playerId: member.me } })).ok()).toBe(true);
     expect((await guest.request.post(path, { data: { type: 'recover', recoveryCode: member.recoveryCode }, headers: { 'x-real-ip': `198.51.100.${ipBase}` } })).status()).toBe(401);
     for (let i = 0; i < 29; i++) {
-      const response = await guest.request.post(path, { data: { type: 'recover', recoveryCode: 'INVALID' }, headers: { 'x-real-ip': `198.51.100.${ipBase + 1 + Math.floor(i / 10)}` } });
+      const response = await guest.request.post(path, { data: { type: 'recover', recoveryCode: 'INVALID' }, headers: { 'x-real-ip': `198.51.100.${ipBase + 1 + Math.floor(i / 24)}` } });
       expect(response.status()).toBe(401);
     }
     expect((await guest.request.post(path, { data: { type: 'recover', recoveryCode: room.recoveryCode }, headers: { 'x-real-ip': `198.51.100.${ipBase + 4}` } })).status()).toBe(429);
@@ -139,4 +139,38 @@ test('wrong recovery attempts are throttled and a kicked participant cannot reco
     const another: RoomView = await (await host.request.post('/api/ogiri', { data: { name: '別の部屋', avatar: 'rabbit' } })).json();
     expect((await guest.request.post(`/api/ogiri/${another.code}`, { data: { type: 'recover', recoveryCode: 'INVALID' }, headers: { 'x-real-ip': `198.51.100.${ipBase + 1}` } })).status()).toBe(429);
   } finally { await guest.close(); }
+});
+
+test('all twelve participants can recover from independent devices sharing one party Wi-Fi IP', async ({ page: host, baseURL }, info) => {
+  test.skip(!!process.env.OGIRI_TEST_URL, 'Emulator-only twelve-participant recovery coverage.');
+  const room: RoomView = await (await host.request.post('/api/ogiri', { data: { name: '進行役', avatar: 'rabbit', hostPlays: false } })).json();
+  const path = `/api/ogiri/${room.code}`;
+  const clients: APIRequestContext[] = [];
+  const extraHTTPHeaders = { 'x-real-ip': `198.51.100.${info.project.name === 'webkit' ? 185 : 165}` };
+  const device = async () => {
+    const client = await playwrightRequest.newContext({ baseURL, extraHTTPHeaders });
+    clients.push(client);
+    return client;
+  };
+  try {
+    const participants = await Promise.all(Array.from({ length: 12 }, async (_, i) => {
+      const original = await device();
+      const joined = await original.post(path, { data: { type: 'join', name: `WiFi参加者${i + 1}`, avatar: 'pudding' } });
+      expect(joined.ok()).toBe(true);
+      const view: RoomView = await joined.json();
+      return { original, id: view.me, code: view.recoveryCode };
+    }));
+    expect((await (await host.request.get(path)).json()).players).toHaveLength(12);
+    const ids = await Promise.all(participants.map(async participant => {
+      const fresh = await device();
+      const recovered = await fresh.post(path, { data: { type: 'recover', recoveryCode: participant.code } });
+      expect(recovered.status()).toBe(200);
+      const view: RoomView = await recovered.json();
+      expect(view.me).toBe(participant.id);
+      expect(view.players).toHaveLength(12);
+      expect((await (await participant.original.get(path)).json()).me).toBeNull();
+      return view.me;
+    }));
+    expect(new Set(ids).size).toBe(12);
+  } finally { await Promise.all(clients.map(client => client.dispose())); }
 });

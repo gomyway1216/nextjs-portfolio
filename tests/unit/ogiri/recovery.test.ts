@@ -96,7 +96,7 @@ it('persists wrong-code attempts across instances without extending room expiry 
   memory.room!.recoveryAttempts!.resetAt = Date.now() - 1;
   expect((await recoverRoom(host.view.code, host.view.recoveryCode)).view.isHost).toBe(true);
   const request = new NextRequest('https://meetyudai.com/api/ogiri/ABC234', { headers: { 'x-real-ip': 'recovery-test' } });
-  for (let i = 0; i < 10; i++) guardRecovery(request);
+  for (let i = 0; i < 24; i++) guardRecovery(request);
   expect(() => guardRecovery(request)).toThrow('1分');
 });
 

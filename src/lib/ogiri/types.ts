@@ -45,6 +45,8 @@ export interface Prompt {
   createdAt: string;
 }
 export interface Player {
+  partyPoints?: number;
+  partyEarned?: number;
   spectator?: boolean;
   id: string;
   name: string;
@@ -69,6 +71,8 @@ export interface Match {
   points: number[];
 }
 export interface Room {
+  partyGames?: number;
+  partyAwardedGame?: number;
   code: string;
   hostId: string;
   createdAt: number;
@@ -98,6 +102,9 @@ export interface HistoryRef {
   expiresAt: number;
 }
 export interface GameHistory extends HistoryRef {
+  gameType?: 'ogiri';
+  partyGames?: number;
+  partyRankings?: { name: string; avatar: string; rank: number; points: number; earned: number }[];
   version: 1;
   rounds: number;
   rankings: { name: string; avatar: string; rank: number; score: number }[];
@@ -108,6 +115,8 @@ export interface GameHistory extends HistoryRef {
   }[];
 }
 export interface PublicPlayer {
+  partyPoints?: number;
+  partyEarned?: number;
   id: string;
   name: string;
   avatar: string;
@@ -120,6 +129,15 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  partyPlayers?: {
+    id: string;
+    name: string;
+    avatar: string;
+    partyPoints: number;
+    partyEarned: number;
+  }[];
+  partyGames?: number;
+  highlights?: GameHighlights | null;
   hostPlays?: boolean;
   history?: HistoryRef[];
   turn: string;
@@ -148,6 +166,18 @@ export interface RoomView {
     eligible: number;
     result: null | { counts: number[]; points: number[]; authors: string[] };
   };
+}
+export interface GameHighlights {
+  roundMvps: string[];
+  climbers: { id: string; places: number }[];
+  bestAnswer: {
+    text: string;
+    answer: string;
+    author: string;
+    avatar: string;
+    votes: number;
+    points: number;
+  } | null;
 }
 export type Action =
   | { type: 'hostParticipation'; participating: boolean }

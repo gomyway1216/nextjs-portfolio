@@ -169,6 +169,25 @@ export function OgiriHistory({ id }: { id?: string }) {
                 ))}
               </ol>
             </section>
+            {Boolean(history.partyGames) && (
+              <section className={styles.historySection}>
+                <h2>
+                  パーティー総合順位 <small>{history.partyGames}ゲーム終了時点</small>
+                </h2>
+                <ol className={styles.historyRanks}>
+                  {history.partyRankings?.map((p, i) => (
+                    <li key={i}>
+                      <b>{p.rank}位</b>
+                      <span>
+                        <Character avatar={p.avatar} /> {p.name}
+                        <small> 今回 +{p.earned}pt</small>
+                      </span>
+                      <strong>{p.points} pt</strong>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
             <section className={styles.historySection}>
               <h2>
                 お題と回答 <small>{history.matches.length}対戦</small>

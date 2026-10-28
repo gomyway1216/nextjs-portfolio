@@ -1,5 +1,6 @@
 import { rankPlayers } from './engine';
 import type { GameHistory, Prompt, Room } from './types';
+import { partyStandings } from '../party/points';
 
 export const HISTORY_TTL = 90 * 24 * 60 * 60 * 1000;
 export const validHistoryId = (id: string) => /^[a-f0-9]{32}$/.test(id);
@@ -13,6 +14,19 @@ export function snapshotHistory(
 ): GameHistory {
   return {
     version: 1,
+    gameType: 'ogiri',
+    partyGames: room.partyGames ?? 0,
+    partyRankings: partyStandings(
+      Object.values(room.players).filter(
+        (p) => !p.kicked && (!p.spectator || (p.partyPoints ?? 0) > 0),
+      ),
+    ).map((p) => ({
+      name: p.name,
+      avatar: p.avatar,
+      rank: p.partyRank,
+      points: p.partyPoints ?? 0,
+      earned: p.partyEarned ?? 0,
+    })),
     id,
     code: room.code,
     game: room.game,
@@ -56,6 +70,15 @@ export function historyText(history: GameHistory): string {
     '',
     '【最終順位】',
     ...history.rankings.map((p) => `${p.rank}位 ${p.avatar} ${p.name} — ${p.score} pt`),
+    ...(history.partyGames
+      ? [
+          '',
+          `【パーティー総合順位 · ${history.partyGames}ゲーム終了】`,
+          ...(history.partyRankings ?? []).map(
+            (p) => `${p.rank}位 ${p.avatar} ${p.name} — ${p.points} pt (今回 +${p.earned})`,
+          ),
+        ]
+      : []),
     '',
     '【お題と回答】',
     ...history.matches.flatMap((m, i) => [

@@ -3,10 +3,20 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore as adminFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getFirestore } from '@/lib/firebase-admin';
-import { act, createRoom, GameError, joinRoom, newPlayer, project, tick } from './engine';
+import {
+  act,
+  createRoom,
+  GameError,
+  joinRoom,
+  newPlayer,
+  project,
+  rankPlayers,
+  tick,
+} from './engine';
 import type { Action, GameHistory, Room } from './types';
 import { prompts } from './prompts';
 import { snapshotHistory, validHistoryId } from './history';
+import { settlePartyPoints } from './party';
 
 export const COLLECTION = 'ogiri_party_rooms';
 export const HISTORY_COLLECTION = 'ogiri_party_history';
@@ -82,6 +92,7 @@ async function mutate(
     const archives: GameHistory[] = [];
     const archiveFinished = () => {
       if (room.phase !== 'finished' || room.round === 0 || room.archivedGame === room.game) return;
+      settlePartyPoints(room, rankPlayers(room));
       room.historyId ??= randomBytes(16).toString('hex');
       const archive = snapshotHistory(room, room.historyId, now, prompts);
       archives.push(archive);

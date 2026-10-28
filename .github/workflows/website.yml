@@ -42,6 +42,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       website: ${{ steps.select.outputs.website }}
+      scope: ${{ steps.select.outputs.scope }}
       gate_name: ${{ steps.select.outputs.gate_name }}
     steps:
       - uses: actions/checkout@v7
@@ -68,7 +69,10 @@ jobs:
       - run: npm install -g npm@11.14.1
       - run: npm ci
       - run: npm run lint
-      - run: npm test -- --exclude 'tests/unit/ml/**'
+      - if: needs.changes.outputs.scope == 'party'
+        run: npm test -- tests/unit/ogiri
+      - if: needs.changes.outputs.scope == 'full'
+        run: npm test -- --exclude 'tests/unit/ml/**'
       - run: npx tsx scripts/ogiri/catalog.ts --check
 
   build:
@@ -99,6 +103,7 @@ jobs:
   e2e:
     name: Website E2E (${{ matrix.shard }}/4)
     needs: [changes, build]
+    if: needs.changes.outputs.scope == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -180,9 +185,16 @@ jobs:
     steps:
       - run: |
           test "${{ needs.changes.result }}" = "success"
+          case "${{ needs.changes.outputs.scope }}" in
+            none) website=false; e2e=skipped ;;
+            party) website=true; e2e=skipped ;;
+            full) website=true; e2e=success ;;
+            *) exit 1 ;;
+          esac
+          test "${{ needs.changes.outputs.website }}" = "$website"
           expected=skipped
-          if [ "${{ needs.changes.outputs.website }}" = "true" ]; then expected=success; fi
+          if [ "$website" = "true" ]; then expected=success; fi
           test "${{ needs.quality.result }}" = "$expected"
           test "${{ needs.build.result }}" = "$expected"
-          test "${{ needs.e2e.result }}" = "$expected"
+          test "${{ needs.e2e.result }}" = "$e2e"
           test "${{ needs.ogiri.result }}" = "$expected"

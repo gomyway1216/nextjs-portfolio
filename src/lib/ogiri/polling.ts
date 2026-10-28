@@ -12,7 +12,8 @@ export function isManualResult(view: RoomView | null): boolean {
 }
 
 export function pollingDelay(view: RoomView | null, unchangedMs: number): number | null {
-  if (!view || (!view.paused && !isManualResult(view) && view.deadline > 0 && !['lobby', 'finished'].includes(view.phase)))
+  const waitingForAnswers = view?.phase === 'answering' && view.serverTime >= view.deadline;
+  if (!view || (!view.paused && !isManualResult(view) && !waitingForAnswers && view.deadline > 0 && !['lobby', 'finished'].includes(view.phase)))
     return 1500;
   if (unchangedMs >= IDLE_STOP_MS) return null;
   if (unchangedMs >= 60_000) return 15_000;

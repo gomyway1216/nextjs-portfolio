@@ -25,8 +25,8 @@ export interface Settings {
 }
 export const DEFAULT_SETTINGS: Settings = {
   rounds: 3,
-  answerSeconds: 90,
-  voteSeconds: 15,
+  answerSeconds: 180,
+  voteSeconds: 45,
   autoAdvance: true,
   categories: [],
   halloween: false,
@@ -190,6 +190,6 @@ export type Action =
   | { type: 'answer'; matchId: string; text: string }
   | { type: 'vote'; matchId: string; choice: number }
   | { type: 'settings'; settings: Settings }
-  | { type: 'start' | 'next' | 'pause' | 'resume' | 'finish' | 'rematch' | 'leave' | 'heartbeat' }
+  | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'rematch' | 'leave' | 'heartbeat' }
   | { type: 'kick'; playerId: string }
   | { type: 'hide'; matchId: string; choice: number };

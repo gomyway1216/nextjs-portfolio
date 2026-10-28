@@ -198,7 +198,7 @@ export function OgiriLanding() {
             </p>
             <div className={styles.facts}>
               <span>📱 インストール不要</span>
-              <span>⏱ 目安15〜25分</span>
+              <span>⏱ 時間はゆっくり、調整OK</span>
               <span>🎃 ハロウィンにも</span>
             </div>
           </section>
@@ -349,8 +349,8 @@ function SettingsForm({
         {(
           [
             ['rounds', 'ラウンド数', [1, 2, 3, 4, 5]],
-            ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180]],
-            ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45]],
+            ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
+            ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
         ).map(([key, label, values]) => (
           <label key={key}>
@@ -367,6 +367,7 @@ function SettingsForm({
           </label>
         ))}
       </div>
+      <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>
       <label className={styles.check}>
         <input
           type="checkbox"
@@ -533,6 +534,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
   const manualResult = isManualResult(v);
+  const waitingForAnswers = v?.phase === 'answering' && remaining === 0;
   const answerers = v?.players.filter((p) => p.answeringThisRound && p.active) ?? [];
   const readyCount = answerers.filter((p) => p.answerReady).length;
   const everyoneReady = answerers.length > 0 && readyCount === answerers.length;
@@ -702,12 +704,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               )}
               {v.deadline > 0 && !manualResult && !['finished', 'lobby'].includes(v.phase) && (
                 <div
-                  className={`${styles.timer} ${remaining <= 10 ? styles.urgent : ''}`}
+                  className={`${styles.timer} ${remaining <= 10 && !waitingForAnswers ? styles.urgent : ''}`}
                   role="timer"
-                  aria-label="残り時間"
+                  aria-label={v.phase === 'answering' ? '回答時間の目安' : '残り時間'}
                 >
-                  {v.paused ? '休憩' : remaining}
-                  <small>{v.paused ? '再開まで待ってね' : '秒'}</small>
+                  {v.paused ? '休憩' : waitingForAnswers ? '待機' : remaining}
+                  <small>{v.paused ? '再開まで待ってね' : waitingForAnswers ? 'まだ回答できるよ' : v.phase === 'answering' ? '秒・目安' : '秒'}</small>
                 </div>
               )}
             </header>
@@ -796,7 +798,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       key={a.id}
                       assignment={a}
                       code={code}
-                      disabled={v.paused || !connected || remaining === 0 || Boolean(mine?.answerReady)}
+                      disabled={v.paused || !connected || Boolean(mine?.answerReady)}
                       send={send}
                     />
                   ))}
@@ -806,13 +808,13 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               <section className={styles.readyBar} aria-label="回答の確定状況">
                 <p role="status"><b>{readyCount} / {answerers.length}人がOK！</b> {everyoneReady ? '全員そろいました。' : '全員の回答確定を待っています。'}</p>
                 <small>{v.settings.autoAdvance
-                  ? '全員が「これでOK！」を押すと投票へ。時間切れでも進みます。'
-                  : '全員OK後は主催者が「次へ進む」で投票へ。時間切れでも進みます。'}</small>
+                  ? '全員が「これでOK！」を押すと投票へ。目安時間を過ぎても回答できます。'
+                  : '全員OK後は主催者が投票へ進めます。目安時間を過ぎても回答できます。'}</small>
                 {hasUnsentChanges && v.assignments.every((a) => a.answer) && <small>未送信の変更があります。先に「回答を更新」を押してね。</small>}
                 {!tv && mine?.answeringThisRound && mine.active && (
-                  mine.answerReady ? <button className={styles.secondary} disabled={busy || v.paused || !connected || remaining === 0}
+                  mine.answerReady ? <button className={styles.secondary} disabled={busy || v.paused || !connected}
                     onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
-                    : <button className={styles.primary} disabled={busy || v.paused || !connected || remaining === 0 || hasUnsentChanges || v.assignments.length !== 2 || v.assignments.some((a) => !a.answer)}
+                    : <button className={styles.primary} disabled={busy || v.paused || !connected || hasUnsentChanges || v.assignments.length !== 2 || v.assignments.some((a) => !a.answer)}
                       onClick={() => void confirmAnswers()}>これでOK！</button>
                 )}
                 {!tv && v.isHost && everyoneReady && !v.settings.autoAdvance && (
@@ -1006,6 +1008,15 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     ) : (
                       v.phase !== 'finished' && (
                         <>
+                          {!manualResult && (
+                            <button
+                              className={styles.secondary}
+                              disabled={busy || !connected}
+                              onClick={() => void send({ type: 'extend' })}
+                            >
+                              {v.phase === 'answering' ? '回答時間を＋60秒' : '表示時間を＋30秒'}
+                            </button>
+                          )}
                           <button
                             className={styles.secondary}
                             disabled={busy}
@@ -1019,7 +1030,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             onClick={() => {
                               if (
                                 ['answering', 'voting'].includes(v.phase) &&
-                                !window.confirm('制限時間を待たずに締め切りますか？')
+                                !window.confirm(v.phase === 'answering' ? 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
                               )
                                 return;
                               void send({ type: 'next' });

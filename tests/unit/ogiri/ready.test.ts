@@ -50,15 +50,58 @@ it('locks confirmed answers, supports undo, and resets confirmation in the next 
   expect(Object.values(room.players).every(p => !p.answerReady)).toBe(true);
 });
 
-it('keeps the deadline fallback and ignores a player who leaves before confirming', () => {
-  const timed = setup();
-  expect(tick(timed, timed.deadline, prompts)).toBe(true);
-  expect(timed.phase).toBe('voting');
+it.each([true, false])('accepts late answers and confirmations after the guide timer (automatic: %s)', (automatic) => {
+  const room = setup(automatic);
+  answerAll(room);
+  for (const id of ['a','b','c','d']) act(room, id, { type: 'answerReady', ready: true }, 102, prompts);
+  const late = room.deadline + 60000;
+  const revision = room.revision;
+  expect(tick(room, late, prompts)).toBe(false);
+  expect(room.revision).toBe(revision);
+  expect(room.phase).toBe('answering');
+  const match = room.matches.find(m => m.players.includes('e'))!;
+  act(room, 'e', { type: 'answer', matchId: match.id, text: 'まだ書ける' }, late, prompts);
+  act(room, 'a', { type: 'answerReady', ready: false }, late, prompts);
+  act(room, 'e', { type: 'answerReady', ready: true }, late, prompts);
+  expect(room.phase).toBe('answering');
+  act(room, 'a', { type: 'answerReady', ready: true }, late, prompts);
+  expect(room.phase).toBe(automatic ? 'voting' : 'answering');
+  if (!automatic) act(room, 'host', { type: 'next' }, late, prompts);
+  expect(room.phase).toBe('voting');
+  expect(() => act(room, 'e', { type: 'answer', matchId: match.id, text: '締切後' }, late, prompts)).toThrow('受付');
+});
+
+it('ignores a player who leaves before confirming', () => {
   const room = setup();
   answerAll(room);
   for (const id of ['a','b','c','d']) act(room, id, { type: 'answerReady', ready: true }, 102, prompts);
   act(room, 'e', { type: 'leave' }, 103, prompts);
   expect(room.phase).toBe('voting');
+});
+
+it('lets only the host extend the guide, voting and result timers, including while paused', () => {
+  const room = setup();
+  const original = room.deadline;
+  expect(() => act(room, 'a', { type: 'extend' }, 101, prompts)).toThrow('主催者');
+  act(room, 'host', { type: 'extend' }, 101, prompts);
+  expect(room.deadline).toBe(original + 60000);
+  const late = room.deadline + 10000;
+  act(room, 'host', { type: 'extend' }, late, prompts);
+  expect(room.deadline).toBe(late + 60000);
+  act(room, 'host', { type: 'pause' }, late + 1000, prompts);
+  act(room, 'host', { type: 'extend' }, late + 6000, prompts);
+  act(room, 'host', { type: 'resume' }, late + 11000, prompts);
+  expect(room.deadline).toBe(late + 130000);
+  act(room, 'host', { type: 'next' }, late + 11000, prompts);
+  expect(room.deadline).toBe(late + 56000);
+  act(room, 'host', { type: 'extend' }, late + 11000, prompts);
+  expect(room.deadline).toBe(late + 86000);
+  act(room, 'host', { type: 'next' }, late + 11000, prompts);
+  expect(room.deadline).toBe(late + 26000); // 15 seconds to read the result.
+  act(room, 'host', { type: 'extend' }, late + 11000, prompts);
+  expect(room.deadline).toBe(late + 56000);
+  act(room, 'host', { type: 'finish' }, late + 11000, prompts);
+  expect(() => act(room, 'host', { type: 'extend' }, late + 11000, prompts)).toThrow('今は');
 });
 
 it.each([3,4,5,10,12])('shows a fair plan matching the actual assignments for %i players', (count) => {

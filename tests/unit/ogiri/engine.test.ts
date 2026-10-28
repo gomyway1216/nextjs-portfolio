@@ -74,6 +74,11 @@ describe('Ogiri party engine', () => {
     expect(() => textInput('', 100)).toThrow();
     expect(() => settingsInput({ ...DEFAULT_SETTINGS, rounds: 100 })).toThrow();
     expect(() => settingsInput({ ...DEFAULT_SETTINGS, categories: ['constructor'] })).toThrow();
+    expect(DEFAULT_SETTINGS).toMatchObject({ answerSeconds: 180, voteSeconds: 45 });
+    expect(settingsInput({ ...DEFAULT_SETTINGS, answerSeconds: 600, voteSeconds: 120 }))
+      .toMatchObject({ answerSeconds: 600, voteSeconds: 120 });
+    expect(() => settingsInput({ ...DEFAULT_SETTINGS, answerSeconds: 601 })).toThrow();
+    expect(() => settingsInput({ ...DEFAULT_SETTINGS, voteSeconds: 121 })).toThrow();
   });
   it('never exposes secrets, opponents, future prompts or unpublished answers', () => {
     const room = setup();
@@ -149,16 +154,11 @@ describe('Ogiri party engine', () => {
     ).toThrow('一時停止');
     act(room, 'p0', { type: 'resume' }, now + 5500, prompts);
     expect(room.deadline).toBe(deadline + 5000);
-    expect(() =>
-      act(
-        room,
-        room.matches[0].players[0],
-        { type: 'answer', matchId: room.matches[0].id, text: '遅刻' },
-        room.deadline,
-        prompts,
-      ),
-    ).toThrow('受付');
-    tick(room, room.deadline, prompts);
+    expect(tick(room, room.deadline, prompts)).toBe(false);
+    act(room, room.matches[0].players[0],
+      { type: 'answer', matchId: room.matches[0].id, text: '目安を過ぎても回答できる' },
+      room.deadline, prompts);
+    act(room, 'p0', { type: 'next' }, room.deadline, prompts);
     tick(room, room.deadline, prompts);
     expect(room.phase).toBe('reveal');
     expect(room.matches[0].points).toEqual([0, 0]);

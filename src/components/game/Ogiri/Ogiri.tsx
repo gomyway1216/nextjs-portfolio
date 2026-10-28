@@ -271,8 +271,8 @@ function AnswerForm({
 }) {
   const key = `ogiri:draft:${code}:${assignment.id}`;
   const [text, setText] = useState(assignment.answer),
-    [busy, setBusy] = useState(false),
-    [saved, setSaved] = useState(assignment.answer);
+    [busy, setBusy] = useState(false);
+  const saved = assignment.answer;
   const characterCount = [...normalizePlayerText(text)].length;
   // This also restores the unsent Japanese draft after a full reload.
   useEffect(() => {
@@ -284,7 +284,6 @@ function AnswerForm({
     setBusy(true);
     if (await send({ type: 'answer', matchId: assignment.id, text })) {
       const stored = normalizePlayerText(text);
-      setSaved(stored);
       setText(stored);
       localStorage.removeItem(key);
     }

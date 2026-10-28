@@ -59,6 +59,12 @@ test('full-width answers show as submitted, lock while sending and preserve late
     await second.getByRole('button').click();
     await expect(second.getByRole('button')).toHaveText('送信済み ✓');
     await expect(second.getByRole('textbox', { name: '回答', exact: true })).toHaveValue('ABCとカタカナ');
+    // Another tab sharing this guest session can update the answer between polls.
+    expect((await host.post(path, {
+      data: { type: 'answer', matchId: view.assignments[0].id, text: '別タブで更新した回答！' },
+    })).ok()).toBe(true);
+    await expect(input).toHaveValue('別タブで更新した回答!');
+    await expect(form.getByRole('button')).toHaveText('送信済み ✓');
   } finally {
     release?.();
     await Promise.all(guests.map(guest => guest.close()));

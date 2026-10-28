@@ -184,3 +184,102 @@ for (const firstType of ['majority', 'identity'] as const)
       await Promise.all(contexts.map(context => context.close()));
     }
   });
+
+// Keep the large layout fixture separate from the create budget of the four-player flows.
+test.describe('twelve-player TV layout', () => {
+  test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.121' } });
+  test('twelve long-name players and full-length answers fit both TV sizes and mobile', async ({ page: host, browser, baseURL }, info) => {
+    const contexts: BrowserContext[] = [];
+    const errors: string[] = [];
+    host.on('pageerror', error => errors.push(error.message));
+    const metrics: object[] = [];
+    try {
+      let room: RoomView = await (await host.request.post('/api/ogiri', {
+        data: { name: '画面確認の進行役', avatar: '🐱', hostPlays: false, gameType: 'identity' },
+      })).json();
+      const path = `/api/ogiri/${room.code}`;
+      const read = async (context: BrowserContext): Promise<RoomView> => (await context.request.get(path)).json();
+      const action = async (data: object) => {
+        room = await read(host.context());
+        const response = await host.request.post(path, { data: { ...data, turn: room.turn } });
+        expect(response.ok(), await response.text()).toBe(true);
+        room = await response.json();
+      };
+      for (let i = 0; i < 12; i++) {
+        const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+        contexts.push(context);
+        const name = [...'あいうえおかきくけこさしすせそたち'].slice(0, 14).join('') + String(i).padStart(2, '0');
+        expect([...name]).toHaveLength(16);
+        const response = await context.request.post(path, { data: { type: 'join', name, avatar: i % 2 ? 'rabbit' : 'pudding' } });
+        expect(response.ok()).toBe(true);
+      }
+      await action({ type: 'settings', settings: { ...room.settings, rounds: 1, autoAdvance: false, voteSeconds: 120 } });
+      await action({ type: 'start' });
+      for (let i = 0; i < 12; i++) {
+        const mine = await read(contexts[i]);
+        const text = String(i).padStart(2, '0') + '笑いすぎて朝ごはん忘れた。'.repeat(10).slice(0, 98);
+        expect([...text]).toHaveLength(100);
+        expect((await contexts[i].request.post(path, { data: { type: 'partyAnswer', text, turn: mine.turn } })).ok()).toBe(true);
+        expect((await contexts[i].request.post(path, { data: { type: 'answerReady', ready: true, turn: mine.turn } })).ok()).toBe(true);
+      }
+      await action({ type: 'next' });
+      const views = await Promise.all(contexts.map(read));
+      const author = views.findIndex(view => view.sideGame?.isAuthor);
+      const viewer = views.findIndex(view => view.sideGame?.canVote);
+      expect(author).toBeGreaterThanOrEqual(0);
+      const tv = await host.context().newPage();
+      tv.on('pageerror', error => errors.push(error.message));
+      await tv.emulateMedia({ reducedMotion: 'reduce' });
+      const phone = await contexts[viewer].newPage();
+      phone.on('pageerror', error => errors.push(error.message));
+      await phone.goto(`/games/ogiri/${room.code}`);
+      await tv.goto(`/games/ogiri/${room.code}/tv`);
+      async function capture(phase: string, page: Page, width: number, height: number, fitVertical: boolean) {
+        await page.setViewportSize({ width, height });
+        await page.evaluate(() => document.fonts.ready);
+        const measure = await page.evaluate(() => ({ width: innerWidth, height: innerHeight,
+          scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight,
+          clipped: [...document.querySelectorAll('[data-testid="party-anonymous-answer"], [data-testid="party-speaker"], button')]
+            .filter(node => { const box = node.getBoundingClientRect(); return box.width > 0 && (box.left < -1 || box.right > innerWidth + 1); })
+            .map(node => ({ text: node.textContent, left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right })),
+        }));
+        metrics.push({ phase, ...measure });
+        await page.screenshot({ path: info.outputPath(`${phase}-${width}.png`), fullPage: true });
+        expect.soft(measure.scrollWidth).toBeLessThanOrEqual(width + 2);
+        expect.soft(measure.clipped).toEqual([]);
+        if (fitVertical) expect.soft(measure.scrollHeight).toBeLessThanOrEqual(height + 2);
+      }
+      await expect(tv.getByTestId('party-anonymous-answer')).toContainText('笑いすぎて');
+      await expect(phone.getByRole('button', { name: /だと思う$/ })).toHaveCount(12);
+      for (const [width, height] of [[1920, 1080], [3840, 2160]]) await capture('identity-voting', tv, width, height, true);
+      await capture('identity-voting', phone, 390, 844, false);
+      for (let i = 0, voter = 0; i < 12; i++) if (i !== author) {
+        const correct = views[author].me!;
+        const choice = voter++ === 0 ? views[i].sideGame!.options.find(option => option.id !== correct)!.id : correct;
+        expect((await contexts[i].request.post(path, { data: { type: 'partyVote', choice, turn: views[i].turn } })).ok()).toBe(true);
+      }
+      await action({ type: 'next' });
+      await expect(tv.getByLabel('今回の獲得ポイント')).toBeVisible();
+      for (const [width, height] of [[1920, 1080], [3840, 2160]]) await capture('identity-reveal', tv, width, height, true);
+      await expect(phone.getByLabel('今回の獲得ポイント')).toBeVisible();
+      await capture('identity-reveal', phone, 390, 844, false);
+      await action({ type: 'finish' });
+      await action({ type: 'settings', settings: { ...room.settings, gameType: 'majority' } });
+      await action({ type: 'rematch' });
+      await action({ type: 'start' });
+      await expect(tv.getByRole('heading', { name: '多数派に、まざれ。', exact: true })).toBeVisible();
+      for (const [width, height] of [[1920, 1080], [3840, 2160]]) await capture('majority-voting', tv, width, height, true);
+      await expect(phone.getByRole('heading', { name: '多数派に、まざれ。', exact: true })).toBeVisible();
+      await capture('majority-voting', phone, 390, 844, false);
+      const majority = await Promise.all(contexts.map(read));
+      for (let i = 0; i < 12; i++) expect((await contexts[i].request.post(path, { data: { type: 'partyVote', choice: majority[i].sideGame!.options[0].id, turn: majority[i].turn } })).ok()).toBe(true);
+      await action({ type: 'next' });
+      await expect(tv.getByLabel('今回の獲得ポイント')).toBeVisible();
+      for (const [width, height] of [[1920, 1080], [3840, 2160]]) await capture('majority-reveal', tv, width, height, true);
+      await expect(phone.getByLabel('今回の獲得ポイント')).toBeVisible();
+      await capture('majority-reveal', phone, 390, 844, false);
+      await info.attach('layout-metrics', { body: JSON.stringify(metrics), contentType: 'application/json' });
+      expect(errors).toEqual([]);
+    } finally { await Promise.all(contexts.map(context => context.close())); }
+  });
+});

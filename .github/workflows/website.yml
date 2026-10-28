@@ -128,13 +128,19 @@ jobs:
           retention-days: 7
 
   ogiri:
-    name: Ogiri multiplayer
+    name: Ogiri multiplayer (${{ matrix.browser }})
     needs: build
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
       options: --ipc=host
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser:
+          - chromium
+          - webkit
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -152,11 +158,11 @@ jobs:
           name: website-build
           path: /tmp
       - run: tar -xzf /tmp/website-build.tgz
-      - run: npx --yes firebase-tools@15.34.1 emulators:exec --project demo-ogiri --config tests/ogiri/firebase.json --only firestore 'npx playwright test --config playwright.ogiri.config.ts'
+      - run: npx --yes firebase-tools@15.34.1 emulators:exec --project demo-ogiri --config tests/ogiri/firebase.json --only firestore 'npx playwright test --config playwright.ogiri.config.ts --project=${{ matrix.browser }}'
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: ogiri-browser-results
+          name: ogiri-browser-results-${{ matrix.browser }}
           path: test-results
           retention-days: 14
 

@@ -164,7 +164,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                     <span>
                       <Character avatar={p.avatar} /> {p.name}
                     </span>
-                    <strong>{p.score} pt</strong>
+                    <strong>{p.score} 点</strong>
                   </li>
                 ))}
               </ol>

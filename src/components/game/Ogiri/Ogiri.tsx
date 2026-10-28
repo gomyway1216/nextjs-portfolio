@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
+import { RoundPlan } from './RoundPlan';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, phaseSound } from '@/lib/ogiri/sound';
@@ -16,12 +17,12 @@ import { PartyResults } from './PartyResults';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
-  lobby: 'みんなを待っています',
-  answering: 'ひらめきの時間',
-  voting: '笑ったほうに、一票。',
-  reveal: 'この一言の作者は…',
-  ranking: 'ここまでの大喜利王',
-  finished: '今夜の大喜利王！',
+  lobby: 'メンバー、募集中。',
+  answering: 'ネタ、仕込み中。',
+  voting: 'どっちで笑った？',
+  reveal: 'これ書いたの、だれ？',
+  ranking: 'いま、こうなってます。',
+  finished: '結果、出ました。',
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -173,7 +174,7 @@ export function OgiriLanding() {
       <div className={styles.shell}>
         <nav className={styles.nav}>
           <Link href="/games">← Games</Link>
-          <span>おもしろいは、みんなでつくる。</span>
+          <span>その答え、ずるい。</span>
           <Link href="/games/ogiri/history">過去のゲーム</Link>
         </nav>
         <div className={styles.hero}>
@@ -186,14 +187,14 @@ export function OgiriLanding() {
               </span>
             </h1>
             <p className={styles.intro}>
-              正解はない。
+              お題はこっち。
               <br />
-              あなたの一言が、今夜をさらう。
+              ボケるのはそっち。
             </p>
             <p>
-              お題にこっそり回答して、笑ったほうに投票。
+              スマホでボケる。みんなで投票。
               <br />
-              友だちと、家族と、初めましての人と。
+              最後に作者がバレます。
             </p>
             <div className={styles.facts}>
               <span>📱 インストール不要</span>
@@ -210,7 +211,7 @@ export function OgiriLanding() {
                 主催する
               </button>
             </div>
-            <h2>{create ? 'みんなの舞台をつくろう。' : 'その一言、お待ちしてます。'}</h2>
+            <h2>{create ? 'まずは部屋をひとつ。' : '名前をどうぞ。ボケはあとで。'}</h2>
             <JoinForm key={String(create)} create={create} />
             {lastRoom && (
               <Link className={styles.back} href={`/games/ogiri/${lastRoom}`}>
@@ -231,8 +232,8 @@ export function OgiriLanding() {
         <section className={styles.steps} aria-label="遊び方">
           {[
             ['01', '集まる', '主催者がルームを作成。テレビ画面のQRをスマホで読み取ろう。'],
-            ['02', 'ひらめく', '1人2問、90秒。同じお題に答える相手は、まだ秘密。'],
-            ['03', '笑って選ぶ', '2つの回答から投票。1票100点、勝利ボーナス200点！'],
+            ['02', 'こっそり仕込む', '2問を送ったら「これでOK！」。同じお題の相手は、まだ秘密。'],
+            ['03', '一票で決める', '1票100点、勝ったら追加で200点。ドヤ顔は各自でどうぞ。'],
           ].map(([n, title, text]) => (
             <article key={n}>
               <b>{n}</b>
@@ -242,7 +243,7 @@ export function OgiriLanding() {
           ))}
         </section>
         <section className={styles.guide}>
-          <h2>リビングが、会場になる。</h2>
+          <h2>テレビ、空いてる？</h2>
           <p>
             PCをHDMIでテレビへつなぐか、Chromeのメニューから「キャスト」を選択。テレビのブラウザで表示用URLを開く方法も使えます。主催者のスマホから「テレビ画面を開く」でURLを確認できます。
           </p>
@@ -321,7 +322,7 @@ function AnswerForm({
         </button>
       </div>
       <small aria-live="polite">
-        {saved ? '送信済み。締め切りまでは修正できます。' : '下書きはこの端末に自動保存されます。'}
+        {saved ? '送信済み。「これでOK！」で確定するまで修正できます。' : '下書きはこの端末に自動保存されます。'}
       </small>
     </form>
   );
@@ -372,7 +373,7 @@ function SettingsForm({
           checked={s.autoAdvance}
           onChange={(e) => set({ ...s, autoAdvance: e.target.checked })}
         />
-        全員投票後・結果発表後に自動で進行
+        全員の回答確定後・全員投票後・結果発表後に自動で進行
       </label>
       <label className={styles.check}>
         <input
@@ -532,6 +533,23 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
   const manualResult = isManualResult(v);
+  const answerers = v?.players.filter((p) => p.answeringThisRound && p.active) ?? [];
+  const readyCount = answerers.filter((p) => p.answerReady).length;
+  const everyoneReady = answerers.length > 0 && readyCount === answerers.length;
+  const hasUnsentChanges = typeof window !== 'undefined' && v?.phase === 'answering' && v.assignments.some((a) => {
+    const draft = localStorage.getItem(`ogiri:draft:${code}:${a.id}`);
+    return draft !== null && draft !== a.answer;
+  });
+  async function confirmAnswers() {
+    if (v?.assignments.some((a) => {
+      const draft = localStorage.getItem(`ogiri:draft:${code}:${a.id}`);
+      return draft !== null && draft !== a.answer;
+    })) {
+      setError('未送信の変更があります。「回答を更新」で送信してから確定してください。');
+      return;
+    }
+    await send({ type: 'answerReady', ready: true });
+  }
   const gameWinners = v?.players.filter((p) => p.rank === 1 && p.playingThisGame !== false) ?? [];
   const tickKey = useRef('');
   useEffect(() => {
@@ -732,6 +750,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <p>
                     1つのお題に2人が回答し、それ以外の人が投票します。進行専用の主催者とテレビは人数に含みません。
                   </p>
+                  <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} />
                 </section>
                 <aside className={styles.qrCard}>
                   {qr && (
@@ -755,16 +774,16 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <div className={styles.stageCharacter}>
                     <Character avatar={v.settings.halloween ? '🎃' : '🐱'} size="hero" />
                   </div>
-                  <h2>あなたのスマホに、2つのお題。</h2>
-                  <p>書き終えたら「この回答を送る」を押してね。</p>
+                  <h2>スマホのほう、見てね。</h2>
+                  <p>2問とも送信したら「これでOK！」で確定してね。</p>
                   <p>お題は全員共通ではありません。同じお題を2人ずつに配っています。</p>
                   <div className={styles.playerGrid}>
-                    {v.players.map((p) => (
-                      <article key={p.id} className={styles.player}>
+                    {v.players.filter((p) => p.answeringThisRound).map((p) => (
+                      <article key={p.id} className={`${styles.player} ${p.answerReady ? styles.playerReady : ''}`}>
                         <Character avatar={p.avatar} size="large" />
                         <b>{p.name}</b>
                         <small>
-                          {p.answered}/2 回答済み {p.answered === 2 && '✨'}
+                          {!p.active ? 'お休み中' : p.answerReady ? 'OK！ ✓' : `${p.answered}/2 回答済み`}
                         </small>
                       </article>
                     ))}
@@ -777,18 +796,42 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       key={a.id}
                       assignment={a}
                       code={code}
-                      disabled={v.paused || !connected || remaining === 0}
+                      disabled={v.paused || !connected || remaining === 0 || Boolean(mine?.answerReady)}
                       send={send}
                     />
                   ))}
                 </div>
               ))}
+            {v.phase === 'answering' && (
+              <section className={styles.readyBar} aria-label="回答の確定状況">
+                <p role="status"><b>{readyCount} / {answerers.length}人がOK！</b> {everyoneReady ? '全員そろいました。' : '全員の回答確定を待っています。'}</p>
+                <small>{v.settings.autoAdvance
+                  ? '全員が「これでOK！」を押すと投票へ。時間切れでも進みます。'
+                  : '全員OK後は主催者が「次へ進む」で投票へ。時間切れでも進みます。'}</small>
+                {hasUnsentChanges && v.assignments.every((a) => a.answer) && <small>未送信の変更があります。先に「回答を更新」を押してね。</small>}
+                {!tv && mine?.answeringThisRound && mine.active && (
+                  mine.answerReady ? <button className={styles.secondary} disabled={busy || v.paused || !connected || remaining === 0}
+                    onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
+                    : <button className={styles.primary} disabled={busy || v.paused || !connected || remaining === 0 || hasUnsentChanges || v.assignments.length !== 2 || v.assignments.some((a) => !a.answer)}
+                      onClick={() => void confirmAnswers()}>これでOK！</button>
+                )}
+                {!tv && v.isHost && everyoneReady && !v.settings.autoAdvance && (
+                  <button className={styles.primary} disabled={busy || v.paused || !connected}
+                    onClick={() => void send({ type: 'next' })}>投票へ進む →</button>
+                )}
+              </section>
+            )}
             {v.match && (
               <section className={styles.battle} key={v.match.id}>
                 <p className={styles.eyebrow}>
                   お題 {v.match.index} / {v.match.total}
                 </p>
                 <h2 className={styles.prompt}>{v.match.text}</h2>
+                {v.phase === 'voting' && (
+                  <p className={styles.voteRole} role="status">{v.match.isAuthor
+                    ? 'あなたの回答があるお題です。今回は投票をお休みして、みんなの票を待とう。'
+                    : `作者2人は投票しません。作者以外の${v.match.eligible}人で選びます。`}</p>
+                )}
                 <div className={styles.answers}>
                   {v.match.answers.map((answer, i) => {
                     const m = v.match!,
@@ -797,7 +840,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       total = result?.counts.reduce((a, b) => a + b, 0) ?? 0;
                     return (
                       <article
-                        className={`${styles.answerCard} ${answer && [...answer].length > 60 ? styles.longAnswer : ''} ${result && count > result.counts[1 - i] ? styles.winner : ''}`}
+                        className={`${styles.answerCard} ${result ? styles.answerRevealed : ''} ${answer && [...answer].length > 60 ? styles.longAnswer : ''} ${result && count > result.counts[1 - i] ? styles.winner : ''}`}
                         key={i}
                       >
                         <span className={styles.letter}>{i ? 'B' : 'A'}</span>
@@ -828,7 +871,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                               />{' '}
                               {result.authors[i]}
                             </p>
-                            <strong>+{result.points[i]} pt</strong>
+                            <strong>+{result.points[i]} 点</strong>
                             {result.counts[0] === result.counts[1] ? (
                               <small>引き分け！</small>
                             ) : (
@@ -856,7 +899,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 <p className={styles.voteStatus} aria-live="polite">
                   {v.phase === 'voting'
                     ? `${v.match.votesReceived} / ${v.match.eligible} 人が投票済み${!tv && mine && !v.match.canVote ? ' · 自分の対戦は投票をお休み' : ''}`
-                    : '拍手！ 次のお題もお楽しみに。'}
+                    : 'はい、次の無茶ぶりへ。'}
                 </p>
               </section>
             )}
@@ -877,7 +920,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       ))}
                     </div>
                     <div className={styles.champion}>
-                      <p className={styles.eyebrow}>このゲームの優勝</p>
+                      <p className={styles.eyebrow}>今回の1位</p>
                       <div className={styles.championCharacters}>
                         {gameWinners
                           .slice(0, 4)
@@ -887,10 +930,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       </div>
                       <h2>
                         {gameWinners.length > 1
-                          ? `${gameWinners.length}人の大喜利王！`
-                          : gameWinners.map((p) => p.name).join(' ＆ ')}
+                          ? `同率1位 × ${gameWinners.length}`
+                          : gameWinners[0]?.name ?? '今回はここまで。'}
                       </h2>
-                      <p>そのひらめきに、盛大な拍手を。</p>
+                      <p>{gameWinners.length > 1 ? 'トロフィーは交代でどうぞ。' : gameWinners.length ? '異議は、次のゲームでどうぞ。' : 'ネタはまた今度。'}</p>
                     </div>
                   </>
                 )}
@@ -910,7 +953,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               <div className={styles.myScore}>
                 <Character avatar={mine.avatar} /> {mine.name}
                 <span>
-                  {mine.rank}位 · <b>{mine.score} pt</b>
+                  {mine.rank}位 · <b>{mine.score} 点</b>
                 </span>
               </div>
             )}

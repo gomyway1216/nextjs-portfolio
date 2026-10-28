@@ -67,21 +67,21 @@ export function PartyResults({ view }: { view: RoomView }) {
       </div>
       <div className={styles.highlights}>
         <button disabled={!mvps.length} onClick={() => setSpotlight('mvp')}>
-          <span>ROUND MVP</span>
+          <span>この回、稼いだ人</span>
           <b>
-            {mvps[0]?.name ?? '次の一言に期待！'}
+            {mvps[0]?.name ?? 'まだ0点。ここから。'}
             {mvps.length > 1 && ` ほか${mvps.length - 1}人`}
           </b>
           <small>{mvps[0] ? `今回 +${mvps[0].roundScore}点` : '得点が入ると発表します'}</small>
         </button>
         <button disabled={!climberPlayer} onClick={() => setSpotlight('climber')}>
-          <span>追い上げスター</span>
-          <b>{climberPlayer?.name ?? 'ここからが勝負！'}</b>
-          <small>{climber ? `${climber.places}ランクアップ ↑` : '順位の変化をお楽しみに'}</small>
+          <span>順位、上げてきた</span>
+          <b>{climberPlayer?.name ?? 'まだ動かず。'}</b>
+          <small>{climber ? `${climber.places}ランクアップ ↑` : '次の回でどうなるか。'}</small>
         </button>
         <button disabled={!best} onClick={() => setSpotlight('answer')}>
-          <span>ベスト一言</span>
-          <b>{best?.author ?? '次のお題に期待！'}</b>
+          <span>ウケた一言</span>
+          <b>{best?.author ?? 'まだ、票待ち。'}</b>
           <small>
             {best ? `${best.votes}票を集めた回答を見る ↗` : '得票した回答がここに登場'}
           </small>
@@ -128,7 +128,7 @@ export function PartyResults({ view }: { view: RoomView }) {
         </button>
         {spotlight === 'answer' && best && (
           <>
-            <p className={styles.eyebrow}>このゲームのベスト一言 · {best.votes}票</p>
+            <p className={styles.eyebrow}>この回答に{best.votes}票</p>
             <h2>{best.text}</h2>
             <p className={styles.spotlightAnswer}>{best.answer}</p>
             <Character avatar={best.avatar} size="hero" />
@@ -139,7 +139,7 @@ export function PartyResults({ view }: { view: RoomView }) {
         {spotlight === 'mvp' && (
           <>
             <p className={styles.eyebrow}>このラウンドで最も得点したのは…</p>
-            <h2>ROUND MVP！</h2>
+            <h2>この回、持っていきました。</h2>
             <div className={styles.spotlightWinners}>
               {mvps.map((p) => (
                 <div key={p.id}>
@@ -153,7 +153,7 @@ export function PartyResults({ view }: { view: RoomView }) {
         )}
         {spotlight === 'climber' && climberPlayer && (
           <>
-            <p className={styles.eyebrow}>勢いに乗ってきた！</p>
+            <p className={styles.eyebrow}>そこから来るか。</p>
             <h2>{climber?.places}ランクアップ！</h2>
             <Character avatar={climberPlayer.avatar} size="hero" />
             <h3>{climberPlayer.name}</h3>

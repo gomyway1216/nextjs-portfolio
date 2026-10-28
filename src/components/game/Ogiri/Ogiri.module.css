@@ -1,16 +1,21 @@
+@font-face {
+  font-family: 'Ogiri Display';
+  src: url('/fonts/ogiri-display.woff2') format('woff2');
+  font-display: swap;
+  font-weight: 400 900;
+}
 .app {
-  --ink: #f7f1ff;
-  --muted: #c7b9dd;
-  --lime: #ddfa73;
-  --panel: #2f204b;
-  --purple: #9c72ff;
-  background: #1a112c;
+  --ink: #fffdf3;
+  --muted: #d8e2ff;
+  --lime: #fff14a;
+  --panel: #3439a1;
+  --purple: #ff78bf;
+  background: #2429a9;
   color: var(--ink);
   min-height: 100dvh;
   font-family: var(--font-geist-sans), 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
-  background-image:
-    radial-gradient(ellipse at 8% 0%, #51327670, transparent 45%),
-    radial-gradient(ellipse at 96% 80%, #713b6b50, transparent 40%);
+  background-image: radial-gradient(#ffffff16 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
   line-height: 1.65;
   overflow-x: clip;
   padding: 0 24px 50px;
@@ -751,16 +756,19 @@ a.historyCard:hover {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  background: #efe9ff;
-  color: #27183e;
-  border-radius: 22px;
+  background: #fff3a0;
+  color: #19162f;
+  border-radius: 34px 26px 36px 12px;
   padding: 26px;
   min-height: 230px;
-  border: 5px solid transparent;
-  animation: arrive 0.35s ease-out;
+  border: 4px solid #19162f;
+  box-shadow: 7px 8px 0 #19162f;
+  animation: bubbleIn 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .answerCard:nth-child(2) {
-  background: #ffe3ba;
+  background: #ffb7dc;
+  border-radius: 26px 34px 12px 36px;
+  animation-delay: 0.12s;
 }
 .letter {
   display: grid;
@@ -768,12 +776,16 @@ a.historyCard:hover {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: #6a40b3;
-  color: white;
+  background: #65e0ff;
+  color: #19162f;
+  border: 3px solid #19162f;
+  transform: rotate(-8deg);
+  font-family: 'Ogiri Display', sans-serif;
   font-weight: 900;
 }
 .answerCard:nth-child(2) .letter {
-  background: #a64e2a;
+  background: #fff14a;
+  transform: rotate(7deg);
 }
 .answerCard > p {
   font-size: clamp(24px, 2.8vw, 40px);
@@ -791,10 +803,8 @@ a.historyCard:hover {
   color: #65485c;
 }
 .winner {
-  border-color: var(--lime);
-  box-shadow:
-    0 0 0 3px #27183e,
-    0 0 35px #d8fc7035;
+  border-color: #19162f;
+  box-shadow: 7px 8px 0 #19162f, inset 0 0 0 5px #fff14a;
 }
 .result {
   border-top: 1px solid #27183e30;
@@ -1648,4 +1658,268 @@ a.historyCard:hover {
 }
 .tv .player {
   padding: 0.6vh 0.5vw;
+}
+
+/* Thick type, sticker edges and one-shot speech-bubble reveals. */
+.title,
+.roundHeader h1,
+.spotlightDialog h2 {
+  font-family: 'Ogiri Display', 'Hiragino Kaku Gothic ProN', sans-serif;
+  letter-spacing: 0.025em;
+  -webkit-text-stroke: 1px #19162f;
+  paint-order: stroke fill;
+  text-shadow: 4px 4px 0 #19162f;
+}
+.title > span:first-child {
+  text-shadow: none;
+  -webkit-text-stroke: 0;
+}
+.title .lime {
+  display: inline-block;
+  transform: rotate(5deg);
+}
+.roundHeader h1 {
+  transform: rotate(-1deg);
+  transform-origin: left center;
+}
+.joinCard {
+  border: 3px solid #19162f;
+  box-shadow: 8px 9px 0 #19162f;
+}
+.primary,
+.secondary {
+  border: 2px solid #19162f;
+  box-shadow: 4px 4px 0 #19162f;
+  border-radius: 12px 9px 14px 9px;
+}
+.timer {
+  border: 3px solid #19162f;
+  box-shadow: 5px 5px 0 #19162f;
+  border-radius: 38% 48% 42% 47%;
+  font-family: 'Ogiri Display', sans-serif;
+  transform: rotate(5deg);
+}
+.answerCard::after {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  left: 12%;
+  width: 24px;
+  height: 24px;
+  background: inherit;
+  border-right: 4px solid #19162f;
+  border-bottom: 4px solid #19162f;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.answerCard:nth-child(2)::after {
+  left: auto;
+  right: 12%;
+}
+.answerCard > p {
+  font-family: 'Hiragino Maru Gothic ProN', 'Yu Gothic', sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+.answerRevealed {
+  animation-name: verdictPop;
+}
+.answerRevealed .result > strong {
+  animation: scorePop 0.5s ease-out both;
+  font-family: 'Ogiri Display', sans-serif;
+}
+.voteBar {
+  border: 2px solid #19162f;
+  height: 13px;
+  background: #ffffff70;
+}
+.voteBar span {
+  background: #3f54ee;
+}
+.voteRole {
+  text-align: center;
+  color: var(--lime);
+  font-size: 14px;
+  margin: 0 0 16px;
+  font-weight: 800;
+}
+.rankRow {
+  border: 2px solid #19162f;
+  box-shadow: 4px 4px 0 #19162f;
+  background: #3439a1;
+}
+.topRank {
+  background: #4553c0;
+}
+.rankRow > strong {
+  font-family: 'Ogiri Display', sans-serif;
+}
+.resultTabs button[aria-pressed='true'] {
+  background: var(--lime);
+  color: #19162f;
+  border-color: #19162f;
+  box-shadow: 3px 3px 0 #19162f;
+}
+.roundPlan {
+  margin-top: 16px;
+  padding: 14px;
+  border: 2px dashed #ffffff70;
+  border-radius: 14px;
+  background: #19162f25;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.roundPlan h3 {
+  font-size: 16px;
+  color: var(--lime);
+  margin: 0 0 8px;
+}
+.roundPlan p {
+  margin: 5px 0;
+}
+.roundPlan dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.roundPlan dt {
+  font-size: 11px;
+  font-weight: 500;
+}
+.roundPlan dd {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--lime);
+  margin: 0;
+}
+.readyBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 22px 0;
+  padding: 16px;
+  border: 3px solid #19162f;
+  border-radius: 14px;
+  background: #3439a1;
+  box-shadow: 4px 4px 0 #19162f;
+}
+.readyBar > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.readyBar > small {
+  flex: 1 1 260px;
+}
+.playerReady {
+  border-color: var(--lime);
+  background: #fff14a25;
+}
+.tv .roundPlan {
+  font-size: 0.8vw;
+  padding: 0.7vh 0.8vw;
+  margin-top: 0.8vh;
+}
+.tv .roundPlan h3 {
+  font-size: 1vw;
+  margin-bottom: 0.4vh;
+}
+.tv .roundPlan p {
+  margin: 0.3vh 0;
+}
+.tv .roundPlan dl {
+  margin: 0.5vh 0;
+}
+.tv .roundPlan dt {
+  font-size: 0.75vw;
+}
+.tv .roundPlan dd {
+  font-size: 1.3vw;
+}
+.tv .readyBar {
+  margin: 1vh 0;
+  padding: 0.6vh 1vw;
+  gap: 0.5vh;
+}
+.tv .readyBar > p {
+  font-size: 1.3vw;
+}
+.tv .readyBar > small,
+.tv .voteRole {
+  font-size: 1vw;
+}
+.halloween .answerCard {
+  background: #fff0b8;
+}
+.halloween .answerCard:nth-child(2) {
+  background: #e8d5ff;
+}
+@keyframes bubbleIn {
+  0% { opacity: 0; transform: translateY(18px) scale(0.92) rotate(-1deg); }
+  65% { opacity: 1; transform: translateY(-3px) scale(1.015); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes verdictPop {
+  0% { transform: scale(0.98); }
+  50% { transform: scale(1.015); }
+  100% { transform: none; }
+}
+@media (max-width: 600px) {
+  .roundPlan dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .roundHeader h1 { text-shadow: 2px 2px 0 #19162f; }
+}
+
+.tv .lobbyPlayers {
+  padding: 1.2vh 1vw;
+}
+.tv .lobby .playerGrid,
+.tv .wait .playerGrid {
+  gap: 0.7vh 0.7vw;
+}
+.tv .lobby .player .character,
+.tv .wait .player .character {
+  width: 3vw;
+  height: 3vw;
+}
+.tv .lobby .player b,
+.tv .wait .player b {
+  font-size: 1.05vw;
+  line-height: 1.2;
+}
+.tv .lobby .player small,
+.tv .wait .player small {
+  font-size: 0.75vw;
+}
+.tv .roundPlan {
+  font-size: 0.72vw;
+}
+.tv .roundPlan h3 {
+  font-size: 0.9vw;
+}
+.tv .roundPlan dd {
+  font-size: 1.15vw;
+}
+.tv .wait {
+  padding: 1vh 0;
+}
+.tv .wait h2 {
+  font-size: 2vw;
+  line-height: 1.2;
+}
+.tv .wait > p {
+  font-size: 1vw;
+  margin: 0.5vh 0;
+}
+.tv .wait .stageCharacter .character {
+  width: 5vw;
+  height: 5vw;
+}
+.tv .readyBar > p {
+  font-size: 1.1vw;
+  line-height: 1.35;
+}
+.tv .readyBar > small {
+  font-size: 0.85vw;
+  line-height: 1.4;
 }

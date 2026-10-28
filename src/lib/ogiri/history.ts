@@ -71,7 +71,7 @@ export function historyText(history: GameHistory): string {
     `終了日時: ${new Date(history.finishedAt).toISOString()}`,
     '',
     '【最終順位】',
-    ...history.rankings.map((p) => `${p.rank}位 ${p.avatar} ${p.name} — ${p.score} pt`),
+    ...history.rankings.map((p) => `${p.rank}位 ${p.avatar} ${p.name} — ${p.score} 点`),
     ...(history.partyGames
       ? [
           '',

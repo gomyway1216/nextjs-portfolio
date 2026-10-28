@@ -206,6 +206,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
   for (const p of rankPlayers(room)) {
     room.players[p.id].previousRank = p.rank;
     room.players[p.id].roundScore = 0;
+    room.players[p.id].answerReady = false;
   }
   if (room.round > 0) (room.pastRounds ??= []).push({ round: room.round, matches: room.matches });
   room.round++;
@@ -308,6 +309,12 @@ export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.rand
   room.revision++;
   return true;
 }
+function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: () => number) {
+  if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
+  const assigned = new Set(room.matches.flatMap((m) => m.players));
+  const players = Object.values(room.players).filter((p) => assigned.has(p.id) && p.active && !p.kicked && !p.spectator);
+  if (players.length && players.every((p) => p.answerReady)) advance(room, now, prompts, rng);
+}
 export function act(
   room: Room,
   playerId: string,
@@ -319,7 +326,7 @@ export function act(
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
   const host = room.hostId === playerId;
-  if (!['answer', 'vote', 'leave', 'heartbeat'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'leave', 'heartbeat'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -329,6 +336,7 @@ export function act(
   if (action.type === 'leave') {
     requireThat(!host, '主催者はゲーム終了を選んでください。');
     player.active = false;
+    advanceReadyAnswers(room, now, prompts, rng);
     room.revision++;
     return;
   }
@@ -386,6 +394,7 @@ export function act(
       p.roundScore = 0;
       p.previousRank = 1;
       p.partyEarned = 0;
+      p.answerReady = false;
     }
     // Retain recent prompts between games, but never exhaust a selected genre forever.
     const available = prompts.filter(
@@ -440,8 +449,17 @@ export function act(
         409,
       );
       const m = room.matches.find((m) => m.id === action.matchId);
+      requireThat(!player.answerReady, '「回答を直す」で確定を取り消してから修正してください。', 409);
       requireThat(m && m.players.includes(playerId), 'このお題には回答できません。', 403);
       m.answers[playerId] = textInput(action.text, 100);
+    } else if (action.type === 'answerReady') {
+      requireThat(room.phase === 'answering' && now < room.deadline && player.active && !player.spectator,
+        '今は回答を確定できません。', 409);
+      requireThat(typeof action.ready === 'boolean', '確定するか選んでください。');
+      const assignments = room.matches.filter((m) => m.players.includes(playerId));
+      requireThat(assignments.length === 2 && assignments.every((m) => Boolean(m.answers[playerId])),
+        '2問とも回答を送信してから確定してください。', 409);
+      player.answerReady = action.ready;
     } else if (action.type === 'vote') {
       requireThat(
         room.phase === 'voting' && now < room.deadline,
@@ -462,6 +480,7 @@ export function act(
         advance(room, now, prompts, rng);
     } else throw new GameError('不明な操作です。');
   }
+  advanceReadyAnswers(room, now, prompts, rng);
   player.lastSeen = now;
   room.expiresAt = now + ROOM_TTL;
   room.revision++;
@@ -479,6 +498,7 @@ export function project(
   const current = room.matches[room.matchIndex];
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   const participants = gamePlayerIds(room);
+  const roundParticipants = new Set(room.matches.flatMap((m) => m.players));
   return {
     turn: `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`,
     history: room.history ?? [],
@@ -511,6 +531,8 @@ export function project(
     hostPlays: !room.players[room.hostId].spectator,
     players: rankPlayers(room).map((p) => ({
       id: p.id,
+      answerReady: Boolean(p.answerReady),
+      answeringThisRound: roundParticipants.has(p.id),
       playingThisGame: participants.has(p.id),
       partyPoints: p.partyPoints ?? 0,
       partyEarned: p.partyEarned ?? 0,
@@ -540,6 +562,7 @@ export function project(
             visible(room, current, i) ? current.answers[current.players[i]] : null,
           ),
           canVote: Boolean(me && eligible(room, current).some((p) => p.id === me)),
+          isAuthor: Boolean(me && current.players.includes(me)),
           voted: Boolean(me && Object.hasOwn(current.votes, me)),
           votesReceived: Object.keys(current.votes).length,
           eligible: eligible(room, current).length,

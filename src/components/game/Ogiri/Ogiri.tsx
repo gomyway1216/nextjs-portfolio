@@ -7,6 +7,7 @@ import Image from 'next/image';
 import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
+import { normalizePlayerText } from '@/lib/ogiri/text';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, phaseSound } from '@/lib/ogiri/sound';
@@ -270,8 +271,9 @@ function AnswerForm({
 }) {
   const key = `ogiri:draft:${code}:${assignment.id}`;
   const [text, setText] = useState(assignment.answer),
-    [busy, setBusy] = useState(false),
-    [saved, setSaved] = useState(assignment.answer);
+    [busy, setBusy] = useState(false);
+  const saved = assignment.answer;
+  const characterCount = [...normalizePlayerText(text)].length;
   // This also restores the unsent Japanese draft after a full reload.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -281,7 +283,8 @@ function AnswerForm({
     e.preventDefault();
     setBusy(true);
     if (await send({ type: 'answer', matchId: assignment.id, text })) {
-      setSaved(text);
+      const stored = normalizePlayerText(text);
+      setText(stored);
       localStorage.removeItem(key);
     }
     setBusy(false);
@@ -300,13 +303,13 @@ function AnswerForm({
           setText(e.target.value);
           localStorage.setItem(key, e.target.value);
         }}
-        disabled={disabled}
+        disabled={disabled || busy}
       />
       <div className={styles.row}>
-        <small>{[...text].length} / 100文字</small>
+        <small>{characterCount} / 100文字</small>
         <button
           className={styles.primary}
-          disabled={disabled || busy || !text.trim() || [...text].length > 100}
+          disabled={disabled || busy || characterCount === 0 || characterCount > 100}
         >
           {busy
             ? '送信中…'

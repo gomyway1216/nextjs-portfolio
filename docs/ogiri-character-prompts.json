@@ -1,0 +1,69 @@
+{
+  "tool": "built-in image_gen",
+  "transparentBackground": true,
+  "brief": "Original cute soft 3D clay/vinyl toy characters with rounded chubby proportions, expressive faces, dark glossy eyes, gentle blush and pastel colors. Full body, square canvas, centered, transparent background. No text, logos, existing franchise characters or emoji glyphs. One character per generation.",
+  "characters": [
+    {
+      "id": "cat",
+      "subject": "a peach-orange kitten with a cream muzzle, tiny triangular ears and a proud little smile",
+      "sourceFile": "exec-e318278f-e21f-41c0-a5a3-79b0c50353a1.png"
+    },
+    {
+      "id": "dog",
+      "subject": "a caramel puppy with floppy ears, a cream belly and an eager friendly smile",
+      "sourceFile": "exec-8d0ca8a9-1380-436d-9447-d06aa5d6b5e9.png"
+    },
+    {
+      "id": "panda",
+      "subject": "a round baby panda with small black ears, blushing cheeks and a gentle smile",
+      "sourceFile": "exec-afc9e46c-6a50-4bd1-8d72-19609877f970.png"
+    },
+    {
+      "id": "fox",
+      "subject": "a warm coral fox with large pointy ears, a cream chest and a fluffy curled tail",
+      "sourceFile": "exec-77ad89b2-d450-4050-857c-fc001f353d36.png"
+    },
+    {
+      "id": "frog",
+      "subject": "a mint-green little frog with large round eyes, rosy cheeks and a tiny yellow bow tie",
+      "sourceFile": "exec-da69477e-72df-4c8d-bf2c-fce0b480a030.png"
+    },
+    {
+      "id": "octopus",
+      "subject": "a lavender baby octopus with eight short rounded tentacles, rosy cheeks and a delighted smile",
+      "sourceFile": "exec-5d1db50a-1356-48c3-ba45-b396581825ab.png"
+    },
+    {
+      "id": "unicorn",
+      "subject": "a cream baby unicorn with a short pearly horn, pastel pink and mint mane and a happy smile",
+      "sourceFile": "exec-ec58bcc1-84f7-4abe-9771-4ea5aa542dbb.png"
+    },
+    {
+      "id": "penguin",
+      "subject": "a dusty-blue baby penguin with a cream belly, tiny orange feet and a cheerful smile",
+      "sourceFile": "exec-a92f1ca1-ba44-4543-b02b-1cda56683639.png"
+    },
+    {
+      "id": "pumpkin",
+      "subject": "a small friendly pumpkin creature with a peach-orange round body, tiny leafy sprout, short legs and a sweet smiling face",
+      "sourceFile": "exec-6fa91410-1da3-4ec2-a670-a3cf6ebb461e.png"
+    },
+    {
+      "id": "ghost",
+      "subject": "a friendly little cream-white ghost with rounded waving arms, a gently wavy bottom edge and rosy cheeks",
+      "sourceFile": "exec-95488027-319f-4f7a-a90c-d5d01f7beaba.png"
+    },
+    {
+      "id": "bat",
+      "subject": "a dusty-purple baby bat with round ears, tiny spread wings and a friendly smiling face",
+      "sourceFile": "exec-fdae7017-53ba-4bb6-9429-94f63dd69b43.png"
+    },
+    {
+      "id": "witch",
+      "subject": "a friendly small mint-and-lavender fantasy creature wearing an oversized soft purple witch hat, round body, tiny feet and a smiling face",
+      "sourceFile": "exec-2eefb346-b86a-438d-ad3b-735cbdcd42cf.png"
+    }
+  ],
+  "promptPrefix": "Use case: stylized-concept. Asset type: original Japanese multiplayer party-game player avatar, one standalone production PNG cutout. Style: polished cute soft 3D clay/vinyl toy illustration, rounded chubby proportions, very short limbs, a large expressive face, tiny glossy dark eyes, gentle blush, tactile matte surface, warm soft studio lighting, pastel but clearly distinguishable colors. Composition: full body, front-facing with a subtle three-quarter turn, centered on a square canvas, subject occupies about 80 percent, generous transparent padding around all sides. Mood: playful, warm, appealing to a group of adult friends as well as families. Constraints: exactly one character, genuinely transparent background, no scene, no floor, no cast shadow outside the character, no border, no text, no letters, no watermark, no logo, no existing franchise character, no emoji glyph or emoji rendering. All assets belong to one cohesive collectible toy cast. Subject: ",
+  "promptSuffix": "."
+}

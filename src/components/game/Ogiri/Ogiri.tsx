@@ -8,6 +8,9 @@ import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { rememberHistory } from '@/lib/ogiri/history-local';
+import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
+import { createPartyAudio, phaseSound } from '@/lib/ogiri/sound';
+import { Character } from './Character';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -112,17 +115,18 @@ function JoinForm({
         <small>{[...name.normalize('NFKC')].length} / 16文字</small>
       </label>
       <fieldset>
-        <legend>あなたのアバター</legend>
+        <legend>あなたのキャラクター · {characterFor(avatar).name}</legend>
         <div className={styles.avatars}>
-          {AVATARS.map((a) => (
+          {CHARACTERS.map((character) => (
             <button
               type="button"
-              key={a}
-              aria-label={`アバター ${a}`}
-              aria-pressed={a === avatar}
-              onClick={() => setAvatar(a)}
+              key={character.id}
+              aria-label={`キャラクター ${character.name}`}
+              aria-pressed={character.avatar === avatar}
+              onClick={() => setAvatar(character.avatar)}
             >
-              {a}
+              <Character avatar={character.avatar} size="medium" decorative />
+              <span>{character.name}</span>
             </button>
           ))}
         </div>
@@ -410,12 +414,14 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const [sound, setSound] = useState(false),
     [reduced, setReduced] = useState(false),
     [busy, setBusy] = useState(false);
+  const [volume, setVolume] = useState(0.4);
   const [syncStop, setSyncStop] = useState<SyncStop>(null);
   const sync = useRef<ReturnType<typeof startRoomPolling> | null>(null);
   const historySignature = useRef('');
-  const audio = useRef<AudioContext | null>(null),
+  const audio = useRef<ReturnType<typeof createPartyAudio> | null>(null),
     latest = useRef<RoomView | null>(null),
     lastBeat = useRef(0);
+  const lastSoundView = useRef<RoomView | null>(null);
   const accept = useCallback((next: RoomView) => {
     if (latest.current && next.revision < latest.current.revision) return;
     const receivedAt = Date.now();
@@ -475,28 +481,25 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       clearInterval(interval);
     };
   }, [code, tv, accept]);
-  const soundPhase = view?.phase,
-    soundMatch = view?.match?.id;
   useEffect(() => {
-    if (!sound || !audio.current || !soundPhase || !['reveal', 'finished'].includes(soundPhase))
-      return;
-    const ctx = audio.current;
-    [523.25, 659.25, 783.99, ...(soundPhase === 'finished' ? [1046.5] : [])].forEach(
-      (frequency, i) => {
-        const osc = ctx.createOscillator(),
-          gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = frequency;
-        const start = ctx.currentTime + i * 0.12;
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.4);
-        osc.start(start);
-        osc.stop(start + 0.42);
-      },
-    );
-  }, [sound, soundPhase, soundMatch]); // A short original synthesised cue; no downloaded audio.
+    if (!view) return;
+    const previous = lastSoundView.current;
+    lastSoundView.current = view;
+    if (!sound || document.hidden) return;
+    const cue = phaseSound(previous, view);
+    if (cue) audio.current?.play(cue, volume);
+  }, [view, sound, volume]);
+  useEffect(() => {
+    const silenceHidden = () => {
+      if (document.hidden) audio.current?.stop();
+    };
+    document.addEventListener('visibilitychange', silenceHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', silenceHidden);
+      void audio.current?.close();
+      audio.current = null;
+    };
+  }, []);
   async function send(action: Action) {
     if (tv || busy) return false;
     setBusy(true);
@@ -505,6 +508,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       const v = latest.current;
       const next = await request(`/${code}`, { ...action, turn: v?.turn });
       accept(next);
+      if (sound && !document.hidden) {
+        if (action.type === 'answer') audio.current?.play('submit', volume);
+        if (action.type === 'vote') audio.current?.play('vote', volume);
+      }
       sync.current?.resume();
       return true;
     } catch (error) {
@@ -519,6 +526,24 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const remaining = v
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
+  const tickKey = useRef('');
+  useEffect(() => {
+    if (
+      !v ||
+      !sound ||
+      document.hidden ||
+      v.paused ||
+      !v.deadline ||
+      remaining < 1 ||
+      remaining > 5
+    )
+      return;
+    if (!tv && !(v.isHost && !v.hostPlays)) return;
+    const key = `${v.turn}:${remaining}`;
+    if (tickKey.current === key) return;
+    tickKey.current = key;
+    audio.current?.play('tick', volume);
+  }, [remaining, v, sound, volume, tv]);
   return (
     <main
       lang="ja"
@@ -534,14 +559,41 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             <button
               aria-label={sound ? 'ミュート' : '効果音をオン'}
               aria-pressed={sound}
-              onClick={() => {
-                if (!audio.current) audio.current = new AudioContext();
-                void audio.current.resume();
-                setSound(!sound);
+              onClick={async () => {
+                if (sound) {
+                  audio.current?.stop();
+                  setSound(false);
+                  return;
+                }
+                try {
+                  audio.current ??= createPartyAudio(new AudioContext());
+                  await audio.current.resume();
+                  setSound(true);
+                  audio.current.play('select', volume);
+                } catch {
+                  setError('音声を有効にできませんでした。もう一度音ボタンを押してください。');
+                }
               }}
             >
               {sound ? '🔊' : '🔇'}
             </button>
+            {sound && (
+              <label className={styles.volumeControl}>
+                音量
+                <input
+                  aria-label="効果音の音量"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={Math.round(volume * 100)}
+                  onChange={(e) => {
+                    const value = Number(e.target.value) / 100;
+                    setVolume(value);
+                    audio.current?.setVolume(value);
+                  }}
+                />
+              </label>
+            )}
             <button aria-pressed={reduced} onClick={() => setReduced(!reduced)}>
               動き{reduced ? '少' : '多'}
             </button>
@@ -601,7 +653,9 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
         )}
         {!v ? (
           <section className={styles.wait}>
-            <span className={styles.bigEmoji}>💬</span>
+            <div className={styles.stageCharacter}>
+              <Character avatar="🐱" size="hero" />
+            </div>
             <h1>ルームに接続しています…</h1>
             <Link href="/games/ogiri">スタートページに戻る</Link>
           </section>
@@ -653,7 +707,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <div className={styles.playerGrid}>
                     {v.players.map((p) => (
                       <article key={p.id} className={styles.player}>
-                        <span>{p.avatar}</span>
+                        <Character avatar={p.avatar} size="large" />
                         <b>{p.name}</b>
                         <small>
                           {!p.active ? 'お休み中' : p.connected ? '参加中 ✓' : '接続を待っています'}
@@ -684,14 +738,16 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             {v.phase === 'answering' &&
               (tv || (v.isHost && !v.hostPlays) ? (
                 <section className={styles.wait}>
-                  <span className={styles.bigEmoji}>{v.settings.halloween ? '🎃' : '💡'}</span>
+                  <div className={styles.stageCharacter}>
+                    <Character avatar={v.settings.halloween ? '🎃' : '🐱'} size="hero" />
+                  </div>
                   <h2>あなたのスマホに、2つのお題。</h2>
                   <p>書き終えたら「この回答を送る」を押してね。</p>
                   <p>お題は全員共通ではありません。同じお題を2人ずつに配っています。</p>
                   <div className={styles.playerGrid}>
                     {v.players.map((p) => (
                       <article key={p.id} className={styles.player}>
-                        <span>{p.avatar}</span>
+                        <Character avatar={p.avatar} size="large" />
                         <b>{p.name}</b>
                         <small>
                           {p.answered}/2 回答済み {p.answered === 2 && '✨'}
@@ -750,7 +806,14 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             <div className={styles.voteBar}>
                               <span style={{ width: `${total ? (count / total) * 100 : 0}%` }} />
                             </div>
-                            <p>{result.authors[i]}</p>
+                            <p>
+                              <Character
+                                avatar={
+                                  v.players.find((p) => p.name === result.authors[i])?.avatar ?? ''
+                                }
+                              />{' '}
+                              {result.authors[i]}
+                            </p>
                             <strong>+{result.points[i]} pt</strong>
                             {result.counts[0] === result.counts[1] ? (
                               <small>引き分け！</small>
@@ -800,13 +863,20 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       ))}
                     </div>
                     <div className={styles.champion}>
-                      <span>👑</span>
+                      <div className={styles.championCharacters}>
+                        {v.players
+                          .filter((p) => p.rank === 1)
+                          .slice(0, 4)
+                          .map((p) => (
+                            <Character key={p.id} avatar={p.avatar} size="hero" crowned />
+                          ))}
+                      </div>
                       <h2>
                         {v.players.filter((p) => p.rank === 1).length > 1
                           ? `${v.players.filter((p) => p.rank === 1).length}人の大喜利王！`
                           : v.players
                               .filter((p) => p.rank === 1)
-                              .map((p) => `${p.avatar} ${p.name}`)
+                              .map((p) => p.name)
                               .join(' ＆ ')}
                       </h2>
                       <p>そのひらめきに、盛大な拍手を。</p>
@@ -821,7 +891,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     >
                       <b>{p.rank <= 3 ? ['🥇', '🥈', '🥉'][p.rank - 1] : p.rank}</b>
                       <span className={styles.rankName}>
-                        {p.avatar} {p.name}
+                        <Character avatar={p.avatar} /> {p.name}
                         <small>
                           {p.previousRank > p.rank
                             ? `↑${p.previousRank - p.rank}`
@@ -851,7 +921,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             )}
             {!tv && mine && (
               <div className={styles.myScore}>
-                {mine.avatar} {mine.name}
+                <Character avatar={mine.avatar} /> {mine.name}
                 <span>
                   {mine.rank}位 · <b>{mine.score} pt</b>
                 </span>
@@ -947,7 +1017,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       .map((p) => (
                         <div className={styles.row} key={p.id}>
                           <span>
-                            {p.avatar} {p.name}
+                            <Character avatar={p.avatar} /> {p.name}
                           </span>
                           <button
                             className={styles.textButton}

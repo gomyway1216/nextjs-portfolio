@@ -11,7 +11,9 @@ test('racing duplicate votes, stale host commands, foreign rooms and expired roo
     for (let i = 0; i < 4; i++) contexts.push(await browser.newContext({ baseURL }));
     const host = contexts[0].request;
     const created = await host.post('/api/ogiri', { data: { name: '競合テスト', avatar: '🐱' } });
-    expect(created.ok()).toBe(true);
+    expect(created.ok(), `room creation: HTTP ${created.status()} ${await created.text()}`).toBe(
+      true,
+    );
     let room: RoomView = await created.json();
     const path = `/api/ogiri/${room.code}`;
     await Promise.all(

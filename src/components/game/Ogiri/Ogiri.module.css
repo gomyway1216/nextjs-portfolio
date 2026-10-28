@@ -314,15 +314,131 @@ a.historyCard:hover {
 }
 .avatars {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
 }
 .avatars button {
+  min-width: 0;
   border: 2px solid transparent;
-  font-size: 25px;
+  font-size: 10px;
   border-radius: 10px;
-  padding: 3px;
+  padding: 6px 2px;
   background: #e9e0d4;
+  color: #321e4b;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    transform 0.2s;
+}
+.avatars .character {
+  width: 100%;
+  max-width: 50px;
+  height: auto;
+  aspect-ratio: 1;
+}
+.avatars button:hover {
+  transform: translateY(-3px);
+}
+.avatars button[aria-pressed='true'] .character {
+  animation: characterHop 0.55s ease-out;
+}
+.avatars button > span:last-child {
+  font-size: 10px;
+  font-weight: 800;
+}
+.character {
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+  position: relative;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+}
+.character img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 3px #14072624);
+}
+.character_medium {
+  width: 50px;
+  height: 50px;
+}
+.character_large {
+  width: 76px;
+  height: 76px;
+}
+.character_hero {
+  width: 128px;
+  height: 128px;
+}
+.characterCrowned::after {
+  content: '';
+  position: absolute;
+  width: 37%;
+  height: 23%;
+  background: linear-gradient(130deg, #fff3a0, #ffd155 60%, #e9a52a);
+  clip-path: polygon(0 12%, 27% 43%, 50% 0, 73% 43%, 100% 12%, 88% 100%, 12% 100%);
+  top: -5%;
+  left: 32%;
+  transform: rotate(-8deg);
+}
+.stageCharacter {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0;
+}
+.stageCharacter .character {
+  animation: characterFloat 3s ease-in-out infinite;
+}
+.championCharacters {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.championCharacters .character {
+  animation: characterHop 0.9s ease-in-out 3;
+}
+.championCharacters .character:nth-child(even) {
+  animation-delay: 0.15s;
+}
+.volumeControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.volumeControl input[type='range'] {
+  padding: 0;
+  width: 72px;
+  min-height: 24px;
+  accent-color: var(--lime);
+}
+.player {
+  animation: characterArrive 0.45s ease-out both;
+}
+.player:nth-child(2n) {
+  animation-delay: 0.04s;
+}
+.player:nth-child(3n) {
+  animation-delay: 0.08s;
+}
+.rankName .character {
+  margin-right: 6px;
+}
+.myScore .character {
+  margin-right: 4px;
+}
+.historyRanks .character {
+  margin-right: 5px;
+}
+.winner .result > strong {
+  animation: scorePop 0.6s ease-out;
 }
 .avatars button[aria-pressed='true'] {
   background: #dfccfc;
@@ -526,6 +642,10 @@ a.historyCard:hover {
   font-size: 40px;
   line-height: 1.4;
 }
+.player > .character {
+  display: inline-flex;
+  margin: 0 auto 4px;
+}
 .player b {
   display: block;
   font-size: 15px;
@@ -710,6 +830,8 @@ a.historyCard:hover {
   overflow: hidden;
 }
 .voteBar span {
+  transform-origin: left;
+  animation: growBar 0.75s cubic-bezier(0.2, 0.7, 0.2, 1);
   display: block;
   height: 100%;
   background: #6c44ae;
@@ -874,7 +996,7 @@ a.historyCard:hover {
   top: -20px;
   width: 8px;
   height: 14px;
-  animation: confetti 3s ease-in infinite;
+  animation: confetti 3s ease-in 3 forwards;
 }
 .halloween {
   --lime: #ffba65;
@@ -992,6 +1114,22 @@ a.historyCard:hover {
 .tv .champion > span {
   font-size: 4.5vw;
 }
+.tv .championCharacters .character {
+  width: 5vw;
+  height: 5vw;
+}
+.tv .rankName .character {
+  width: 2vw;
+  height: 2vw;
+}
+.tv .player .character {
+  width: 4.5vw;
+  height: 4.5vw;
+}
+.tv .stageCharacter .character {
+  width: 7vw;
+  height: 7vw;
+}
 .tv .champion h2 {
   font-size: 3vw;
 }
@@ -1040,6 +1178,38 @@ a.historyCard:hover {
     transform: none;
   }
 }
+@keyframes characterFloat {
+  50% {
+    transform: translateY(-6px) rotate(3deg);
+  }
+}
+@keyframes characterHop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-10px) scale(1.06, 0.96);
+  }
+  70% {
+    transform: translateY(1px) scale(0.98, 1.03);
+  }
+}
+@keyframes characterArrive {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes scorePop {
+  40% {
+    transform: scale(1.18);
+  }
+}
 @keyframes crown {
   to {
     transform: translateY(-7px) rotate(4deg);
@@ -1048,6 +1218,15 @@ a.historyCard:hover {
 @keyframes confetti {
   to {
     transform: translateY(80vh) rotate(540deg);
+    opacity: 0;
+  }
+}
+@keyframes growBar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1122,6 +1301,9 @@ a.historyCard:hover {
   }
 }
 @media (max-width: 520px) {
+  .avatars {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
   .app {
     padding: 0 16px 28px;
   }

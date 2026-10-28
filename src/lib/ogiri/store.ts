@@ -126,8 +126,9 @@ export async function enterRoom(
 ) {
   const session = identity();
   const freshPlayer = newPlayer(session.id, session.hash, name, avatar, Date.now());
+  let existing: string | null = null;
   const room = await mutate(code, (room, now) => {
-    const existing = authenticate(room, token);
+    existing = authenticate(room, token);
     if (existing) {
       room.players[existing].active = true;
       room.players[existing].lastSeen = now;
@@ -135,7 +136,6 @@ export async function enterRoom(
     }
     joinRoom(room, { ...freshPlayer });
   });
-  const existing = authenticate(room, token);
   return {
     view: project(room, existing ?? session.id, Date.now(), prompts),
     token: existing ? token! : session.token,

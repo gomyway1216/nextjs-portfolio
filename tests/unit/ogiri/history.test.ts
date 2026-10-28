@@ -142,6 +142,17 @@ describe('durable game history', () => {
     expect(JSON.stringify(history)).not.toContain('参加者1');
     expect(history.rankings).toHaveLength(3);
   });
+  it('redacts missing players without losing the rest of a finished game', () => {
+    const room = setup();
+    act(room, 'p0', { type: 'start' }, now, prompts);
+    completeRound(room);
+    delete room.players.p1;
+    const history = snapshotHistory(room, id, now, prompts);
+    expect(history.matches).toHaveLength(4);
+    const missing = history.matches.flatMap((m) => m.answers).filter((a) => a.name === '退出したプレイヤー');
+    expect(missing).toHaveLength(2);
+    expect(missing.every((a) => a.text === null && a.votes === 0 && a.points === 0)).toBe(true);
+  });
   it('validates unguessable link identifiers and prunes corrupt/expired browser entries', () => {
     expect(validHistoryId(id)).toBe(true);
     expect(validHistoryId('ABC234')).toBe(false);

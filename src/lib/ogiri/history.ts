@@ -34,10 +34,10 @@ export function snapshotHistory(
             text: prompts.find((p) => p.id === m.promptId)?.text ?? 'お題が見つかりません',
             answers: m.players.map((id, i) => {
               const player = room.players[id];
-              const visible = !m.hidden[id] && !player.kicked && Boolean(m.answers[id]);
+              const visible = Boolean(player && !m.hidden[id] && !player.kicked && m.answers[id]);
               return {
-                name: player.kicked ? '退出したプレイヤー' : player.name,
-                avatar: player.kicked ? '' : player.avatar,
+                name: !player || player.kicked ? '退出したプレイヤー' : player.name,
+                avatar: !player || player.kicked ? '' : player.avatar,
                 text: visible ? m.answers[id] : null,
                 votes: visible ? Object.values(m.votes).filter((v) => v === i).length : 0,
                 points: visible ? m.points[i] : 0,

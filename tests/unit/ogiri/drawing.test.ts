@@ -188,7 +188,7 @@ describe('drawing relay', () => {
     for (let i = 0; i < 4; i++) act(room, 'host', { type: 'next' }, 103, prompts);
     const mine = project(room, 'p0', 103, prompts).drawingGame!.gallery.find(work => work.author === 'p0')!;
     expect(() => act(room, 'p0', { type: 'drawingVote', choice: mine.id }, 104, prompts)).toThrow('自分');
-    expect(() => act(room, 'p1', { type: 'drawingVote', choice: 'missing' }, 104, prompts)).toThrow();
+    expect(() => act(room, 'p1', { type: 'drawingVote', choice: 'missing' }, 104, prompts)).toThrow('投票先が見つかりません');
     act(room, 'p1', { type: 'drawingVote', choice: mine.id }, 104, prompts);
     act(room, 'host', { type: 'next' }, 105, prompts);
     expect(room.players.p0.score).toBe(100);
@@ -196,6 +196,19 @@ describe('drawing relay', () => {
     expect(room.players.p0.score).toBe(0);
     expect(() => drawingAsset(room, mine.id, null)).toThrow('表示できません');
     expect(drawingHistory(room).flatMap(chain => chain.steps).filter(step => step.name === '参加者0')).toHaveLength(0);
+  });
+
+  it('omits an unavailable author record safely from reveal, gallery, assets and history', () => {
+    const room = setup(3);
+    stage(room); stage(room); stage(room);
+    const id = room.drawing!.chains[0].steps[0]!.id!;
+    delete room.players.p0;
+    expect(project(room, null, 103, prompts).drawingGame!.chain!.steps[0].name).toBe('今回はパス');
+    expect(drawingHistory(room)[0].steps[0].drawing).toBeNull();
+    expect(() => drawingAsset(room, id, null)).toThrow('表示できません');
+    room.drawing!.revealed = 3;
+    room.matchIndex = 3;
+    expect(project(room, null, 103, prompts).drawingGame!.gallery.some(work => work.author === 'p0')).toBe(false);
   });
 
   it('keeps maximum 12-player vector payloads well below a Firestore document and out of ordinary room views', () => {

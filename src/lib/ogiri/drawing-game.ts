@@ -10,7 +10,7 @@ const requireThat: (ok: unknown, message: string, status?: number) => asserts ok
 export const isDrawingGame = (room: Room) => room.gameType === 'drawing';
 const participants = (room: Room) => (room.drawing?.players ?? []).filter(id =>
   room.players[id]?.active && !room.players[id].kicked && !room.players[id].spectator);
-const valid = (room: Room, step: DrawingStep | null | undefined) => Boolean(step && !room.players[step.author]?.kicked);
+const valid = (room: Room, step: DrawingStep | null | undefined) => Boolean(step && room.players[step.author] && !room.players[step.author].kicked);
 const chainFor = (room: Room, id: string) => {
   const drawing = room.drawing!;
   return (drawing.players.indexOf(id) - drawing.stage + drawing.players.length) % drawing.players.length;
@@ -116,7 +116,8 @@ export function drawingAction(room: Room, id: string, action: Action, now: numbe
   if (action.type === 'drawingVote') {
     requireThat(room.phase === 'voting' && now < room.deadline, '投票の受付は終了しました。', 409);
     const work = drawings(room).find(work => work.id === action.choice);
-    requireThat(work && work.author !== id, '自分の絵には投票できません。', 403);
+    requireThat(work, '投票先が見つかりません。', 404);
+    requireThat(work.author !== id, '自分の絵には投票できません。', 403);
     requireThat(!Object.hasOwn(drawing.votes, id), '投票済みです。', 409);
     drawing.votes[id] = action.choice;
     return;

@@ -300,6 +300,7 @@ test('drawing upload alone has the larger body allowance and rejects unsafe vect
     expect((await request.post(path, { data: { type: 'drawingSubmit', drawing, turn: room.turn } })).status()).toBe(413);
     expect((await request.post(`${path}/drawing`, { data: { type: 'drawingSubmit', drawing, turn: room.turn } })).ok()).toBe(true);
     expect((await request.post(`${path}/drawing`, { data: { type: 'drawingSubmit', drawing: '<svg onload="alert(1)">', turn: room.turn } })).status()).toBe(400);
+    expect((await request.post(`${path}/drawing`, { data: 'null', headers: { 'Content-Type': 'application/json' } })).status()).toBe(400);
     expect((await request.post(`${path}/drawing`, { data: { type: 'drawingSubmit', padding: 'x'.repeat(12300), turn: room.turn } })).status()).toBe(413);
   } finally { await Promise.all(guests.map(guest => guest.dispose())); }
 });

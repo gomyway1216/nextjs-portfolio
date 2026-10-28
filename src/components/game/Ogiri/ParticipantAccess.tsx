@@ -28,7 +28,7 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate }: {
         {view.resting ? '参加に戻る' : '休憩する'}
       </button>
     </div>
-    <p>休憩しても名前・キャラ・得点・パーティー通算は残ります。割り当て済みの回答は戻って続けられます。新しい割り当ては次のラウンドからです。</p>
+    <p>休憩しても名前・キャラ・得点・パーティー通算は残ります。割り当て済みの回答は戻って続けられます。新しい割り当ては次のラウンド・ゲームからです。</p>
     {view.isHost && <p>休憩中も主催者の進行操作を使えます。</p>}
     <details>
       <summary>別の端末で戻るための復帰コード</summary>

@@ -134,6 +134,8 @@ describe('drawing relay', () => {
     act(room, 'host', { type: 'next' }, 105, prompts);
     expect(room.drawing!.stage).toBe(2);
     act(room, 'p3', { type: 'heartbeat' }, 106, prompts);
+    expect(room.players.p3.active).toBe(false);
+    act(room, 'p3', { type: 'return' }, 107, prompts);
     expect(project(room, 'p3', 106, prompts).drawingGame?.assignment).not.toBeNull();
   });
 
@@ -153,6 +155,8 @@ describe('drawing relay', () => {
     const recipient = rotation.find(id => project(room, id, 105, prompts).drawingGame?.assignment?.key.split(':')[1] === missedKey)!;
     expect(project(room, recipient, 105, prompts).drawingGame!.assignment!.prompt).toBeNull();
     act(room, 'p0', { type: 'heartbeat' }, 106, prompts);
+    expect(room.players.p0.active).toBe(false);
+    act(room, 'p0', { type: 'return' }, 107, prompts);
     expect(room.drawing!.players).toEqual(rotation);
     expect(room.drawing!.chains[0].steps[0]).toEqual(firstPicture);
     expect(room.players.p0).toMatchObject({ active: true, score: 0, partyPoints: 7 });

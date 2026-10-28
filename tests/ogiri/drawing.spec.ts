@@ -80,10 +80,10 @@ for (const count of [3, 4, 12]) test(`${count} drawing relayers, separate GM and
     for (let stage = 0; stage < stages; stage++) {
       if (count === 4 && stage === 2) {
         // Reopen the same participant after missing a word turn. The chain rotation is unchanged.
-        await action(phones[0], { type: 'join', name: '絵を描く長い名前の参加者1', avatar: 'rabbit' });
         const returned = await contexts[0].newPage(); watch(returned); phones[0] = returned;
         await returned.goto(`/games/ogiri/${code}`);
-        const restored = await read(returned);
+        await expect(returned.getByText('いまは休憩中です', { exact: true })).toBeVisible();
+        const restored = await clickAction(returned, '参加に戻る', 'return');
         expect(restored.me).toBe(firstAuthor);
         expect(restored.players.find(player => player.id === firstAuthor)?.score).toBe(0);
       }

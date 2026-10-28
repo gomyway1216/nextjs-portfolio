@@ -1781,6 +1781,19 @@ a.historyCard:hover {
   font-family: 'Ogiri Display', sans-serif;
   transform: rotate(5deg);
 }
+.scoreCounter {
+  display: inline-block;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.scoreCounter[data-counting='true'] {
+  animation: scoreTally 1s ease-out both;
+}
+@keyframes scoreTally {
+  0%, 30%, 60%, 100% { transform: translateY(0) scale(1); }
+  15%, 45%, 75% { transform: translateY(-0.07em) scale(1.06); }
+}
 .answerCard::after {
   content: '';
   position: absolute;

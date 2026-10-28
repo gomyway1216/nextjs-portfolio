@@ -14,6 +14,7 @@ import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, type SoundCue } from '@/lib/ogiri/sound';
 import { Character } from './Character';
 import { PartyResults } from './PartyResults';
+import { AnimatedScore } from './AnimatedScore';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -655,6 +656,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       ['select', '選択'], ['join', '参加'], ['start', '開始'], ['submit', '回答送信'],
                       ['vote', '投票'], ['voting', '投票開始'], ['reveal', '結果発表'], ['ranking', '中間順位'],
                       ['champion', '優勝'], ['tick', '秒読み'],
+                      ['bounce', 'バネ'], ['count', '得点カウント'], ['cheer', '歓声'],
                     ] as const).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
@@ -921,7 +923,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                               />{' '}
                               {result.authors[i]}
                             </p>
-                            <strong>+{result.points[i]} 点</strong>
+                            <strong>+<AnimatedScore value={result.points[i]} animate={!reduced} /> 点</strong>
                             {result.counts[0] === result.counts[1] ? (
                               <small>引き分け！</small>
                             ) : (
@@ -987,7 +989,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     </div>
                   </>
                 )}
-                <PartyResults key={`${v.game}:${v.phase}`} view={v} />
+                <PartyResults key={`${v.game}:${v.phase}`} view={v} reduced={reduced} />
                 {!tv && v.isHost && v.phase === 'finished' && (
                   <button
                     className={styles.primary}

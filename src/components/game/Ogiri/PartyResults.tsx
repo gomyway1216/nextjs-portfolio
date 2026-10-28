@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { partyPointsForRank, partyStandings } from '@/lib/party/points';
 import type { RoomView } from '@/lib/ogiri/types';
 import { Character } from './Character';
+import { AnimatedScore } from './AnimatedScore';
 import styles from './Ogiri.module.css';
 
-export function PartyResults({ view }: { view: RoomView }) {
+export function PartyResults({ view, reduced = false }: { view: RoomView; reduced?: boolean }) {
   const [mode, setMode] = useState<'game' | 'party'>('game');
   const [page, setPage] = useState(0);
   const [spotlight, setSpotlight] = useState<'mvp' | 'climber' | 'answer' | null>(null);
@@ -94,6 +95,9 @@ export function PartyResults({ view }: { view: RoomView }) {
         {visibleRows.map((p) => {
           const rank = mode === 'party' && 'partyRank' in p ? Number(p.partyRank) : p.rank;
           const points = mode === 'party' ? (p.partyPoints ?? 0) : p.score;
+          const earned = mode === 'party'
+            ? finished ? (p.partyEarned ?? 0) : p.playingThisGame === false ? 0 : partyPointsForRank(p.rank)
+            : p.roundScore;
           return (
             <article className={`${styles.rankRow} ${rank <= 3 ? styles.topRank : ''}`} key={p.id}>
               <b>{rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}</b>
@@ -106,7 +110,7 @@ export function PartyResults({ view }: { view: RoomView }) {
                 </small>
               </span>
               <strong>
-                {points}
+                <AnimatedScore key={`${mode}:${p.id}`} value={points} from={Math.max(0, points - earned)} animate={!reduced} />
                 <small>{mode === 'party' ? 'pt' : '点'}</small>
               </strong>
             </article>

@@ -46,8 +46,8 @@ test('a member who sits out a rematch keeps past points without earning a new pl
     await expect(row).toContainText('10pt');
     await action({ type: 'next' });
     expect(view.phase).toBe('finished');
-    await expect(page.getByRole('heading', { name: '今夜の大喜利王！', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '3人の大喜利王！', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '結果、出ました。', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '同率1位 × 3', exact: true })).toBeVisible();
     await expect(page.getByLabel('このゲームの順位', { exact: true }).getByRole('article')).toHaveCount(3);
     expect(view.players.find(p => p.id === absent.id)).toMatchObject({ partyPoints: 10, partyEarned: 0 });
     expect(view.players.filter(p => p.playingThisGame).every(p => p.partyPoints === 20)).toBe(true);

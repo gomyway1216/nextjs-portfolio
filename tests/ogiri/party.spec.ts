@@ -68,6 +68,7 @@ for (const count of [3, 4, 10, 12])
         baseURL,
         extraHTTPHeaders: partyHeaders,
         viewport: { width: 1920, height: 1080 },
+        reducedMotion: 'reduce',
       });
       contexts.push(tvContext);
       const tv = await tvContext.newPage();
@@ -105,6 +106,7 @@ for (const count of [3, 4, 10, 12])
         expect((await overflow.json()).error).toContain('満員');
       }
       await tv.screenshot({ path: testInfo.outputPath('tv-lobby-1080p.png'), fullPage: true });
+      expect(await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2)).toBe(true);
       await host.getByLabel('ラウンド数', { exact: true }).selectOption('1');
       await host.getByLabel('回答時間（秒）', { exact: true }).selectOption('180');
       await host.getByLabel('投票時間（秒）', { exact: true }).selectOption('45');
@@ -112,6 +114,8 @@ for (const count of [3, 4, 10, 12])
       await expect(host.getByRole('status')).toContainText('設定を保存');
       await host.getByRole('button', { name: 'ゲーム開始 →', exact: true }).click();
       await expect(host.getByTestId('answer-form')).toHaveCount(2);
+      await expect(tv.getByLabel('回答の確定状況')).toBeVisible();
+      expect(await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2)).toBe(true);
       // A locally saved Japanese IME-style draft survives a real page reload.
       await pages[1]
         .getByTestId('answer-form')
@@ -157,7 +161,7 @@ for (const count of [3, 4, 10, 12])
       expect(privateTv.assignments).toEqual([]);
       await host.getByText('主催者の操作').click();
       await host.getByRole('button', { name: '一時停止', exact: true }).click();
-      await expect(tv.getByRole('status')).toContainText('一時停止');
+      await expect(tv.getByRole('status').filter({ hasText: '一時停止' })).toBeVisible();
       await host.getByRole('button', { name: '再開', exact: true }).click();
       await host.getByRole('button', { name: '次へ進む', exact: true }).click();
       let totalPoints = 0;
@@ -167,7 +171,7 @@ for (const count of [3, 4, 10, 12])
         // match on both screens before clicking controls or reading a result.
         for (const page of [host, tv]) {
           await expect(
-            page.getByRole('heading', { name: '笑ったほうに、一票。', exact: true }),
+            page.getByRole('heading', { name: 'どっちで笑った？', exact: true }),
           ).toBeVisible();
           await expect(page.getByText(`お題 ${i + 1} / ${count}`, { exact: true })).toBeVisible();
         }
@@ -185,7 +189,7 @@ for (const count of [3, 4, 10, 12])
           await contexts[1].setOffline(false);
           await pages[1].reload({ waitUntil: 'domcontentloaded' });
           await expect(
-            pages[1].getByRole('heading', { name: '笑ったほうに、一票。', exact: true }),
+            pages[1].getByRole('heading', { name: 'どっちで笑った？', exact: true }),
           ).toBeVisible();
           await expect
             .poll(async () =>
@@ -226,7 +230,7 @@ for (const count of [3, 4, 10, 12])
         });
         expect(duplicate.status()).toBe(409);
         await expect(
-          host.getByRole('heading', { name: 'この一言の作者は…', exact: true }),
+          host.getByRole('heading', { name: 'これ書いたの、だれ？', exact: true }),
         ).toBeVisible();
         if (count % 2 === 0) await expect(tv.getByText('引き分け！').first()).toBeVisible();
         else await expect(tv.getByText('この対戦の勝者 👑', { exact: true })).toBeVisible();
@@ -235,11 +239,11 @@ for (const count of [3, 4, 10, 12])
       await expect.poll(async () => (await view(host)).phase).toBe('ranking');
       expect((await view(host)).players.reduce((sum, p) => sum + p.score, 0)).toBe(totalPoints);
       await expect(
-        host.getByRole('heading', { name: 'ここまでの大喜利王', exact: true }),
+        host.getByRole('heading', { name: 'いま、こうなってます。', exact: true }),
       ).toBeVisible();
       await host.getByRole('button', { name: '次へ進む', exact: true }).click();
       await expect(
-        tv.getByRole('heading', { name: '今夜の大喜利王！', exact: true }),
+        tv.getByRole('heading', { name: '結果、出ました。', exact: true }),
       ).toBeVisible();
       await tv.screenshot({ path: testInfo.outputPath('tv-results-1080p.png'), fullPage: true });
       expect(await tv.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

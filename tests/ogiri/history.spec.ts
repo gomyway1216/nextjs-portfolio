@@ -37,12 +37,12 @@ test('the default host and TV are separate from phone answerers', async ({
     await expect(host.getByRole('heading', { name: 'ただいま 3 人' })).toBeVisible();
     await host.getByRole('button', { name: 'ゲーム開始 →' }).click();
     await expect(
-      host.getByRole('heading', { name: 'あなたのスマホに、2つのお題。' }),
+      host.getByRole('heading', { name: 'スマホのほう、見てね。' }),
     ).toBeVisible();
     await expect(host.getByTestId('answer-form')).toHaveCount(0);
     const tv = await hostContext.newPage();
     await tv.goto(`/games/ogiri/${code}/tv`);
-    await expect(tv.getByRole('heading', { name: 'あなたのスマホに、2つのお題。' })).toBeVisible();
+    await expect(tv.getByRole('heading', { name: 'スマホのほう、見てね。' })).toBeVisible();
     await expect(tv.getByTestId('answer-form')).toHaveCount(0);
     await expect(tv.getByText('主催者の操作')).toHaveCount(0);
     const views: RoomView[] = await Promise.all(
@@ -159,7 +159,7 @@ test('two rounds survive rematch and room expiry; history is static, shareable a
     await expect(resultLink).toBeVisible();
     await page.getByRole('button', { name: 'パーティー総合', exact: true }).click();
     await expect(page.getByLabel('パーティー総合順位', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: /ベスト一言/ }).click();
+    await page.getByRole('button', { name: /ウケた一言/ }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByRole('dialog')).toContainText('window.historyXss=true');
     expect(await page.evaluate(() => 'historyXss' in window)).toBe(false);

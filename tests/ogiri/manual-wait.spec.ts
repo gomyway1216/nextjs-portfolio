@@ -50,7 +50,7 @@ test('manual results suspend after idle, hide countdowns and resume on host adva
 
     await page.getByText('主催者の操作').click();
     await page.getByRole('button', { name: '次へ進む', exact: true }).click();
-    await expect(page.getByRole('heading', { name: '笑ったほうに、一票。', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'どっちで笑った？', exact: true })).toBeVisible();
     await expect(page.getByRole('timer')).toHaveCount(1);
     await expect(page.getByRole('button', { name: '再接続する', exact: true })).toHaveCount(0);
   } finally {
@@ -101,7 +101,7 @@ test('manual twelve-player TV, long answers, result spotlight and keyboard close
     }
     await action({ type: 'next' });
     await tv.goto(`/games/ogiri/${view.code}/tv`);
-    await expect(tv.getByRole('heading', { name: 'この一言の作者は…', exact: true })).toBeVisible();
+    await expect(tv.getByRole('heading', { name: 'これ書いたの、だれ？', exact: true })).toBeVisible();
     await expect(tv.getByRole('timer')).toHaveCount(0);
     await tv.screenshot({ path: info.outputPath('manual-long-reveal.png'), fullPage: true });
     expect(await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2)).toBe(true);
@@ -110,10 +110,10 @@ test('manual twelve-player TV, long answers, result spotlight and keyboard close
     await tv.setViewportSize({ width: 1920, height: 1080 });
     for (let i = 0; i < 23; i++) await action({ type: 'next' });
     expect(view.phase).toBe('ranking');
-    await expect(tv.getByRole('heading', { name: 'ここまでの大喜利王', exact: true })).toBeVisible();
+    await expect(tv.getByRole('heading', { name: 'いま、こうなってます。', exact: true })).toBeVisible();
     expect(await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2)).toBe(true);
     await tv.screenshot({ path: info.outputPath('manual-twelve-ranking.png'), fullPage: true });
-    await tv.getByRole('button', {name: /ベスト一言/}).click();
+    await tv.getByRole('button', {name: /ウケた一言/}).click();
     await expect(tv.getByRole('dialog')).toBeVisible();
     await tv.keyboard.press('Escape');
     await expect(tv.getByRole('dialog')).not.toBeVisible();

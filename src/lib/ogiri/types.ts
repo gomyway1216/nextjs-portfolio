@@ -45,6 +45,7 @@ export interface Prompt {
   createdAt: string;
 }
 export interface Player {
+  answerReady?: boolean;
   partyPoints?: number;
   partyEarned?: number;
   spectator?: boolean;
@@ -115,6 +116,8 @@ export interface GameHistory extends HistoryRef {
   }[];
 }
 export interface PublicPlayer {
+  answerReady?: boolean;
+  answeringThisRound?: boolean;
   playingThisGame?: boolean;
   partyPoints?: number;
   partyEarned?: number;
@@ -162,6 +165,7 @@ export interface RoomView {
     total: number;
     answers: (string | null)[];
     canVote: boolean;
+    isAuthor?: boolean;
     voted: boolean;
     votesReceived: number;
     eligible: number;
@@ -181,6 +185,7 @@ export interface GameHighlights {
   } | null;
 }
 export type Action =
+  | { type: 'answerReady'; ready: boolean }
   | { type: 'hostParticipation'; participating: boolean }
   | { type: 'answer'; matchId: string; text: string }
   | { type: 'vote'; matchId: string; choice: number }

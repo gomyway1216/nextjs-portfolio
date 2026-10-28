@@ -15,20 +15,6 @@ on:
       - 'scripts/*halfkp*'
       - 'scripts/*exact24k*'
       - 'docs/*shogi*'
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'ml/**'
-      - 'native/**'
-      - 'tests/unit/ml/**'
-      - '.github/ci/**'
-      - 'scripts/shogi*'
-      - 'scripts/shogi*/**'
-      - 'scripts/archive-shogi*'
-      - 'scripts/*floodgate*'
-      - 'scripts/*halfkp*'
-      - 'scripts/*exact24k*'
-      - 'docs/*shogi*'
   workflow_dispatch:
 
 concurrency:

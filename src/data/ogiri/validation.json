@@ -27,5 +27,5 @@
   },
   "normalizedDuplicates": 0,
   "nearPairs": [],
-  "method": "NFKC, punctuation/space removal, Japanese orthographic normalization, character trigram Dice >= 0.42. Similarities are editorial candidates, not proof of semantic uniqueness."
+  "method": "NFKC, punctuation/space removal, Japanese orthographic normalization, character trigram Dice >= 0.42. Similarity is advisory: familiar themes are allowed; review trivial paraphrases and prompts that invite the same answers."
 }

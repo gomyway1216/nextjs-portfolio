@@ -34,36 +34,7 @@ on:
       - 'tsconfig.json'
       - '.npmrc'
       - '.nvmrc'
-  push:
-    branches: [main]
-    paths:
-      - 'ml/**'
-      - 'native/**'
-      - 'tests/unit/ml/**'
-      - 'docs/*shogi*'
-      - 'src/components/game/Shogi*/**'
-      - 'src/services/shogi*'
-      - 'public/shogi*'
-      - 'public/shogi*/**'
-      - 'src/app/games/shogi/**'
-      - 'src/lib/shogi*/**'
-      - 'src/workers/shogi*'
-      - 'tests/unit/shogi*'
-      - 'scripts/shogi*'
-      - 'scripts/shogi*/**'
-      - 'scripts/archive-shogi*'
-      - 'scripts/*floodgate*'
-      - 'scripts/*halfkp*'
-      - 'scripts/*exact24k*'
-      - 'scripts/strict-workflow-yaml.mjs'
-      - '.github/ci/**'
-      - '.github/workflows/ci.yml'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vitest.config.*'
-      - 'tsconfig.json'
-      - '.npmrc'
-      - '.nvmrc'
+  workflow_dispatch:
 
 # Cancel in-progress runs when new commits are pushed to the same ref, so
 # rapid pushes don't pile up redundant CI runs (only the latest matters).

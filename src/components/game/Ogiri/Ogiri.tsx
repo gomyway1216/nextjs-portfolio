@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -16,18 +17,28 @@ const phaseName = {
   ranking: 'ここまでの大喜利王',
   finished: '今夜の大喜利王！',
 };
-async function request(path: string, data?: unknown): Promise<RoomView> {
-  const res = await fetch(`/api/ogiri${path}`, {
-    method: data ? 'POST' : 'GET',
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: data ? { 'Content-Type': 'application/json' } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    signal: AbortSignal.timeout(15000),
-  });
-  const result = await res.json();
-  if (!res.ok) throw new Error(result.error ?? '接続できませんでした。');
-  return result;
+async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, 15000);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const res = await fetch(`/api/ogiri${path}`, {
+      method: data ? 'POST' : 'GET',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: data ? { 'Content-Type': 'application/json' } : {},
+      body: data ? JSON.stringify(data) : undefined,
+      signal: controller.signal,
+    });
+    const result = await res.json();
+    if (!res.ok) throw Object.assign(new Error(result.error ?? '接続できませんでした。'), { status: res.status });
+    return result;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+  }
 }
 function JoinForm({
   code,
@@ -378,6 +389,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const [sound, setSound] = useState(false),
     [reduced, setReduced] = useState(false),
     [busy, setBusy] = useState(false);
+  const [syncStop, setSyncStop] = useState<SyncStop>(null);
+  const sync = useRef<ReturnType<typeof startRoomPolling> | null>(null);
   const audio = useRef<AudioContext | null>(null),
     latest = useRef<RoomView | null>(null),
     lastBeat = useRef(0);
@@ -391,29 +404,36 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     setConnected(true);
   }, []);
   useEffect(() => {
-    let stopped = false,
-      timeout: ReturnType<typeof setTimeout>;
-    async function poll() {
-      try {
-        const next = await request(`/${code}${tv ? '?view=tv' : ''}`);
-        if (!stopped) {
+    const polling = startRoomPolling({
+      document,
+      window,
+      online: () => navigator.onLine,
+      view: () => latest.current,
+      stopped: setSyncStop,
+      error: (error) => {
+        setConnected(false);
+        setError((error as Error).message);
+      },
+      read: async (signal) => {
+        const next = await request(`/${code}${tv ? '?view=tv' : ''}`, undefined, signal);
+        if (!signal.aborted) {
           accept(next);
           setError('');
         }
+        if (signal.aborted) return;
         if (!lastBeat.current) lastBeat.current = Date.now();
         if (!tv && next.me && Date.now() - lastBeat.current > 30000) {
           lastBeat.current = Date.now();
-          await request(`/${code}`, { type: 'heartbeat' });
+          try {
+            await request(`/${code}`, { type: 'heartbeat' }, signal);
+          } catch {
+            // The room GET succeeded. Presence failure must not stop view updates.
+            // Still await this request so hiding the page aborts all in-flight work.
+          }
         }
-      } catch (error) {
-        if (!stopped) {
-          setConnected(false);
-          setError((error as Error).message);
-        }
-      }
-      if (!stopped) timeout = setTimeout(poll, document.hidden ? 5000 : 1500);
-    }
-    void poll();
+      },
+    });
+    sync.current = polling;
     const interval = setInterval(() => setClock(Date.now()), 1000);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser preference after hydration
     setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -423,8 +443,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       color: { dark: '#251345', light: '#ffffff' },
     }).then(setQr);
     return () => {
-      stopped = true;
-      clearTimeout(timeout);
+      polling.stop();
+      sync.current = null;
       clearInterval(interval);
     };
   }, [code, tv, accept]);
@@ -458,6 +478,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       const v = latest.current;
       const next = await request(`/${code}`, { ...action, turn: v?.turn });
       accept(next);
+      sync.current?.resume();
       return true;
     } catch (error) {
       setError((error as Error).message);
@@ -508,7 +529,18 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             )}
           </div>
         </nav>
-        {!connected && (
+        {syncStop === 'idle' && (
+          <p className={styles.pause} role="status">
+            15分間変化がなかったため、自動更新を休止しました。続けて遊びますか？{' '}
+            <button onClick={() => sync.current?.resume()}>再接続する</button>
+          </p>
+        )}
+        {syncStop === 'expired' && (
+          <p className={styles.pause} role="status">
+            このルームへの自動更新を終了しました。<Link href="/games/ogiri">新しいルームへ</Link>
+          </p>
+        )}
+        {!connected && !syncStop && (
           <p className={styles.error} role="status">
             接続を確認しています。自動で再接続します。回答の下書きは保存されています。
           </p>
@@ -553,7 +585,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             {!tv && !v.me && (
               <section className={styles.joinCard}>
                 <h2>ルーム {code} に参加</h2>
-                <JoinForm code={code} onJoined={accept} />
+                <JoinForm code={code} onJoined={(next) => { accept(next); sync.current?.resume(); }} />
               </section>
             )}
             {v.phase === 'lobby' && (

@@ -5,8 +5,11 @@ export interface Tone {
   frequency: number;
   duration: number;
   gain: number;
-  wave?: OscillatorType;
+  wave?: OscillatorType | 'noise';
   endFrequency?: number;
+  pitch?: { at: number; frequency: number }[];
+  vibrato?: number;
+  formant?: number;
 }
 const note = (frequency: number, at = 0, duration = 0.18, gain = 0.5): Tone => ({
   frequency,
@@ -54,6 +57,36 @@ export const SOUND_CUES = {
     note(261.63, 0.96, 0.65, 0.3),
   ],
   tick: [note(880, 0, 0.055, 0.2)],
+  bounce: [
+    { ...brass(180, 0, 0.72, 0.55), vibrato: 90,
+      pitch: [{ at: 0.055, frequency: 780 }, { at: 0.14, frequency: 225 },
+        { at: 0.25, frequency: 580 }, { at: 0.39, frequency: 265 },
+        { at: 0.52, frequency: 400 }, { at: 0.7, frequency: 300 }] },
+    { ...note(120, 0.02, 0.42, 0.2), endFrequency: 240 },
+  ],
+  count: [
+    ...[0, 0.13, 0.25, 0.36, 0.46, 0.55, 0.63, 0.7, 0.76]
+      .map((at, i) => brass(622.25 * 2 ** (i / 12), at, 0.045, 0.34)),
+    brass(783.99, 0.82, 0.18, 0.4), brass(1046.5, 0.82, 0.18, 0.34),
+    note(1318.51, 0.82, 0.18, 0.25), note(196, 0.82, 0.18, 0.4),
+  ],
+  // Original synthetic crowd whoops and claps, not recorded human speech.
+  cheer: [
+    { ...note(300, 0, 1.3, 0.42), wave: 'sawtooth', formant: 1100, vibrato: 40,
+      pitch: [{ at: 0.12, frequency: 390 }, { at: 0.32, frequency: 590 },
+        { at: 0.8, frequency: 520 }, { at: 1.3, frequency: 390 }] },
+    { ...note(240, 0.16, 1.45, 0.35), wave: 'sawtooth', formant: 850, vibrato: 55,
+      pitch: [{ at: 0.18, frequency: 400 }, { at: 0.55, frequency: 520 },
+        { at: 1.0, frequency: 440 }, { at: 1.45, frequency: 330 }] },
+    { ...note(490, 0.42, 1.15, 0.26), wave: 'sawtooth', formant: 1500, vibrato: 35,
+      pitch: [{ at: 0.18, frequency: 750 }, { at: 0.7, frequency: 660 }, { at: 1.15, frequency: 510 }] },
+    { ...note(1500, 0.5, 1.0, 0.15), vibrato: 35, endFrequency: 2100 },
+    ...[0.12, 0.3, 0.54, 0.8, 1.08, 1.32, 1.58, 1.86, 2.12]
+      .map(at => ({ ...note(1500, at, 0.07, 0.28), wave: 'noise' as const })),
+    brass(523.25, 1.72, 0.22, 0.25), brass(659.25, 1.93, 0.22, 0.28),
+    brass(783.99, 2.14, 0.48, 0.3), brass(1046.5, 2.14, 0.48, 0.22),
+    note(261.63, 2.14, 0.48, 0.3),
+  ],
 } satisfies Record<string, Tone[]>;
 export type SoundCue = keyof typeof SOUND_CUES;
 
@@ -67,17 +100,38 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
     return 'join';
   if (previous.turn === next.turn) return null;
   if (next.phase === 'answering') return 'start';
-  if (next.phase === 'voting') return 'voting';
-  if (next.phase === 'reveal') return 'reveal';
+  if (next.phase === 'voting') return 'bounce';
+  if (next.phase === 'reveal') return 'count';
   if (next.phase === 'ranking') return 'ranking';
-  if (next.phase === 'finished') return 'champion';
+  if (next.phase === 'finished') return 'cheer';
   return null;
 }
 
 export function createPartyAudio(context: AudioContext) {
   const master = context.createGain();
   master.connect(context.destination);
-  const active = new Set<{ oscillator: OscillatorNode; gain: GainNode }>();
+  type Voice = { source: AudioScheduledSourceNode; gain: GainNode; filter?: BiquadFilterNode; vibrato?: OscillatorNode; vibratoGain?: GainNode };
+  const active = new Set<Voice>();
+  let claps: AudioBuffer | undefined;
+  const noise = () => {
+    if (claps) return claps;
+    claps = context.createBuffer(1, Math.ceil(context.sampleRate / 4), context.sampleRate);
+    const data = claps.getChannelData(0);
+    let seed = 1729;
+    for (let i = 0; i < data.length; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+      data[i] = (seed >>> 0) / 2147483648 - 1;
+    }
+    return claps;
+  };
+  const disconnect = (voice: Voice) => {
+    if (!active.delete(voice)) return;
+    voice.source.disconnect();
+    voice.vibrato?.disconnect();
+    voice.vibratoGain?.disconnect();
+    voice.filter?.disconnect();
+    voice.gain.disconnect();
+  };
   const setVolume = (volume: number) => {
     master.gain.setValueAtTime(
       PARTY_MASTER_GAIN * Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 0)),
@@ -86,9 +140,9 @@ export function createPartyAudio(context: AudioContext) {
   };
   const stop = () => {
     for (const voice of active) {
-      voice.oscillator.stop();
-      voice.oscillator.disconnect();
-      voice.gain.disconnect();
+      voice.source.stop();
+      voice.vibrato?.stop();
+      disconnect(voice);
     }
     active.clear();
   };
@@ -109,18 +163,47 @@ export function createPartyAudio(context: AudioContext) {
     play(cue: SoundCue, volume: number) {
       if (context.state !== 'running') return false;
       setVolume(volume);
-      if (cue === 'champion' || active.size > 24) stop();
+      if (cue === 'champion' || cue === 'cheer' || cue === 'count' || active.size > 24) stop();
       for (const tone of SOUND_CUES[cue] as Tone[]) {
-        const oscillator = context.createOscillator(),
-          gain = context.createGain();
         const start = context.currentTime + tone.at;
-        oscillator.type = tone.wave ?? 'sine';
-        oscillator.frequency.setValueAtTime(tone.frequency, start);
-        if (tone.endFrequency)
-          oscillator.frequency.exponentialRampToValueAtTime(
-            tone.endFrequency,
-            start + tone.duration,
-          );
+        const gain = context.createGain();
+        let source: AudioScheduledSourceNode;
+        let vibrato: OscillatorNode | undefined;
+        let vibratoGain: GainNode | undefined;
+        if (tone.wave === 'noise') {
+          const clap = context.createBufferSource();
+          clap.buffer = noise();
+          clap.loop = true;
+          source = clap;
+        } else {
+          const oscillator = context.createOscillator();
+          oscillator.type = tone.wave ?? 'sine';
+          oscillator.frequency.setValueAtTime(tone.frequency, start);
+          for (const point of tone.pitch ?? [])
+            oscillator.frequency.exponentialRampToValueAtTime(point.frequency, start + point.at);
+          if (tone.endFrequency)
+            oscillator.frequency.exponentialRampToValueAtTime(tone.endFrequency, start + tone.duration);
+          if (tone.vibrato) {
+            vibrato = context.createOscillator();
+            vibratoGain = context.createGain();
+            vibrato.frequency.setValueAtTime(7, start);
+            vibratoGain.gain.setValueAtTime(tone.vibrato, start);
+            vibrato.connect(vibratoGain);
+            vibratoGain.connect(oscillator.detune);
+            vibrato.start(start);
+            vibrato.stop(start + tone.duration + 0.015);
+          }
+          source = oscillator;
+        }
+        let filter: BiquadFilterNode | undefined;
+        if (tone.formant || tone.wave === 'noise') {
+          filter = context.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(tone.formant ?? tone.frequency, start);
+          filter.Q.setValueAtTime(tone.wave === 'noise' ? 0.6 : 2, start);
+          source.connect(filter);
+          filter.connect(gain);
+        } else source.connect(gain);
         gain.gain.setValueAtTime(0.0001, start);
         gain.gain.exponentialRampToValueAtTime(
           tone.gain,
@@ -128,17 +211,12 @@ export function createPartyAudio(context: AudioContext) {
         );
         gain.gain.exponentialRampToValueAtTime(tone.gain * 0.8, start + tone.duration * 0.38);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.duration);
-        oscillator.connect(gain);
         gain.connect(master);
-        const voice = { oscillator, gain };
+        const voice = { source, gain, filter, vibrato, vibratoGain };
         active.add(voice);
-        oscillator.onended = () => {
-          active.delete(voice);
-          oscillator.disconnect();
-          gain.disconnect();
-        };
-        oscillator.start(start);
-        oscillator.stop(start + tone.duration + 0.015);
+        source.onended = () => disconnect(voice);
+        source.start(start);
+        source.stop(start + tone.duration + 0.015);
       }
       return true;
     },

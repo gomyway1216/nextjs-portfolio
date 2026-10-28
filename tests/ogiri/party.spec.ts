@@ -20,6 +20,7 @@ for (const count of [10, 12])
     try {
       await host.goto('/games/ogiri', { waitUntil: 'domcontentloaded' });
       await host.getByRole('button', { name: '主催する', exact: true }).click();
+      await host.getByLabel('主催者もこの端末で回答する').check();
       await host.getByRole('textbox', { name: 'ニックネーム' }).fill('あ'.repeat(17));
       await expect(
         host.getByRole('button', { name: 'ルームを作成 →', exact: true }),

@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+// These added rooms are a separate emulated client, keeping the existing suite's
+// shared-IP create budget intact. Production uses the real proxy-supplied IP.
+test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.20' } });
+
 test('twelve image characters, opt-in audio, volume and reduced motion work on a phone', async ({
   page,
   request,

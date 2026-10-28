@@ -66,7 +66,8 @@ for (const count of [10, 12])
       await expect(tv.getByRole('heading', { name: `ただいま ${count} 人` })).toBeVisible();
       await expect(tv.getByText('主催者の操作')).toHaveCount(0);
       const view = async (page: Page): Promise<RoomView> =>
-        (await page.request.get(`/api/ogiri/${code}`)).json();
+        // Retry one reset connection on a read; never replay answers or votes.
+        (await page.request.get(`/api/ogiri/${code}`, { maxRetries: 1 })).json();
       const tvRead = await tv.request.get(`/api/ogiri/${code}?view=tv`);
       expect((await tvRead.json()).isHost).toBe(false);
       const attack = await tv.request.post(`/api/ogiri/${code}`, { data: { type: 'finish' } });

@@ -120,7 +120,7 @@ export function joinRoom(room: Room, player: Player): void {
     409,
   );
   requireThat(
-    Object.values(room.players).filter((p) => !p.kicked).length < 12,
+    Object.values(room.players).filter((p) => !p.kicked && !p.spectator).length < 12,
     'このルームは満員です（最大12人）。',
     409,
   );
@@ -170,7 +170,7 @@ export function pairPlayers(
 }
 export function rankPlayers(room: Room) {
   const players = Object.values(room.players)
-    .filter((p) => !p.kicked)
+    .filter((p) => !p.kicked && !p.spectator)
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   return players.map((p) => ({
     ...p,
@@ -178,7 +178,7 @@ export function rankPlayers(room: Room) {
   }));
 }
 function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => number) {
-  const players = Object.values(room.players).filter((p) => p.active && !p.kicked);
+  const players = Object.values(room.players).filter((p) => p.active && !p.kicked && !p.spectator);
   requireThat(players.length >= 3, '3人以上の参加者が必要です。', 409);
   const categories = room.settings.halloween ? ['halloween'] : room.settings.categories;
   const eligiblePrompts = prompts.filter(
@@ -209,6 +209,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
     room.players[p.id].previousRank = p.rank;
     room.players[p.id].roundScore = 0;
   }
+  if (room.round > 0) (room.pastRounds ??= []).push({ round: room.round, matches: room.matches });
   room.round++;
   room.matchIndex = 0;
   room.matches = pairPlayers(
@@ -240,7 +241,7 @@ function visible(room: Room, match: Match, index: number) {
 }
 function eligible(room: Room, match: Match) {
   return Object.values(room.players).filter(
-    (p) => p.active && !p.kicked && !match.players.includes(p.id),
+    (p) => p.active && !p.kicked && !p.spectator && !match.players.includes(p.id),
   );
 }
 function scoreMatch(room: Room, match: Match) {
@@ -292,7 +293,9 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
       if (room.round >= room.settings.rounds) {
         room.phase = 'finished';
         room.deadline = 0;
-      } else if (Object.values(room.players).filter((p) => p.active && !p.kicked).length < 3) {
+      } else if (
+        Object.values(room.players).filter((p) => p.active && !p.kicked && !p.spectator).length < 3
+      ) {
         room.phase = 'finished';
         room.deadline = 0;
       } else beginRound(room, now, prompts, rng);
@@ -331,7 +334,16 @@ export function act(
     room.revision++;
     return;
   }
-  if (action.type === 'settings') {
+  if (action.type === 'hostParticipation') {
+    requireThat(room.phase === 'lobby', '回答への参加はゲーム開始前に切り替えてください。', 409);
+    requireThat(typeof action.participating === 'boolean', '参加方法を選んでください。');
+    requireThat(
+      !action.participating || !player.spectator || rankPlayers(room).length < 12,
+      'このルームは満員です（最大12人）。',
+      409,
+    );
+    player.spectator = !action.participating;
+  } else if (action.type === 'settings') {
     requireThat(
       room.phase === 'lobby' || room.phase === 'finished',
       '設定は参加受付中に変更できます。',
@@ -366,6 +378,7 @@ export function act(
     room.phase = 'lobby';
     room.round = 0;
     room.matches = [];
+    room.pastRounds = [];
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -468,6 +481,7 @@ export function project(
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   return {
     turn: `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`,
+    history: room.history ?? [],
     code: room.code,
     revision: room.revision,
     game: room.game,
@@ -479,6 +493,7 @@ export function project(
     serverTime: room.pausedAt || now,
     me,
     isHost: me === room.hostId,
+    hostPlays: !room.players[room.hostId].spectator,
     players: rankPlayers(room).map((p) => ({
       id: p.id,
       name: p.name,

@@ -45,6 +45,7 @@ export interface Prompt {
   createdAt: string;
 }
 export interface Player {
+  spectator?: boolean;
   id: string;
   name: string;
   avatar: string;
@@ -84,6 +85,27 @@ export interface Room {
   usedPrompts: string[];
   pairCounts: Record<string, number>;
   game: number;
+  pastRounds?: { round: number; matches: Match[] }[];
+  historyId?: string;
+  archivedGame?: number;
+  history?: HistoryRef[];
+}
+export interface HistoryRef {
+  id: string;
+  code: string;
+  game: number;
+  finishedAt: number;
+  expiresAt: number;
+}
+export interface GameHistory extends HistoryRef {
+  version: 1;
+  rounds: number;
+  rankings: { name: string; avatar: string; rank: number; score: number }[];
+  matches: {
+    round: number;
+    text: string;
+    answers: { name: string; avatar: string; text: string | null; votes: number; points: number }[];
+  }[];
 }
 export interface PublicPlayer {
   id: string;
@@ -98,6 +120,8 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  hostPlays?: boolean;
+  history?: HistoryRef[];
   turn: string;
   code: string;
   revision: number;
@@ -126,6 +150,7 @@ export interface RoomView {
   };
 }
 export type Action =
+  | { type: 'hostParticipation'; participating: boolean }
   | { type: 'answer'; matchId: string; text: string }
   | { type: 'vote'; matchId: string; choice: number }
   | { type: 'settings'; settings: Settings }

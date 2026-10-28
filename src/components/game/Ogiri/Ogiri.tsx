@@ -7,6 +7,7 @@ import Image from 'next/image';
 import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
+import { rememberHistory } from '@/lib/ogiri/history-local';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -33,7 +34,10 @@ async function request(path: string, data?: unknown, signal?: AbortSignal): Prom
       signal: controller.signal,
     });
     const result = await res.json();
-    if (!res.ok) throw Object.assign(new Error(result.error ?? '接続できませんでした。'), { status: res.status });
+    if (!res.ok)
+      throw Object.assign(new Error(result.error ?? '接続できませんでした。'), {
+        status: res.status,
+      });
     return result;
   } finally {
     clearTimeout(timeout);
@@ -50,6 +54,7 @@ function JoinForm({
   onJoined?: (view: RoomView) => void;
 }) {
   const router = useRouter();
+  const [hostPlays, setHostPlays] = useState(false);
   const [name, setName] = useState(''),
     [avatar, setAvatar] = useState(AVATARS[0]);
   const [room, setRoom] = useState(code ?? ''),
@@ -64,6 +69,7 @@ function JoinForm({
         type: 'join',
         name,
         avatar,
+        ...(create ? { hostPlays } : {}),
       });
       localStorage.setItem('ogiri:lastRoom', view.code);
       if (onJoined) onJoined(view);
@@ -121,6 +127,21 @@ function JoinForm({
           ))}
         </div>
       </fieldset>
+      {create && (
+        <label>
+          <span>
+            <input
+              type="checkbox"
+              checked={hostPlays}
+              onChange={(e) => setHostPlays(e.target.checked)}
+            />{' '}
+            主催者もこの端末で回答する
+          </span>
+          <small>
+            通常は進行役専用です。テレビ・PCで主催する場合はオフにし、回答は各自のスマホから参加してください。
+          </small>
+        </label>
+      )}
       {error && (
         <p role="alert" className={styles.error}>
           {error}
@@ -147,7 +168,7 @@ export function OgiriLanding() {
         <nav className={styles.nav}>
           <Link href="/games">← Games</Link>
           <span>おもしろいは、みんなでつくる。</span>
-          <span className={styles.badge}>3〜12人</span>
+          <Link href="/games/ogiri/history">過去のゲーム</Link>
         </nav>
         <div className={styles.hero}>
           <section>
@@ -220,7 +241,7 @@ export function OgiriLanding() {
             PCをHDMIでテレビへつなぐか、Chromeのメニューから「キャスト」を選択。テレビのブラウザで表示用URLを開く方法も使えます。主催者のスマホから「テレビ画面を開く」でURLを確認できます。
           </p>
           <p>
-            全員が同じWi-Fiにいる必要はありません。主催者もスマホから回答できます。ゲーム中の新規参加は再戦までお待ちください。
+            全員が同じWi-Fiにいる必要はありません。テレビは表示専用、主催者は通常は進行専用です。主催者も遊ぶ場合はスマホで参加してください。ゲーム中の新規参加は再戦までお待ちください。
           </p>
           <p>
             同点は同じ順位。自分の対戦は投票をお休み。未回答・非表示の回答は得点なし。回答は100文字までです。
@@ -391,6 +412,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     [busy, setBusy] = useState(false);
   const [syncStop, setSyncStop] = useState<SyncStop>(null);
   const sync = useRef<ReturnType<typeof startRoomPolling> | null>(null);
+  const historySignature = useRef('');
   const audio = useRef<AudioContext | null>(null),
     latest = useRef<RoomView | null>(null),
     lastBeat = useRef(0);
@@ -398,6 +420,11 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     if (latest.current && next.revision < latest.current.revision) return;
     const receivedAt = Date.now();
     latest.current = next;
+    const signature = next.history?.map((h) => h.id).join(',') ?? '';
+    if (signature !== historySignature.current) {
+      rememberHistory(next.history ?? []);
+      historySignature.current = signature;
+    }
     setView(next);
     setClock(receivedAt);
     setOffset(next.serverTime - receivedAt);
@@ -529,6 +556,28 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             )}
           </div>
         </nav>
+        {!tv && v?.isHost && !v.hostPlays && (
+          <p className={styles.historyRoomLink}>
+            進行役の画面です。回答・投票は各自のスマホから参加してください。
+          </p>
+        )}
+        {!tv && (
+          <p className={styles.historyRoomLink}>
+            <Link href="/games/ogiri/history" target="_blank" rel="noopener noreferrer">
+              過去のゲーム ↗
+            </Link>
+            {v?.history?.at(-1) && (
+              <Link
+                prefetch={false}
+                href={`/games/ogiri/history/${v.history.at(-1)!.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                直前の結果を見る ↗
+              </Link>
+            )}
+          </p>
+        )}
         {syncStop === 'idle' && (
           <p className={styles.pause} role="status">
             15分間変化がなかったため、自動更新を休止しました。続けて遊びますか？{' '}
@@ -585,7 +634,13 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             {!tv && !v.me && (
               <section className={styles.joinCard}>
                 <h2>ルーム {code} に参加</h2>
-                <JoinForm code={code} onJoined={(next) => { accept(next); sync.current?.resume(); }} />
+                <JoinForm
+                  code={code}
+                  onJoined={(next) => {
+                    accept(next);
+                    sync.current?.resume();
+                  }}
+                />
               </section>
             )}
             {v.phase === 'lobby' && (
@@ -593,7 +648,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 <section className={styles.lobbyPlayers}>
                   <div className={styles.row}>
                     <h2>ただいま {v.players.length} 人</h2>
-                    <span>3人からスタート / 最大12人</span>
+                    <span>回答者3〜12人 / 4人以上推奨</span>
                   </div>
                   <div className={styles.playerGrid}>
                     {v.players.map((p) => (
@@ -606,7 +661,9 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       </article>
                     ))}
                   </div>
-                  <p>短い一言でOK。すべっても、みんなで笑おう。</p>
+                  <p>
+                    1つのお題に2人が回答し、それ以外の人が投票します。進行専用の主催者とテレビは人数に含みません。
+                  </p>
                 </section>
                 <aside className={styles.qrCard}>
                   {qr && (
@@ -625,11 +682,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               </div>
             )}
             {v.phase === 'answering' &&
-              (tv ? (
+              (tv || (v.isHost && !v.hostPlays) ? (
                 <section className={styles.wait}>
                   <span className={styles.bigEmoji}>{v.settings.halloween ? '🎃' : '💡'}</span>
                   <h2>あなたのスマホに、2つのお題。</h2>
                   <p>書き終えたら「この回答を送る」を押してね。</p>
+                  <p>お題は全員共通ではありません。同じお題を2人ずつに配っています。</p>
                   <div className={styles.playerGrid}>
                     {v.players.map((p) => (
                       <article key={p.id} className={styles.player}>
@@ -720,7 +778,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </div>
                 <p className={styles.voteStatus} aria-live="polite">
                   {v.phase === 'voting'
-                    ? `${v.match.votesReceived} / ${v.match.eligible} 人が投票済み${!tv && v.me && !v.match.canVote ? ' · 自分の対戦は投票をお休み' : ''}`
+                    ? `${v.match.votesReceived} / ${v.match.eligible} 人が投票済み${!tv && mine && !v.match.canVote ? ' · 自分の対戦は投票をお休み' : ''}`
                     : '拍手！ 次のお題もお楽しみに。'}
                 </p>
               </section>
@@ -803,6 +861,19 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               <details className={styles.host} open={v.phase === 'lobby'}>
                 <summary>👑 主催者の操作</summary>
                 <div className={styles.hostBody}>
+                  {v.phase === 'lobby' && (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(v.hostPlays)}
+                        disabled={busy}
+                        onChange={(e) =>
+                          void send({ type: 'hostParticipation', participating: e.target.checked })
+                        }
+                      />{' '}
+                      この端末でも回答に参加する
+                    </label>
+                  )}
                   <a
                     href={`/games/ogiri/${code}/tv`}
                     target="_blank"

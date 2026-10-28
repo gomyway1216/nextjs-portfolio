@@ -16,6 +16,102 @@
   padding: 0 24px 50px;
   isolation: isolate;
 }
+.historyShell {
+  max-width: 860px;
+}
+.historyHeader {
+  padding: 44px 0 24px;
+}
+.historyHeader h1 {
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 900;
+  margin: 8px 0 16px;
+}
+.historyNote {
+  color: var(--muted) !important;
+  font-size: 14px;
+}
+.historyEmpty {
+  padding: 40px 0;
+}
+.historyList {
+  display: grid;
+  gap: 20px;
+  margin-top: 24px;
+}
+.historyCard {
+  display: block;
+  padding: 24px;
+  background: var(--panel);
+  border: 1px solid #ffffff24;
+  border-radius: 20px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.historyCard:hover {
+  border-color: var(--lime);
+}
+.historyCard h2,
+.historyCard h3 {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  margin: 8px 0 16px;
+}
+.historySection {
+  margin-top: 40px;
+}
+.historyRanks {
+  padding: 0;
+  list-style: none;
+}
+.historyRanks li {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #ffffff24;
+}
+.historyRanks li span {
+  overflow-wrap: anywhere;
+}
+.historyRanks strong {
+  color: var(--lime);
+}
+.historyAnswers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.historyAnswers > div {
+  background: #1a112c;
+  padding: 20px;
+  border-radius: 14px;
+}
+.historyAnswer {
+  font-size: 22px;
+  font-weight: 800;
+  white-space: pre-wrap;
+  margin-bottom: 16px !important;
+}
+.historyRoomLink {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20px;
+  padding-top: 12px;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .historyCard {
+    padding: 18px;
+  }
+  .historyAnswers {
+    grid-template-columns: 1fr;
+  }
+  .historyRanks li {
+    gap: 8px;
+  }
+}
 .app * {
   box-sizing: border-box;
 }

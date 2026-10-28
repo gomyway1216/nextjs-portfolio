@@ -18,7 +18,12 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
+export type GameType = 'ogiri' | 'majority' | 'identity';
+export const GAME_TITLES: Record<GameType, string> = {
+  ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？',
+};
 export interface Settings {
+  gameType?: GameType;
   rounds: number;
   answerSeconds: number;
   voteSeconds: number;
@@ -75,6 +80,9 @@ export interface Match {
   points: number[];
 }
 export interface Room {
+  /** Snapshot of the game actually started, independent of the next game's settings. */
+  gameType?: GameType;
+  sideRounds?: SideGameRound[];
   partyGames?: number;
   partyAwardedGame?: number;
   code: string;
@@ -99,6 +107,7 @@ export interface Room {
   history?: HistoryRef[];
 }
 export interface HistoryRef {
+  gameType?: GameType;
   id: string;
   code: string;
   game: number;
@@ -106,7 +115,7 @@ export interface HistoryRef {
   expiresAt: number;
 }
 export interface GameHistory extends HistoryRef {
-  gameType?: 'ogiri';
+  gameType?: GameType;
   partyGames?: number;
   partyRankings?: { name: string; avatar: string; rank: number; points: number; earned: number }[];
   version: 1;
@@ -116,7 +125,44 @@ export interface GameHistory extends HistoryRef {
     round: number;
     text: string;
     answers: { name: string; avatar: string; text: string | null; votes: number; points: number }[];
+    awards?: { name: string; avatar: string; points: number }[];
+    note?: string;
   }[];
+}
+export interface PartyGameResult {
+  correctOption: string | null;
+  counts: Record<string, number>;
+  awards: { id: string; points: number }[];
+}
+export interface PartyGameView {
+  type: 'majority' | 'identity';
+  prompt: string;
+  answer: string;
+  answerRequired: boolean;
+  readyCount: number;
+  answererCount: number;
+  revealText: string | null;
+  options: { id: string; label: string; avatar?: string }[];
+  canVote: boolean;
+  isAuthor: boolean;
+  voted: boolean;
+  votesReceived: number;
+  eligible: number;
+  index: number;
+  total: number;
+  result: PartyGameResult | null;
+}
+/** Private round state. Never spread into RoomView. */
+export interface SideGameRound {
+  round: number;
+  type: 'majority' | 'identity';
+  prompt: string;
+  players: string[];
+  options: { id: string; label: string }[];
+  answers: Record<string, string>;
+  order: string[];
+  ballots: Record<string, Record<string, string>>;
+  results: { index: number; author: string | null; text: string | null; result: PartyGameResult }[];
 }
 export interface PublicPlayer {
   answerReady?: boolean;
@@ -136,6 +182,8 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  gameType?: GameType;
+  sideGame?: PartyGameView;
   partyPlayers?: {
     id: string;
     name: string;
@@ -188,6 +236,8 @@ export interface GameHighlights {
   } | null;
 }
 export type Action =
+  | { type: 'partyAnswer'; text: string }
+  | { type: 'partyVote'; choice: string }
   | { type: 'answerReady'; ready: boolean }
   | { type: 'hostParticipation'; participating: boolean }
   | { type: 'answer'; matchId: string; text: string }

@@ -113,5 +113,14 @@
     }
   ],
   "promptPrefix": "Use case: stylized-concept. Asset type: original Japanese multiplayer party-game player avatar, one standalone production PNG cutout. Style: polished cute soft 3D clay/vinyl toy illustration, rounded chubby proportions, very short limbs, a large expressive face, tiny glossy dark eyes, gentle blush, tactile matte surface, warm soft studio lighting, pastel but clearly distinguishable colors. Composition: full body, front-facing with a subtle three-quarter turn, centered on a square canvas, subject occupies about 80 percent, generous transparent padding around all sides. Mood: playful, warm, appealing to a group of adult friends as well as families. Constraints: exactly one character, genuinely transparent background, no scene, no floor, no cast shadow outside the character, no border, no text, no letters, no watermark, no logo, no existing franchise character, no emoji glyph or emoji rendering. All assets belong to one cohesive collectible toy cast. Subject: ",
-  "promptSuffix": "."
+  "promptSuffix": ".",
+  "anonymousSpeaker": {
+    "id": "mystery",
+    "sourceFile": "exec-81f4b288-5fc7-46bc-87e4-8df59022c933.png",
+    "tool": "built-in image_gen",
+    "transparentBackground": true,
+    "prompt": "Use case: stylized-concept. Asset type: original anonymous speaker mascot cutout for a Japanese party game's answer speech bubbles. Primary request: a friendly mysterious little creature whose identity is hidden, with a very large bold simple question mark ? on its face mask, so it reads as WHO SAID THIS. Subject: one chubby soft midnight-purple toy creature, round head and pear-shaped body, a smooth cream-white face mask with exactly one large dark question mark centered above a tiny open smiling mouth, tiny cream mitten hands and round little feet, one hand raised as if delivering a funny line. No animal-specific ears or tail, no resemblance to any selectable cat/dog/panda/rabbit avatar. Style: polished adorable soft 3D clay/vinyl game character, soft studio lighting, gentle texture, warm joyful personality, clean readable silhouette. Composition: one full body centered on a square canvas, all head, hands and feet visible, front three-quarter view, fills about 80 percent of canvas with transparent margins. Background: genuine transparent alpha, no ground plane or shadow backdrop. Text: only the single question mark ? on mask, no other text. Avoid logos, watermarks, borders, emoji artwork, existing franchise characters.",
+    "output": "public/img/games/ogiri/mystery.webp",
+    "use": "Anonymous speaker only; not a selectable player character"
+  }
 }

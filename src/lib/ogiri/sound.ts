@@ -21,8 +21,8 @@ const brass = (frequency: number, at = 0, duration = 0.22, gain = 0.4): Tone => 
   ...note(frequency, at, duration, gain), wave: 'triangle',
 });
 export const DEFAULT_PARTY_VOLUME = 0.6;
-export const PARTY_MASTER_GAIN = 0.32;
-/** Original short melodies. Synthesized on the device; no audio downloads or generation API. */
+export const PARTY_MASTER_GAIN = 1;
+/** Original short melodies and a synthesis fallback. Three main cues use preloaded CC0 clips below. */
 export const SOUND_CUES = {
   select: [{ ...note(580, 0, 0.13, 0.45), endFrequency: 940 }],
   join: [note(523.25, 0, 0.16), note(783.99, 0.1, 0.24), note(1046.5, 0.2, 0.25, 0.28)],
@@ -89,6 +89,11 @@ export const SOUND_CUES = {
   ],
 } satisfies Record<string, Tone[]>;
 export type SoundCue = keyof typeof SOUND_CUES;
+export const SOUND_FILES: Partial<Record<SoundCue, string>> = {
+  bounce: '/audio/ogiri/boing.mp3',
+  count: '/audio/ogiri/score-count.mp3',
+  cheer: '/audio/ogiri/cheer.mp3',
+};
 
 export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue | null {
   if (!previous || previous.code !== next.code || next.paused) return null;
@@ -110,6 +115,24 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
 export function createPartyAudio(context: AudioContext) {
   const master = context.createGain();
   master.connect(context.destination);
+  const mix = context.createGain();
+  mix.gain.setValueAtTime(1.5, context.currentTime);
+  const compressor = context.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-10, context.currentTime);
+  compressor.knee.setValueAtTime(10, context.currentTime);
+  compressor.ratio.setValueAtTime(4, context.currentTime);
+  compressor.attack.setValueAtTime(0.001, context.currentTime);
+  compressor.release.setValueAtTime(0.12, context.currentTime);
+  const makeup = context.createGain();
+  makeup.gain.setValueAtTime(1.5, context.currentTime);
+  const limiter = context.createWaveShaper();
+  limiter.curve = Float32Array.from({ length: 2049 }, (_, i) => Math.max(-0.96, Math.min(0.96, i / 1024 - 1)));
+  mix.connect(compressor);
+  compressor.connect(makeup);
+  makeup.connect(limiter);
+  limiter.connect(master);
+  const samples = new Map<SoundCue, AudioBuffer>();
+  let preparing: Promise<void> | undefined;
   type Voice = { source: AudioScheduledSourceNode; gain: GainNode; filter?: BiquadFilterNode; vibrato?: OscillatorNode; vibratoGain?: GainNode };
   const active = new Set<Voice>();
   let claps: AudioBuffer | undefined;
@@ -152,11 +175,23 @@ export function createPartyAudio(context: AudioContext) {
       if (context.state !== 'running') throw new Error('Audio output is not running');
     },
     state: () => context.state,
+    prepare() {
+      preparing ??= Promise.all(Object.entries(SOUND_FILES).map(async ([cue, path]) => {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error('Sound file could not be loaded');
+        samples.set(cue as SoundCue, await context.decodeAudioData(await response.arrayBuffer()));
+      })).then(() => {}).catch(error => { preparing = undefined; throw error; });
+      return preparing;
+    },
     setVolume,
     stop,
     close: () => {
       stop();
       context.onstatechange = null;
+      mix.disconnect();
+      compressor.disconnect();
+      makeup.disconnect();
+      limiter.disconnect();
       master.disconnect();
       return context.close();
     },
@@ -164,6 +199,19 @@ export function createPartyAudio(context: AudioContext) {
       if (context.state !== 'running') return false;
       setVolume(volume);
       if (cue === 'champion' || cue === 'cheer' || cue === 'count' || active.size > 24) stop();
+      const sample = samples.get(cue);
+      if (sample) {
+        const source = context.createBufferSource(), gain = context.createGain();
+        source.buffer = sample;
+        source.connect(gain);
+        gain.connect(mix);
+        gain.gain.setValueAtTime(1, context.currentTime);
+        const voice = { source, gain };
+        active.add(voice);
+        source.onended = () => disconnect(voice);
+        source.start(context.currentTime);
+        return true;
+      }
       for (const tone of SOUND_CUES[cue] as Tone[]) {
         const start = context.currentTime + tone.at;
         const gain = context.createGain();
@@ -211,7 +259,7 @@ export function createPartyAudio(context: AudioContext) {
         );
         gain.gain.exponentialRampToValueAtTime(tone.gain * 0.8, start + tone.duration * 0.38);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.duration);
-        gain.connect(master);
+        gain.connect(mix);
         const voice = { source, gain, filter, vibrato, vibratoGain };
         active.add(voice);
         source.onended = () => disconnect(voice);

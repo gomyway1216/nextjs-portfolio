@@ -5,10 +5,12 @@ test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '1
 
 type CelebrationProbe = {
   maxRms: number;
+  countStartAt: number | null;
+  revealAt: number | null;
   scores: { phase: string; target: number; value: number; counting: string | null }[];
 };
 
-test('four players see scores count up while the TV plays bounce, count and cheer effects', async ({ page: host, browser, baseURL }) => {
+test('four players see scores count up while the TV plays bounce, count and cheer effects', async ({ page: host, browser, baseURL }, info) => {
   const contexts: BrowserContext[] = [];
   const errors: string[] = [];
   try {
@@ -35,8 +37,16 @@ test('four players see scores count up while the TV plays bounce, count and chee
     await tv.setViewportSize({ width: 1920, height: 1080 });
     await tv.emulateMedia({ reducedMotion: 'no-preference' });
     await tv.addInitScript(() => {
-      const probe: CelebrationProbe = { maxRms: 0, scores: [] };
+      const probe: CelebrationProbe = { maxRms: 0, countStartAt: null, revealAt: null, scores: [] };
       Object.defineProperty(window, '__celebrationProbe', { value: probe });
+      const startBuffer = AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+        if (probe.countStartAt === null && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？'
+          && document.querySelector('[data-score-final="400"]')) {
+          probe.countStartAt = performance.now() + Math.max(0, (args[0] ?? this.context.currentTime) - this.context.currentTime) * 1000;
+        }
+        startBuffer.apply(this, args);
+      };
       const createGain = AudioContext.prototype.createGain;
       AudioContext.prototype.createGain = function () {
         const gain = createGain.call(this);
@@ -70,13 +80,15 @@ test('four players see scores count up while the TV plays bounce, count and chee
           value: Number(score.textContent),
           counting: score.getAttribute('data-counting'),
         };
+        if (probe.revealAt === null && sample.phase === 'これ書いたの、だれ？' && sample.target === 400)
+          probe.revealAt = performance.now();
         if (JSON.stringify(probe.scores.at(-1)) !== JSON.stringify(sample)) probe.scores.push(sample);
       }).observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-counting', 'data-score-final'] });
     });
     await tv.goto(`/games/ogiri/${room.code}/tv`);
     const snapshot = () => tv.evaluate(() => {
       const probe = (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe;
-      return { maxRms: probe.maxRms, scores: probe.scores };
+      return { maxRms: probe.maxRms, scores: probe.scores, countStartAt: probe.countStartAt, revealAt: probe.revealAt };
     });
     const resetPeak = () => tv.evaluate(() => {
       (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe.maxRms = 0;
@@ -91,6 +103,7 @@ test('four players see scores count up while the TV plays bounce, count and chee
     }
     await expect(tv.getByRole('heading', { name: 'どっちで笑った？', exact: true })).toBeVisible();
     await tv.waitForTimeout(800); // Finish the short answer-entry bounce before measuring count audio.
+    await tv.screenshot({ path: info.outputPath('mystery-speakers-tv.png'), fullPage: true });
     await resetPeak();
     for (const context of contexts) {
       const mine = await read(context);
@@ -105,6 +118,14 @@ test('four players see scores count up while the TV plays bounce, count and chee
     const revealScores = (await snapshot()).scores.filter(sample => sample.phase === 'これ書いたの、だれ？');
     expect(revealScores.some(sample => sample.value < 400)).toBe(true);
     expect(revealScores.at(-1)?.value).toBe(400);
+    const sync = await snapshot();
+    expect(sync.countStartAt).not.toBeNull();
+    expect(sync.revealAt).not.toBeNull();
+    // The decoded clip and the first reveal DOM must start within one 30fps frame.
+    const audioDomGapMs = Math.abs(sync.countStartAt! - sync.revealAt!);
+    expect(audioDomGapMs).toBeLessThan(34);
+    await info.attach('score-audio-sync', { body: JSON.stringify({ audioDomGapMs }), contentType: 'application/json' });
+    await tv.screenshot({ path: info.outputPath('revealed-speakers-tv.png'), fullPage: true });
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
     const firstWinner = room.match!.result!.authors[0];

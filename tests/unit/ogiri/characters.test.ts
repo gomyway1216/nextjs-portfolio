@@ -6,6 +6,13 @@ import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { AVATARS } from '@/lib/ogiri/types';
 
 describe('original character assets', () => {
+  it('keeps the lightweight anonymous speaker separate from selectable identities', async () => {
+    const file = path.join(process.cwd(), 'public/img/games/ogiri/mystery.webp');
+    expect(await sharp(file).metadata()).toMatchObject({ width: 384, height: 384, hasAlpha: true });
+    expect(statSync(file).size).toBeLessThan(40_000);
+    expect(CHARACTERS.some(character => String(character.id) === 'mystery')).toBe(false);
+    expect(CHARACTERS).toHaveLength(20);
+  });
   it('covers every existing avatar identifier without changing saved games', async () => {
     expect(CHARACTERS.map((c) => c.avatar)).toEqual(AVATARS);
     expect(new Set(CHARACTERS.map((c) => c.id)).size).toBe(20);

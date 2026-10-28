@@ -14,34 +14,44 @@ const note = (frequency: number, at = 0, duration = 0.18, gain = 0.5): Tone => (
   duration,
   gain,
 });
+const brass = (frequency: number, at = 0, duration = 0.22, gain = 0.4): Tone => ({
+  ...note(frequency, at, duration, gain), wave: 'triangle',
+});
+export const DEFAULT_PARTY_VOLUME = 0.6;
+export const PARTY_MASTER_GAIN = 0.32;
 /** Original short melodies. Synthesized on the device; no audio downloads or generation API. */
 export const SOUND_CUES = {
-  select: [{ ...note(580, 0, 0.09, 0.35), endFrequency: 940 }],
-  join: [note(523.25, 0, 0.12), note(783.99, 0.09, 0.22)],
-  start: [note(392, 0, 0.16), note(523.25, 0.13, 0.16), note(659.25, 0.26, 0.35)],
-  submit: [note(659.25, 0, 0.1, 0.35), note(1046.5, 0.08, 0.21, 0.4)],
-  vote: [{ ...note(740, 0, 0.12, 0.35), endFrequency: 1108.73 }],
-  voting: [note(440, 0, 0.15), note(659.25, 0.13, 0.3)],
+  select: [{ ...note(580, 0, 0.13, 0.45), endFrequency: 940 }],
+  join: [note(523.25, 0, 0.16), note(783.99, 0.1, 0.24), note(1046.5, 0.2, 0.25, 0.28)],
+  start: [
+    brass(392), brass(523.25, 0.15), brass(659.25, 0.3),
+    brass(523.25, 0.5, 0.42, 0.25), brass(783.99, 0.5, 0.42), note(196, 0.5, 0.42, 0.3),
+  ],
+  submit: [note(659.25, 0, 0.13, 0.45), note(1046.5, 0.09, 0.26), note(1318.51, 0.09, 0.26, 0.2)],
+  vote: [{ ...brass(740, 0, 0.15, 0.45), endFrequency: 1108.73 }],
+  voting: [brass(440, 0, 0.18), brass(659.25, 0.15, 0.35), note(220, 0.15, 0.35, 0.3)],
   reveal: [
-    note(261.63, 0, 0.16, 0.6),
-    note(523.25, 0.12, 0.18),
-    note(659.25, 0.24, 0.18),
-    note(783.99, 0.36, 0.5),
+    { ...brass(261.63, 0, 0.16, 0.55), endFrequency: 523.25 },
+    brass(523.25, 0.12, 0.18),
+    brass(659.25, 0.24, 0.18),
+    brass(783.99, 0.36, 0.55),
+    note(196, 0.36, 0.55, 0.3),
   ],
   ranking: [
-    note(392, 0, 0.15),
-    note(493.88, 0.12, 0.15),
-    note(587.33, 0.24, 0.15),
-    note(783.99, 0.4, 0.45),
+    brass(392, 0, 0.18),
+    brass(493.88, 0.12, 0.18),
+    brass(587.33, 0.24, 0.18),
+    brass(783.99, 0.4, 0.5), note(392, 0.4, 0.5, 0.3),
   ],
   champion: [
-    note(523.25, 0, 0.2),
-    note(659.25, 0.17, 0.2),
-    note(783.99, 0.34, 0.2),
-    note(1046.5, 0.55, 0.55),
-    note(783.99, 0.78, 0.2),
-    note(1318.51, 0.96, 0.65),
-    note(523.25, 0.96, 0.65, 0.3),
+    brass(523.25, 0, 0.22),
+    brass(659.25, 0.17, 0.22),
+    brass(783.99, 0.34, 0.22),
+    brass(1046.5, 0.55, 0.4),
+    brass(783.99, 0.78, 0.22),
+    brass(1318.51, 0.96, 0.65),
+    brass(523.25, 0.96, 0.65, 0.25),
+    note(261.63, 0.96, 0.65, 0.3),
   ],
   tick: [note(880, 0, 0.055, 0.2)],
 } satisfies Record<string, Tone[]>;
@@ -70,7 +80,7 @@ export function createPartyAudio(context: AudioContext) {
   const active = new Set<{ oscillator: OscillatorNode; gain: GainNode }>();
   const setVolume = (volume: number) => {
     master.gain.setValueAtTime(
-      0.2 * Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 0)),
+      PARTY_MASTER_GAIN * Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 0)),
       context.currentTime,
     );
   };
@@ -83,16 +93,21 @@ export function createPartyAudio(context: AudioContext) {
     active.clear();
   };
   return {
-    resume: () => context.resume(),
+    async resume() {
+      await context.resume();
+      if (context.state !== 'running') throw new Error('Audio output is not running');
+    },
+    state: () => context.state,
     setVolume,
     stop,
     close: () => {
       stop();
+      context.onstatechange = null;
       master.disconnect();
       return context.close();
     },
     play(cue: SoundCue, volume: number) {
-      if (context.state !== 'running') return;
+      if (context.state !== 'running') return false;
       setVolume(volume);
       if (cue === 'champion' || active.size > 24) stop();
       for (const tone of SOUND_CUES[cue] as Tone[]) {
@@ -109,8 +124,9 @@ export function createPartyAudio(context: AudioContext) {
         gain.gain.setValueAtTime(0.0001, start);
         gain.gain.exponentialRampToValueAtTime(
           tone.gain,
-          start + Math.min(0.012, tone.duration / 4),
+          start + Math.min(0.008, tone.duration / 4),
         );
+        gain.gain.exponentialRampToValueAtTime(tone.gain * 0.8, start + tone.duration * 0.38);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.duration);
         oscillator.connect(gain);
         gain.connect(master);
@@ -124,6 +140,7 @@ export function createPartyAudio(context: AudioContext) {
         oscillator.start(start);
         oscillator.stop(start + tone.duration + 0.015);
       }
+      return true;
     },
   };
 }

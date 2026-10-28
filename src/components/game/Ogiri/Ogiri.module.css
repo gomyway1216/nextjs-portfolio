@@ -560,6 +560,9 @@ a.historyCard:hover {
 .tools {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  max-width: 100%;
 }
 .tools button {
   border: 1px solid #ffffff30;
@@ -569,6 +572,77 @@ a.historyCard:hover {
   min-height: 40px;
   padding: 7px 10px;
   font-size: 12px;
+}
+.tools .soundToggle {
+  background: var(--lime);
+  border: 2px solid #19162f;
+  box-shadow: 3px 3px 0 #19162f;
+  color: #19162f;
+  font-weight: 900;
+}
+.tools .soundToggle[aria-pressed='true'] {
+  background: #9bffd1;
+}
+.soundMenu {
+  position: relative;
+  font-size: 12px;
+}
+.soundMenu > summary {
+  cursor: pointer;
+  padding: 7px 10px;
+  border: 1px solid #ffffff70;
+  border-radius: 8px;
+  min-height: 40px;
+}
+.soundMenu > section {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 280px;
+  max-width: calc(100vw - 40px);
+  padding: 16px;
+  border: 3px solid #19162f;
+  border-radius: 14px;
+  box-shadow: 5px 5px 0 #19162f;
+  background: #fff8de;
+  color: #19162f;
+  font-size: 14px;
+}
+.soundMenu p {
+  margin: 8px 0;
+}
+.soundMenu label {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+}
+.soundMenu select {
+  color: #19162f;
+  background: white;
+  border: 2px solid #19162f;
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+}
+.soundMenu button,
+.soundCheck button {
+  color: #19162f;
+  background: #ffb8db;
+  border: 2px solid #19162f;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.soundCheck {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px dashed #19162f70;
+}
+.soundCheck p {
+  font-weight: 800;
+  margin-bottom: 8px;
 }
 .roundHeader {
   display: flex;
@@ -1362,7 +1436,7 @@ a.historyCard:hover {
   font-size: 2vw;
 }
 .tv .tools {
-  opacity: 0.35;
+  opacity: 1;
 }
 .tv .tools:hover,
 .tv .tools:focus-within {
@@ -1516,6 +1590,14 @@ a.historyCard:hover {
   }
 }
 @media (max-width: 520px) {
+  .soundMenu > section {
+    position: fixed;
+    inset: auto 16px 16px;
+    width: auto;
+    max-width: none;
+    max-height: 70dvh;
+    overflow-y: auto;
+  }
   .avatars {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

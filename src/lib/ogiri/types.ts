@@ -13,7 +13,10 @@ export const CATEGORIES = {
   random: 'その他・ランダム',
 } as const;
 export type Category = keyof typeof CATEGORIES;
-export const AVATARS = ['🐱', '🐶', '🐼', '🦊', '🐸', '🐙', '🦄', '🐧', '🎃', '👻', '🦇', '🧙'];
+export const AVATARS = [
+  '🐱', '🐶', '🐼', '🦊', '🐸', '🐙', '🦄', '🐧', '🎃', '👻', '🦇', '🧙',
+  'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
+];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
 export interface Settings {
   rounds: number;

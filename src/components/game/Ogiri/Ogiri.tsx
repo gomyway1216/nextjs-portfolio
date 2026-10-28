@@ -11,7 +11,7 @@ import { normalizePlayerText } from '@/lib/ogiri/text';
 import { RoundPlan } from './RoundPlan';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
-import { createPartyAudio, phaseSound } from '@/lib/ogiri/sound';
+import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, type SoundCue } from '@/lib/ogiri/sound';
 import { Character } from './Character';
 import { PartyResults } from './PartyResults';
 import styles from './Ogiri.module.css';
@@ -198,7 +198,7 @@ export function OgiriLanding() {
             </p>
             <div className={styles.facts}>
               <span>📱 インストール不要</span>
-              <span>⏱ 目安15〜25分</span>
+              <span>⏱ 時間はゆっくり、調整OK</span>
               <span>🎃 ハロウィンにも</span>
             </div>
           </section>
@@ -349,8 +349,8 @@ function SettingsForm({
         {(
           [
             ['rounds', 'ラウンド数', [1, 2, 3, 4, 5]],
-            ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180]],
-            ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45]],
+            ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
+            ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
         ).map(([key, label, values]) => (
           <label key={key}>
@@ -367,6 +367,7 @@ function SettingsForm({
           </label>
         ))}
       </div>
+      <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>
       <label className={styles.check}>
         <input
           type="checkbox"
@@ -418,9 +419,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     [clock, setClock] = useState(0),
     [offset, setOffset] = useState(0);
   const [sound, setSound] = useState(false),
+    [audioBlocked, setAudioBlocked] = useState(false),
+    [audioBusy, setAudioBusy] = useState(false),
+    [previewCue, setPreviewCue] = useState<SoundCue>('champion'),
     [reduced, setReduced] = useState(false),
     [busy, setBusy] = useState(false);
-  const [volume, setVolume] = useState(0.4);
+  const [volume, setVolume] = useState(DEFAULT_PARTY_VOLUME);
   const [syncStop, setSyncStop] = useState<SyncStop>(null);
   const sync = useRef<ReturnType<typeof startRoomPolling> | null>(null);
   const historySignature = useRef('');
@@ -506,6 +510,27 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       audio.current = null;
     };
   }, []);
+  async function enableAudio(cue: SoundCue = 'select') {
+    if (audioBusy) return;
+    setAudioBusy(true);
+    try {
+      if (!audio.current || audio.current.state() === 'closed') {
+        const context = new AudioContext();
+        context.onstatechange = () => setAudioBlocked(context.state !== 'running');
+        audio.current = createPartyAudio(context);
+      }
+      await audio.current.resume();
+      setAudioBlocked(false);
+      setSound(true);
+      audio.current.stop();
+      audio.current.play(cue, volume);
+    } catch {
+      setAudioBlocked(true);
+      setSound(false);
+    } finally {
+      setAudioBusy(false);
+    }
+  }
   async function send(action: Action) {
     if (tv || busy) return false;
     setBusy(true);
@@ -533,6 +558,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
   const manualResult = isManualResult(v);
+  const waitingForAnswers = v?.phase === 'answering' && remaining === 0;
   const answerers = v?.players.filter((p) => p.answeringThisRound && p.active) ?? [];
   const readyCount = answerers.filter((p) => p.answerReady).length;
   const everyoneReady = answerers.length > 0 && readyCount === answerers.length;
@@ -583,25 +609,20 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
           </span>
           <div className={styles.tools}>
             <button
-              aria-label={sound ? 'ミュート' : '効果音をオン'}
-              aria-pressed={sound}
-              onClick={async () => {
-                if (sound) {
+              className={styles.soundToggle}
+              aria-label={audioBlocked ? '音声を再開' : sound ? 'ミュート' : '効果音をオン'}
+              aria-pressed={sound && !audioBlocked}
+              disabled={audioBusy}
+              onClick={() => {
+                if (sound && !audioBlocked) {
                   audio.current?.stop();
                   setSound(false);
                   return;
                 }
-                try {
-                  audio.current ??= createPartyAudio(new AudioContext());
-                  await audio.current.resume();
-                  setSound(true);
-                  audio.current.play('select', volume);
-                } catch {
-                  setError('音声を有効にできませんでした。もう一度音ボタンを押してください。');
-                }
+                void enableAudio();
               }}
             >
-              {sound ? '🔊' : '🔇'}
+              {audioBlocked ? '音を再開' : sound ? '音ON' : '音OFF'}
             </button>
             {sound && (
               <label className={styles.volumeControl}>
@@ -620,6 +641,26 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 />
               </label>
             )}
+            <details className={styles.soundMenu}>
+              <summary>音設定</summary>
+              <section aria-label="効果音の設定">
+                <b>{audioBlocked ? '音が一時停止しています' : sound ? 'この画面から音が出ます' : 'いまは音OFFです'}</b>
+                <p>テレビで鳴らすなら、テレビ画面側でオンにしてね。</p>
+                {audioBlocked && <p>「音声を再開」を押してください。端末の音量や消音設定も確認できます。</p>}
+                {volume === 0 && <p>音量が0です。スライダーで音量を上げてね。</p>}
+                <label>
+                  試聴する効果音
+                  <select aria-label="試聴する効果音" value={previewCue} onChange={e => setPreviewCue(e.target.value as SoundCue)}>
+                    {([
+                      ['select', '選択'], ['join', '参加'], ['start', '開始'], ['submit', '回答送信'],
+                      ['vote', '投票'], ['voting', '投票開始'], ['reveal', '結果発表'], ['ranking', '中間順位'],
+                      ['champion', '優勝'], ['tick', '秒読み'],
+                    ] as const).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <button type="button" disabled={audioBusy} onClick={() => void enableAudio(previewCue)}>音を試す</button>
+              </section>
+            </details>
             <button aria-pressed={reduced} onClick={() => setReduced(!reduced)}>
               動き{reduced ? '少' : '多'}
             </button>
@@ -702,12 +743,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               )}
               {v.deadline > 0 && !manualResult && !['finished', 'lobby'].includes(v.phase) && (
                 <div
-                  className={`${styles.timer} ${remaining <= 10 ? styles.urgent : ''}`}
+                  className={`${styles.timer} ${remaining <= 10 && !waitingForAnswers ? styles.urgent : ''}`}
                   role="timer"
-                  aria-label="残り時間"
+                  aria-label={v.phase === 'answering' ? '回答時間の目安' : '残り時間'}
                 >
-                  {v.paused ? '休憩' : remaining}
-                  <small>{v.paused ? '再開まで待ってね' : '秒'}</small>
+                  {v.paused ? '休憩' : waitingForAnswers ? '待機' : remaining}
+                  <small>{v.paused ? '再開まで待ってね' : waitingForAnswers ? 'まだ回答できるよ' : v.phase === 'answering' ? '秒・目安' : '秒'}</small>
                 </div>
               )}
             </header>
@@ -765,6 +806,15 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <h2>スマホで、ここから参加。</h2>
                   <p>meetyudai.com/games/ogiri</p>
                   <strong>{code}</strong>
+                  {(tv || v.isHost) && (
+                    <div className={styles.soundCheck}>
+                      <p>{sound && !audioBlocked ? 'この画面の音はONです' : tv ? 'テレビの音、鳴らしてみる？' : 'この端末の音、試してみる？'}</p>
+                      {!tv && <small>テレビではTV画面側の音をオンにしてね。</small>}
+                      <button type="button" disabled={audioBusy} onClick={() => void enableAudio('start')}>
+                        {sound && !audioBlocked ? '音をもう一度試す' : '音を出して試す'}
+                      </button>
+                    </div>
+                  )}
                 </aside>
               </div>
             )}
@@ -796,7 +846,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       key={a.id}
                       assignment={a}
                       code={code}
-                      disabled={v.paused || !connected || remaining === 0 || Boolean(mine?.answerReady)}
+                      disabled={v.paused || !connected || Boolean(mine?.answerReady)}
                       send={send}
                     />
                   ))}
@@ -806,13 +856,13 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               <section className={styles.readyBar} aria-label="回答の確定状況">
                 <p role="status"><b>{readyCount} / {answerers.length}人がOK！</b> {everyoneReady ? '全員そろいました。' : '全員の回答確定を待っています。'}</p>
                 <small>{v.settings.autoAdvance
-                  ? '全員が「これでOK！」を押すと投票へ。時間切れでも進みます。'
-                  : '全員OK後は主催者が「次へ進む」で投票へ。時間切れでも進みます。'}</small>
+                  ? '全員が「これでOK！」を押すと投票へ。目安時間を過ぎても回答できます。'
+                  : '全員OK後は主催者が投票へ進めます。目安時間を過ぎても回答できます。'}</small>
                 {hasUnsentChanges && v.assignments.every((a) => a.answer) && <small>未送信の変更があります。先に「回答を更新」を押してね。</small>}
                 {!tv && mine?.answeringThisRound && mine.active && (
-                  mine.answerReady ? <button className={styles.secondary} disabled={busy || v.paused || !connected || remaining === 0}
+                  mine.answerReady ? <button className={styles.secondary} disabled={busy || v.paused || !connected}
                     onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
-                    : <button className={styles.primary} disabled={busy || v.paused || !connected || remaining === 0 || hasUnsentChanges || v.assignments.length !== 2 || v.assignments.some((a) => !a.answer)}
+                    : <button className={styles.primary} disabled={busy || v.paused || !connected || hasUnsentChanges || v.assignments.length !== 2 || v.assignments.some((a) => !a.answer)}
                       onClick={() => void confirmAnswers()}>これでOK！</button>
                 )}
                 {!tv && v.isHost && everyoneReady && !v.settings.autoAdvance && (
@@ -1006,6 +1056,15 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     ) : (
                       v.phase !== 'finished' && (
                         <>
+                          {!manualResult && (
+                            <button
+                              className={styles.secondary}
+                              disabled={busy || !connected}
+                              onClick={() => void send({ type: 'extend' })}
+                            >
+                              {v.phase === 'answering' ? '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
+                            </button>
+                          )}
                           <button
                             className={styles.secondary}
                             disabled={busy}
@@ -1019,7 +1078,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             onClick={() => {
                               if (
                                 ['answering', 'voting'].includes(v.phase) &&
-                                !window.confirm('制限時間を待たずに締め切りますか？')
+                                !window.confirm(v.phase === 'answering' ? 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
                               )
                                 return;
                               void send({ type: 'next' });

@@ -39,6 +39,15 @@ it('suspends manual results while keeping timed answers and votes responsive', (
     expect(pollingDelay({ ...active, phase, settings: { autoAdvance: false } } as RoomView, IDLE_STOP_MS)).toBe(1500);
 });
 
+it('backs off while waiting for late answers, without slowing timed voting', () => {
+  for (const automatic of [true, false]) {
+    const overtime = { ...active, serverTime: active.deadline, settings: { autoAdvance: automatic } } as RoomView;
+    expect([0, 15000, 60000, IDLE_STOP_MS].map(t => pollingDelay(overtime, t)))
+      .toEqual([1500, 5000, 15000, null]);
+    expect(pollingDelay({ ...overtime, phase: 'voting' }, IDLE_STOP_MS)).toBe(1500);
+  }
+});
+
 it('sends no hidden/offline polls or heartbeats and resumes immediately', async () => {
   const p = setup();
   await vi.advanceTimersByTimeAsync(0);

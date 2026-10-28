@@ -8,7 +8,7 @@ import { AVATARS } from '@/lib/ogiri/types';
 describe('original character assets', () => {
   it('covers every existing avatar identifier without changing saved games', async () => {
     expect(CHARACTERS.map((c) => c.avatar)).toEqual(AVATARS);
-    expect(new Set(CHARACTERS.map((c) => c.id)).size).toBe(12);
+    expect(new Set(CHARACTERS.map((c) => c.id)).size).toBe(20);
     let bytes = 0;
     for (const character of CHARACTERS) {
       const file = path.join(
@@ -23,7 +23,7 @@ describe('original character assets', () => {
       bytes += statSync(file).size;
       expect(characterFor(character.avatar)).toBe(character);
     }
-    expect(bytes).toBeLessThan(300_000);
+    expect(bytes).toBeLessThan(550_000);
     expect(characterFor('unknown')).toBe(CHARACTERS[0]);
   });
 });

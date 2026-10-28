@@ -1,7 +1,7 @@
 /** Reproduce the original sound set as offline WAV previews: npx tsx scripts/ogiri/render-sounds.ts */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SOUND_CUES, type Tone } from '../../src/lib/ogiri/sound';
+import { DEFAULT_PARTY_VOLUME, PARTY_MASTER_GAIN, SOUND_CUES, type Tone } from '../../src/lib/ogiri/sound';
 const directory = resolve(process.argv[2] ?? '.artifacts/ogiri/sounds');
 mkdirSync(directory, { recursive: true });
 const rate = 22050;
@@ -9,7 +9,8 @@ function render(tones: Tone[]) {
   const length = Math.ceil((Math.max(...tones.map((t) => t.at + t.duration)) + 0.1) * rate);
   const samples = new Float64Array(length);
   for (const tone of tones) {
-    const attack = Math.min(0.012, tone.duration / 4);
+    const attack = Math.min(0.008, tone.duration / 4);
+    const hold = tone.duration * 0.38;
     const ratio = (tone.endFrequency ?? tone.frequency) / tone.frequency;
     for (let i = 0; i < Math.ceil(tone.duration * rate); i++) {
       const time = i / rate;
@@ -21,8 +22,12 @@ function render(tones: Tone[]) {
       const envelope =
         time < attack
           ? 0.0001 * (tone.gain / 0.0001) ** (time / attack)
-          : tone.gain * (0.0001 / tone.gain) ** ((time - attack) / (tone.duration - attack));
-      samples[Math.round(tone.at * rate) + i] += Math.sin(2 * Math.PI * cycles) * envelope * 0.08;
+          : time < hold
+            ? tone.gain * 0.8 ** ((time - attack) / (hold - attack))
+            : tone.gain * 0.8 * (0.0001 / (tone.gain * 0.8)) ** ((time - hold) / (tone.duration - hold));
+      const sine = Math.sin(2 * Math.PI * cycles);
+      const wave = tone.wave === 'triangle' ? 2 / Math.PI * Math.asin(sine) : sine;
+      samples[Math.round(tone.at * rate) + i] += wave * envelope * PARTY_MASTER_GAIN * DEFAULT_PARTY_VOLUME;
     }
   }
   return samples;

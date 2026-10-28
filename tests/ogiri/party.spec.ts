@@ -9,6 +9,15 @@ for (const count of [3, 4, 10, 12])
   }, testInfo) => {
     const contexts: BrowserContext[] = [];
     const errors: string[] = [];
+    const reloading = new WeakSet<Page>();
+    async function reload(page: Page) {
+      reloading.add(page);
+      try {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      } finally {
+        reloading.delete(page);
+      }
+    }
     const partyHeaders: Record<string, string> = process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': `198.51.100.${count}` };
     async function phone() {
       const context = await browser.newContext({
@@ -21,7 +30,20 @@ for (const count of [3, 4, 10, 12])
       // Game-flow tests need stationary controls under multi-page WebKit load.
       // Character motion has its own presentation coverage.
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      page.on('pageerror', (e) => errors.push(e.message));
+      page.on('pageerror', (e) => {
+        const url = new URL(page.url());
+        const room = url.pathname.match(/^\/games\/ogiri\/([A-Z2-9]{6})(?:\/tv)?$/);
+        const api = room && new URL(`/api/ogiri/${room[1]}`, url);
+        // During reload, WebKit can report the old document's cancelled poll as a
+        // native access-control error. Its serialized name/message split the URL
+        // at "http:"; also require the intact stack line to match this room's origin.
+        if (browser.browserType().name() === 'webkit' && reloading.has(page) && api &&
+          e.name === `Fetch API cannot load ${api.protocol.slice(0, -1)}` &&
+          e.message === `/${api.host}${api.pathname} due to access control checks.` &&
+          e.stack?.split('\n')[0] === `Fetch API cannot load ${api.href} due to access control checks.`)
+          return;
+        errors.push(e.message);
+      });
       page.on('dialog', (d) => d.accept());
       return page;
     }
@@ -122,15 +144,15 @@ for (const count of [3, 4, 10, 12])
         .first()
         .getByRole('textbox', { name: '回答', exact: true })
         .fill('更新しても残る日本語😀');
-      await pages[1].reload({ waitUntil: 'domcontentloaded' });
+      await reload(pages[1]);
       await expect(
         pages[1]
           .getByTestId('answer-form')
           .first()
           .getByRole('textbox', { name: '回答', exact: true }),
       ).toHaveValue('更新しても残る日本語😀');
-      await host.reload({ waitUntil: 'domcontentloaded' });
-      await tv.reload({ waitUntil: 'domcontentloaded' });
+      await reload(host);
+      await reload(tv);
       await expect(host.getByText('主催者の操作')).toBeVisible();
       await expect(tv.getByTestId('answer-form')).toHaveCount(0);
       const late = await tv.request.post(`/api/ogiri/${code}`, {
@@ -187,7 +209,7 @@ for (const count of [3, 4, 10, 12])
           await contexts[1].setOffline(true);
           await pages[1].waitForTimeout(2000);
           await contexts[1].setOffline(false);
-          await pages[1].reload({ waitUntil: 'domcontentloaded' });
+          await reload(pages[1]);
           await expect(
             pages[1].getByRole('heading', { name: 'どっちで笑った？', exact: true }),
           ).toBeVisible();

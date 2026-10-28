@@ -43,12 +43,12 @@ export function settingsInput(value: unknown): Settings {
     'ラウンド数は1〜5です。',
   );
   requireThat(
-    Number.isInteger(s.answerSeconds) && s.answerSeconds >= 30 && s.answerSeconds <= 180,
-    '回答時間は30〜180秒です。',
+    Number.isInteger(s.answerSeconds) && s.answerSeconds >= 30 && s.answerSeconds <= 600,
+    '回答時間は30〜600秒です。',
   );
   requireThat(
-    Number.isInteger(s.voteSeconds) && s.voteSeconds >= 10 && s.voteSeconds <= 45,
-    '投票時間は10〜45秒です。',
+    Number.isInteger(s.voteSeconds) && s.voteSeconds >= 10 && s.voteSeconds <= 120,
+    '投票時間は10〜120秒です。',
   );
   requireThat(
     typeof s.autoAdvance === 'boolean' && typeof s.halloween === 'boolean',
@@ -277,7 +277,7 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
     case 'voting':
       scoreMatch(room, room.matches[room.matchIndex]);
       room.phase = 'reveal';
-      room.deadline = now + 8000;
+      room.deadline = now + 15000;
       break;
     case 'reveal':
       if (++room.matchIndex < room.matches.length) {
@@ -285,7 +285,7 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
         room.deadline = now + room.settings.voteSeconds * 1000;
       } else {
         room.phase = 'ranking';
-        room.deadline = now + 15000;
+        room.deadline = now + 20000;
       }
       break;
     case 'ranking':
@@ -304,6 +304,8 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
 export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.random): boolean {
   if (room.pausedAt || !room.deadline || now < room.deadline || room.phase === 'finished')
     return false;
+  // The answer timer is a guide: only everyone's OK or the host closes submissions.
+  if (room.phase === 'answering') return false;
   if (['reveal', 'ranking'].includes(room.phase) && !room.settings.autoAdvance) return false;
   advance(room, now, prompts, rng);
   room.revision++;
@@ -368,6 +370,9 @@ export function act(
       'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。',
     );
     room.settings = settings;
+  } else if (action.type === 'extend') {
+    requireThat(room.deadline > 0 && !['lobby', 'finished'].includes(room.phase), '今は延長できません。', 409);
+    room.deadline = Math.max(room.deadline, room.pausedAt || now) + (room.phase === 'answering' ? 60000 : 30000);
   } else if (action.type === 'pause') {
     requireThat(!room.pausedAt && room.deadline > 0, '今は一時停止できません。');
     room.pausedAt = now;
@@ -444,7 +449,7 @@ export function act(
       advance(room, now, prompts, rng);
     } else if (action.type === 'answer') {
       requireThat(
-        room.phase === 'answering' && now < room.deadline && player.active,
+        room.phase === 'answering' && player.active,
         '回答の受付は終了しました。',
         409,
       );
@@ -453,7 +458,7 @@ export function act(
       requireThat(m && m.players.includes(playerId), 'このお題には回答できません。', 403);
       m.answers[playerId] = textInput(action.text, 100);
     } else if (action.type === 'answerReady') {
-      requireThat(room.phase === 'answering' && now < room.deadline && player.active && !player.spectator,
+      requireThat(room.phase === 'answering' && player.active && !player.spectator,
         '今は回答を確定できません。', 409);
       requireThat(typeof action.ready === 'boolean', '確定するか選んでください。');
       const assignments = room.matches.filter((m) => m.players.includes(playerId));

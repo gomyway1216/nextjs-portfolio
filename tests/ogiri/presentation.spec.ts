@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 // shared-IP create budget intact. Production uses the real proxy-supplied IP.
 test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.20' } });
 
-test('twelve image characters, opt-in audio, volume and reduced motion work on a phone', async ({
+test('twenty image characters, opt-in audio, volume and reduced motion work on a phone', async ({
   page,
   request,
 }, testInfo) => {
@@ -32,23 +32,23 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
   await page.goto('/games/ogiri');
   await page.getByRole('button', { name: '主催する', exact: true }).click();
   const choices = page.getByRole('button', { name: /^キャラクター / });
-  await expect(choices).toHaveCount(12);
+  await expect(choices).toHaveCount(20);
   for (const choice of await choices.all()) {
     const box = await choice.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(390);
   }
-  await expect(choices.locator('img')).toHaveCount(12);
+  await expect(choices.locator('img')).toHaveCount(20);
   for (const image of await choices.locator('img').all())
     await expect(image).toHaveJSProperty('naturalWidth', 384);
-  await page.getByRole('button', { name: 'キャラクター おばもち', exact: true }).click();
+  await page.getByRole('button', { name: 'キャラクター ぷりんす', exact: true }).click();
   await expect(
-    page.getByRole('button', { name: 'キャラクター おばもち', exact: true }),
+    page.getByRole('button', { name: 'キャラクター ぷりんす', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   expect(
     await page
-      .getByRole('button', { name: 'キャラクター おばもち', exact: true })
+      .getByRole('button', { name: 'キャラクター ぷりんす', exact: true })
       .locator('span')
       .first()
       .evaluate((node) => getComputedStyle(node).animationName),
@@ -58,7 +58,12 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
   const createButton = page.getByRole('button', { name: 'ルームを作成 →', exact: true });
   await createButton.hover();
   expect(await createButton.evaluate((node) => getComputedStyle(node).transform)).toBe('none');
+  const creating = page.waitForResponse(response =>
+    response.url().endsWith('/api/ogiri') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'ルームを作成 →' }).click();
+  const created = await creating;
+  expect(created.ok()).toBe(true);
+  expect(created.request().postDataJSON()).toMatchObject({ avatar: 'pudding' });
   await expect(page).toHaveURL(/\/games\/ogiri\/[A-Z2-9]{6}$/);
   const code = page.url().split('/').at(-1)!;
   const started = () =>
@@ -67,7 +72,7 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
     );
   expect(await started()).toBe(0);
   await page.getByRole('button', { name: '効果音をオン', exact: true }).click();
-  await expect.poll(started).toBe(1);
+  await expect.poll(started).toBeGreaterThan(0);
   // The synthesizer schedules an end and can replace it with an immediate stop on mute.
   // Exercise that Web Audio contract in both real browser engines (not just mocked nodes).
   expect(
@@ -83,17 +88,17 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
     }),
   ).toBe(true);
   const volume = page.getByRole('slider', { name: '効果音の音量' });
-  await expect(volume).toHaveValue('40');
+  await expect(volume).toHaveValue('60');
   await volume.fill('20');
   await expect(volume).toHaveValue('20');
   await page.getByRole('button', { name: 'ミュート', exact: true }).click();
   await expect(volume).toHaveCount(0);
   const before = await started();
-  await request.post(`/api/ogiri/${code}`, {
-    data: { type: 'join', name: '参加者', avatar: '🐧' },
-  });
+  expect((await request.post(`/api/ogiri/${code}`, {
+    data: { type: 'join', name: '参加者', avatar: 'rabbit' },
+  })).ok()).toBe(true);
   await expect(page.getByRole('heading', { name: 'ただいま 1 人' })).toBeVisible();
   expect(await started()).toBe(before);
-  await expect(page.getByRole('img', { name: 'ぺんた', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'うさぽん', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -182,7 +182,7 @@ export async function command(
     if (!id) throw new GameError('参加し直してください。', 401);
     tick(room, now, prompts);
     if (
-      ['next', 'start', 'rematch', 'answerReady'].includes(action.type) &&
+      ['next', 'extend', 'start', 'rematch', 'answerReady'].includes(action.type) &&
       turn !== `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`
     )
       throw new GameError('画面が更新されました。もう一度操作してください。', 409);

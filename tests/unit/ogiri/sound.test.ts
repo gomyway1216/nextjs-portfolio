@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createPartyAudio, phaseSound, SOUND_CUES } from '@/lib/ogiri/sound';
+import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, SOUND_CUES } from '@/lib/ogiri/sound';
 import type { RoomView } from '@/lib/ogiri/types';
 const view = (phase: RoomView['phase'], turn = phase) =>
   ({ code: 'ABC234', phase, turn, paused: false, players: [{ id: 'a' }] }) as RoomView;
@@ -19,6 +19,7 @@ describe('original party audio', () => {
     expect(phaseSound(view('lobby'), view('answering'))).toBe('start');
   });
   it('bounds cue duration and gain, with distinct short notes for each action', () => {
+    expect(DEFAULT_PARTY_VOLUME).toBe(0.6);
     expect(Object.keys(SOUND_CUES)).toHaveLength(10);
     expect(new Set(Object.values(SOUND_CUES).map((tones) => JSON.stringify(tones))).size).toBe(10);
     for (const tones of Object.values(SOUND_CUES))
@@ -61,13 +62,16 @@ describe('original party audio', () => {
     audio.play('champion', 1);
     expect(oscillators).toHaveLength(0);
     expect(context.resume).not.toHaveBeenCalled();
+    await expect(audio.resume()).rejects.toThrow('not running');
     context.state = 'running';
+    await expect(audio.resume()).resolves.toBeUndefined();
+    expect(audio.state()).toBe('running');
     audio.setVolume(10);
-    expect(gainChanges).toHaveBeenLastCalledWith(0.2, 0);
+    expect(gainChanges).toHaveBeenLastCalledWith(0.32, 0);
     audio.setVolume(Number.NaN);
     expect(gainChanges).toHaveBeenLastCalledWith(0, 0);
     audio.play('reveal', 0.4);
-    expect(oscillators).toHaveLength(4);
+    expect(oscillators).toHaveLength(5);
     audio.stop();
     expect(
       oscillators.every(

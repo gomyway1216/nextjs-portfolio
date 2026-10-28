@@ -1,18 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
-import { AVATARS, CATEGORIES, type Action, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { AVATARS, CATEGORIES, GAME_TITLES, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { RoundPlan } from './RoundPlan';
+import { GAME_RULES, PartyGamePanel, PartyGamePicker } from './PartyGamePanel';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, type SoundCue } from '@/lib/ogiri/sound';
 import { Character } from './Character';
+import { MysteryCharacter } from './MysteryCharacter';
 import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import styles from './Ogiri.module.css';
@@ -24,6 +26,10 @@ const phaseName = {
   reveal: 'これ書いたの、だれ？',
   ranking: 'いま、こうなってます。',
   finished: '結果、出ました。',
+};
+const partyPhaseName = {
+  majority: { ...phaseName, voting: '多数派に、まざれ。', reveal: 'そっちが多かったか。' },
+  identity: { ...phaseName, answering: 'ひとこと、仕込み中。', voting: 'これ、だれが書いた？', reveal: '正体、こちら。' },
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -55,13 +61,16 @@ function JoinForm({
   code,
   create = false,
   onJoined,
+  initialGameType = 'ogiri',
 }: {
   code?: string;
   create?: boolean;
   onJoined?: (view: RoomView) => void;
+  initialGameType?: GameType;
 }) {
   const router = useRouter();
   const [hostPlays, setHostPlays] = useState(false);
+  const [gameType, setGameType] = useState<GameType>(initialGameType);
   const [name, setName] = useState(''),
     [avatar, setAvatar] = useState(AVATARS[0]);
   const [room, setRoom] = useState(code ?? ''),
@@ -76,7 +85,7 @@ function JoinForm({
         type: 'join',
         name,
         avatar,
-        ...(create ? { hostPlays } : {}),
+        ...(create ? { hostPlays, gameType } : {}),
       });
       localStorage.setItem('ogiri:lastRoom', view.code);
       if (onJoined) onJoined(view);
@@ -89,6 +98,7 @@ function JoinForm({
   }
   return (
     <form onSubmit={submit} className={styles.form}>
+      {create && <PartyGamePicker value={gameType} onChange={setGameType} />}
       {!create && !code && (
         <label>
           ルームコード
@@ -143,10 +153,10 @@ function JoinForm({
               checked={hostPlays}
               onChange={(e) => setHostPlays(e.target.checked)}
             />{' '}
-            主催者もこの端末で回答する
+            {gameType === 'ogiri' ? '主催者もこの端末で回答する' : '主催者もこの端末で遊ぶ'}
           </span>
           <small>
-            通常は進行役専用です。テレビ・PCで主催する場合はオフにし、回答は各自のスマホから参加してください。
+            通常は進行役専用です。テレビ・PCで主催する場合はオフにし、各自のスマホから参加してください。
           </small>
         </label>
       )}
@@ -164,11 +174,17 @@ function JoinForm({
 }
 export function OgiriLanding() {
   const [create, setCreate] = useState(false),
-    [lastRoom, setLastRoom] = useState('');
+    [lastRoom, setLastRoom] = useState(''),
+    [selectedGameType, setSelectedGameType] = useState<GameType>('ogiri');
   // Restoring browser-only storage after hydration is intentional.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastRoom(localStorage.getItem('ogiri:lastRoom') ?? '');
+    const game = new URLSearchParams(window.location.search).get('game');
+    if (game && Object.hasOwn(GAME_TITLES, game)) {
+      setSelectedGameType(game as GameType);
+      setCreate(true);
+    }
   }, []);
   return (
     <main className={styles.app} lang="ja">
@@ -181,29 +197,43 @@ export function OgiriLanding() {
         <div className={styles.hero}>
           <section>
             <p className={styles.eyebrow}>スマホが回答席。テレビが舞台。</p>
-            <h1 className={styles.title}>
-              <span>みんなの</span>大喜利
+            <h1 className={`${styles.title} ${styles.partyTitle}`}>
+              <span>みんなの</span>パーティー
               <span className={styles.lime}>
-                王<span aria-hidden="true">✳</span>
+                <span aria-hidden="true">✳</span>
               </span>
             </h1>
             <p className={styles.intro}>
-              お題はこっち。
+              書く。選ぶ。
               <br />
-              ボケるのはそっち。
+              「お前か！」ってなる。
             </p>
             <p>
-              スマホでボケる。みんなで投票。
+              大喜利・多数決・作者当て。
               <br />
-              最後に作者がバレます。
+              次のゲームも、同じ部屋で。
             </p>
             <div className={styles.facts}>
               <span>📱 インストール不要</span>
               <span>⏱ 時間はゆっくり、調整OK</span>
               <span>🎃 ハロウィンにも</span>
             </div>
+            <div className={styles.modeTeasers} aria-label="遊べる3つのゲーム">
+              {(['ogiri', 'majority', 'identity'] as const).map(type => <button key={type} type="button" onClick={() => {
+                setSelectedGameType(type);
+                setCreate(true);
+                requestAnimationFrame(() => document.getElementById('party-entry')?.scrollIntoView({
+                  behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start',
+                }));
+              }}>
+                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={type === 'ogiri' ? '🐱' : '🐸'} size="medium" />}
+                <b>{GAME_TITLES[type]}</b>
+                <span>{type === 'ogiri' ? '二人のボケに一票。' : type === 'majority' ? 'みんな、そっち派？' : 'これ書いたの、お前か。'}</span>
+                <small>このゲームで部屋を作る →</small>
+              </button>)}
+            </div>
           </section>
-          <section className={styles.joinCard} aria-label="ゲームをはじめる">
+          <section id="party-entry" className={styles.joinCard} aria-label="ゲームをはじめる">
             <div className={styles.tabs}>
               <button aria-pressed={!create} onClick={() => setCreate(false)}>
                 ルームに参加
@@ -212,8 +242,8 @@ export function OgiriLanding() {
                 主催する
               </button>
             </div>
-            <h2>{create ? 'まずは部屋をひとつ。' : '名前をどうぞ。ボケはあとで。'}</h2>
-            <JoinForm key={String(create)} create={create} />
+            <h2>{create ? 'まずは部屋をひとつ。' : '名前をどうぞ。出番はあとで。'}</h2>
+            <JoinForm key={`${create}:${selectedGameType}`} create={create} initialGameType={selectedGameType} />
             {lastRoom && (
               <Link className={styles.back} href={`/games/ogiri/${lastRoom}`}>
                 前のルーム（{lastRoom}）に戻る →
@@ -346,6 +376,10 @@ function SettingsForm({
       }}
       onChange={() => setSaved(false)}
     >
+      <PartyGamePicker value={s.gameType ?? 'ogiri'} onChange={gameType => {
+        set({ ...s, gameType });
+        setSaved(false);
+      }} />
       <div className={styles.settingGrid}>
         {(
           [
@@ -353,7 +387,7 @@ function SettingsForm({
             ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
             ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
-        ).map(([key, label, values]) => (
+        ).filter(([key]) => key !== 'answerSeconds' || s.gameType !== 'majority').map(([key, label, values]) => (
           <label key={key}>
             {label}
             <select
@@ -368,16 +402,16 @@ function SettingsForm({
           </label>
         ))}
       </div>
-      <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>
+      {s.gameType !== 'majority' && <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>}
       <label className={styles.check}>
         <input
           type="checkbox"
           checked={s.autoAdvance}
           onChange={(e) => set({ ...s, autoAdvance: e.target.checked })}
         />
-        全員の回答確定後・全員投票後・結果発表後に自動で進行
+        {s.gameType === 'majority' ? '全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
       </label>
-      <label className={styles.check}>
+      {(!s.gameType || s.gameType === 'ogiri') && <><label className={styles.check}>
         <input
           type="checkbox"
           checked={s.halloween}
@@ -407,6 +441,7 @@ function SettingsForm({
           ))}
         </div>
       </fieldset>
+      </>}
       <button className={styles.secondary}>設定を保存</button>
       {saved && <small role="status">設定を保存しました。</small>}
     </form>
@@ -426,6 +461,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     [reduced, setReduced] = useState(false),
     [busy, setBusy] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_PARTY_VOLUME);
+  const [soundOpen, setSoundOpen] = useState(false);
+  const soundMenu = useRef<HTMLDivElement | null>(null);
+  const soundTrigger = useRef<HTMLButtonElement | null>(null);
+  const soundDialog = useRef<HTMLElement | null>(null);
   const [syncStop, setSyncStop] = useState<SyncStop>(null);
   const sync = useRef<ReturnType<typeof startRoomPolling> | null>(null);
   const historySignature = useRef('');
@@ -492,7 +531,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       clearInterval(interval);
     };
   }, [code, tv, accept]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!view) return;
     const previous = lastSoundView.current;
     lastSoundView.current = view;
@@ -500,6 +539,34 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     const cue = phaseSound(previous, view);
     if (cue) audio.current?.play(cue, volume);
   }, [view, sound, volume]);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ogiri:volume');
+      if (saved !== null && Number.isFinite(Number(saved))) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- restore this device's volume after hydration
+        setVolume(Math.min(1, Math.max(0, Number(saved))));
+      }
+    } catch { /* Audio still works when browser storage is unavailable. */ }
+  }, []);
+  useEffect(() => {
+    if (!soundOpen) return;
+    soundDialog.current?.focus();
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('[data-audio-volume]')) return;
+      if (event.target instanceof Node && !soundMenu.current?.contains(event.target)) setSoundOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setSoundOpen(false);
+      soundTrigger.current?.focus();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [soundOpen]);
   useEffect(() => {
     const silenceHidden = () => {
       if (document.hidden) audio.current?.stop();
@@ -521,6 +588,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
         audio.current = createPartyAudio(context);
       }
       await audio.current.resume();
+      await audio.current.prepare();
       setAudioBlocked(false);
       setSound(true);
       audio.current.stop();
@@ -541,8 +609,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       const next = await request(`/${code}`, { ...action, turn: v?.turn });
       accept(next);
       if (sound && !document.hidden) {
-        if (action.type === 'answer') audio.current?.play('submit', volume);
-        if (action.type === 'vote') audio.current?.play('vote', volume);
+        if (action.type === 'answer' || action.type === 'partyAnswer') audio.current?.play('submit', volume);
+        if (action.type === 'vote' || action.type === 'partyVote') audio.current?.play('vote', volume);
       }
       sync.current?.resume();
       return true;
@@ -555,6 +623,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   }
   const v = view,
     mine = v?.players.find((p) => p.id === v.me);
+  const gameType = v?.gameType ?? v?.settings.gameType ?? 'ogiri';
   const remaining = v
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
@@ -604,7 +673,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     >
       <div className={styles.roomShell}>
         <nav className={styles.nav}>
-          <Link href="/games/ogiri">✳ みんなの大喜利王</Link>
+          <Link href="/games/ogiri">✳ {GAME_TITLES[gameType]}</Link>
           <span className={styles.code}>
             ROOM <b>{code}</b>
           </span>
@@ -626,7 +695,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               {audioBlocked ? '音を再開' : sound ? '音ON' : '音OFF'}
             </button>
             {sound && (
-              <label className={styles.volumeControl}>
+              <label className={styles.volumeControl} data-audio-volume>
                 音量
                 <input
                   aria-label="効果音の音量"
@@ -638,15 +707,20 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     const value = Number(e.target.value) / 100;
                     setVolume(value);
                     audio.current?.setVolume(value);
+                    try { localStorage.setItem('ogiri:volume', String(value)); } catch { /* Optional preference. */ }
                   }}
                 />
               </label>
             )}
-            <details className={styles.soundMenu}>
-              <summary>音設定</summary>
-              <section aria-label="効果音の設定">
+            <div className={styles.soundMenu} ref={soundMenu}>
+              <button type="button" ref={soundTrigger} aria-expanded={soundOpen} onClick={() => setSoundOpen(!soundOpen)}>音設定</button>
+              {soundOpen && <section role="dialog" tabIndex={-1} aria-label="効果音の設定" ref={soundDialog}>
+                <button type="button" className={styles.soundClose} aria-label="音設定を閉じる" onClick={() => {
+                  setSoundOpen(false);
+                  soundTrigger.current?.focus();
+                }}>閉じる ×</button>
                 <b>{audioBlocked ? '音が一時停止しています' : sound ? 'この画面から音が出ます' : 'いまは音OFFです'}</b>
-                <p>テレビで鳴らすなら、テレビ画面側でオンにしてね。</p>
+                <p>このPC・スマホ本体から再生します。音量はこの端末に保存されます。</p>
                 {audioBlocked && <p>「音声を再開」を押してください。端末の音量や消音設定も確認できます。</p>}
                 {volume === 0 && <p>音量が0です。スライダーで音量を上げてね。</p>}
                 <label>
@@ -661,8 +735,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   </select>
                 </label>
                 <button type="button" disabled={audioBusy} onClick={() => void enableAudio(previewCue)}>音を試す</button>
-              </section>
-            </details>
+              </section>}
+            </div>
             <button aria-pressed={reduced} onClick={() => setReduced(!reduced)}>
               動き{reduced ? '少' : '多'}
             </button>
@@ -733,10 +807,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             <header className={styles.roundHeader}>
               <div>
                 <p className={styles.eyebrow}>
-                  {v.settings.halloween ? '🎃 HALLOWEEN PARTY' : 'ことばであそぼう。'}{' '}
+                  {gameType === 'ogiri' ? v.settings.halloween ? '🎃 HALLOWEEN PARTY' : 'ことばであそぼう。' : GAME_TITLES[gameType]}{' '}
                   {v.round > 0 && `ROUND ${v.round} / ${v.settings.rounds}`}
                 </p>
-                <h1>{phaseName[v.phase]}</h1>
+                <h1>{(gameType === 'ogiri' ? phaseName : partyPhaseName[gameType])[v.phase]}</h1>
               </div>
               {manualResult && !v.paused && (
                 <p className={styles.manualWait} role="status">
@@ -776,7 +850,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 <section className={styles.lobbyPlayers}>
                   <div className={styles.row}>
                     <h2>ただいま {v.players.length} 人</h2>
-                    <span>回答者3〜12人 / 4人以上推奨</span>
+                    <span>{gameType === 'ogiri' ? '回答者3〜12人 / 4人以上推奨' : '参加者3〜12人'}</span>
                   </div>
                   <div className={styles.playerGrid}>
                     {v.players.map((p) => (
@@ -791,9 +865,16 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     ))}
                   </div>
                   <p>
-                    1つのお題に2人が回答し、それ以外の人が投票します。進行専用の主催者とテレビは人数に含みません。
+                    {gameType === 'ogiri' ? '1つのお題に2人が回答し、それ以外の人が投票します。' : GAME_RULES[gameType]}進行専用の主催者とテレビは人数に含みません。
                   </p>
-                  <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} />
+                  {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
+                    <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
+                      <h3>{GAME_TITLES[gameType]}</h3>
+                      <p>{gameType === 'majority' ? `全${v.settings.rounds}お題。全員が1お題につき1票ずつ投票します。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
+                      <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
+                    </section>
+                  )}
                 </section>
                 <aside className={styles.qrCard}>
                   {qr && (
@@ -820,7 +901,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </aside>
               </div>
             )}
-            {v.phase === 'answering' &&
+            {gameType === 'ogiri' && v.phase === 'answering' &&
               (tv || (v.isHost && !v.hostPlays) ? (
                 <section className={styles.wait}>
                   <div className={styles.stageCharacter}>
@@ -854,7 +935,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   ))}
                 </div>
               ))}
-            {v.phase === 'answering' && (
+            {gameType === 'ogiri' && v.phase === 'answering' && (
               <section className={styles.readyBar} aria-label="回答の確定状況">
                 <p role="status"><b>{readyCount} / {answerers.length}人がOK！</b> {everyoneReady ? '全員そろいました。' : '全員の回答確定を待っています。'}</p>
                 <small>{v.settings.autoAdvance
@@ -873,7 +954,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 )}
               </section>
             )}
-            {v.match && (
+            {gameType !== 'ogiri' && <PartyGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />}
+            {gameType === 'ogiri' && v.match && (
               <section className={styles.battle} key={v.match.id}>
                 <p className={styles.eyebrow}>
                   お題 {v.match.index} / {v.match.total}
@@ -915,14 +997,6 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             <div className={styles.voteBar}>
                               <span style={{ width: `${total ? (count / total) * 100 : 0}%` }} />
                             </div>
-                            <p>
-                              <Character
-                                avatar={
-                                  v.players.find((p) => p.name === result.authors[i])?.avatar ?? ''
-                                }
-                              />{' '}
-                              {result.authors[i]}
-                            </p>
                             <strong>+<AnimatedScore value={result.points[i]} animate={!reduced} /> 点</strong>
                             {result.counts[0] === result.counts[1] ? (
                               <small>引き分け！</small>
@@ -944,6 +1018,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             この回答を非表示
                           </button>
                         )}
+                        <div className={`${styles.answerSpeaker} ${result ? styles.speakerRevealed : ''}`}
+                          key={result ? result.authors[i] : 'mystery'} data-testid="answer-speaker">
+                          {result ? <Character avatar={v.players.find(p => p.name === result.authors[i])?.avatar ?? ''} size="large" />
+                            : <MysteryCharacter />}
+                          <b>{result ? result.authors[i] : '？？？'}</b>
+                        </div>
                       </article>
                     );
                   })}
@@ -1023,7 +1103,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                           void send({ type: 'hostParticipation', participating: e.target.checked })
                         }
                       />{' '}
-                      この端末でも回答に参加する
+                      {gameType === 'ogiri' ? 'この端末でも回答に参加する' : 'この端末でもゲームに参加する'}
                     </label>
                   )}
                   <a

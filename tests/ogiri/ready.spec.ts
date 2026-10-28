@@ -91,9 +91,19 @@ for (const automatic of [true, false])
           await expect(cards).toHaveCount(1);
           expect(await cards.evaluate(node => getComputedStyle(node).animationName)).not.toBe('none');
           expect(await cards.evaluate(node => getComputedStyle(node, '::after').content)).not.toBe('none');
+          const speakers = tv.getByTestId('answer-speaker');
+          await expect(speakers.getByRole('img', { name: '作者はまだ秘密', exact: true })).toHaveCount(2);
+          await expect(speakers.locator('b')).toHaveText(['？？？', '？？？']);
+          const speaker = await speakers.first().elementHandle();
+          expect(await speaker!.evaluate(node => getComputedStyle(node).animationName)).not.toBe('none');
+          const animation = await speaker!.evaluateHandle(node => node.getAnimations()[0]);
+          await tv.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === path);
+          expect(await speaker!.evaluate(node => node === document.querySelector('[data-testid="answer-speaker"]'))).toBe(true);
+          expect(await speaker!.evaluate((node, previous) => node.getAnimations()[0] === previous, animation)).toBe(true);
           await tv.screenshot({ path: info.outputPath('speech-bubbles-tv.png'), fullPage: true });
           await tv.emulateMedia({ reducedMotion: 'reduce' });
           expect(await cards.evaluate(node => getComputedStyle(node).animationName)).toBe('none');
+          expect(await speakers.evaluateAll(nodes => nodes.every(node => getComputedStyle(node).animationName === 'none'))).toBe(true);
         }
         await Promise.all(voters.map(async (index, j) => {
           if (match === 0) {
@@ -110,6 +120,9 @@ for (const automatic of [true, false])
         if (match === 0) {
           await expect(tv.getByRole('heading', { name: 'これ書いたの、だれ？', exact: true })).toBeVisible();
           await expect(tv.getByText('+400 点', { exact: true })).toBeVisible();
+          const speakers = tv.getByTestId('answer-speaker');
+          await expect(speakers.getByRole('img', { name: '作者はまだ秘密', exact: true })).toHaveCount(0);
+          await expect(speakers.locator('b')).toHaveText(room.match!.result!.authors);
         }
         await action({ type: 'next' });
       }

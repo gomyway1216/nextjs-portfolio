@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { GameHistory, HistoryRef } from '@/lib/ogiri/types';
+import { GAME_TITLES, type GameHistory, type HistoryRef } from '@/lib/ogiri/types';
 import { historyText, validHistoryId } from '@/lib/ogiri/history';
 import { readLocalHistory, rememberHistory } from '@/lib/ogiri/history-local';
 import styles from './Ogiri.module.css';
@@ -36,8 +36,8 @@ export function OgiriHistory({ id }: { id?: string }) {
         if (!response.ok) throw new Error(data.error ?? '履歴を取得できませんでした。');
         if (!active) return;
         setHistory(data);
-        const { id: key, code, game, finishedAt, expiresAt } = data as GameHistory;
-        rememberHistory([{ id: key, code, game, finishedAt, expiresAt }]);
+        const { id: key, code, game, finishedAt, expiresAt, gameType } = data as GameHistory;
+        rememberHistory([{ id: key, code, game, finishedAt, expiresAt, gameType }]);
       } catch (e) {
         if (active)
           setError(
@@ -63,7 +63,7 @@ export function OgiriHistory({ id }: { id?: string }) {
     );
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ogiri-${history.code}-${history.game}.txt`;
+    link.download = `${history.gameType ?? 'ogiri'}-${history.code}-${history.game}.txt`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice('テキストファイルを保存しました。90日後も手元で読めます。');
@@ -72,7 +72,7 @@ export function OgiriHistory({ id }: { id?: string }) {
     <main className={styles.app} lang="ja">
       <div className={`${styles.shell} ${styles.historyShell}`}>
         <nav className={styles.nav}>
-          <Link href="/games/ogiri">← 大喜利王</Link>
+          <Link href="/games/ogiri">← パーティーに戻る</Link>
           {id && <Link href="/games/ogiri/history">この端末の履歴</Link>}
           <span className={styles.badge}>思い出の一言</span>
         </nav>
@@ -103,7 +103,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                   <h2>
                     {entry.code} · 第{entry.game}ゲーム <span aria-hidden="true">↗</span>
                   </h2>
-                  <p>お題・回答・票数・最終順位を見る</p>
+                  <p>{GAME_TITLES[entry.gameType ?? 'ogiri'] ?? 'パーティーゲーム'} · お題・回答・票数・順位</p>
                   <small>閲覧期限: {date(entry.expiresAt)}</small>
                 </Link>
               ))}
@@ -129,7 +129,7 @@ export function OgiriHistory({ id }: { id?: string }) {
           <>
             <section className={styles.historyCard}>
               <p>
-                {date(history.finishedAt)} · {history.code} · 第{history.game}ゲーム
+                {GAME_TITLES[history.gameType ?? 'ogiri']} · {date(history.finishedAt)} · {history.code} · 第{history.game}ゲーム
               </p>
               <div className={styles.controls}>
                 <button className={styles.primary} onClick={download}>
@@ -207,15 +207,21 @@ export function OgiriHistory({ id }: { id?: string }) {
                       {match.answers.map((answer, j) => (
                         <div key={j}>
                           <p className={styles.historyAnswer}>{answer.text ?? '未回答・非表示'}</p>
-                          <small>
+                          {history.gameType !== 'majority' && <small>
                             <Character avatar={answer.avatar} /> {answer.name}
-                          </small>
+                          </small>}
                           <p>
-                            <strong>{answer.votes}票</strong> · +{answer.points} pt
+                            <strong>{answer.votes}票</strong> · {history.gameType === 'majority' ? '選んだ人の合計 ' : ''}+{answer.points} 点
                           </p>
                         </div>
                       ))}
                     </div>
+                    {match.note && <p className={styles.historyNote}>{match.note}</p>}
+                    {Boolean(match.awards?.length) && <div className={styles.historyAwards} aria-label="このお題の獲得点">
+                      {match.awards?.map((award, index) => <p key={index}>
+                        <Character avatar={award.avatar} /> {award.name} <b>+{award.points} 点</b>
+                      </p>)}
+                    </div>}
                   </article>
                 ))}
               </div>

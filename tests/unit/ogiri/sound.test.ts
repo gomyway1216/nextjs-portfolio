@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, SOUND_CUES } from '@/lib/ogiri/sound';
+import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, SOUND_CUES, SOUND_FILES } from '@/lib/ogiri/sound';
+import { statSync } from 'node:fs';
+import path from 'node:path';
 import type { RoomView } from '@/lib/ogiri/types';
 const view = (phase: RoomView['phase'], turn = phase) =>
   ({ code: 'ABC234', phase, turn, paused: false, players: [{ id: 'a' }] }) as RoomView;
@@ -35,6 +37,9 @@ describe('original party audio', () => {
     expect(duration('count')).toBeCloseTo(1);
     expect(duration('cheer')).toBeGreaterThan(2);
     expect(SOUND_CUES.bounce[0].pitch!.map(p => p.frequency)).toEqual([780, 225, 580, 265, 400, 300]);
+    expect(Object.keys(SOUND_FILES).sort()).toEqual(['bounce', 'cheer', 'count']);
+    expect(Object.values(SOUND_FILES).reduce((total, file) => total + statSync(path.join(process.cwd(), 'public', file)).size, 0))
+      .toBeLessThan(40000);
   });
   it('cleans every voice on mute and clamps volume without trying to autoplay suspended audio', async () => {
     const oscillators: { stop: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] =
@@ -56,6 +61,7 @@ describe('original party audio', () => {
       destination: {},
       resume: vi.fn(),
       close: vi.fn(),
+      decodeAudioData: vi.fn(async () => ({ duration: 1 })),
       createGain: () => ({
         connect: vi.fn(),
         disconnect: vi.fn(),
@@ -67,6 +73,11 @@ describe('original party audio', () => {
       createBiquadFilter: () => ({
         connect: vi.fn(), disconnect: vi.fn(), frequency: parameter(), Q: parameter(),
       }),
+      createDynamicsCompressor: () => ({
+        connect: vi.fn(), disconnect: vi.fn(), threshold: parameter(), knee: parameter(),
+        ratio: parameter(), attack: parameter(), release: parameter(),
+      }),
+      createWaveShaper: () => ({ connect: vi.fn(), disconnect: vi.fn() }),
     };
     const audio = createPartyAudio(context as unknown as AudioContext);
     audio.play('champion', 1);
@@ -77,7 +88,7 @@ describe('original party audio', () => {
     await expect(audio.resume()).resolves.toBeUndefined();
     expect(audio.state()).toBe('running');
     audio.setVolume(10);
-    expect(gainChanges).toHaveBeenLastCalledWith(0.32, 0);
+    expect(gainChanges).toHaveBeenLastCalledWith(1, 0);
     audio.setVolume(Number.NaN);
     expect(gainChanges).toHaveBeenLastCalledWith(0, 0);
     audio.play('reveal', 0.4);
@@ -93,6 +104,19 @@ describe('original party audio', () => {
         (o) => o.stop.mock.calls.length === 2 && o.disconnect.mock.calls.length === 1,
       ),
     ).toBe(true);
+    const fetchSample = vi.fn(async () => new Response(new Uint8Array([1, 2, 3])));
+    vi.stubGlobal('fetch', fetchSample);
+    try {
+      await audio.prepare();
+      await audio.prepare();
+      expect(fetchSample).toHaveBeenCalledTimes(3);
+      const before = oscillators.length;
+      audio.play('count', 1);
+      expect(oscillators).toHaveLength(before + 1); // Decoded clip, no delayed synthesis or fetch.
+      expect(fetchSample).toHaveBeenCalledTimes(3);
+      audio.stop();
+      expect(oscillators.at(-1)!.stop).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
     await audio.close();
     expect(context.close).toHaveBeenCalledOnce();
   });

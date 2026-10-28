@@ -21,8 +21,8 @@ export const GAME_COVER_SIZE = { width: 960, height: 540 } as const;
 
 export const games: Game[] = [
   {
-    id: 'ogiri', title: 'みんなの大喜利王',
-    description: '3〜12人で、スマホから回答してテレビで大笑い。日本語の大喜利パーティーゲーム。',
+    id: 'ogiri', title: 'みんなのパーティー',
+    description: '大喜利・多数決・作者当てを同じ部屋で。スマホ参加3〜12人、テレビ対応、20キャラと通算ポイント。',
     thumbnail: '💬', path: '/games/ogiri', difficulty: 'Easy', category: 'Party',
   },
   {

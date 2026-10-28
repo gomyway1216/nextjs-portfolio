@@ -5,15 +5,16 @@ test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '1
 type AudioProbe = {
   contexts: AudioContext[];
   maxRms: number;
+  maxPeak: number;
   samples: number;
 };
 
-test('TV sound check produces real audio, respects volume and mute, and resumes interrupted audio', async ({ page }, info) => {
+for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, remembers volume, closes and resumes`, async ({ page }, info) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 1080 });
   await page.addInitScript(() => {
-    const probe: AudioProbe = { contexts: [], maxRms: 0, samples: 0 };
+    const probe: AudioProbe = { contexts: [], maxRms: 0, maxPeak: 0, samples: 0 };
     Object.defineProperty(window, '__partyAudioProbe', { value: probe });
     const createGain = AudioContext.prototype.createGain;
     AudioContext.prototype.createGain = function () {
@@ -33,6 +34,7 @@ test('TV sound check produces real audio, respects volume and mute, and resumes 
             analyser.getFloatTimeDomainData(samples);
             const rms = Math.sqrt(samples.reduce((sum, sample) => sum + sample * sample, 0) / samples.length);
             probe.maxRms = Math.max(probe.maxRms, rms);
+            probe.maxPeak = Math.max(probe.maxPeak, ...samples.map(Math.abs));
             probe.samples++;
           }, 5);
         }
@@ -44,13 +46,15 @@ test('TV sound check produces real audio, respects volume and mute, and resumes 
   const room = await (await page.request.post('/api/ogiri', {
     data: { name: '音の進行役', avatar: '🐱', hostPlays: false },
   })).json();
-  await page.goto(`/games/ogiri/${room.code}/tv`);
+  await page.goto(`/games/ogiri/${room.code}${width === 1920 ? '/tv' : ''}`);
   const snapshot = () => page.evaluate(() => {
     const probe = (window as unknown as { __partyAudioProbe: AudioProbe }).__partyAudioProbe;
-    return { states: probe.contexts.map(context => context.state), maxRms: probe.maxRms, samples: probe.samples };
+    return { states: probe.contexts.map(context => context.state), maxRms: probe.maxRms, maxPeak: probe.maxPeak, samples: probe.samples };
   });
   const resetPeak = () => page.evaluate(() => {
-    (window as unknown as { __partyAudioProbe: AudioProbe }).__partyAudioProbe.maxRms = 0;
+    const probe = (window as unknown as { __partyAudioProbe: AudioProbe }).__partyAudioProbe;
+    probe.maxRms = 0;
+    probe.maxPeak = 0;
   });
   await expect(page.getByRole('button', { name: '効果音をオン', exact: true })).toContainText('音OFF');
   expect((await snapshot()).states).toEqual([]);
@@ -60,10 +64,22 @@ test('TV sound check produces real audio, respects volume and mute, and resumes 
   await page.getByText('音設定', { exact: true }).click();
   const volume = page.getByRole('slider', { name: '効果音の音量', exact: true });
   await expect(volume).toHaveValue('60');
-  await page.getByLabel('試聴する効果音', { exact: true }).selectOption('champion');
+  await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await resetPeak();
   await page.getByRole('button', { name: '音を試す', exact: true }).click();
-  await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
+  await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.05);
+  await page.waitForTimeout(1800);
+  const at60 = await snapshot();
+  expect(at60.maxPeak).toBeLessThan(0.97);
+  await volume.fill('100');
+  await resetPeak();
+  await page.getByRole('button', { name: '音を試す', exact: true }).click();
+  await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.08);
+  await page.waitForTimeout(1800);
+  const at100 = await snapshot();
+  expect(at100.maxRms).toBeGreaterThan(at60.maxRms * 1.4);
+  expect(at100.maxPeak).toBeLessThan(0.97);
+  await info.attach('real-output-levels', { body: JSON.stringify({ at60, at100 }), contentType: 'application/json' });
   expect((await snapshot()).samples).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath('sound-check-tv.png'), fullPage: true });
 
@@ -75,6 +91,17 @@ test('TV sound check produces real audio, respects volume and mute, and resumes 
   expect((await snapshot()).maxRms).toBeLessThan(0.00001);
   await volume.fill('60');
 
+  const dialog = page.getByRole('dialog', { name: '効果音の設定', exact: true });
+  await page.getByRole('button', { name: '音設定を閉じる', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: '音設定', exact: true }).click();
+  await expect(page.getByLabel('試聴する効果音', { exact: true })).toHaveValue('cheer');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: '音設定', exact: true }).click();
+  await page.getByRole('heading', { level: 1 }).click();
+  await expect(dialog).toHaveCount(0);
+
   await page.evaluate(async () => {
     await (window as unknown as { __partyAudioProbe: AudioProbe }).__partyAudioProbe.contexts[0].suspend();
   });
@@ -82,6 +109,7 @@ test('TV sound check produces real audio, respects volume and mute, and resumes 
   await page.getByRole('button', { name: '音声を再開', exact: true }).click();
   await expect.poll(async () => (await snapshot()).states).toEqual(['running']);
   await resetPeak();
+  await page.getByRole('button', { name: '音設定', exact: true }).click();
   await page.getByRole('button', { name: '音を試す', exact: true }).click();
   await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
@@ -91,5 +119,14 @@ test('TV sound check produces real audio, respects volume and mute, and resumes 
   await resetPeak();
   await page.waitForTimeout(250);
   expect((await snapshot()).maxRms).toBeLessThan(0.00001);
+
+  await page.getByRole('button', { name: '効果音をオン', exact: true }).click();
+  await volume.fill('85');
+  await page.reload();
+  await expect(page.getByRole('button', { name: '効果音をオン', exact: true })).toContainText('音OFF');
+  expect((await snapshot()).states).toEqual([]);
+  await page.getByRole('button', { name: '効果音をオン', exact: true }).click();
+  await expect(volume).toHaveValue('85');
+  await page.getByRole('button', { name: 'ミュート', exact: true }).click();
   expect(errors).toEqual([]);
 });

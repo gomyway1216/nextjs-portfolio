@@ -70,7 +70,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - if: needs.changes.outputs.scope == 'party'
-        run: npm test -- tests/unit/ogiri
+        run: npm test -- tests/unit/ogiri tests/unit/gameCoverAssets.test.ts
       - if: needs.changes.outputs.scope == 'full'
         run: npm test -- --exclude 'tests/unit/ml/**'
       - run: npx tsx scripts/ogiri/catalog.ts --check

@@ -80,7 +80,7 @@ describe('CI change routing', () => {
     const quality = workflows.website.jobs.quality;
     expect(quality.if).toBe("needs.changes.outputs.website == 'true'");
     expect(quality.steps.find((step: { run?: string }) => step.run === 'npm run lint')).toBeDefined();
-    expect(quality.steps.find((step: { run?: string }) => step.run === 'npm test -- tests/unit/ogiri').if)
+    expect(quality.steps.find((step: { run?: string }) => step.run === 'npm test -- tests/unit/ogiri tests/unit/gameCoverAssets.test.ts').if)
       .toBe("needs.changes.outputs.scope == 'party'");
     expect(quality.steps.find((step: { run?: string }) => step.run === "npm test -- --exclude 'tests/unit/ml/**'").if)
       .toBe("needs.changes.outputs.scope == 'full'");

@@ -7,6 +7,7 @@ import styles from './Ogiri.module.css';
 
 export function PartyResults({ view }: { view: RoomView }) {
   const [mode, setMode] = useState<'game' | 'party'>('game');
+  const [page, setPage] = useState(0);
   const [spotlight, setSpotlight] = useState<'mvp' | 'climber' | 'answer' | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const finished = view.phase === 'finished';
@@ -24,6 +25,9 @@ export function PartyResults({ view }: { view: RoomView }) {
     }),
   );
   const rows = mode === 'party' ? overall : view.players;
+  const pages = Math.max(1, Math.ceil(rows.length / 12));
+  const currentPage = Math.min(page, pages - 1);
+  const visibleRows = rows.slice(currentPage * 12, currentPage * 12 + 12);
   const mvps = view.players.filter((p) => view.highlights?.roundMvps.includes(p.id));
   const best = view.highlights?.bestAnswer;
   const climber = view.highlights?.climbers[0];
@@ -34,13 +38,30 @@ export function PartyResults({ view }: { view: RoomView }) {
   return (
     <>
       <div className={styles.resultTabs} role="group" aria-label="順位の切り替え">
-        <button aria-pressed={mode === 'game'} onClick={() => setMode('game')}>
+        <button
+          aria-pressed={mode === 'game'}
+          onClick={() => {
+            setMode('game');
+            setPage(0);
+          }}
+        >
           このゲーム
         </button>
-        <button aria-pressed={mode === 'party'} onClick={() => setMode('party')}>
+        <button
+          aria-pressed={mode === 'party'}
+          onClick={() => {
+            setMode('party');
+            setPage(0);
+          }}
+        >
           パーティー総合{!finished && '（暫定）'}
         </button>
         <small>{view.partyGames ?? 0}ゲーム終了 · 1位10 / 2位7 / 3位5 / ほか3pt</small>
+        {pages > 1 && (
+          <button aria-label="次の順位ページ" onClick={() => setPage((currentPage + 1) % pages)}>
+            次の順位へ → {currentPage + 1}/{pages}
+          </button>
+        )}
       </div>
       <div className={styles.highlights}>
         <button disabled={!mvps.length} onClick={() => setSpotlight('mvp')}>
@@ -68,7 +89,7 @@ export function PartyResults({ view }: { view: RoomView }) {
         className={styles.rankGrid}
         aria-label={mode === 'party' ? 'パーティー総合順位' : 'このゲームの順位'}
       >
-        {rows.map((p) => {
+        {visibleRows.map((p) => {
           const rank = mode === 'party' && 'partyRank' in p ? Number(p.partyRank) : p.rank;
           const points = mode === 'party' ? (p.partyPoints ?? 0) : p.score;
           return (

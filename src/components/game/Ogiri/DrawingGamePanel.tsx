@@ -91,7 +91,7 @@ function DrawingGallery({ view, tv, disabled, reduced, send }: {
       {game.gallery.map((work, i) => <button type="button" key={work.id} className={styles.work}
         aria-label={`絵${i + 1}を大きく見る`} onClick={() => setZoom(work)}>
         <DrawingImage code={view.code} id={work.id} label={`絵${i + 1}`} />
-        <span><Character avatar={work.avatar} /> {work.name}{work.author === view.me && '（あなた）'}</span>
+        <span><Character avatar={work.avatar} /><span className={styles.workName}>{work.name}{work.author === view.me && '（あなた）'}</span></span>
         {game.results && <b>{work.votes}票 · +<AnimatedScore value={work.points} animate={!reduced} /> 点</b>}
       </button>)}
     </div>
@@ -137,7 +137,7 @@ export function DrawingGamePanel({ view, tv, busy, connected, reduced, send }: {
     </> : game.chain ? <>
       <p className={styles.eyebrow}>伝言の答え合わせ · {game.chain.index} / {game.chain.total}</p>
       <h2>最初のお題「{game.chain.prompt}」</h2>
-      <div className={styles.chainGrid}>{game.chain.steps.map((step, i) => <article className={styles.chainStep} key={i}>
+      <div className={`${styles.chainGrid} ${game.chain.steps.length === 3 ? styles.threeSteps : ''}`}>{game.chain.steps.map((step, i) => <article className={styles.chainStep} key={i}>
         <b>{i + 1}. {step.kind === 'draw' ? '絵にしたら' : '言葉にしたら'}</b>
         {step.drawingId ? <DrawingImage code={view.code} id={step.drawingId} label={`伝言${i + 1}の絵`} /> : <p className={styles.guess}>{step.text ?? '今回はパス！'}</p>}
         <p><Character avatar={step.avatar} /> {step.name}</p>

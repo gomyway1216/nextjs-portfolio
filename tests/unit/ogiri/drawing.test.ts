@@ -137,6 +137,28 @@ describe('drawing relay', () => {
     expect(project(room, 'p3', 106, prompts).drawingGame?.assignment).not.toBeNull();
   });
 
+  it('preserves the relay rotation, saved work and scores when a word turn is missed during leave', () => {
+    const room = setup();
+    stage(room);
+    const rotation = [...room.drawing!.players];
+    const firstPicture = room.drawing!.chains[0].steps[0];
+    const missedKey = project(room, 'p0', 103, prompts).drawingGame!.assignment!.key.split(':')[1];
+    room.players.p0.partyPoints = 7;
+    act(room, 'p0', { type: 'leave' }, 103, prompts);
+    for (const id of ['p1', 'p2', 'p3']) {
+      submit(room, id);
+      act(room, id, { type: 'answerReady', ready: true }, 104, prompts);
+    }
+    expect(room.drawing!.stage).toBe(2);
+    const recipient = rotation.find(id => project(room, id, 105, prompts).drawingGame?.assignment?.key.split(':')[1] === missedKey)!;
+    expect(project(room, recipient, 105, prompts).drawingGame!.assignment!.prompt).toBeNull();
+    act(room, 'p0', { type: 'heartbeat' }, 106, prompts);
+    expect(room.drawing!.players).toEqual(rotation);
+    expect(room.drawing!.chains[0].steps[0]).toEqual(firstPicture);
+    expect(room.players.p0).toMatchObject({ active: true, score: 0, partyPoints: 7 });
+    expect(project(room, 'p0', 106, prompts).drawingGame!.assignment!.key.split(':').slice(1)).toEqual(['2', '2']);
+  });
+
   it.each([3, 4, 12])('scores %i votes once, blocks self voting, archives drawings and retains party totals across a game switch', n => {
     const room = setup(n);
     const works = complete(room);

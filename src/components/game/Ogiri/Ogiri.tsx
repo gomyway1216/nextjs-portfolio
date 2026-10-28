@@ -206,12 +206,12 @@ export function OgiriLanding() {
               </span>
             </h1>
             <p className={styles.intro}>
-              書く。選ぶ。
+              書く。描く。選ぶ。
               <br />
               「お前か！」ってなる。
             </p>
             <p>
-              大喜利・多数決・作者当て。
+              大喜利・多数決・作者当て・絵の伝言。
               <br />
               次のゲームも、同じ部屋で。
             </p>
@@ -220,17 +220,17 @@ export function OgiriLanding() {
               <span>⏱ 時間はゆっくり、調整OK</span>
               <span>🎃 ハロウィンにも</span>
             </div>
-            <div className={styles.modeTeasers} aria-label="遊べる3つのゲーム">
-              {(['ogiri', 'majority', 'identity'] as const).map(type => <button key={type} type="button" onClick={() => {
+            <div className={styles.modeTeasers} aria-label="遊べる4つのゲーム">
+              {(['ogiri', 'majority', 'identity', 'drawing'] as const).map(type => <button key={type} type="button" onClick={() => {
                 setSelectedGameType(type);
                 setCreate(true);
                 requestAnimationFrame(() => document.getElementById('party-entry')?.scrollIntoView({
                   behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start',
                 }));
               }}>
-                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={type === 'ogiri' ? '🐱' : '🐸'} size="medium" />}
+                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={type === 'ogiri' ? '🐱' : type === 'drawing' ? 'alien' : '🐸'} size="medium" />}
                 <b>{GAME_TITLES[type]}</b>
-                <span>{type === 'ogiri' ? '二人のボケに一票。' : type === 'majority' ? 'みんな、そっち派？' : 'これ書いたの、お前か。'}</span>
+                <span>{type === 'ogiri' ? '二人のボケに一票。' : type === 'majority' ? 'みんな、そっち派？' : type === 'drawing' ? 'その絵、そう伝わる？' : 'これ書いたの、お前か。'}</span>
                 <small>このゲームで部屋を作る →</small>
               </button>)}
             </div>
@@ -265,8 +265,8 @@ export function OgiriLanding() {
         <section className={styles.steps} aria-label="遊び方">
           {[
             ['01', '集まる', '主催者がルームを作成。テレビ画面のQRをスマホで読み取ろう。'],
-            ['02', 'こっそり仕込む', '2問を送ったら「これでOK！」。同じお題の相手は、まだ秘密。'],
-            ['03', '一票で決める', '1票100点、勝ったら追加で200点。ドヤ顔は各自でどうぞ。'],
+            ['02', 'こっそり仕込む', '書く・描く・選ぶ。自分の番が来たら、スマホから参加。'],
+            ['03', '一票で決める', '笑った回答、お気に入りの絵、多数派。遊ぶゲームで得点ルールが変わります。'],
           ].map(([n, title, text]) => (
             <article key={n}>
               <b>{n}</b>
@@ -284,7 +284,7 @@ export function OgiriLanding() {
             全員が同じWi-Fiにいる必要はありません。テレビは表示専用、主催者は通常は進行専用です。主催者も遊ぶ場合はスマホで参加してください。ゲーム中の新規参加は再戦までお待ちください。
           </p>
           <p>
-            同点は同じ順位。自分の対戦は投票をお休み。未回答・非表示の回答は得点なし。回答は100文字までです。
+            同点は同じ順位。大喜利は自分の対戦、絵の伝言は自分の絵への投票をお休み。大喜利・作者当ては100文字、絵の伝言の言葉は80文字までです。
             終了順位でパーティーポイント（10・7・5・3pt）を獲得し、同じルームの再戦でも通算します。
           </p>
         </section>
@@ -1163,7 +1163,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             onClick={() => {
                               if (
                                 ['answering', 'voting'].includes(v.phase) &&
-                                !window.confirm(v.phase === 'answering' ? 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
+                                !window.confirm(v.phase === 'answering' ? gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
                               )
                                 return;
                               void send({ type: 'next' });

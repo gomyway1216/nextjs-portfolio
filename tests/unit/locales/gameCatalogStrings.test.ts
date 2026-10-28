@@ -15,6 +15,11 @@ import { games } from '@/components/game/constants/games';
  * production.
  */
 describe('every catalog game has card text in both locales', () => {
+  it('includes the drawing relay in both party catalog descriptions', () => {
+    expect(ja.games.ogiri.description).toContain('絵の伝言');
+    expect(en.games.ogiri.description).toContain('drawing relay');
+    expect(games.find(game => game.id === 'ogiri')?.description).toContain('絵の伝言');
+  });
   const locales = { en, ja } as Record<string, { games?: Record<string, { title?: string; description?: string }> }>;
 
   for (const game of games) {

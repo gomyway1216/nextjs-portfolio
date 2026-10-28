@@ -10,7 +10,7 @@ export function DrawingHistory({ chains }: { chains: DrawingHistoryChain[] }) {
     <p>公開した伝言だけを保存しています。ダウンロードすると、絵もオフラインで見返せます。</p>
     {chains.map((chain, i) => <article key={i} className={styles.panel}>
       <h3>最初のお題「{chain.prompt}」</h3>
-      <div className={styles.chainGrid}>{chain.steps.map((step, j) => <section className={styles.chainStep} key={j}>
+      <div className={`${styles.chainGrid} ${chain.steps.length === 3 ? styles.threeSteps : ''}`}>{chain.steps.map((step, j) => <section className={styles.chainStep} key={j}>
         <b>{j + 1}. {step.kind === 'draw' ? '絵にしたら' : '言葉にしたら'}</b>
         {step.drawing ? <DrawingPicture data={drawingInput(JSON.parse(step.drawing))} label={`${step.name}の絵`} /> : <p className={styles.guess}>{step.text ?? '今回はパス！'}</p>}
         <p><Character avatar={step.avatar} /> {step.name}</p>

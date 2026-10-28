@@ -2089,3 +2089,17 @@ a.historyCard:hover {
   font-size: 0.85vw;
   line-height: 1.4;
 }
+.participantAccess {
+  --ink: #251345;
+  padding: 1rem;
+  margin: 1rem 0;
+  border: 1px solid #d8c9e9;
+  border-radius: 1rem;
+  background: #fffaf0;
+  color: #251345;
+}
+.participantAccess p, .participantAccess small { display: block; margin: .65rem 0; line-height: 1.6; }
+.participantAccess summary { cursor: pointer; font-weight: 700; }
+.participantAccess .row { flex-wrap: wrap; }
+.participantAccess .secondary { background: #eee4ff; color: #251345; }
+.participantAccess output { display: block; font-size: 1.65rem; font-weight: 800; letter-spacing: .12em; margin: 1rem 0; overflow-wrap: anywhere; }

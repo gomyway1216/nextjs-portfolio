@@ -8,6 +8,10 @@ test('TV stops hidden and idle polling, resumes explicitly, and stops on expiry'
   page.on('request', (req) => {
     if (req.method() === 'GET' && req.url().includes(`/api/ogiri/${code}`)) reads++;
   });
+  await page.addInitScript(() => {
+    Object.defineProperty(AbortSignal, 'any', { configurable: true, value: undefined });
+    Object.defineProperty(AbortSignal, 'timeout', { configurable: true, value: undefined });
+  });
   await page.clock.install();
   await page.goto(`/games/ogiri/${code}/tv`);
   await expect(page.getByRole('heading', { name: 'ただいま 1 人' })).toBeVisible();
@@ -41,4 +45,29 @@ test('TV stops hidden and idle polling, resumes explicitly, and stops on expiry'
   const expiredReads = reads;
   await page.waitForTimeout(3500);
   expect(reads).toBe(expiredReads);
+});
+
+test('failed presence heartbeats do not turn successful room reads into connection errors', async ({ page }) => {
+  const created = await page.request.post('/api/ogiri', { data: { name: '参加確認', avatar: '🐱' } });
+  expect(created.ok()).toBe(true);
+  const { code } = await created.json();
+  let reads = 0;
+  page.on('request', (req) => { if (req.method() === 'GET' && req.url().includes(`/api/ogiri/${code}`)) reads++; });
+  await page.route(`**/api/ogiri/${code}`, async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'presence unavailable' }) });
+    } else await route.continue();
+  });
+  await page.clock.install();
+  await page.goto(`/games/ogiri/${code}`);
+  await expect(page.getByRole('heading', { name: 'ただいま 1 人' })).toBeVisible();
+  const failedHeartbeat = page.waitForResponse((res) => res.request().method() === 'POST' && res.status() === 503);
+  await page.clock.fastForward('00:31');
+  await failedHeartbeat;
+  await page.waitForTimeout(100);
+  await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('接続を確認しています。', { exact: false })).toHaveCount(0);
+  const before = reads;
+  await page.clock.fastForward('00:06');
+  await expect.poll(() => reads).toBeGreaterThan(before);
 });

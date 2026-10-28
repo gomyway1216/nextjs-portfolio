@@ -40,6 +40,7 @@ describe('main CI deduplication', () => {
     expect(canReusePrChecks({ ...evidence, parents: ['base'] })).toBe(false);
     expect(canReusePrChecks({ ...evidence, parents: ['other-base', 'head'] })).toBe(false);
     expect(canReusePrChecks({ ...evidence, runs: [] })).toBe(false);
+    expect(canReusePrChecks({ ...evidence, runs: undefined })).toBe(false);
   });
   it('requires only the PR workflows selected by their actual file filters', () => {
     expect(workflowsForChanges(['src/lib/ogiri/polling.ts'], definitions)).toEqual(['website.yml', 'security.yml']);

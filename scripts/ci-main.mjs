@@ -22,6 +22,7 @@ export function canReusePrChecks({ sha, parents, tree, headTree, baseInHead, pul
   if (!pull?.merged_at || pull.merge_commit_sha !== sha || pull.base.ref !== 'main' ||
       parents.length !== 2 || parents[0] !== pull.base.sha || parents[1] !== pull.head.sha ||
       !baseInHead || tree !== headTree || !required.length) return false;
+  if (!Array.isArray(runs)) return false;
   return required.every((name) => {
     const latest = runs.filter((run) => run.event === 'pull_request' &&
       run.head_sha === pull.head.sha && run.path === `.github/workflows/${name}`)
@@ -33,12 +34,14 @@ export function canReusePrChecks({ sha, parents, tree, headTree, baseInHead, pul
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const repo = process.env.GITHUB_REPOSITORY;
   const sha = process.env.GITHUB_SHA;
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || !/^[a-f0-9]{40}$/.test(sha ?? ''))
     throw new Error('Missing repository or push revision');
+  if (!token) throw new Error('Missing GH_TOKEN or GITHUB_TOKEN');
   async function api(path, body) {
     const response = await fetch(`${process.env.GITHUB_API_URL || 'https://api.github.com'}/repos/${repo}/${path}`, {
       method: body ? 'POST' : 'GET',
-      headers: { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: 'application/vnd.github+json',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(20000),
@@ -56,7 +59,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       try { git('merge-base', '--is-ancestor', pull.base.sha, pull.head.sha); baseInHead = true; } catch { /* Revalidate an integrated tree. */ }
       const paths = git('diff', '--name-only', '--no-renames', '-z', `${pull.base.sha}...${pull.head.sha}`).split('\0').filter(Boolean);
       const definitions = Object.fromEntries(workflows.map((name) => [name,
-        parseStrictWorkflowYaml(readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8').split('\njobs:\n')[0])]));
+        parseStrictWorkflowYaml(readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n').split('\njobs:\n')[0])]));
       const { workflow_runs: runs } = await api(`actions/runs?event=pull_request&head_sha=${pull.head.sha}&per_page=100`);
       reuse = canReusePrChecks({ sha, parents, pull, runs, baseInHead,
         tree: git('rev-parse', `${sha}^{tree}`), headTree: git('rev-parse', `${pull.head.sha}^{tree}`),

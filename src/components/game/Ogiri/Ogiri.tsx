@@ -18,17 +18,27 @@ const phaseName = {
   finished: '今夜の大喜利王！',
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
-  const res = await fetch(`/api/ogiri${path}`, {
-    method: data ? 'POST' : 'GET',
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: data ? { 'Content-Type': 'application/json' } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
-  });
-  const result = await res.json();
-  if (!res.ok) throw Object.assign(new Error(result.error ?? '接続できませんでした。'), { status: res.status });
-  return result;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, 15000);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const res = await fetch(`/api/ogiri${path}`, {
+      method: data ? 'POST' : 'GET',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: data ? { 'Content-Type': 'application/json' } : {},
+      body: data ? JSON.stringify(data) : undefined,
+      signal: controller.signal,
+    });
+    const result = await res.json();
+    if (!res.ok) throw Object.assign(new Error(result.error ?? '接続できませんでした。'), { status: res.status });
+    return result;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+  }
 }
 function JoinForm({
   code,
@@ -414,7 +424,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
         if (!lastBeat.current) lastBeat.current = Date.now();
         if (!tv && next.me && Date.now() - lastBeat.current > 30000) {
           lastBeat.current = Date.now();
-          await request(`/${code}`, { type: 'heartbeat' }, signal);
+          try {
+            await request(`/${code}`, { type: 'heartbeat' }, signal);
+          } catch {
+            // The room GET succeeded. Presence failure must not stop view updates.
+            // Still await this request so hiding the page aborts all in-flight work.
+          }
         }
       },
     });

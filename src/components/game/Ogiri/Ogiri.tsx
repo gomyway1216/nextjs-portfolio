@@ -536,7 +536,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const answerers = v?.players.filter((p) => p.answeringThisRound && p.active) ?? [];
   const readyCount = answerers.filter((p) => p.answerReady).length;
   const everyoneReady = answerers.length > 0 && readyCount === answerers.length;
-  const hasUnsentChanges = v?.phase === 'answering' && v.assignments.some((a) => {
+  const hasUnsentChanges = typeof window !== 'undefined' && v?.phase === 'answering' && v.assignments.some((a) => {
     const draft = localStorage.getItem(`ogiri:draft:${code}:${a.id}`);
     return draft !== null && draft !== a.answer;
   });

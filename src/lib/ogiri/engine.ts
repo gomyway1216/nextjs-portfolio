@@ -10,6 +10,7 @@ import {
   type RoomView,
   type Settings,
 } from './types';
+import { gameHighlights } from './party';
 
 export class GameError extends Error {
   constructor(
@@ -387,6 +388,7 @@ export function act(
       p.score = 0;
       p.roundScore = 0;
       p.previousRank = 1;
+      p.partyEarned = 0;
     }
     // Retain recent prompts between games, but never exhaust a selected genre forever.
     const available = prompts.filter(
@@ -482,6 +484,21 @@ export function project(
   return {
     turn: `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`,
     history: room.history ?? [],
+    partyGames: room.partyGames ?? 0,
+    partyPlayers: Object.values(room.players).some(
+      (p) => !p.kicked && p.spectator && (p.partyPoints ?? 0) > 0,
+    )
+      ? Object.values(room.players)
+          .filter((p) => !p.kicked && (!p.spectator || (p.partyPoints ?? 0) > 0))
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            partyPoints: p.partyPoints ?? 0,
+            partyEarned: p.partyEarned ?? 0,
+          }))
+      : undefined,
+    highlights: ['ranking', 'finished'].includes(room.phase) ? gameHighlights(room, prompts) : null,
     code: room.code,
     revision: room.revision,
     game: room.game,
@@ -496,6 +513,8 @@ export function project(
     hostPlays: !room.players[room.hostId].spectator,
     players: rankPlayers(room).map((p) => ({
       id: p.id,
+      partyPoints: p.partyPoints ?? 0,
+      partyEarned: p.partyEarned ?? 0,
       name: p.name,
       avatar: p.avatar,
       score: p.score,

@@ -2,15 +2,20 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import type { RoomView } from '../../src/lib/ogiri/types';
 import { CHARACTERS } from '../../src/lib/ogiri/characters';
 
-for (const count of [10, 12])
+for (const count of [3, 4, 10, 12])
   test(`${count} players + TV: anonymous answers, simultaneous votes, refresh, offline and rematch`, async ({
     browser,
     baseURL,
   }, testInfo) => {
     const contexts: BrowserContext[] = [];
     const errors: string[] = [];
+    const partyHeaders: Record<string, string> = process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': `198.51.100.${count}` };
     async function phone() {
-      const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 } });
+      const context = await browser.newContext({
+        baseURL,
+        viewport: { width: 390, height: 844 },
+        extraHTTPHeaders: partyHeaders,
+      });
       contexts.push(context);
       const page = await context.newPage();
       page.on('pageerror', (e) => errors.push(e.message));
@@ -58,6 +63,7 @@ for (const count of [10, 12])
       );
       const tvContext = await browser.newContext({
         baseURL,
+        extraHTTPHeaders: partyHeaders,
         viewport: { width: 1920, height: 1080 },
       });
       contexts.push(tvContext);
@@ -203,8 +209,10 @@ for (const count of [10, 12])
         await expect.poll(async () => (await view(host)).phase).toBe('reveal');
         const result = (await view(host)).match!.result!;
         expect(result.counts.reduce((a, b) => a + b, 0)).toBe(count - 2);
-        expect(result.counts[0]).toBe(result.counts[1]); // ties award no win bonus
-        expect(result.points).toEqual(result.counts.map((n) => n * 100));
+        expect(result.counts).toEqual([Math.ceil((count - 2) / 2), Math.floor((count - 2) / 2)]);
+        expect(result.points).toEqual(
+          result.counts.map((n, index) => n * 100 + (n > result.counts[1 - index] ? 200 : 0)),
+        );
         totalPoints += result.points.reduce((a, b) => a + b, 0);
         const duplicate = await pages[voterIndices[0]].request.post(`/api/ogiri/${code}`, {
           data: { type: 'vote', matchId: states[0].match!.id, choice: 1 },
@@ -213,7 +221,8 @@ for (const count of [10, 12])
         await expect(
           host.getByRole('heading', { name: 'この一言の作者は…', exact: true }),
         ).toBeVisible();
-        await expect(tv.getByText('引き分け！').first()).toBeVisible();
+        if (count % 2 === 0) await expect(tv.getByText('引き分け！').first()).toBeVisible();
+        else await expect(tv.getByText('この対戦の勝者 👑', { exact: true })).toBeVisible();
         await host.getByRole('button', { name: '次へ進む', exact: true }).click();
       }
       await expect.poll(async () => (await view(host)).phase).toBe('ranking');
@@ -232,7 +241,15 @@ for (const count of [10, 12])
       expect(
         await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2),
       ).toBe(true);
+      await tv.getByRole('button', { name: 'パーティー総合', exact: true }).click();
+      expect(
+        await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2),
+      ).toBe(true);
       await tv.setViewportSize({ width: 3840, height: 2160 });
+      expect(
+        await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2),
+      ).toBe(true);
+      await tv.getByRole('button', { name: 'このゲーム', exact: true }).click();
       expect(
         await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2),
       ).toBe(true);

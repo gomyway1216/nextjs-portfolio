@@ -1,6 +1,7 @@
 import { test, expect, type BrowserContext } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { GameHistory, RoomView } from '../../src/lib/ogiri/types';
+import { partyPointsForRank } from '../../src/lib/party/points';
 
 test('the default host and TV are separate from phone answerers', async ({
   browser,
@@ -81,13 +82,11 @@ test('two rounds survive rematch and room expiry; history is static, shareable a
       room = await response.json();
     };
     await Promise.all(
-      contexts
-        .slice(1)
-        .map((c, i) =>
-          c.request.post(path, {
-            data: { type: 'join', name: `履歴の参加者${i + 1}`, avatar: '🐶' },
-          }),
-        ),
+      contexts.slice(1).map((c, i) =>
+        c.request.post(path, {
+          data: { type: 'join', name: `履歴の参加者${i + 1}`, avatar: '🐶' },
+        }),
+      ),
     );
     await action({
       type: 'settings',
@@ -139,6 +138,8 @@ test('two rounds survive rematch and room expiry; history is static, shareable a
     room = await (await host.get(path)).json();
     expect(room.phase).toBe('finished');
     expect(room.history).toHaveLength(1);
+    expect(room.partyGames).toBe(1);
+    expect(room.players.every((p) => p.partyPoints === partyPointsForRank(p.rank))).toBe(true);
     const ref = room.history![0];
     const historyPath = `/api/ogiri/history/${ref.id}`;
     const historyResponse = await host.get(historyPath);
@@ -156,9 +157,60 @@ test('two rounds survive rematch and room expiry; history is static, shareable a
     await page.goto(`/games/ogiri/${room.code}`);
     const resultLink = page.getByRole('link', { name: '直前の結果を見る ↗', exact: true });
     await expect(resultLink).toBeVisible();
+    await page.getByRole('button', { name: 'パーティー総合', exact: true }).click();
+    await expect(page.getByLabel('パーティー総合順位', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /ベスト一言/ }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toContainText('window.historyXss=true');
+    expect(await page.evaluate(() => 'historyXss' in window)).toBe(false);
+    await page.getByRole('button', { name: '発表を閉じる' }).click();
+    const firstTotals = new Map(room.players.map((p) => [p.id, p.partyPoints ?? 0]));
     await action({ type: 'rematch' });
     expect(room.players.every((p) => p.score === 0)).toBe(true);
+    expect(room.players.every((p) => p.partyPoints === firstTotals.get(p.id))).toBe(true);
     expect(await (await host.get(historyPath)).json()).toEqual(history);
+    await action({ type: 'start' });
+    for (const c of contexts) {
+      const v: RoomView = await (await c.request.get(path)).json();
+      for (const assignment of v.assignments)
+        expect(
+          (
+            await c.request.post(path, {
+              data: { type: 'answer', matchId: assignment.id, text: '再戦の一言😀' },
+            })
+          ).ok(),
+        ).toBe(true);
+    }
+    await action({ type: 'next' });
+    for (const c of contexts) {
+      const v: RoomView = await (await c.request.get(path)).json();
+      if (v.match?.canVote)
+        expect(
+          (
+            await c.request.post(path, { data: { type: 'vote', matchId: v.match.id, choice: 0 } })
+          ).ok(),
+        ).toBe(true);
+    }
+    await action({ type: 'next' });
+    await action({ type: 'finish' });
+    expect(room.partyGames).toBe(2);
+    expect(
+      room.players.every(
+        (p) => p.partyPoints === firstTotals.get(p.id)! + partyPointsForRank(p.rank),
+      ),
+    ).toBe(true);
+    const afterSecond = structuredClone(room.players);
+    await action({ type: 'finish' });
+    expect(room.partyGames).toBe(2);
+    expect(room.players).toEqual(afterSecond);
+    expect(await (await host.get(historyPath)).json()).toEqual(history);
+    const latest: GameHistory = await (
+      await host.get(`/api/ogiri/history/${room.history!.at(-1)!.id}`)
+    ).json();
+    expect(latest.partyGames).toBe(2);
+    expect(latest.partyRankings?.reduce((sum, p) => sum + p.points, 0)).toBe(
+      room.players.reduce((sum, p) => sum + (p.partyPoints ?? 0), 0),
+    );
     await page.goto('/games/ogiri/history');
     await page.getByRole('link', { name: new RegExp(`${room.code} · 第1ゲーム`) }).click();
     await expect(page.getByRole('heading', { name: '👑 最終順位' })).toBeVisible();
@@ -176,6 +228,7 @@ test('two rounds survive rematch and room expiry; history is static, shareable a
     expect(content).toContain('第2回の回答');
     expect(content).toContain('1票');
     expect(content).toContain('【最終順位】');
+    expect(content).toContain('【パーティー総合順位');
     await page.screenshot({ path: testInfo.outputPath('history-phone.png'), fullPage: true });
     let historyReads = 0;
     page.on('request', (r) => {

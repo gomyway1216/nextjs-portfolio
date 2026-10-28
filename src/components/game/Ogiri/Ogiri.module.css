@@ -923,6 +923,195 @@ a.historyCard:hover {
 .ranking {
   position: relative;
 }
+.resultTabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+.resultTabs button {
+  border: 1px solid #ffffff30;
+  border-radius: 999px;
+  padding: 7px 14px;
+  color: var(--ink);
+  background: #ffffff0c;
+}
+.resultTabs button[aria-pressed='true'] {
+  color: #28183f;
+  background: var(--lime);
+  border-color: var(--lime);
+  font-weight: 800;
+}
+.resultTabs small {
+  margin-left: auto;
+  font-size: 11px;
+}
+.highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.highlights button {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid #ffffff24;
+  background: #8d64bb25;
+  color: var(--ink);
+  padding: 12px;
+  min-width: 0;
+}
+.highlights span {
+  color: var(--lime);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+.highlights b {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+.highlights small {
+  font-size: 11px;
+}
+.spotlightDialog {
+  width: min(800px, 90vw);
+  max-height: 88dvh;
+  overflow: auto;
+  background: #2f204b;
+  border: 2px solid #d8fc7080;
+  border-radius: 28px;
+  color: var(--ink);
+  padding: 50px 32px 32px;
+  text-align: center;
+}
+.spotlightDialog::backdrop {
+  background: #12091be8;
+  backdrop-filter: blur(8px);
+}
+.spotlightDialog h2 {
+  font-size: clamp(26px, 3vw, 48px);
+  margin: 14px 0;
+}
+.spotlightDialog h3 {
+  color: var(--ink);
+  font-size: 24px;
+  margin: 8px 0;
+}
+.spotlightDialog strong {
+  color: var(--lime);
+  font-size: 26px;
+}
+.spotlightClose {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 8px;
+}
+.spotlightAnswer {
+  background: #efe9ff;
+  color: #28183f !important;
+  border-radius: 20px;
+  padding: 24px;
+  font-size: clamp(26px, 3vw, 42px);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  margin: 24px 0 !important;
+}
+.spotlightWinners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+}
+.tv .ranking .championCharacters .character {
+  width: 3.4vw;
+  height: 3.4vw;
+}
+.tv .ranking .champion {
+  padding-bottom: 0.5vh;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 1.2vw;
+  align-items: center;
+  max-width: 75vw;
+  margin: 0 auto 0.6vh;
+  text-align: left;
+}
+.tv .ranking .champion > p:first-child {
+  grid-column: 2;
+  grid-row: 1;
+}
+.tv .ranking .championCharacters {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  margin: 0;
+}
+.tv .ranking .champion h2 {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 2.7vw;
+  line-height: 1.15;
+}
+.tv .ranking .champion > p:last-child {
+  grid-column: 2;
+  grid-row: 3;
+}
+.tv .resultTabs {
+  margin: 0.5vh 0;
+  font-size: 1vw;
+}
+.tv .resultTabs button {
+  padding: 0.3vh 0.8vw;
+}
+.tv .resultTabs small {
+  font-size: 0.7vw;
+}
+.tv .highlights {
+  gap: 0.7vw;
+  margin-bottom: 0.7vh;
+}
+.tv .highlights button {
+  padding: 0.4vh 0.7vw;
+  gap: 0;
+  line-height: 1.2;
+}
+.tv .ranking .rankGrid {
+  gap: 0.7vw;
+}
+.tv .highlights b {
+  font-size: 1.1vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tv .highlights span,
+.tv .highlights small {
+  font-size: 0.7vw;
+}
+.tv .ranking .rankRow {
+  padding-top: 0.55vh;
+  padding-bottom: 0.55vh;
+}
+@media (max-width: 520px) {
+  .highlights {
+    grid-template-columns: 1fr;
+  }
+  .resultTabs small {
+    width: 100%;
+    margin-left: 0;
+  }
+  .spotlightDialog {
+    padding: 50px 20px 24px;
+  }
+}
 .champion {
   text-align: center;
   padding-bottom: 28px;

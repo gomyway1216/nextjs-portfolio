@@ -11,6 +11,7 @@ import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, phaseSound } from '@/lib/ogiri/sound';
 import { Character } from './Character';
+import { PartyResults } from './PartyResults';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -249,6 +250,7 @@ export function OgiriLanding() {
           </p>
           <p>
             同点は同じ順位。自分の対戦は投票をお休み。未回答・非表示の回答は得点なし。回答は100文字までです。
+            終了順位でパーティーポイント（10・7・5・3pt）を獲得し、同じルームの再戦でも通算します。
           </p>
         </section>
       </div>
@@ -712,6 +714,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                         <small>
                           {!p.active ? 'お休み中' : p.connected ? '参加中 ✓' : '接続を待っています'}
                         </small>
+                        {Boolean(v.partyGames) && <small>{p.partyPoints ?? 0} パーティーpt</small>}
                       </article>
                     ))}
                   </div>
@@ -863,6 +866,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       ))}
                     </div>
                     <div className={styles.champion}>
+                      <p className={styles.eyebrow}>このゲームの優勝</p>
                       <div className={styles.championCharacters}>
                         {v.players
                           .filter((p) => p.rank === 1)
@@ -883,31 +887,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     </div>
                   </>
                 )}
-                <div className={styles.rankGrid}>
-                  {v.players.map((p) => (
-                    <article
-                      className={`${styles.rankRow} ${p.rank <= 3 ? styles.topRank : ''}`}
-                      key={p.id}
-                    >
-                      <b>{p.rank <= 3 ? ['🥇', '🥈', '🥉'][p.rank - 1] : p.rank}</b>
-                      <span className={styles.rankName}>
-                        <Character avatar={p.avatar} /> {p.name}
-                        <small>
-                          {p.previousRank > p.rank
-                            ? `↑${p.previousRank - p.rank}`
-                            : p.previousRank < p.rank
-                              ? `↓${p.rank - p.previousRank}`
-                              : '→'}{' '}
-                          今回 +{p.roundScore}
-                        </small>
-                      </span>
-                      <strong>
-                        {p.score}
-                        <small>pt</small>
-                      </strong>
-                    </article>
-                  ))}
-                </div>
+                <PartyResults key={`${v.game}:${v.phase}`} view={v} />
                 {!tv && v.isHost && v.phase === 'finished' && (
                   <button
                     className={styles.primary}

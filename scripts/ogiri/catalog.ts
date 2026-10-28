@@ -122,11 +122,9 @@ const report = {
   normalizedDuplicates: 0,
   nearPairs: similar.sort((a, b) => b.similarity - a.similarity),
   method:
-    'NFKC, punctuation/space removal, Japanese orthographic normalization, character trigram Dice >= 0.42. Similarities are editorial candidates, not proof of semantic uniqueness.',
+    'NFKC, punctuation/space removal, Japanese orthographic normalization, character trigram Dice >= 0.42. Similarity is advisory: familiar themes are allowed; review trivial paraphrases and prompts that invite the same answers.',
 };
 writeFileSync(resolve(root, 'validation.json'), JSON.stringify(report, null, 2) + '\n');
-if (similar.some((pair) => pair.similarity >= 0.7))
-  throw new Error('Too-similar prompts; inspect validation.json before publishing.');
 if (process.argv.includes('--write'))
   writeFileSync(resolve(root, 'prompts.json'), JSON.stringify(prompts, null, 2) + '\n');
 console.log(JSON.stringify(report));

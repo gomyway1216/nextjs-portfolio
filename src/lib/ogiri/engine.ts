@@ -238,7 +238,8 @@ function visible(room: Room, match: Match, index: number) {
 }
 function eligible(room: Room, match: Match) {
   return Object.values(room.players).filter(
-    (p) => p.active && !p.kicked && !p.spectator && !match.players.includes(p.id),
+    (p) => p.active && !p.kicked && !p.spectator && !match.players.includes(p.id) &&
+      room.matches.some((assignment) => assignment.players.includes(p.id)),
   );
 }
 function scoreMatch(room: Room, match: Match) {
@@ -351,21 +352,23 @@ export function act(
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'heartbeat'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
-    player.active = true;
     return;
   }
   if (action.type === 'leave') {
-    requireThat(!host, '主催者はゲーム終了を選んでください。');
     player.active = false;
+    player.lastSeen = now;
+    room.expiresAt = now + ROOM_TTL;
     advanceReadyAnswers(room, now, prompts, rng);
     room.revision++;
     return;
   }
-  if (action.type === 'hostParticipation') {
+  if (action.type === 'return') {
+    player.active = true;
+  } else if (action.type === 'hostParticipation') {
     requireThat(room.phase === 'lobby', '回答への参加はゲーム開始前に切り替えてください。', 409);
     requireThat(typeof action.participating === 'boolean', '参加方法を選んでください。');
     requireThat(
@@ -575,6 +578,7 @@ export function project(
     paused: Boolean(room.pausedAt),
     serverTime: room.pausedAt || now,
     me,
+    resting: Boolean(me && !room.players[me].active),
     isHost: me === room.hostId,
     hostPlays: !room.players[room.hostId].spectator,
     players: rankPlayers(room).map((p) => ({
@@ -595,7 +599,7 @@ export function project(
       answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
     })),
     assignments:
-      me && room.phase === 'answering'
+      me && room.players[me].active && room.phase === 'answering'
         ? room.matches
             .filter((m) => m.players.includes(me))
             .map((m) => ({ id: m.id, text: promptText(m.promptId), answer: m.answers[me] ?? '' }))

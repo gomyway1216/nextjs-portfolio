@@ -12,6 +12,7 @@ import {
   settingsInput,
   project,
   rankPlayers,
+  ROOM_TTL,
   tick,
   turnKey,
 } from './engine';
@@ -38,9 +39,8 @@ function collection(name = COLLECTION) {
   return getFirestore().collection(name);
 }
 const hash = (secret: string) => createHash('sha256').update(secret).digest('hex');
-export function identity() {
-  const id = randomBytes(12).toString('hex'),
-    secret = randomBytes(32).toString('hex');
+export function identity(id = randomBytes(12).toString('hex')) {
+  const secret = randomBytes(32).toString('hex');
   return { id, hash: hash(secret), token: `${id}.${secret}` };
 }
 export function authenticate(room: Room, token?: string): string | null {
@@ -57,6 +57,15 @@ function saved(room: Room) {
   return { ...room, deleteAfter: Timestamp.fromMillis(room.expiresAt) };
 }
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const recoveryHash = (room: Room, code: string) => hash(`ogiri-recovery:${room.code}:${code}`);
+function issueRecoveryCode(room: Room, id: string) {
+  let code: string;
+  do {
+    code = Array.from({ length: 8 }, () => alphabet[randomInt(alphabet.length)]).join('');
+  } while (Object.values(room.players).some(player => player.recoveryHash === recoveryHash(room, code)));
+  room.players[id].recoveryHash = recoveryHash(room, code);
+  return code;
+}
 export async function makeRoom(name: unknown, avatar: unknown, hostPlays: unknown = true, gameType: unknown = 'ogiri') {
   if (typeof hostPlays !== 'boolean') throw new GameError('主催者の参加方法を選んでください。');
   const settings = settingsInput({ ...DEFAULT_SETTINGS, gameType });
@@ -66,11 +75,12 @@ export async function makeRoom(name: unknown, avatar: unknown, hostPlays: unknow
   for (let tries = 0; tries < 8; tries++) {
     const code = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join('');
     const room = createRoom(code, host, Date.now());
+    const recoveryCode = issueRecoveryCode(room, host.id);
     room.settings = settings;
     room.historyId = randomBytes(16).toString('hex');
     try {
       await collection().doc(code).create(saved(room));
-      return { view: project(room, host.id, Date.now(), prompts), token: session.token };
+      return { view: { ...project(room, host.id, Date.now(), prompts), recoveryCode }, token: session.token };
     } catch (error) {
       if ((error as { code?: number }).code !== 6) throw error;
     }
@@ -141,20 +151,67 @@ export async function enterRoom(
   avatar: unknown,
 ) {
   const session = identity();
-  const freshPlayer = newPlayer(session.id, session.hash, name, avatar, Date.now());
   let existing: string | null = null;
+  let recoveryCode: string | undefined;
   const room = await mutate(code, (room, now) => {
+    recoveryCode = undefined;
     existing = authenticate(room, token);
     if (existing) {
-      room.players[existing].active = true;
-      room.players[existing].lastSeen = now;
+      act(room, existing, { type: 'return' }, now, prompts);
+      if (!room.players[existing].recoveryHash) recoveryCode = issueRecoveryCode(room, existing);
       return;
     }
-    joinRoom(room, { ...freshPlayer });
+    joinRoom(room, newPlayer(session.id, session.hash, name, avatar, now));
+    recoveryCode = issueRecoveryCode(room, session.id);
   });
   return {
-    view: project(room, existing ?? session.id, Date.now(), prompts),
+    view: { ...project(room, existing ?? session.id, Date.now(), prompts), ...(recoveryCode ? { recoveryCode } : {}) },
     token: existing ? token! : session.token,
+  };
+}
+/** Explicit authenticated issuance also lazily upgrades rooms created before recovery support. */
+export async function regenerateRecoveryCode(code: string, token: string | undefined) {
+  let recoveryCode = '';
+  const room = await mutate(code, (room) => {
+    const id = authenticate(room, token);
+    if (!id) throw new GameError('参加し直してください。', 401);
+    recoveryCode = issueRecoveryCode(room, id);
+    room.revision++;
+  });
+  return { ...project(room, authenticate(room, token), Date.now(), prompts), recoveryCode };
+}
+
+/** Count failures in the existing room document so cold starts cannot bypass the throttle.
+ * A recovered device replaces the old session, while keeping the participant and role. */
+export async function recoverRoom(code: string, input: unknown) {
+  const normalized = typeof input === 'string' ? input.toUpperCase().replace(/[\s-]/g, '') : '';
+  let session: ReturnType<typeof identity> | null = null;
+  const room = await mutate(code, (room, now) => {
+    // mutate may retry after a concurrent update; never retain a rejected attempt's session.
+    session = null;
+    const attempts = room.recoveryAttempts;
+    if (attempts && attempts.resetAt > now && attempts.count >= 30) {
+      throw new GameError('復帰の試行が多すぎます。5分ほど待ってください。', 429);
+    }
+    room.recoveryAttempts = !attempts || attempts.resetAt <= now
+      ? { count: 1, resetAt: now + 5 * 60000 }
+      : { ...attempts, count: attempts.count + 1 };
+    const candidate = /^[A-HJ-NP-Z2-9]{8}$/.test(normalized) ? recoveryHash(room, normalized) : '';
+    const player = Object.values(room.players).find(player => !player.kicked && player.recoveryHash === candidate);
+    if (player) {
+      session = identity(player.id);
+      player.secretHash = session.hash;
+      // Recovery itself preserves an explicit rest; returning to play is a separate action.
+      player.lastSeen = now;
+      room.expiresAt = now + ROOM_TTL;
+    }
+    room.revision++;
+  });
+  if (!session) throw new GameError('復帰コードを確認してください。', 401);
+  const recovered = session as ReturnType<typeof identity>;
+  return {
+    view: { ...project(room, recovered.id, Date.now(), prompts), recoveryCode: normalized },
+    token: recovered.token,
   };
 }
 export async function readRoom(code: string, token?: string, tv = false) {

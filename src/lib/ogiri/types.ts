@@ -53,6 +53,8 @@ export interface Prompt {
   createdAt: string;
 }
 export interface Player {
+  /** Private recovery capability; plaintext is returned only at issuance. */
+  recoveryHash?: string;
   answerReady?: boolean;
   partyPoints?: number;
   partyEarned?: number;
@@ -81,6 +83,8 @@ export interface Match {
 }
 export interface Room {
   drawing?: DrawingRound;
+  /** Durable recovery throttle shared across server instances. */
+  recoveryAttempts?: { count: number; resetAt: number };
   /** Snapshot of the game actually started, independent of the next game's settings. */
   gameType?: GameType;
   sideRounds?: SideGameRound[];
@@ -185,6 +189,9 @@ export interface PublicPlayer {
 }
 export interface RoomView {
   drawingGame?: DrawingGameView;
+  /** Transient issuance response only. Never populated by project/poll/history. */
+  recoveryCode?: string;
+  resting?: boolean;
   gameType?: GameType;
   sideGame?: PartyGameView;
   partyPlayers?: {
@@ -249,7 +256,7 @@ export type Action =
   | { type: 'answer'; matchId: string; text: string }
   | { type: 'vote'; matchId: string; choice: number }
   | { type: 'settings'; settings: Settings }
-  | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'rematch' | 'leave' | 'heartbeat' }
+  | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'rematch' | 'leave' | 'return' | 'heartbeat' }
   | { type: 'kick'; playerId: string }
   | { type: 'hide'; matchId: string; choice: number };
 

@@ -178,6 +178,8 @@ describe('Ogiri party engine', () => {
     act(room, 'p1', { type: 'leave' }, now, prompts);
     expect(room.players.p1.active).toBe(false);
     act(room, 'p1', { type: 'heartbeat' }, now, prompts);
+    expect(room.players.p1.active).toBe(false);
+    act(room, 'p1', { type: 'return' }, now, prompts);
     expect(room.players.p1.active).toBe(true);
     act(room, 'p0', { type: 'kick', playerId: 'p1' }, now, prompts);
     expect(() => act(room, 'p1', { type: 'heartbeat' }, now, prompts)).toThrow('無効');

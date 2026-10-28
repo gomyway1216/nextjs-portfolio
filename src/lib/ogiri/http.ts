@@ -3,6 +3,11 @@ import { clientIpFrom, isRateLimited } from '@/lib/rateLimit';
 import { GameError } from './engine';
 
 export const cookieName = (code: string) => `ogiri_${code}`;
+export function guardRecovery(request: NextRequest) {
+  // Twelve phones on party Wi-Fi share an IP; allow one recovery and one retry each.
+  if (isRateLimited(`ogiri:recovery:${clientIpFrom(request)}`, { limit: 24, windowMs: 60000 }))
+    throw new GameError('復帰の操作が多すぎます。1分ほど待ってください。', 429);
+}
 export function guard(request: NextRequest, mutation = false, creating = false) {
   if (mutation) {
     const origin = request.headers.get('origin');

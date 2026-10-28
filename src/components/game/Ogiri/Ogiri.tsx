@@ -18,6 +18,8 @@ import { MysteryCharacter } from './MysteryCharacter';
 import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
+import { ParticipantAccess } from './ParticipantAccess';
+import { rememberRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -72,6 +74,8 @@ function JoinForm({
 }) {
   const router = useRouter();
   const [hostPlays, setHostPlays] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [gameType, setGameType] = useState<GameType>(initialGameType);
   const [name, setName] = useState(''),
     [avatar, setAvatar] = useState(AVATARS[0]);
@@ -84,12 +88,14 @@ function JoinForm({
     setError('');
     try {
       const view = await request(create ? '' : `/${room.trim().toUpperCase()}`, {
-        type: 'join',
+        type: recovering ? 'recover' : 'join',
+        ...(recovering ? { recoveryCode } : {}),
         name,
         avatar,
         ...(create ? { hostPlays, gameType } : {}),
       });
-      localStorage.setItem('ogiri:lastRoom', view.code);
+      rememberRecovery(view);
+      try { localStorage.setItem('ogiri:lastRoom', view.code); } catch { /* Optional recent room. */ }
       if (onJoined) onJoined(view);
       else router.push(`/games/ogiri/${view.code}`);
     } catch (error) {
@@ -101,6 +107,10 @@ function JoinForm({
   return (
     <form onSubmit={submit} className={styles.form}>
       {create && <PartyGamePicker value={gameType} onChange={setGameType} />}
+      {!create && <div className={styles.tabs}>
+        <button type="button" aria-pressed={!recovering} onClick={() => setRecovering(false)}>新しく参加する</button>
+        <button type="button" aria-pressed={recovering} onClick={() => setRecovering(true)}>同じ参加者で戻る</button>
+      </div>}
       {!create && !code && (
         <label>
           ルームコード
@@ -116,7 +126,13 @@ function JoinForm({
           />
         </label>
       )}
-      <label>
+      {recovering ? <label>
+        復帰コード
+        <input aria-label="復帰コード" autoComplete="off" autoCapitalize="characters" spellCheck={false}
+          placeholder="ABCD-EF23" maxLength={9} required value={recoveryCode}
+          onChange={e => setRecoveryCode(e.target.value.toUpperCase().replace(/[^A-Z2-9-]/g, ''))} />
+        <small>参加時に控えた8文字。名前・キャラ・得点・通算を引き継ぎます。</small>
+      </label> : <><label>
         ニックネーム
         <input
           aria-label="ニックネーム"
@@ -147,6 +163,7 @@ function JoinForm({
           ))}
         </div>
       </fieldset>
+      </>}
       {create && (
         <label>
           <span>
@@ -167,10 +184,10 @@ function JoinForm({
           {error}
         </p>
       )}
-      <button className={styles.primary} disabled={busy || [...name.normalize('NFKC')].length > 16}>
-        {busy ? '接続中…' : create ? 'ルームを作成 →' : 'ルームに参加 →'}
+      <button className={styles.primary} disabled={busy || (!recovering && [...name.normalize('NFKC')].length > 16)}>
+        {busy ? '接続中…' : create ? 'ルームを作成 →' : recovering ? '同じ参加者で復帰 →' : 'ルームに参加 →'}
       </button>
-      <small>登録不要・無料。同じブラウザなら、更新しても戻れます。</small>
+      <small>登録不要・無料。同じブラウザはCookie、別端末は復帰コードで同じ部屋に戻れます。部屋は最後のゲーム操作から8時間有効です。</small>
     </form>
   );
 }
@@ -476,6 +493,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const lastSoundView = useRef<RoomView | null>(null);
   const accept = useCallback((next: RoomView) => {
     if (latest.current && next.revision < latest.current.revision) return;
+    rememberRecovery(next);
     const receivedAt = Date.now();
     latest.current = next;
     const signature = next.history?.map((h) => h.id).join(',') ?? '';
@@ -622,6 +640,14 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     } finally {
       setBusy(false);
     }
+  }
+  async function regenerateRecovery() {
+    if (tv || busy) return;
+    setBusy(true);
+    setError('');
+    try { accept(await request(`/${code}`, { type: 'recoveryCode' })); }
+    catch (error) { setError((error as Error).message); }
+    finally { setBusy(false); }
   }
   const v = view,
     mine = v?.players.find((p) => p.id === v.me);
@@ -1084,6 +1110,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 )}
               </section>
             )}
+            {!tv && v.me && <ParticipantAccess view={v} busy={busy} connected={connected} send={send} regenerate={regenerateRecovery} />}
             {!tv && mine && (
               <div className={styles.myScore}>
                 <Character avatar={mine.avatar} /> {mine.name}

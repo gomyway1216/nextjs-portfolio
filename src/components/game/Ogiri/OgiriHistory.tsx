@@ -6,6 +6,7 @@ import type { GameHistory, HistoryRef } from '@/lib/ogiri/types';
 import { historyText, validHistoryId } from '@/lib/ogiri/history';
 import { readLocalHistory, rememberHistory } from '@/lib/ogiri/history-local';
 import styles from './Ogiri.module.css';
+import { Character } from './Character';
 
 const date = (value: number) => new Date(value).toLocaleString('ja-JP');
 export function OgiriHistory({ id }: { id?: string }) {
@@ -161,7 +162,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                   <li key={i}>
                     <b>{p.rank}位</b>
                     <span>
-                      {p.avatar} {p.name}
+                      <Character avatar={p.avatar} /> {p.name}
                     </span>
                     <strong>{p.score} pt</strong>
                   </li>
@@ -188,7 +189,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                         <div key={j}>
                           <p className={styles.historyAnswer}>{answer.text ?? '未回答・非表示'}</p>
                           <small>
-                            {answer.avatar} {answer.name}
+                            <Character avatar={answer.avatar} /> {answer.name}
                           </small>
                           <p>
                             <strong>{answer.votes}票</strong> · +{answer.points} pt

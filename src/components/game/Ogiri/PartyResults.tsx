@@ -20,11 +20,13 @@ export function PartyResults({ view }: { view: RoomView }) {
         score: current?.score ?? 0,
         previousRank: current?.previousRank ?? 0,
         roundScore: current?.roundScore ?? 0,
-        partyPoints: (p.partyPoints ?? 0) + (finished ? 0 : partyPointsForRank(current?.rank ?? 0)),
+        playingThisGame: current?.playingThisGame ?? Boolean(current),
+        partyPoints: (p.partyPoints ?? 0) + (finished || current?.playingThisGame === false
+          ? 0 : partyPointsForRank(current?.rank ?? 0)),
       };
     }),
   );
-  const rows = mode === 'party' ? overall : view.players;
+  const rows = mode === 'party' ? overall : view.players.filter((p) => p.playingThisGame !== false);
   const pages = Math.max(1, Math.ceil(rows.length / 12));
   const currentPage = Math.min(page, pages - 1);
   const visibleRows = rows.slice(currentPage * 12, currentPage * 12 + 12);
@@ -99,7 +101,7 @@ export function PartyResults({ view }: { view: RoomView }) {
                 <Character avatar={p.avatar} /> {p.name}
                 <small>
                   {mode === 'party'
-                    ? `${finished ? '今回' : '暫定'} +${finished ? (p.partyEarned ?? 0) : partyPointsForRank(p.rank)}pt`
+                    ? `${finished ? '今回' : '暫定'} +${finished ? (p.partyEarned ?? 0) : p.playingThisGame === false ? 0 : partyPointsForRank(p.rank)}pt`
                     : `${p.previousRank > p.rank ? `↑${p.previousRank - p.rank}` : p.previousRank < p.rank ? `↓${p.rank - p.previousRank}` : '→'} 今回 +${p.roundScore}`}
                 </small>
               </span>

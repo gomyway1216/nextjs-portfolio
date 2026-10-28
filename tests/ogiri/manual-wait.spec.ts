@@ -62,7 +62,9 @@ test('manual twelve-player TV, long answers, result spotlight and keyboard close
   const contexts: BrowserContext[] = [];
   const errors: string[] = [];
   try {
-    const hostContext = await browser.newContext({ baseURL, extraHTTPHeaders: { 'x-real-ip': '198.51.100.50' } });
+    const hostContext = await browser.newContext({ baseURL,
+      extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.50' },
+    });
     contexts.push(hostContext);
     const host = hostContext.request;
     let view: RoomView = await (await host.post('/api/ogiri', { data: { name: 'TVの進行役', avatar: '🐱', hostPlays: false } })).json();

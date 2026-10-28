@@ -1,6 +1,7 @@
 import { rankPlayers } from './engine';
 import type { GameHistory, Prompt, Room } from './types';
 import { partyStandings } from '../party/points';
+import { gamePlayerIds } from './party';
 
 export const HISTORY_TTL = 90 * 24 * 60 * 60 * 1000;
 export const validHistoryId = (id: string) => /^[a-f0-9]{32}$/.test(id);
@@ -12,6 +13,7 @@ export function snapshotHistory(
   now: number,
   prompts: Prompt[],
 ): GameHistory {
+  const participants = gamePlayerIds(room);
   return {
     version: 1,
     gameType: 'ogiri',
@@ -33,7 +35,7 @@ export function snapshotHistory(
     finishedAt: now,
     expiresAt: now + HISTORY_TTL,
     rounds: room.round,
-    rankings: rankPlayers(room).map(({ name, avatar, rank, score }) => ({
+    rankings: rankPlayers(room).filter((p) => participants.has(p.id)).map(({ name, avatar, rank, score }) => ({
       name,
       avatar,
       rank,

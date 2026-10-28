@@ -55,6 +55,9 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
   ).toBe('none');
   await page.screenshot({ path: testInfo.outputPath('characters-phone.png'), fullPage: true });
   await page.getByRole('textbox', { name: 'ニックネーム' }).fill('キャラの進行役');
+  const createButton = page.getByRole('button', { name: 'ルームを作成 →', exact: true });
+  await createButton.hover();
+  expect(await createButton.evaluate((node) => getComputedStyle(node).transform)).toBe('none');
   await page.getByRole('button', { name: 'ルームを作成 →' }).click();
   await expect(page).toHaveURL(/\/games\/ogiri\/[A-Z2-9]{6}$/);
   const code = page.url().split('/').at(-1)!;

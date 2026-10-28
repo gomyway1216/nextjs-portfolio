@@ -26,6 +26,10 @@ function room() {
       scored: true,
       points: [300, 0],
     },
+    {
+      id: '1-1-1', promptId: prompts[1].id, players: ['b', 'c'],
+      answers: {}, votes: {}, hidden: {}, scored: false, points: [0, 0],
+    },
   ];
   return room;
 }
@@ -71,6 +75,21 @@ describe('cross-game party points and highlights', () => {
     settlePartyPoints(played, rankPlayers(played));
     expect(played.players.a.partyPoints).toBeUndefined();
     expect(played.players.b.partyPoints).toBe(10);
+  });
+
+  it('does not award absent members, retaining their totals while counting assigned players who disconnect', () => {
+    const r = room();
+    r.players.d = { ...newPlayer('d', 'secret4', 'お休み', '🐧', 0), active: false, partyPoints: 17 };
+    r.players.c.active = false;
+    expect(project(r, 'd', 1, prompts).players.find((p) => p.id === 'd')?.playingThisGame).toBe(false);
+    expect(project(r, 'c', 1, prompts).players.find((p) => p.id === 'c')?.playingThisGame).toBe(true);
+    settlePartyPoints(r, rankPlayers(r));
+    expect(r.players.d.partyPoints).toBe(17);
+    expect(r.players.d.partyEarned).toBeUndefined();
+    expect(r.players.c.partyEarned).toBe(5);
+    expect(snapshotHistory(r, 'a'.repeat(32), 1, prompts).partyRankings?.find((p) => p.name === 'お休み'))
+      .toMatchObject({ points: 17, earned: 0 });
+    expect(snapshotHistory(r, 'a'.repeat(32), 1, prompts).rankings.some((p) => p.name === 'お休み')).toBe(false);
   });
   it('archives the cumulative scoreboard as it was at each game, retaining a readable export', () => {
     const r = room();

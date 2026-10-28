@@ -10,7 +10,7 @@ import {
   type RoomView,
   type Settings,
 } from './types';
-import { gameHighlights } from './party';
+import { gameHighlights, gamePlayerIds } from './party';
 
 export class GameError extends Error {
   constructor(
@@ -481,6 +481,7 @@ export function project(
     prompts.find((p) => p.id === id)?.text ?? 'お題を読み込めませんでした';
   const current = room.matches[room.matchIndex];
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
+  const participants = gamePlayerIds(room);
   return {
     turn: `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`,
     history: room.history ?? [],
@@ -513,6 +514,7 @@ export function project(
     hostPlays: !room.players[room.hostId].spectator,
     players: rankPlayers(room).map((p) => ({
       id: p.id,
+      playingThisGame: participants.has(p.id),
       partyPoints: p.partyPoints ?? 0,
       partyEarned: p.partyEarned ?? 0,
       name: p.name,

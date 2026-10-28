@@ -1365,6 +1365,10 @@ a.historyCard:hover {
 .reduced .confetti {
   display: none;
 }
+.reduced .primary:hover,
+.reduced .avatars button:hover {
+  transform: none;
+}
 @keyframes arrive {
   from {
     opacity: 0;
@@ -1433,6 +1437,10 @@ a.historyCard:hover {
   }
   .confetti {
     display: none;
+  }
+  .app .primary:hover,
+  .app .avatars button:hover {
+    transform: none;
   }
 }
 @media (max-width: 800px) {

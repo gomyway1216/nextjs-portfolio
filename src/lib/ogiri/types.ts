@@ -115,6 +115,7 @@ export interface GameHistory extends HistoryRef {
   }[];
 }
 export interface PublicPlayer {
+  playingThisGame?: boolean;
   partyPoints?: number;
   partyEarned?: number;
   id: string;

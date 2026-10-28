@@ -529,6 +529,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
   const manualResult = isManualResult(v);
+  const gameWinners = v?.players.filter((p) => p.rank === 1 && p.playingThisGame !== false) ?? [];
   const tickKey = useRef('');
   useEffect(() => {
     if (
@@ -875,20 +876,16 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     <div className={styles.champion}>
                       <p className={styles.eyebrow}>このゲームの優勝</p>
                       <div className={styles.championCharacters}>
-                        {v.players
-                          .filter((p) => p.rank === 1)
+                        {gameWinners
                           .slice(0, 4)
                           .map((p) => (
                             <Character key={p.id} avatar={p.avatar} size="hero" crowned />
                           ))}
                       </div>
                       <h2>
-                        {v.players.filter((p) => p.rank === 1).length > 1
-                          ? `${v.players.filter((p) => p.rank === 1).length}人の大喜利王！`
-                          : v.players
-                              .filter((p) => p.rank === 1)
-                              .map((p) => p.name)
-                              .join(' ＆ ')}
+                        {gameWinners.length > 1
+                          ? `${gameWinners.length}人の大喜利王！`
+                          : gameWinners.map((p) => p.name).join(' ＆ ')}
                       </h2>
                       <p>そのひらめきに、盛大な拍手を。</p>
                     </div>

@@ -105,9 +105,9 @@ function JoinForm({
   return (
     <form onSubmit={submit} className={styles.form}>
       {create && <PartyGamePicker value={gameType} onChange={setGameType} />}
-      {!create && <div className={styles.row}>
-        <button type="button" className={styles.secondary} aria-pressed={!recovering} onClick={() => setRecovering(false)}>新しく参加する</button>
-        <button type="button" className={styles.secondary} aria-pressed={recovering} onClick={() => setRecovering(true)}>同じ参加者で戻る</button>
+      {!create && <div className={styles.tabs}>
+        <button type="button" aria-pressed={!recovering} onClick={() => setRecovering(false)}>新しく参加する</button>
+        <button type="button" aria-pressed={recovering} onClick={() => setRecovering(true)}>同じ参加者で戻る</button>
       </div>}
       {!create && !code && (
         <label>

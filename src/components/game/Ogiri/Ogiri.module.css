@@ -2091,6 +2091,7 @@ a.historyCard:hover {
 }
 .participantAccess {
   --ink: #251345;
+  --muted: #5c4670;
   padding: 1rem;
   margin: 1rem 0;
   border: 1px solid #d8c9e9;

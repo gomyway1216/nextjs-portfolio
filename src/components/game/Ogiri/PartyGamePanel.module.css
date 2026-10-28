@@ -194,16 +194,36 @@ button.optionCard:disabled {
 }
 .tv .peopleOptions {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65vw;
 }
 .tv .optionCard {
   min-height: 8vh;
   font-size: 1.6vw;
   padding: 1vh 1vw;
 }
+.tv .peopleOptions .optionCard {
+  display: grid;
+  grid-template-columns: 2.8vw minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55vw;
+  min-height: 7vh;
+  padding: 0.65vh 0.7vw;
+  font-size: 1.25vw;
+  line-height: 1.25;
+}
+.tv .peopleOptions .optionCard > span {
+  width: 2.8vw;
+  height: 2.8vw;
+}
 .tv .quote {
   max-width: none;
   font-size: 2.4vw;
   padding: 1.8vh 2vw;
+}
+.tv .longQuote {
+  font-size: 2vw;
+  line-height: 1.25;
+  padding: 1.2vh 1.6vw;
 }
 .tv .speech {
   max-width: none;
@@ -212,8 +232,16 @@ button.optionCard:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .tv .awards article {
-  font-size: 1.2vw;
-  padding: 0.6vh 0.6vw;
+  display: grid;
+  grid-template-columns: 1.8vw minmax(0, 1fr) auto;
+  gap: 0.35vw;
+  font-size: 1.1vw;
+  line-height: 1.3;
+  padding: 0.65vh 0.65vw;
+}
+.tv .awards article > span {
+  width: 1.8vw;
+  height: 1.8vw;
 }
 .tv .awards strong {
   font-size: 1.5vw;

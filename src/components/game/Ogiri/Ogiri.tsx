@@ -17,6 +17,7 @@ import { Character } from './Character';
 import { MysteryCharacter } from './MysteryCharacter';
 import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
+import { DrawingGamePanel } from './DrawingGamePanel';
 import styles from './Ogiri.module.css';
 
 const phaseName = {
@@ -30,6 +31,7 @@ const phaseName = {
 const partyPhaseName = {
   majority: { ...phaseName, voting: '多数派に、まざれ。', reveal: 'そっちが多かったか。' },
   identity: { ...phaseName, answering: 'ひとこと、仕込み中。', voting: 'これ、だれが書いた？', reveal: '正体、こちら。' },
+  drawing: { ...phaseName, answering: '絵とことばで、伝言中。', voting: '好きな絵に、一票。', reveal: 'その絵、そう来たか。' },
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -377,7 +379,7 @@ function SettingsForm({
       onChange={() => setSaved(false)}
     >
       <PartyGamePicker value={s.gameType ?? 'ogiri'} onChange={gameType => {
-        set({ ...s, gameType });
+        set({ ...s, gameType, rounds: gameType === 'drawing' ? 1 : s.rounds });
         setSaved(false);
       }} />
       <div className={styles.settingGrid}>
@@ -387,7 +389,7 @@ function SettingsForm({
             ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
             ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
-        ).filter(([key]) => key !== 'answerSeconds' || s.gameType !== 'majority').map(([key, label, values]) => (
+        ).filter(([key]) => (key !== 'answerSeconds' || s.gameType !== 'majority') && (key !== 'rounds' || s.gameType !== 'drawing')).map(([key, label, values]) => (
           <label key={key}>
             {label}
             <select
@@ -606,11 +608,11 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     setError('');
     try {
       const v = latest.current;
-      const next = await request(`/${code}`, { ...action, turn: v?.turn });
+      const next = await request(`/${code}${action.type === 'drawingSubmit' ? '/drawing' : ''}`, { ...action, turn: v?.turn });
       accept(next);
       if (sound && !document.hidden) {
-        if (action.type === 'answer' || action.type === 'partyAnswer') audio.current?.play('submit', volume);
-        if (action.type === 'vote' || action.type === 'partyVote') audio.current?.play('vote', volume);
+        if (['answer', 'partyAnswer', 'drawingSubmit', 'drawingGuess'].includes(action.type)) audio.current?.play('submit', volume);
+        if (['vote', 'partyVote', 'drawingVote'].includes(action.type)) audio.current?.play('vote', volume);
       }
       sync.current?.resume();
       return true;
@@ -870,7 +872,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
-                      <p>{gameType === 'majority' ? `全${v.settings.rounds}お題。全員が1お題につき1票ずつ投票します。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'majority' ? `全${v.settings.rounds}お題。全員が1お題につき1票ずつ投票します。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
                       <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
                       <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
                     </section>
@@ -954,7 +956,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 )}
               </section>
             )}
-            {gameType !== 'ogiri' && <PartyGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />}
+            {gameType === 'drawing' ? <DrawingGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} send={send} />
+              : gameType !== 'ogiri' && <PartyGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />}
             {gameType === 'ogiri' && v.match && (
               <section className={styles.battle} key={v.match.id}>
                 <p className={styles.eyebrow}>

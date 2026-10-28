@@ -25,8 +25,8 @@ export function roomCode(value: string) {
     throw new GameError('6文字のルームコードを確認してください。');
   return value;
 }
-export async function body(request: NextRequest) {
-  if (Number(request.headers.get('content-length')) > 4096)
+export async function body(request: NextRequest, limit = 4096) {
+  if (Number(request.headers.get('content-length')) > limit)
     throw new GameError('送信内容が長すぎます。', 413);
   const reader = request.body?.getReader();
   if (!reader) throw new GameError('送信内容がありません。');
@@ -36,7 +36,7 @@ export async function body(request: NextRequest) {
     const { done, value } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > 4096) {
+    if (length > limit) {
       await reader.cancel();
       throw new GameError('送信内容が長すぎます。', 413);
     }

@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { GAME_TITLES, type GameHistory, type HistoryRef } from '@/lib/ogiri/types';
-import { historyText, validHistoryId } from '@/lib/ogiri/history';
+import { drawingHistoryHtml, historyText, validHistoryId } from '@/lib/ogiri/history';
 import { readLocalHistory, rememberHistory } from '@/lib/ogiri/history-local';
 import styles from './Ogiri.module.css';
 import { Character } from './Character';
+import { DrawingHistory } from './DrawingHistory';
 
 const date = (value: number) => new Date(value).toLocaleString('ja-JP');
 export function OgiriHistory({ id }: { id?: string }) {
@@ -59,14 +60,15 @@ export function OgiriHistory({ id }: { id?: string }) {
   function download() {
     if (!history) return;
     const url = URL.createObjectURL(
-      new Blob(['\uFEFF', historyText(history)], { type: 'text/plain;charset=utf-8' }),
+      new Blob(['\uFEFF', history.gameType === 'drawing' ? drawingHistoryHtml(history) : historyText(history)],
+        { type: history.gameType === 'drawing' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' }),
     );
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${history.gameType ?? 'ogiri'}-${history.code}-${history.game}.txt`;
+    link.download = `${history.gameType ?? 'ogiri'}-${history.code}-${history.game}.${history.gameType === 'drawing' ? 'html' : 'txt'}`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice('テキストファイルを保存しました。90日後も手元で読めます。');
+    setNotice(`${history.gameType === 'drawing' ? '絵を含むHTML' : 'テキスト'}ファイルを保存しました。90日後も手元で読めます。`);
   }
   return (
     <main className={styles.app} lang="ja">
@@ -188,7 +190,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                 </ol>
               </section>
             )}
-            <section className={styles.historySection}>
+            {history.drawingChains ? <DrawingHistory chains={history.drawingChains} /> : <section className={styles.historySection}>
               <h2>
                 お題と回答 <small>{history.matches.length}対戦</small>
               </h2>
@@ -225,7 +227,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                   </article>
                 ))}
               </div>
-            </section>
+            </section>}
           </>
         )}
       </div>

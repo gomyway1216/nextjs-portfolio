@@ -25,6 +25,12 @@ function runs(id: string, event: string, paths: string[]) {
 }
 
 describe('CI change routing', () => {
+  it('runs heavy workflows on PRs or explicit dispatch, never directly on push', () => {
+    for (const id of ['ci', 'website']) {
+      expect(runs(id, 'push', ['package.json'])).toBe(false);
+      expect(runs(id, 'workflow_dispatch', ['package.json'])).toBe(true);
+    }
+  });
   it('keeps exactly one required aggregate and fails if selection fails', () => {
     expect(workflows.website.jobs.website_checks.name).toBe(
       "${{ needs.changes.outputs.gate_name || 'Test and build' }}",
@@ -36,7 +42,7 @@ describe('CI change routing', () => {
       'test "${{ needs.changes.result }}" = "success"',
     );
   });
-  for (const event of ['pull_request', 'push']) {
+  for (const event of ['pull_request']) {
     it(`${event}: website changes avoid unrelated training/native gates`, () => {
       for (const paths of [
         ['src/components/game/Ogiri/Ogiri.tsx', 'tests/unit/ogiri/engine.test.ts'],

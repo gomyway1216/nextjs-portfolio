@@ -1,0 +1,30 @@
+name: Main CI selection
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: main-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+
+jobs:
+  select:
+    name: Reuse successful PR checks or validate main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.13.0'
+      - run: node scripts/ci-main.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}

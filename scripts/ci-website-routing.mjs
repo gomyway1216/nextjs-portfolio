@@ -18,11 +18,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const kind = process.env.GITHUB_EVENT_NAME;
   // A manual run tests the whole website, without replacing a PR's required check.
   let selection = { website: true, legacyCi: true, gateName: 'Website checks' };
-  if (kind === 'pull_request' || (kind === 'push' && !/^0+$/.test(event.before))) {
-    const base = kind === 'pull_request' ? event.pull_request.base.sha : event.before;
-    const head = kind === 'pull_request' ? event.pull_request.head.sha : event.after;
+  if (kind === 'pull_request') {
+    const base = event.pull_request.base.sha;
+    const head = event.pull_request.head.sha;
     if (![base, head].every((sha) => /^[a-f0-9]{40}$/.test(sha))) throw new Error('Missing commit SHAs');
-    const range = `${base}${kind === 'pull_request' ? '...' : '..'}${head}`;
+    const range = `${base}...${head}`;
     const paths = execFileSync('git', ['diff', '--name-only', '--no-renames', '-z', range], {
       cwd: fileURLToPath(new URL('../', import.meta.url)), encoding: 'utf8',
     }).split('\0').filter(Boolean);

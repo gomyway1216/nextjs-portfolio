@@ -134,7 +134,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
         </div>
       </> : <>
         {side.type === 'identity' && <div className={styles.speech} key={`${view.game}:${view.round}:${side.index}`}>
-          <blockquote className={styles.quote} data-testid="party-anonymous-answer">{side.revealText ?? '今回はパス！'}</blockquote>
+          <blockquote className={`${styles.quote} ${side.revealText && [...side.revealText].length > 60 ? styles.longQuote : ''}`} data-testid="party-anonymous-answer">{side.revealText ?? '今回はパス！'}</blockquote>
           <div className={styles.speaker} key={side.result ? 'revealed' : 'masked'} data-testid="party-speaker">
             {side.result && author ? <Character avatar={author.avatar} size="large" /> : <MysteryCharacter size="large" />}
             <b>{side.result ? author?.name ?? '退出したプレイヤー' : '？？？'}</b>

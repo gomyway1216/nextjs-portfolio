@@ -9,7 +9,7 @@ for (const count of [3, 4, 10, 12])
   }, testInfo) => {
     const contexts: BrowserContext[] = [];
     const errors: string[] = [];
-    const partyHeaders = process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': `198.51.100.${count}` };
+    const partyHeaders: Record<string, string> = process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': `198.51.100.${count}` };
     async function phone() {
       const context = await browser.newContext({
         baseURL,

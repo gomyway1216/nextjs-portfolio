@@ -7,8 +7,12 @@ type EventSource = {
   removeEventListener(type: string, listener: () => void): void;
 };
 
+export function isManualResult(view: RoomView | null): boolean {
+  return Boolean(view && ['reveal', 'ranking'].includes(view.phase) && view.settings?.autoAdvance === false);
+}
+
 export function pollingDelay(view: RoomView | null, unchangedMs: number): number | null {
-  if (!view || (!view.paused && view.deadline > 0 && !['lobby', 'finished'].includes(view.phase)))
+  if (!view || (!view.paused && !isManualResult(view) && view.deadline > 0 && !['lobby', 'finished'].includes(view.phase)))
     return 1500;
   if (unchangedMs >= IDLE_STOP_MS) return null;
   if (unchangedMs >= 60_000) return 15_000;

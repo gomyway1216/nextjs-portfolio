@@ -314,10 +314,11 @@ a.historyCard:hover {
 }
 .avatars {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
 }
 .avatars button {
+  min-width: 0;
   border: 2px solid transparent;
   font-size: 10px;
   border-radius: 10px;
@@ -331,6 +332,12 @@ a.historyCard:hover {
     background 0.2s,
     border-color 0.2s,
     transform 0.2s;
+}
+.avatars .character {
+  width: 100%;
+  max-width: 50px;
+  height: auto;
+  aspect-ratio: 1;
 }
 .avatars button:hover {
   transform: translateY(-3px);
@@ -1294,6 +1301,9 @@ a.historyCard:hover {
   }
 }
 @media (max-width: 520px) {
+  .avatars {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
   .app {
     padding: 0 16px 28px;
   }

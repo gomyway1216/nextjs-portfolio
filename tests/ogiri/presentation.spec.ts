@@ -29,6 +29,12 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
   await page.getByRole('button', { name: '主催する', exact: true }).click();
   const choices = page.getByRole('button', { name: /^キャラクター / });
   await expect(choices).toHaveCount(12);
+  for (const choice of await choices.all()) {
+    const box = await choice.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  }
   await expect(choices.locator('img')).toHaveCount(12);
   for (const image of await choices.locator('img').all())
     await expect(image).toHaveJSProperty('naturalWidth', 384);
@@ -55,6 +61,20 @@ test('twelve image characters, opt-in audio, volume and reduced motion work on a
   expect(await started()).toBe(0);
   await page.getByRole('button', { name: '効果音をオン', exact: true }).click();
   await expect.poll(started).toBe(1);
+  // The synthesizer schedules an end and can replace it with an immediate stop on mute.
+  // Exercise that Web Audio contract in both real browser engines (not just mocked nodes).
+  expect(
+    await page.evaluate(async () => {
+      const context = new AudioContext();
+      const oscillator = context.createOscillator();
+      oscillator.start();
+      oscillator.stop(context.currentTime + 1);
+      oscillator.stop();
+      oscillator.disconnect();
+      await context.close();
+      return true;
+    }),
+  ).toBe(true);
   const volume = page.getByRole('slider', { name: '効果音の音量' });
   await expect(volume).toHaveValue('40');
   await volume.fill('20');

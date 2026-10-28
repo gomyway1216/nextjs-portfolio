@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import type { RoomView } from '../../src/lib/ogiri/types';
+import { CHARACTERS } from '../../src/lib/ogiri/characters';
 
 for (const count of [10, 12])
   test(`${count} players + TV: anonymous answers, simultaneous votes, refresh, offline and rematch`, async ({
@@ -45,6 +46,12 @@ for (const count of [10, 12])
                 ? `長い日本語の名前です長い日本${String(i).padStart(2, '0')}`
                 : `参加者${i + 1}🐱`,
             );
+          await page
+            .getByRole('button', {
+              name: `キャラクター ${CHARACTERS[(i + 1) % CHARACTERS.length].name}`,
+              exact: true,
+            })
+            .click();
           await page.getByRole('button', { name: 'ルームに参加 →', exact: true }).click();
           await expect(page.getByRole('textbox', { name: 'ニックネーム' })).toHaveCount(0);
         }),

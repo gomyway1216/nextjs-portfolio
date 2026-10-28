@@ -23,7 +23,10 @@ export function AnimatedScore({
 }) {
   const prefersReduced = useSyncExternalStore(subscribeMotion, reducedMotion, () => true);
   const enabled = animate && !prefersReduced;
-  const [display, setDisplay] = useState(from);
+  const [counter, setCounter] = useState({ from, value, display: from });
+  if (counter.from !== from || counter.value !== value) {
+    setCounter({ from, value, display: from });
+  }
   useEffect(() => {
     if (!enabled || from === value) return;
     const start = performance.now();
@@ -31,13 +34,15 @@ export function AnimatedScore({
     const step = (now: number) => {
       const progress = Math.min(1, Math.max(0, (now - start) / 1000));
       const eased = 1 - (1 - progress) ** 3;
-      setDisplay(Math.round(from + (value - from) * eased));
+      setCounter((current) => current.from === from && current.value === value
+        ? { ...current, display: Math.round(from + (value - from) * eased) }
+        : current);
       if (progress < 1) frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   }, [enabled, from, value]);
-  const shown = enabled && from !== value ? display : value;
+  const shown = enabled && from !== value ? counter.display : value;
   return (
     <span
       className={styles.scoreCounter}

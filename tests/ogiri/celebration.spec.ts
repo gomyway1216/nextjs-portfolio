@@ -5,7 +5,7 @@ test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '1
 
 type CelebrationProbe = {
   maxRms: number;
-  scores: { phase: string; value: number; counting: string | null }[];
+  scores: { phase: string; target: number; value: number; counting: string | null }[];
 };
 
 test('four players see scores count up while the TV plays bounce, count and cheer effects', async ({ page: host, browser, baseURL }) => {
@@ -62,15 +62,16 @@ test('four players see scores count up while the TV plays bounce, count and chee
       // Capture the initial DOM value even when a browser/test round trip takes
       // longer than the one-second animation; no precise frame timing is assumed.
       new MutationObserver(() => {
-        const score = document.querySelector('[data-testid="score-count"][data-score-final="400"]');
+        const score = document.querySelector('[data-testid="score-count"][data-score-final="400"], [data-testid="score-count"][data-score-final="300"]');
         if (!score) return;
         const sample = {
           phase: document.querySelector('h1')?.textContent ?? '',
+          target: Number(score.getAttribute('data-score-final')),
           value: Number(score.textContent),
           counting: score.getAttribute('data-counting'),
         };
         if (JSON.stringify(probe.scores.at(-1)) !== JSON.stringify(sample)) probe.scores.push(sample);
-      }).observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-counting'] });
+      }).observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-counting', 'data-score-final'] });
     });
     await tv.goto(`/games/ogiri/${room.code}/tv`);
     const snapshot = () => tv.evaluate(() => {
@@ -106,13 +107,34 @@ test('four players see scores count up while the TV plays bounce, count and chee
     expect(revealScores.at(-1)?.value).toBe(400);
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
+    const firstWinner = room.match!.result!.authors[0];
+    await action({ type: 'next' });
+    let choice = 0;
+    for (const context of contexts) {
+      const mine = await read(context);
+      if (mine.match?.canVote)
+        expect((await context.request.post(path, { data: { type: 'vote', matchId: mine.match.id, choice: choice++ } })).ok()).toBe(true);
+    }
+    room = await read(host.context());
+    expect(room.match?.result?.points).toEqual([100, 100]);
+    await expect(tv.locator('[data-testid="score-count"][data-score-final="100"]')).toHaveText(['100', '100']);
+    // Re-score the same mounted result: its old 100 must reset to 0 before counting to 300.
+    // Keep the first winner's 400 intact, even if they also answered this second match.
+    await action({ type: 'hide', matchId: room.match!.id, choice: room.match!.result!.authors[0] === firstWinner ? 0 : 1 });
+    await expect(tv.locator('[data-testid="score-count"][data-score-final="300"]')).toHaveText('300');
+    const rescored = (await snapshot()).scores.filter(sample => sample.target === 300);
+    expect(rescored[0]?.value).toBe(0);
+    expect(rescored.at(-1)?.value).toBe(300);
+
     await tv.getByRole('button', { name: '動き多', exact: true }).click();
     await resetPeak();
     await action({ type: 'finish' });
+    expect(room.players.find(player => player.name === firstWinner)?.score).toBe(400);
+    expect(room.players.reduce((sum, player) => sum + player.score, 0)).toBe(700);
     await expect(tv.getByRole('heading', { name: '結果、出ました。', exact: true })).toBeVisible();
     await expect(animatedScore).toHaveText('400');
     await expect(animatedScore).toHaveAttribute('data-counting', 'false');
-    const finalScores = (await snapshot()).scores.filter(sample => sample.phase === '結果、出ました。');
+    const finalScores = (await snapshot()).scores.filter(sample => sample.phase === '結果、出ました。' && sample.target === 400);
     expect(finalScores.length).toBeGreaterThan(0);
     expect(finalScores.every(sample => sample.value === 400 && sample.counting === 'false')).toBe(true);
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);

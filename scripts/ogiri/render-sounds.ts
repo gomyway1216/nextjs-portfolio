@@ -2,7 +2,7 @@
 import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { DEFAULT_PARTY_VOLUME, SOUND_CUES, SOUND_FILES, type SoundCue, type Tone } from '../../src/lib/ogiri/sound';
+import { DEFAULT_PARTY_VOLUME, GAME_SOUND_CUES, SOUND_CUES, SOUND_FILES, type SoundCue, type Tone } from '../../src/lib/ogiri/sound';
 const directory = resolve(process.argv[2] ?? '.artifacts/ogiri/sounds');
 mkdirSync(directory, { recursive: true });
 const rate = 22050;
@@ -80,7 +80,8 @@ function wav(name: string, samples: Float64Array) {
   console.log(`${name}: ${ (samples.length / rate).toFixed(2) }s peak=${peak.toFixed(4)} rms=${rms.toFixed(4)}`);
 }
 const sequence: Float64Array[] = [];
-for (const [name, tones] of Object.entries(SOUND_CUES)) {
+for (const name of GAME_SOUND_CUES) {
+  const tones = SOUND_CUES[name];
   const asset = SOUND_FILES[name as SoundCue];
   const signal = asset
     ? execFileSync('ffmpeg', ['-v', 'error', '-i', resolve('public', asset.slice(1)), '-ar', String(rate), '-ac', '1', '-f', 'f32le', '-'])
@@ -100,5 +101,5 @@ let offset = 0;
 for (const samples of sequence) { combined.set(samples, offset); offset += samples.length; }
 wav('sound-check', combined);
 console.log(
-  `Rendered ${Object.keys(SOUND_CUES).length} cues and sound-check.wav to ${directory}`,
+  `Rendered ${GAME_SOUND_CUES.length} cues and sound-check.wav to ${directory}`,
 );

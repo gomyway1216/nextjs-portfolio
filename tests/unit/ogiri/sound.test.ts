@@ -1,16 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, SOUND_CUES, SOUND_FILES } from '@/lib/ogiri/sound';
-import { statSync } from 'node:fs';
+import { createPartyAudio, DEFAULT_PARTY_VOLUME, GAME_SOUND_CUES, phaseSound, SOUND_CUES, SOUND_FILES } from '@/lib/ogiri/sound';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { RoomView } from '@/lib/ogiri/types';
 const view = (phase: RoomView['phase'], turn = phase) =>
-  ({ code: 'ABC234', phase, turn, paused: false, players: [{ id: 'a' }] }) as RoomView;
+  ({ code: 'ABC234', phase, turn, paused: false, players: [{ id: 'a', score: 0 }] }) as RoomView;
 describe('original party audio', () => {
   it('plays state transitions once, and stays silent for initial views, polls and paused states', () => {
     expect(phaseSound(null, view('finished'))).toBeNull();
     expect(phaseSound(view('reveal'), view('reveal'))).toBeNull();
     expect(phaseSound(view('voting'), { ...view('reveal'), paused: true })).toBeNull();
-    expect(phaseSound(view('voting'), view('reveal'))).toBe('count');
+    expect(phaseSound(view('voting'), view('reveal'))).toBe('bounce');
+    const scored = { ...view('reveal'), players: [{ id: 'a', score: 100 }] } as RoomView;
+    expect(phaseSound(view('voting'), scored)).toBe('count');
+    expect(phaseSound(scored, structuredClone(scored))).toBeNull();
+    expect(phaseSound(view('reveal'), scored)).toBe('count');
     expect(phaseSound(view('ranking'), view('finished'))).toBe('cheer');
     expect(phaseSound(view('answering'), view('voting'))).toBe('bounce');
     expect(
@@ -21,25 +25,47 @@ describe('original party audio', () => {
     ).toBe('join');
     expect(phaseSound(view('lobby'), view('answering'))).toBe('start');
   });
-  it('bounds cue duration and gain, with distinct short notes for each action', () => {
+  it('keeps existing open tabs able to preload the legacy sound URLs', () => {
+    const directory = path.join(process.cwd(), 'public/audio/ogiri');
+    expect(statSync(path.join(directory, 'boing.mp3')).size).toBeGreaterThan(0);
+    expect(statSync(path.join(directory, 'boing.mp3')).size).toBeLessThan(8000);
+    expect(readFileSync(path.join(directory, 'score-count.mp3')))
+      .toEqual(readFileSync(path.join(directory, 'points-cheer.mp3')));
+  });
+  it('bounds dry percussive cues and gain, with distinct accents and lightweight recorded cheers', () => {
     expect(DEFAULT_PARTY_VOLUME).toBe(0.6);
     expect(Object.keys(SOUND_CUES)).toHaveLength(13);
+    expect(GAME_SOUND_CUES).toHaveLength(10);
+    expect(GAME_SOUND_CUES).not.toContain('voting');
+    expect(GAME_SOUND_CUES).not.toContain('reveal');
+    expect(GAME_SOUND_CUES).not.toContain('champion');
     expect(new Set(Object.values(SOUND_CUES).map((tones) => JSON.stringify(tones))).size).toBe(13);
     for (const tones of Object.values(SOUND_CUES))
       for (const tone of tones) {
-        expect(tone.frequency).toBeGreaterThan(100);
-        expect(tone.frequency).toBeLessThan(2000);
+        expect(tone.frequency).toBeGreaterThan(60);
+        expect(tone.frequency).toBeLessThan(4000);
         expect(tone.at + tone.duration).toBeLessThan(3);
         expect(tone.gain).toBeGreaterThan(0);
         expect(tone.gain).toBeLessThanOrEqual(0.6);
+        expect((tone as import('@/lib/ogiri/sound').Tone).vibrato).toBeUndefined();
+        expect((tone as import('@/lib/ogiri/sound').Tone).pitch).toBeUndefined();
       }
     const duration = (cue: keyof typeof SOUND_CUES) => Math.max(...SOUND_CUES[cue].map(t => t.at + t.duration));
-    expect(duration('count')).toBeCloseTo(1);
-    expect(duration('cheer')).toBeGreaterThan(2);
-    expect(SOUND_CUES.bounce[0].pitch!.map(p => p.frequency)).toEqual([780, 225, 580, 265, 400, 300]);
-    expect(Object.keys(SOUND_FILES).sort()).toEqual(['bounce', 'cheer', 'count']);
+    expect(duration('select')).toBeLessThan(0.1);
+    expect(duration('tick')).toBeLessThan(0.06);
+    expect(duration('champion')).toBeLessThan(1.2);
+    expect(duration('bounce')).toBeLessThanOrEqual(0.12);
+    for (const tone of SOUND_CUES.bounce as import('@/lib/ogiri/sound').Tone[]) {
+      expect(tone.wave ?? 'sine').toBe('sine');
+      expect(tone.vibrato).toBeUndefined();
+      expect(tone.pitch).toBeUndefined();
+      expect(tone.frequency).toBeGreaterThan(500);
+      expect(tone.endFrequency ?? tone.frequency).toBeGreaterThan(500);
+    }
+    expect(Object.keys(SOUND_FILES).sort()).toEqual(['bounce', 'cheer', 'count', 'ranking', 'start']);
+    expect(SOUND_FILES.count).toBe('/audio/ogiri/points-cheer.mp3');
     expect(Object.values(SOUND_FILES).reduce((total, file) => total + statSync(path.join(process.cwd(), 'public', file)).size, 0))
-      .toBeLessThan(40000);
+      .toBeLessThan(160000);
   });
   it('cleans every voice on mute and clamps volume without trying to autoplay suspended audio', async () => {
     const oscillators: { stop: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] =
@@ -92,7 +118,7 @@ describe('original party audio', () => {
     audio.setVolume(Number.NaN);
     expect(gainChanges).toHaveBeenLastCalledWith(0, 0);
     audio.play('reveal', 0.4);
-    expect(oscillators).toHaveLength(5);
+    expect(oscillators.length).toBeGreaterThan(0);
     audio.stop();
     for (const cue of ['cheer', 'bounce', 'count'] as const) {
       audio.play(cue, 0.6);
@@ -109,15 +135,39 @@ describe('original party audio', () => {
     try {
       await audio.prepare();
       await audio.prepare();
-      expect(fetchSample).toHaveBeenCalledTimes(3);
+      expect(fetchSample).toHaveBeenCalledTimes(5);
       const before = oscillators.length;
       audio.play('count', 1);
       expect(oscillators).toHaveLength(before + 1); // Decoded clip, no delayed synthesis or fetch.
-      expect(fetchSample).toHaveBeenCalledTimes(3);
+      expect(fetchSample).toHaveBeenCalledTimes(5);
+      const scoringVoice = oscillators.at(-1)!;
+      audio.play('bounce', 1);
+      expect(scoringVoice.stop).toHaveBeenCalledOnce();
+      expect(scoringVoice.disconnect).toHaveBeenCalledOnce();
       audio.stop();
       expect(oscillators.at(-1)!.stop).toHaveBeenCalledOnce();
     } finally { vi.unstubAllGlobals(); }
     await audio.close();
     expect(context.close).toHaveBeenCalledOnce();
   });
+});
+
+it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('opens %s with the start stinger before later entrances', gameType => {
+  const lobby = { ...view('lobby'), gameType };
+  const active = { ...view(gameType === 'majority' ? 'voting' : 'answering'), gameType };
+  expect(phaseSound(lobby, active)).toBe('start');
+  expect(phaseSound(view('ranking'), view('voting'))).toBe('bounce');
+});
+
+it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('requires an actual score increase for the %s points voice', gameType => {
+  const previous = { ...view('voting'), gameType, players: [{ id: 'a', score: 200 }, { id: 'b', score: 50 }] } as RoomView;
+  const answerOnly = { ...previous, phase: 'reveal', turn: 'another-reveal' } as RoomView;
+  expect(phaseSound(previous, answerOnly)).toBe('bounce');
+  const decrease = { ...answerOnly, players: [{ id: 'a', score: 100 }, { id: 'b', score: 50 }] } as RoomView;
+  expect(phaseSound(previous, decrease)).toBe('bounce');
+  const scored = { ...answerOnly, players: [{ id: 'a', score: 200 }, { id: 'b', score: 150 }] } as RoomView;
+  expect(phaseSound(previous, scored)).toBe('count');
+  expect(phaseSound(scored, structuredClone(scored))).toBeNull();
+  const newlyVisiblePlayer = { ...answerOnly, players: [...answerOnly.players, { id: 'new', score: 500 }] } as RoomView;
+  expect(phaseSound(previous, newlyVisiblePlayer)).toBe('bounce');
 });

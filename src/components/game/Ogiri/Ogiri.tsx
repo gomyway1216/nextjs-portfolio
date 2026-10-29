@@ -476,7 +476,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const [sound, setSound] = useState(false),
     [audioBlocked, setAudioBlocked] = useState(false),
     [audioBusy, setAudioBusy] = useState(false),
-    [previewCue, setPreviewCue] = useState<SoundCue>('champion'),
+    [previewCue, setPreviewCue] = useState<SoundCue>('count'),
     [reduced, setReduced] = useState(false),
     [busy, setBusy] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_PARTY_VOLUME);
@@ -556,6 +556,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     const previous = lastSoundView.current;
     lastSoundView.current = view;
     if (!sound || document.hidden) return;
+    if ((view.paused && !previous?.paused) || (previous && previous.turn !== view.turn)) audio.current?.stop();
     const cue = phaseSound(previous, view);
     if (cue) audio.current?.play(cue, volume);
   }, [view, sound, volume]);
@@ -756,9 +757,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <select aria-label="試聴する効果音" value={previewCue} onChange={e => setPreviewCue(e.target.value as SoundCue)}>
                     {([
                       ['select', '選択'], ['join', '参加'], ['start', '開始'], ['submit', '回答送信'],
-                      ['vote', '投票'], ['voting', '投票開始'], ['reveal', '結果発表'], ['ranking', '中間順位'],
-                      ['champion', '優勝'], ['tick', '秒読み'],
-                      ['bounce', 'バネ'], ['count', '得点カウント'], ['cheer', '歓声'],
+                      ['vote', '投票'], ['ranking', '順位発表'], ['tick', '秒読み'],
+                      ['bounce', 'ポップ（回答登場）'], ['count', 'イェーイ！（得点）'], ['cheer', '歓声（優勝）'],
                     ] as const).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>

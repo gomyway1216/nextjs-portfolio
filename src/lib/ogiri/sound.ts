@@ -17,81 +17,72 @@ const note = (frequency: number, at = 0, duration = 0.18, gain = 0.5): Tone => (
   duration,
   gain,
 });
-const brass = (frequency: number, at = 0, duration = 0.22, gain = 0.4): Tone => ({
-  ...note(frequency, at, duration, gain), wave: 'triangle',
+const brass = (frequency: number, at = 0, duration = 0.16, gain = 0.22): Tone => ({
+  ...note(frequency, at, duration, gain), wave: 'sawtooth', formant: 1000,
+});
+const tap = (frequency: number, at = 0, duration = 0.045, gain = 0.24): Tone => ({
+  ...note(frequency, at, duration, gain), wave: 'noise',
+});
+const kick = (at = 0, gain = 0.32): Tone => ({
+  ...note(140, at, 0.09, gain), endFrequency: 70,
 });
 export const DEFAULT_PARTY_VOLUME = 0.6;
 export const PARTY_MASTER_GAIN = 1;
-/** Original short melodies and a synthesis fallback. Three main cues use preloaded CC0 clips below. */
+/** Original percussive UI cues; scoring/final cheers use preloaded CC0 human recordings. */
 export const SOUND_CUES = {
-  select: [{ ...note(580, 0, 0.13, 0.45), endFrequency: 940 }],
-  join: [note(523.25, 0, 0.16), note(783.99, 0.1, 0.24), note(1046.5, 0.2, 0.25, 0.28)],
-  start: [
-    brass(392), brass(523.25, 0.15), brass(659.25, 0.3),
-    brass(523.25, 0.5, 0.42, 0.25), brass(783.99, 0.5, 0.42), note(196, 0.5, 0.42, 0.3),
+  // Dry click/pop: a selection should not sound like a little melody.
+  select: [{ ...note(720, 0, 0.055, 0.4), endFrequency: 490 }, tap(2400, 0, 0.018, 0.09)],
+  // Two wooden knocks and a small bubble announce a new person.
+  join: [
+    { ...note(380, 0, 0.05, 0.36), wave: 'triangle' },
+    { ...note(300, 0.095, 0.05, 0.3), wave: 'triangle' },
+    { ...note(850, 0.17, 0.07, 0.28), endFrequency: 600 },
   ],
-  submit: [note(659.25, 0, 0.13, 0.45), note(1046.5, 0.09, 0.26), note(1318.51, 0.09, 0.26, 0.2)],
-  vote: [{ ...brass(740, 0, 0.15, 0.45), endFrequency: 1108.73 }],
-  voting: [brass(440, 0, 0.18), brass(659.25, 0.15, 0.35), note(220, 0.15, 0.35, 0.3)],
+  // A short snare pickup and one warm brass chord, not an ascending arpeggio.
+  start: [
+    tap(1800, 0, 0.035, 0.2), tap(1800, 0.075, 0.035, 0.23),
+    kick(0.2), tap(2400, 0.2, 0.09, 0.25),
+    brass(220, 0.2, 0.24), brass(330, 0.2, 0.24, 0.18), brass(440, 0.2, 0.24, 0.13),
+  ],
+  // Paper/stamp-like flick and a rounded landing.
+  submit: [tap(1200, 0, 0.07, 0.3), { ...note(560, 0.065, 0.055, 0.28), endFrequency: 300 }],
+  // A distinct lower tick-tock for committing a vote.
+  vote: [
+    { ...note(450, 0, 0.04, 0.36), wave: 'triangle' },
+    { ...note(280, 0.07, 0.055, 0.3), wave: 'triangle' }, tap(2200, 0.07, 0.018, 0.1),
+  ],
+  voting: [tap(1500, 0, 0.055, 0.28), tap(2000, 0.13, 0.06, 0.28), kick(0.13, 0.28)],
   reveal: [
-    { ...brass(261.63, 0, 0.16, 0.55), endFrequency: 523.25 },
-    brass(523.25, 0.12, 0.18),
-    brass(659.25, 0.24, 0.18),
-    brass(783.99, 0.36, 0.55),
-    note(196, 0.36, 0.55, 0.3),
+    tap(1600, 0, 0.025, 0.15), tap(1600, 0.075, 0.025, 0.2), tap(1600, 0.15, 0.035, 0.25),
+    tap(2600, 0.25, 0.12, 0.23), brass(220, 0.25), brass(330, 0.25, 0.16, 0.17),
   ],
   ranking: [
-    brass(392, 0, 0.18),
-    brass(493.88, 0.12, 0.18),
-    brass(587.33, 0.24, 0.18),
-    brass(783.99, 0.4, 0.5), note(392, 0.4, 0.5, 0.3),
+    tap(1700, 0, 0.025, 0.16), tap(1700, 0.055, 0.025, 0.16),
+    tap(1700, 0.11, 0.025, 0.2), tap(1700, 0.17, 0.035, 0.24),
+    kick(0.3), brass(196, 0.3, 0.26), brass(246.94, 0.3, 0.26, 0.17), brass(293.66, 0.3, 0.26, 0.17),
   ],
   champion: [
-    brass(523.25, 0, 0.22),
-    brass(659.25, 0.17, 0.22),
-    brass(783.99, 0.34, 0.22),
-    brass(1046.5, 0.55, 0.4),
-    brass(783.99, 0.78, 0.22),
-    brass(1318.51, 0.96, 0.65),
-    brass(523.25, 0.96, 0.65, 0.25),
-    note(261.63, 0.96, 0.65, 0.3),
+    ...[0, 0.06, 0.12, 0.18].map(at => tap(1900, at, 0.03, 0.2)),
+    ...[0.31, 0.65].flatMap(at => [kick(at), brass(261.63, at, 0.26),
+      brass(329.63, at, 0.26, 0.17), brass(392, at, 0.26, 0.17)]),
   ],
-  tick: [note(880, 0, 0.055, 0.2)],
-  bounce: [
-    { ...brass(180, 0, 0.72, 0.55), vibrato: 90,
-      pitch: [{ at: 0.055, frequency: 780 }, { at: 0.14, frequency: 225 },
-        { at: 0.25, frequency: 580 }, { at: 0.39, frequency: 265 },
-        { at: 0.52, frequency: 400 }, { at: 0.7, frequency: 300 }] },
-    { ...note(120, 0.02, 0.42, 0.2), endFrequency: 240 },
-  ],
-  count: [
-    ...[0, 0.13, 0.25, 0.36, 0.46, 0.55, 0.63, 0.7, 0.76]
-      .map((at, i) => brass(622.25 * 2 ** (i / 12), at, 0.045, 0.34)),
-    brass(783.99, 0.82, 0.18, 0.4), brass(1046.5, 0.82, 0.18, 0.34),
-    note(1318.51, 0.82, 0.18, 0.25), note(196, 0.82, 0.18, 0.4),
-  ],
-  // Original synthetic crowd whoops and claps, not recorded human speech.
+  tick: [tap(3000, 0, 0.025, 0.12), { ...note(800, 0, 0.018, 0.16), wave: 'triangle' }],
+  bounce: [{ ...note(950, 0, 0.1, 0.5), endFrequency: 620 }],
+  // Safe percussive fallbacks; the app enables sound only after recordings preload.
+  count: [tap(1200, 0, 0.07, 0.25), tap(1900, 0.12, 0.07, 0.28), brass(330, 0.12, 0.18)],
   cheer: [
-    { ...note(300, 0, 1.3, 0.42), wave: 'sawtooth', formant: 1100, vibrato: 40,
-      pitch: [{ at: 0.12, frequency: 390 }, { at: 0.32, frequency: 590 },
-        { at: 0.8, frequency: 520 }, { at: 1.3, frequency: 390 }] },
-    { ...note(240, 0.16, 1.45, 0.35), wave: 'sawtooth', formant: 850, vibrato: 55,
-      pitch: [{ at: 0.18, frequency: 400 }, { at: 0.55, frequency: 520 },
-        { at: 1.0, frequency: 440 }, { at: 1.45, frequency: 330 }] },
-    { ...note(490, 0.42, 1.15, 0.26), wave: 'sawtooth', formant: 1500, vibrato: 35,
-      pitch: [{ at: 0.18, frequency: 750 }, { at: 0.7, frequency: 660 }, { at: 1.15, frequency: 510 }] },
-    { ...note(1500, 0.5, 1.0, 0.15), vibrato: 35, endFrequency: 2100 },
-    ...[0.12, 0.3, 0.54, 0.8, 1.08, 1.32, 1.58, 1.86, 2.12]
-      .map(at => ({ ...note(1500, at, 0.07, 0.28), wave: 'noise' as const })),
-    brass(523.25, 1.72, 0.22, 0.25), brass(659.25, 1.93, 0.22, 0.28),
-    brass(783.99, 2.14, 0.48, 0.3), brass(1046.5, 2.14, 0.48, 0.22),
-    note(261.63, 2.14, 0.48, 0.3),
+    ...[0, 0.16, 0.32, 0.51, 0.68, 0.9].map(at => tap(1600, at, 0.09, 0.25)),
+    brass(220, 0.68, 0.3, 0.2), brass(330, 0.68, 0.3, 0.17),
   ],
 } satisfies Record<string, Tone[]>;
 export type SoundCue = keyof typeof SOUND_CUES;
+/** Cues with roles in the current game UI; older fallback presets remain internal. */
+export const GAME_SOUND_CUES = ['select', 'join', 'start', 'submit', 'vote', 'ranking', 'tick', 'bounce', 'count', 'cheer'] as const satisfies readonly SoundCue[];
 export const SOUND_FILES: Partial<Record<SoundCue, string>> = {
-  bounce: '/audio/ogiri/boing.mp3',
-  count: '/audio/ogiri/score-count.mp3',
+  start: '/audio/ogiri/start-stinger.mp3',
+  bounce: '/audio/ogiri/answer-pop.mp3',
+  count: '/audio/ogiri/points-cheer.mp3',
+  ranking: '/audio/ogiri/ranking-stinger.mp3',
   cheer: '/audio/ogiri/cheer.mp3',
 };
 
@@ -103,10 +94,17 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
     next.players.length > previous.players.length
   )
     return 'join';
+  // Scores, rather than game-specific result fields, distinguish scoring from answer-only reveals.
+  // A genuine re-score can also add points without changing the turn; identical polls stay silent.
+  if (next.phase === 'reveal' && next.players.some(player => {
+    const before = previous.players.find(candidate => candidate.id === player.id);
+    return before && player.score > before.score;
+  })) return 'count';
   if (previous.turn === next.turn) return null;
+  if (previous.phase === 'lobby' && ['answering', 'voting'].includes(next.phase)) return 'start';
   if (next.phase === 'answering') return 'start';
   if (next.phase === 'voting') return 'bounce';
-  if (next.phase === 'reveal') return 'count';
+  if (next.phase === 'reveal') return 'bounce';
   if (next.phase === 'ranking') return 'ranking';
   if (next.phase === 'finished') return 'cheer';
   return null;
@@ -198,7 +196,7 @@ export function createPartyAudio(context: AudioContext) {
     play(cue: SoundCue, volume: number) {
       if (context.state !== 'running') return false;
       setVolume(volume);
-      if (cue === 'champion' || cue === 'cheer' || cue === 'count' || active.size > 24) stop();
+      if (['start', 'bounce', 'ranking', 'champion', 'cheer', 'count'].includes(cue) || active.size > 24) stop();
       const sample = samples.get(cue);
       if (sample) {
         const source = context.createBufferSource(), gain = context.createGain();

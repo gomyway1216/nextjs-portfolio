@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext, type Browser } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 import { PARTY_MUSIC_FILE, PARTY_MUSIC_GAIN, PARTY_MUSIC_LOOP_SECONDS } from '../../src/lib/ogiri/music';
 import type { RoomView } from '../../src/lib/ogiri/types';
 
@@ -96,10 +97,20 @@ async function roomFixture(page: Page, browser: Browser, baseURL?: string) {
 test('waiting music is lazy, shares output/cache, ducks and obeys room/device lifecycle', async ({ page, browser, baseURL }, info) => {
   await installProbe(page);
   const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
+  let navigating = false;
+  let pollUrl: URL | undefined;
+  page.on('pageerror', error => {
+    // WebKit reports the old document's explicitly cancelled poll during navigation.
+    if (navigating && pollUrl && browser.browserType().name() === 'webkit' &&
+      error.name === `Fetch API cannot load ${pollUrl.protocol.slice(0, -1)}` &&
+      error.message === `/${pollUrl.host}${pollUrl.pathname}${pollUrl.search} due to access control checks.` &&
+      error.stack?.split('\n')[0] === `Fetch API cannot load ${pollUrl.href} due to access control checks.`) return;
+    errors.push(error.message);
+  });
   let requests = 0;
   page.on('request', request => { if (new URL(request.url()).pathname === PARTY_MUSIC_FILE) requests++; });
   const room = await roomFixture(page, browser, baseURL);
+  pollUrl = new URL(`${room.path}?view=tv`, page.url());
   try {
     await page.getByRole('button', { name: '音設定', exact: true }).click();
     const music = page.getByRole('checkbox', { name: '回答・投票中にBGM', exact: true });
@@ -113,6 +124,7 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     await expect.poll(async () => (await snapshot(page)).active).toBe(1);
     await expect.poll(async () => (await snapshot(page)).gain).toBeCloseTo(PARTY_MUSIC_GAIN, 4);
     await expect.poll(async () => (await snapshot(page)).masterRms).toBeGreaterThan(0.0001);
+    const background = await snapshot(page);
     expect(requests).toBe(1);
     expect((await snapshot(page)).decodes).toBe(1);
     for (let poll = 0; poll < 2; poll++) await page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname === room.path);
@@ -123,11 +135,14 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     await page.getByLabel('試聴する効果音', { exact: true }).selectOption('count');
     await page.getByRole('button', { name: '音を試す', exact: true }).click();
     await expect.poll(async () => (await snapshot(page)).gain).toBeCloseTo(PARTY_MUSIC_GAIN * 0.2, 4);
+    const underEffect = await snapshot(page);
     expect((await snapshot(page)).starts).toBe(1);
     await expect.poll(async () => (await snapshot(page)).gain).toBeCloseTo(PARTY_MUSIC_GAIN, 4);
     const levels = await snapshot(page);
     expect(levels.maxPeak).toBeLessThan(0.97);
-    await info.attach('actual-music-output', { body: JSON.stringify(levels), contentType: 'application/json' });
+    const output = info.outputPath('actual-music-output.json');
+    writeFileSync(output, JSON.stringify({ background, underEffect, recovered: levels }, null, 2));
+    await info.attach('actual-music-output', { path: output, contentType: 'application/json' });
     await room.action({ type: 'pause' });
     await expect.poll(async () => (await snapshot(page)).active).toBe(0);
     await room.action({ type: 'resume' });
@@ -148,7 +163,8 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     await expect.poll(async () => (await snapshot(page)).active).toBe(0);
     await page.getByRole('button', { name: '音設定', exact: true }).click();
     await music.uncheck();
-    await page.reload();
+    navigating = true;
+    try { await page.reload(); } finally { navigating = false; }
     await page.getByRole('button', { name: '音設定', exact: true }).click();
     await expect(music).not.toBeChecked();
     await room.action({ type: 'next' }); // Another voting turn, with music preference still off.
@@ -158,6 +174,7 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     await page.getByRole('button', { name: '音設定', exact: true }).click();
     await music.check();
     await expect.poll(async () => (await snapshot(page)).active).toBe(1);
+    navigating = true;
     await page.locator('a[href="/games/ogiri"]').first().click();
     await expect.poll(async () => (await snapshot(page)).states).toEqual(['closed']);
     expect(errors).toEqual([]);
@@ -226,9 +243,13 @@ test('the native decoded loop crosses its boundary without an encoder-padding ga
     return { decodedSeconds: buffer.duration, loopSeconds: end, step, silenceMs: maxSilence / 44.1,
       beforeRms: rms(seam - 4410, seam), afterRms: rms(seam, seam + 4410), wav: btoa(binary) };
   }, { file: PARTY_MUSIC_FILE, end: PARTY_MUSIC_LOOP_SECONDS });
-  await info.attach('native-loop-seam.wav', { body: Buffer.from(result.wav, 'base64'), contentType: 'audio/wav' });
+  const sample = info.outputPath('native-loop-seam.wav');
+  writeFileSync(sample, Buffer.from(result.wav, 'base64'));
+  await info.attach('native-loop-seam', { path: sample, contentType: 'audio/wav' });
   const { wav: _wav, ...metrics } = result;
-  await info.attach('native-loop-metrics', { body: JSON.stringify(metrics), contentType: 'application/json' });
+  const measured = info.outputPath('native-loop-metrics.json');
+  writeFileSync(measured, JSON.stringify(metrics, null, 2));
+  await info.attach('native-loop-metrics', { path: measured, contentType: 'application/json' });
   expect(result.decodedSeconds).toBeCloseTo(PARTY_MUSIC_LOOP_SECONDS, 2);
   expect(result.beforeRms).toBeGreaterThan(0.003);
   expect(result.afterRms).toBeGreaterThan(0.003);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, SOUND_CUES, SOUND_FILES } from '@/lib/ogiri/sound';
+import { createPartyAudio, DEFAULT_PARTY_VOLUME, GAME_SOUND_CUES, phaseSound, SOUND_CUES, SOUND_FILES } from '@/lib/ogiri/sound';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { RoomView } from '@/lib/ogiri/types';
@@ -35,6 +35,10 @@ describe('original party audio', () => {
   it('bounds dry percussive cues and gain, with distinct accents and lightweight recorded cheers', () => {
     expect(DEFAULT_PARTY_VOLUME).toBe(0.6);
     expect(Object.keys(SOUND_CUES)).toHaveLength(13);
+    expect(GAME_SOUND_CUES).toHaveLength(10);
+    expect(GAME_SOUND_CUES).not.toContain('voting');
+    expect(GAME_SOUND_CUES).not.toContain('reveal');
+    expect(GAME_SOUND_CUES).not.toContain('champion');
     expect(new Set(Object.values(SOUND_CUES).map((tones) => JSON.stringify(tones))).size).toBe(13);
     for (const tones of Object.values(SOUND_CUES))
       for (const tone of tones) {

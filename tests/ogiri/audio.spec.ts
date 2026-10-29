@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SOUND_CUES, type SoundCue } from '../../src/lib/ogiri/sound';
+import { GAME_SOUND_CUES, SOUND_CUES, type SoundCue } from '../../src/lib/ogiri/sound';
 
 test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.92' } });
 
@@ -65,6 +65,7 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   await page.getByText('音設定', { exact: true }).click();
   const volume = page.getByRole('slider', { name: '効果音の音量', exact: true });
   await expect(volume).toHaveValue('60');
+  await expect(page.getByLabel('試聴する効果音', { exact: true }).locator('option')).toHaveCount(10);
   await expect(page.getByLabel('試聴する効果音', { exact: true })).toHaveValue('count');
   await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await resetPeak();
@@ -75,7 +76,7 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   expect(at60.maxPeak).toBeLessThan(0.97);
   if (width === 1920) {
     const palette = [];
-    for (const cue of ['select', 'join', 'start', 'submit', 'vote', 'voting', 'reveal', 'ranking', 'champion', 'tick', 'bounce', 'count', 'cheer']) {
+    for (const cue of GAME_SOUND_CUES) {
       await page.getByLabel('試聴する効果音', { exact: true }).selectOption(cue);
       await resetPeak();
       await page.getByRole('button', { name: '音を試す', exact: true }).click();

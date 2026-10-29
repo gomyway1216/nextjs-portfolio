@@ -757,8 +757,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <select aria-label="試聴する効果音" value={previewCue} onChange={e => setPreviewCue(e.target.value as SoundCue)}>
                     {([
                       ['select', '選択'], ['join', '参加'], ['start', '開始'], ['submit', '回答送信'],
-                      ['vote', '投票'], ['voting', '投票ジングル（試聴用）'], ['reveal', '発表ジングル（試聴用）'], ['ranking', '順位発表'],
-                      ['champion', 'ファンファーレ（試聴用）'], ['tick', '秒読み'],
+                      ['vote', '投票'], ['ranking', '順位発表'], ['tick', '秒読み'],
                       ['bounce', 'ポップ（回答登場）'], ['count', 'イェーイ！（得点）'], ['cheer', '歓声（優勝）'],
                     ] as const).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>

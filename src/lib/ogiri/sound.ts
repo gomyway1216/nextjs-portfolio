@@ -76,6 +76,8 @@ export const SOUND_CUES = {
   ],
 } satisfies Record<string, Tone[]>;
 export type SoundCue = keyof typeof SOUND_CUES;
+/** Cues with roles in the current game UI; older fallback presets remain internal. */
+export const GAME_SOUND_CUES = ['select', 'join', 'start', 'submit', 'vote', 'ranking', 'tick', 'bounce', 'count', 'cheer'] as const satisfies readonly SoundCue[];
 export const SOUND_FILES: Partial<Record<SoundCue, string>> = {
   start: '/audio/ogiri/start-stinger.mp3',
   bounce: '/audio/ogiri/answer-pop.mp3',

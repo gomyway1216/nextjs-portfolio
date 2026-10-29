@@ -108,6 +108,15 @@ describe('main CI deduplication', () => {
       expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(['website.yml', 'security.yml']);
     });
   });
+  it('selects both successive ML and website push events using their own complete ranges', () => {
+    withPush([['ml/train.py'], ['src/lib/ogiri/engine.ts']], ({ before, eventPath, sha, git }) => {
+      const middle = git('rev-parse', `${sha}^`).trim();
+      writeFileSync(eventPath, JSON.stringify({ before }));
+      expect(workflowsForPush(eventPath, middle, definitions, git)).toEqual(['ci.yml', 'security.yml']);
+      writeFileSync(eventPath, JSON.stringify({ before: middle }));
+      expect(workflowsForPush(eventPath, sha, definitions, git)).toEqual(['website.yml', 'security.yml']);
+    });
+  });
   it('keeps all workflows for missing, invalid, zero, or unavailable push revisions', () => {
     withPush([['src/lib/ogiri/engine.ts']], ({ eventPath, sha, git }) => {
       for (const before of [undefined, '', 'invalid', '0'.repeat(40), 'a'.repeat(40)]) {
@@ -188,6 +197,10 @@ describe('main CI deduplication', () => {
     const main = parseStrictWorkflowYaml(readFileSync(new URL('../../.github/workflows/main-ci.yml', import.meta.url), 'utf8'));
     expect(main.on).toHaveProperty('push');
     expect(main.on).not.toHaveProperty('pull_request');
+    // Every push range must be selected, even when another selector is running or pending.
+    expect(main).not.toHaveProperty('concurrency');
+    for (const definition of Object.values(definitions))
+      expect(definition.concurrency['cancel-in-progress']).toBe(true);
     expect(Object.keys(main.jobs)).toEqual(['select']);
   });
 });

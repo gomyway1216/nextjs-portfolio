@@ -20,6 +20,7 @@ import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
 import { ParticipantAccess } from './ParticipantAccess';
+import { NextGameChoices } from './NextGameChoices';
 import { rememberRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
@@ -1177,13 +1178,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 )}
                 <PartyResults key={`${v.game}:${v.phase}`} view={v} reduced={reduced} />
                 {!tv && v.isHost && v.phase === 'finished' && (
-                  <button
-                    className={styles.primary}
-                    onClick={() => void send({ type: 'rematch' })}
-                    disabled={busy}
-                  >
-                    同じメンバーで再戦 →
-                  </button>
+                  <NextGameChoices currentGame={gameType} disabled={busy || !connected}
+                    choose={gameType => void send({ type: 'rematch', gameType })} />
                 )}
               </section>
             )}

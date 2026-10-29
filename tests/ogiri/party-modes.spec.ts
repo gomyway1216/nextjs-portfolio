@@ -155,7 +155,7 @@ for (const firstType of ['majority', 'identity'] as const)
       await host.getByRole('button', { name: '設定を保存', exact: true }).click();
       await expect(host.getByRole('status')).toContainText('設定を保存しました');
       expect((await read(host)).gameType).toBe(firstType);
-      await clickAction(host, '同じメンバーで再戦 →', 'rematch');
+      await clickAction(host, `${GAME_TITLES[secondType]}で次のゲームへ`, 'rematch');
       room = await read(host);
       expect(room.gameType).toBe(secondType);
       expect(room.history?.[0].id).toBe(firstHistory);

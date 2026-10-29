@@ -89,6 +89,14 @@ export function newPlayer(
     lastSeen: now,
   };
 }
+function roomSettings(value: unknown, prompts: Prompt[]): Settings {
+  const settings = settingsInput(value);
+  const pool = prompts.filter(p => p.enabled &&
+    (settings.halloween ? p.category === 'halloween' : !settings.categories.length || settings.categories.includes(p.category)));
+  requireThat(settings.gameType !== 'ogiri' || pool.length >= settings.rounds * 12,
+    'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。');
+  return settings;
+}
 export function createRoom(code: string, host: Player, now: number): Room {
   return {
     code,
@@ -383,19 +391,7 @@ export function act(
       '設定は参加受付中に変更できます。',
       409,
     );
-    const settings = settingsInput(action.settings);
-    const pool = prompts.filter(
-      (p) =>
-        p.enabled &&
-        (settings.halloween
-          ? p.category === 'halloween'
-          : !settings.categories.length || settings.categories.includes(p.category)),
-    );
-    requireThat(
-      settings.gameType !== 'ogiri' || pool.length >= settings.rounds * 12,
-      'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。',
-    );
-    room.settings = settings;
+    room.settings = roomSettings(action.settings, prompts);
   } else if (action.type === 'extend') {
     requireThat(room.deadline > 0 && !['lobby', 'finished'].includes(room.phase), '今は延長できません。', 409);
     room.deadline = Math.max(room.deadline, room.pausedAt || now) + (room.phase === 'answering' ? 60000 : 30000);
@@ -412,6 +408,9 @@ export function act(
     room.pausedAt = 0;
   } else if (action.type === 'rematch') {
     requireThat(room.phase === 'finished', '終了後に再戦できます。', 409);
+    // Select the next mode and reopen this room in the same conditional update.
+    if (action.gameType !== undefined)
+      room.settings = roomSettings({ ...room.settings, gameType: action.gameType }, prompts);
     room.phase = 'lobby';
     room.round = 0;
     room.matches = [];

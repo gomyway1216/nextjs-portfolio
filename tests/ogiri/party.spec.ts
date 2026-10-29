@@ -286,7 +286,7 @@ for (const count of [3, 4, 10, 12])
       expect(
         await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2),
       ).toBe(true);
-      await host.getByRole('button', { name: '同じメンバーで再戦 →', exact: true }).click();
+      await host.getByRole('button', { name: 'みんなの大喜利王で次のゲームへ', exact: true }).click();
       await expect(tv.getByRole('heading', { name: `ただいま ${count} 人` })).toBeVisible();
       expect((await view(host)).players.every((p) => p.score === 0)).toBe(true);
       expect(errors).toEqual([]);

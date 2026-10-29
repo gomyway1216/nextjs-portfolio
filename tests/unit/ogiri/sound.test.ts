@@ -144,7 +144,7 @@ describe('original party audio', () => {
   });
 });
 
-it.each(['ogiri', 'majority', 'identity'] as const)('requires an actual score increase for the %s points voice', gameType => {
+it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('requires an actual score increase for the %s points voice', gameType => {
   const previous = { ...view('voting'), gameType, players: [{ id: 'a', score: 200 }, { id: 'b', score: 50 }] } as RoomView;
   const answerOnly = { ...previous, phase: 'reveal', turn: 'another-reveal' } as RoomView;
   expect(phaseSound(previous, answerOnly)).toBe('bounce');

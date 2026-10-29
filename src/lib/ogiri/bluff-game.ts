@@ -189,7 +189,7 @@ export function projectBluff(room: Room, me: string | null): BluffGameView | und
     result: result ? {
       truth: result.truth,
       counts: { ...result.counts },
-      authors: Object.fromEntries(round.options.map(option => [option.id, option.authors.filter(id => !room.players[id].kicked)])),
+      authors: Object.fromEntries(round.options.map(option => [option.id, option.authors.filter(id => room.players[id] && !room.players[id].kicked)])),
       awards: result.awards.filter(award => !room.players[award.id]?.kicked),
       sourceUrl: round.sourceUrl,
     } : null,

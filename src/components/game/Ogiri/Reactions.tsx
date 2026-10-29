@@ -111,7 +111,11 @@ export function ReactionFloats({ view, reduced }: { view: RoomView; reduced: boo
     setFloats((current) => [...current, ...added].slice(-MAX_FLOATS));
     const ids = new Set(added.map((float) => float.id));
     // Every poll re-runs this effect, so removal timers live outside its cleanup.
-    timers.current.add(setTimeout(() => setFloats((current) => current.filter((float) => !ids.has(float.id))), 4200));
+    const timer = setTimeout(() => {
+      setFloats((current) => current.filter((float) => !ids.has(float.id)));
+      timers.current.delete(timer);
+    }, 4200);
+    timers.current.add(timer);
   }, [counts, view.turn, reduced]);
   useEffect(() => {
     const pending = timers.current;

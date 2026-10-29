@@ -406,6 +406,7 @@ function AnswerForm({
       <div className={styles.row}>
         <small>{characterCount} / 100文字</small>
         <button
+          type="submit"
           className={styles.primary}
           disabled={disabled || busy || characterCount === 0 || characterCount > 100}
         >

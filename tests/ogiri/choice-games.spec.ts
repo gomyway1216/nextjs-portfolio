@@ -53,6 +53,8 @@ test('thermometer then minority keep choices private, reveal on TV and share poi
     await phones[1].getByRole('button', { name: '-10度', exact: true }).click();
     await phones[1].getByRole('button', { name: '+1度', exact: true }).click();
     await phones[1].getByRole('button', { name: '41度で送る', exact: true }).click();
+    // Wait for the second vote to land before reading the count.
+    await expect(phones[1].getByText('投票済み。みんなの予想を待っています。', { exact: true })).toBeVisible();
     const waiting = await read(phones[2]);
     expect(JSON.stringify(waiting)).not.toMatch(/"(80|41)"/);
     expect(waiting.sideGame).toMatchObject({ result: null, votesReceived: 2, eligible: 3 });

@@ -158,13 +158,15 @@ describe('waiting music', () => {
     expect(sources).toHaveLength(0);
   });
   it('runs only in audible, visible, unpaused answer/vote phases', () => {
-    const options = { music: true, sound: true, blocked: false, hidden: false, volume: 0.6 };
+    const options = { music: true, sound: true, blocked: false, hidden: false, volume: 0.6,
+      connected: true, stopped: false };
     const room = { phase: 'answering', paused: false } as RoomView;
     expect(shouldPlayPartyMusic(room, options)).toBe(true);
     expect(shouldPlayPartyMusic({ ...room, phase: 'voting' }, options)).toBe(true);
     for (const phase of ['lobby', 'reveal', 'ranking', 'finished'] as const)
       expect(shouldPlayPartyMusic({ ...room, phase }, options)).toBe(false);
-    for (const change of [{ music: false }, { sound: false }, { blocked: true }, { hidden: true }, { volume: 0 }])
+    for (const change of [{ music: false }, { sound: false }, { blocked: true }, { hidden: true },
+      { volume: 0 }, { connected: false }, { stopped: true }])
       expect(shouldPlayPartyMusic(room, { ...options, ...change })).toBe(false);
     expect(shouldPlayPartyMusic(null, options)).toBe(false);
     expect(shouldPlayPartyMusic({ ...room, paused: true }, options)).toBe(false);

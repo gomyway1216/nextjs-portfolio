@@ -9,9 +9,11 @@ const DUCK_GAIN = PARTY_MUSIC_GAIN * 0.2;
 
 export function shouldPlayPartyMusic(view: RoomView | null, options: {
   music: boolean; sound: boolean; blocked: boolean; hidden: boolean; volume: number;
+  connected: boolean; stopped: boolean;
 }) {
   return !!view && options.music && options.sound && !options.blocked && !options.hidden &&
-    options.volume > 0 && !view.paused && ['answering', 'voting'].includes(view.phase);
+    options.connected && !options.stopped && options.volume > 0 && !view.paused &&
+    ['answering', 'voting'].includes(view.phase);
 }
 
 /** Inert until start() is called after the caller's audio-enable gesture. */

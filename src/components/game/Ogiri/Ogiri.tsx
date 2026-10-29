@@ -515,7 +515,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       window,
       online: () => navigator.onLine,
       view: () => latest.current,
-      stopped: setSyncStop,
+      stopped: reason => {
+        setSyncStop(reason);
+        if (reason) setConnected(false); // Resume audio only after a fresh successful room read.
+      },
       error: (error) => {
         setConnected(false);
         setError((error as Error).message);
@@ -570,13 +573,14 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     const update = () => {
       if (shouldPlayPartyMusic(view, {
         music: musicEnabled, sound, blocked: audioBlocked, hidden: document.hidden, volume,
+        connected, stopped: !!syncStop,
       })) void music.start().then(() => { if (active) setMusicFailed(music.failed()); });
       else music.stop();
     };
     update();
     document.addEventListener('visibilitychange', update);
     return () => { active = false; document.removeEventListener('visibilitychange', update); };
-  }, [view, sound, musicEnabled, audioBlocked, volume]);
+  }, [view, sound, musicEnabled, audioBlocked, volume, connected, syncStop]);
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ogiri:volume');
@@ -789,7 +793,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     music.retry();
                     setMusicFailed(false);
                     if (shouldPlayPartyMusic(view, { music: musicEnabled, sound, blocked: audioBlocked,
-                      hidden: document.hidden, volume }))
+                      hidden: document.hidden, volume, connected, stopped: !!syncStop }))
                       void music.start().then(() => { if (audio.current?.music === music) setMusicFailed(music.failed()); });
                   }}>BGMを再読み込み</button>
                 </p>}

@@ -155,6 +155,13 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     await phone.screenshot({ path: info.outputPath('waiting-music-settings-phone.png'), fullPage: true });
     await phone.close();
     await page.bringToFront();
+    await page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname === room.path);
+    await page.context().setOffline(true);
+    await expect.poll(async () => (await snapshot(page)).active).toBe(0);
+    await page.context().setOffline(false);
+    await expect.poll(async () => (await snapshot(page)).active).toBe(1);
+    expect(requests).toBe(1);
+    expect((await snapshot(page)).decodes).toBe(1);
     await room.action({ type: 'pause' });
     await expect.poll(async () => (await snapshot(page)).active).toBe(0);
     await room.action({ type: 'resume' });

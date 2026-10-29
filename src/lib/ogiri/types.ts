@@ -18,9 +18,9 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing';
 export const GAME_TITLES: Record<GameType, string> = {
-  ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？',
+  ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
 };
 export interface Settings {
   gameType?: GameType;
@@ -82,6 +82,7 @@ export interface Match {
   points: number[];
 }
 export interface Room {
+  drawing?: DrawingRound;
   /** Durable recovery throttle shared across server instances. */
   recoveryAttempts?: { count: number; resetAt: number };
   /** Snapshot of the game actually started, independent of the next game's settings. */
@@ -119,6 +120,7 @@ export interface HistoryRef {
   expiresAt: number;
 }
 export interface GameHistory extends HistoryRef {
+  drawingChains?: DrawingHistoryChain[];
   gameType?: GameType;
   partyGames?: number;
   partyRankings?: { name: string; avatar: string; rank: number; points: number; earned: number }[];
@@ -186,6 +188,7 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  drawingGame?: DrawingGameView;
   /** Transient issuance response only. Never populated by project/poll/history. */
   recoveryCode?: string;
   resting?: boolean;
@@ -243,6 +246,9 @@ export interface GameHighlights {
   } | null;
 }
 export type Action =
+  | { type: 'drawingSubmit'; drawing: DrawingData }
+  | { type: 'drawingGuess'; text: string }
+  | { type: 'drawingVote'; choice: string }
   | { type: 'partyAnswer'; text: string }
   | { type: 'partyVote'; choice: string }
   | { type: 'answerReady'; ready: boolean }
@@ -253,3 +259,56 @@ export type Action =
   | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'rematch' | 'leave' | 'return' | 'heartbeat' }
   | { type: 'kick'; playerId: string }
   | { type: 'hide'; matchId: string; choice: number };
+
+export interface DrawingData {
+  v: 1;
+  strokes: { c: string; w: number; p: number[] }[];
+}
+export interface DrawingStep {
+  author: string;
+  kind: 'draw' | 'guess';
+  id?: string;
+  data?: string;
+  text?: string;
+}
+export interface DrawingRound {
+  players: string[];
+  stages: number;
+  stage: number;
+  chains: { prompt: string; steps: (DrawingStep | null)[] }[];
+  revealed: number;
+  votes: Record<string, string>;
+  awards: Record<string, number>;
+  scored: boolean;
+}
+export interface DrawingGameView {
+  stage: number;
+  stages: number;
+  readyCount: number;
+  answererCount: number;
+  assignment: null | {
+    key: string;
+    kind: 'draw' | 'guess';
+    prompt: string | null;
+    inputDrawingId: string | null;
+    savedDrawingId: string | null;
+    answer: string;
+    saved: boolean;
+  };
+  chain: null | {
+    index: number;
+    total: number;
+    prompt: string;
+    steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawingId: string | null; text: string | null }[];
+  };
+  gallery: { id: string; author: string; name: string; avatar: string; votes: number; points: number }[];
+  canVote: boolean;
+  voted: boolean;
+  votesReceived: number;
+  eligible: number;
+  results: boolean;
+}
+export interface DrawingHistoryChain {
+  prompt: string;
+  steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number }[];
+}

@@ -148,6 +148,24 @@ it('leaving and kicking remove blockers without revealing future identities', ()
   expect(majority.phase).toBe('reveal');
 });
 
+it.each(['majority', 'identity'] as const)('%s counts active voter progress while retaining a resting voter’s ballot and award at reveal', type => {
+  const room = setup(5, type);
+  if (type === 'identity') answer(room);
+  const author = type === 'identity' ? currentSideRound(room)!.order[0] : null;
+  const voters = ids(room).filter(id => id !== author);
+  const choice = author ?? '0';
+  act(room, voters[0], { type: 'partyVote', choice }, now + 2, prompts);
+  act(room, voters[0], { type: 'leave' }, now + 3, prompts);
+  expect(project(room, null, now + 3, prompts).sideGame).toMatchObject({ eligible: voters.length - 1, votesReceived: 0 });
+  act(room, voters[1], { type: 'partyVote', choice }, now + 4, prompts);
+  expect(project(room, null, now + 4, prompts).sideGame).toMatchObject({ eligible: voters.length - 1, votesReceived: 1 });
+  for (const id of voters.slice(2)) act(room, id, { type: 'partyVote', choice }, now + 5, prompts);
+  expect(room.phase).toBe('reveal');
+  expect(project(room, null, now + 5, prompts).sideGame?.votesReceived).toBe(voters.length);
+  expect(project(room, null, now + 5, prompts).sideGame?.result?.counts[choice]).toBe(voters.length);
+  expect(room.players[voters[0]].score).toBe(100);
+});
+
 it('mode selection for the next game cannot relabel old results, points or immutable history', () => {
   const room = setup(3, 'majority');
   for (const id of ids(room)) act(room, id, { type: 'partyVote', choice: '0' }, now + 1, prompts);

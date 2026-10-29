@@ -170,7 +170,7 @@ export function projectSideGame(room: Room, me: string | null): PartyGameView | 
     canVote: Boolean(me && room.phase === 'voting' && eligible(room, round).includes(me)),
     isAuthor: Boolean(me && author === me),
     voted: Boolean(me && Object.hasOwn(ballots(room, round), me)),
-    votesReceived: Object.keys(ballots(room, round)).length,
+    votesReceived: room.phase === 'voting' ? eligible(room, round).filter(id => Object.hasOwn(ballots(room, round), id)).length : Object.keys(ballots(room, round)).length,
     eligible: eligible(room, round).length,
     index: round.type === 'majority' ? room.round : room.matchIndex + 1,
     total: round.type === 'majority' ? room.settings.rounds : room.phase === 'answering' ? participants.length : round.order.length,

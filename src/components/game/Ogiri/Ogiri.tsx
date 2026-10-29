@@ -13,6 +13,7 @@ import { GAME_RULES, PartyGamePanel, PartyGamePicker } from './PartyGamePanel';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
 import { createPartyAudio, DEFAULT_PARTY_VOLUME, phaseSound, type SoundCue } from '@/lib/ogiri/sound';
+import { DEFAULT_PARTY_MUSIC_ENABLED, shouldPlayPartyMusic } from '@/lib/ogiri/music';
 import { Character } from './Character';
 import { MysteryCharacter } from './MysteryCharacter';
 import { PartyResults } from './PartyResults';
@@ -480,6 +481,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     [reduced, setReduced] = useState(false),
     [busy, setBusy] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_PARTY_VOLUME);
+  const [musicEnabled, setMusicEnabled] = useState(DEFAULT_PARTY_MUSIC_ENABLED);
+  const [musicFailed, setMusicFailed] = useState(false);
   const [soundOpen, setSoundOpen] = useState(false);
   const soundMenu = useRef<HTMLDivElement | null>(null);
   const soundTrigger = useRef<HTMLButtonElement | null>(null);
@@ -512,7 +515,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       window,
       online: () => navigator.onLine,
       view: () => latest.current,
-      stopped: setSyncStop,
+      stopped: reason => {
+        setSyncStop(reason);
+        if (reason) setConnected(false); // Resume audio only after a fresh successful room read.
+      },
       error: (error) => {
         setConnected(false);
         setError((error as Error).message);
@@ -560,12 +566,30 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     const cue = phaseSound(previous, view);
     if (cue) audio.current?.play(cue, volume);
   }, [view, sound, volume]);
+  useLayoutEffect(() => {
+    const music = audio.current?.music;
+    if (!music) return;
+    let active = true;
+    const update = () => {
+      if (shouldPlayPartyMusic(view, {
+        music: musicEnabled, sound, blocked: audioBlocked, hidden: document.hidden, volume,
+        connected, stopped: !!syncStop,
+      })) void music.start().then(() => { if (active) setMusicFailed(music.failed()); });
+      else music.stop();
+    };
+    update();
+    document.addEventListener('visibilitychange', update);
+    return () => { active = false; document.removeEventListener('visibilitychange', update); };
+  }, [view, sound, musicEnabled, audioBlocked, volume, connected, syncStop]);
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ogiri:volume');
       if (saved !== null && Number.isFinite(Number(saved))) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- restore this device's volume after hydration
         setVolume(Math.min(1, Math.max(0, Number(saved))));
+      }
+      if (localStorage.getItem('ogiri:music') === 'off') {
+        setMusicEnabled(false);
       }
     } catch { /* Audio still works when browser storage is unavailable. */ }
   }, []);
@@ -715,6 +739,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               onClick={() => {
                 if (sound && !audioBlocked) {
                   audio.current?.stop();
+                  audio.current?.music.stop();
                   setSound(false);
                   return;
                 }
@@ -750,6 +775,28 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 }}>閉じる ×</button>
                 <b>{audioBlocked ? '音が一時停止しています' : sound ? 'この画面から音が出ます' : 'いまは音OFFです'}</b>
                 <p>このPC・スマホ本体から再生します。音量はこの端末に保存されます。</p>
+                <label>
+                  <input type="checkbox" checked={musicEnabled} onChange={event => {
+                    const enabled = event.target.checked;
+                    setMusicEnabled(enabled);
+                    if (!enabled) audio.current?.music.stop();
+                    else { audio.current?.music.retry(); setMusicFailed(false); }
+                    try { localStorage.setItem('ogiri:music', enabled ? 'on' : 'off'); } catch { /* Optional preference. */ }
+                  }} />
+                  回答・投票中にBGM
+                </label>
+                {musicEnabled && musicFailed && <p role="status">
+                  BGMを読み込めませんでした。効果音はそのまま使えます。
+                  <button type="button" onClick={() => {
+                    const music = audio.current?.music;
+                    if (!music) return;
+                    music.retry();
+                    setMusicFailed(false);
+                    if (shouldPlayPartyMusic(view, { music: musicEnabled, sound, blocked: audioBlocked,
+                      hidden: document.hidden, volume, connected, stopped: !!syncStop }))
+                      void music.start().then(() => { if (audio.current?.music === music) setMusicFailed(music.failed()); });
+                  }}>BGMを再読み込み</button>
+                </p>}
                 {audioBlocked && <p>「音声を再開」を押してください。端末の音量や消音設定も確認できます。</p>}
                 {volume === 0 && <p>音量が0です。スライダーで音量を上げてね。</p>}
                 <label>

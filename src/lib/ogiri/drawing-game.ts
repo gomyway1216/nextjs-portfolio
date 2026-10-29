@@ -222,7 +222,7 @@ export function projectDrawing(room: Room, me: string | null): DrawingGameView |
       })) : [],
     canVote: Boolean(me && room.phase === 'voting' && players.includes(me)),
     voted: Boolean(me && Object.hasOwn(drawing.votes, me)),
-    votesReceived: Object.keys(drawing.votes).length, eligible: players.length, results,
+    votesReceived: players.filter(id => Object.hasOwn(drawing.votes, id)).length, eligible: players.length, results,
   };
 }
 

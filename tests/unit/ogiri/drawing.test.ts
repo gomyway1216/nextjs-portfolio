@@ -215,6 +215,22 @@ describe('drawing relay', () => {
     expect(project(room, null, 103, prompts).drawingGame!.gallery.some(work => work.author === 'p0')).toBe(false);
   });
 
+  it('counts current voters accurately through rest while preserving an already submitted ballot and points', () => {
+    const room = setup();
+    for (let i = 0; i < 4; i++) stage(room);
+    for (let i = 0; i < 4; i++) act(room, 'host', { type: 'next' }, 103, prompts);
+    const works = project(room, null, 103, prompts).drawingGame!.gallery;
+    act(room, 'p0', { type: 'drawingVote', choice: works.find(work => work.author === 'p1')!.id }, 104, prompts);
+    act(room, 'p0', { type: 'leave' }, 105, prompts);
+    expect(project(room, 'p1', 105, prompts).drawingGame).toMatchObject({ eligible: 3, votesReceived: 0 });
+    for (const id of ['p1', 'p2']) act(room, id, { type: 'drawingVote', choice: works.find(work => work.author === 'p0')!.id }, 106, prompts);
+    expect(project(room, 'p3', 106, prompts).drawingGame).toMatchObject({ eligible: 3, votesReceived: 2 });
+    act(room, 'p3', { type: 'drawingVote', choice: works.find(work => work.author === 'p0')!.id }, 107, prompts);
+    expect(room.phase).toBe('reveal');
+    expect(room.players.p0.score).toBe(300);
+    expect(room.players.p1.score).toBe(100);
+  });
+
   it('keeps maximum 12-player vector payloads well below a Firestore document and out of ordinary room views', () => {
     const room = setup(12);
     const dense: DrawingData = { v: 1, strokes: [{ c: '#201a32', w: 7, p: Array.from({ length: 1440 }, (_, i) => i % 2 ? 383 : 511) }] };

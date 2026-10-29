@@ -1,6 +1,6 @@
 import { test, expect, type Page, type BrowserContext, type Browser } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
-import { PARTY_MUSIC_FILE, PARTY_MUSIC_GAIN, PARTY_MUSIC_LOOP_SECONDS } from '../../src/lib/ogiri/music';
+import { PARTY_MUSIC_FILE, PARTY_MUSIC_GAIN, PARTY_MUSIC_LOOP_SECONDS, partyMusicLoopBounds } from '../../src/lib/ogiri/music';
 import type { RoomView } from '../../src/lib/ogiri/types';
 
 test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.97' } });
@@ -229,14 +229,29 @@ test('a failed music load leaves effects usable and retries only on user request
   } finally { await room.close(); }
 });
 
-test('the native decoded loop crosses its boundary without an encoder-padding gap', async ({ page }, info) => {
+for (const retainPadding of [false, true]) test(`the native loop has no encoder-padding gap (${retainPadding ? 'retained padding' : 'native decoder'})`, async ({ page }, info) => {
   await page.goto('/games/ogiri');
-  const result = await page.evaluate(async ({ file, end }) => {
+  const decoded = await page.evaluate(async ({ file, retainPadding, seconds }) => {
     const context = new OfflineAudioContext(2, 44100 * 4, 44100);
-    const buffer = await context.decodeAudioData(await (await fetch(file)).arrayBuffer());
+    let buffer = await context.decodeAudioData(await (await fetch(file)).arrayBuffer());
+    // Also cover decoders retaining LAME's delay on platforms that trim it natively.
+    if (retainPadding && Math.abs(buffer.duration - seconds) < 1 / 44100) {
+      const padded = context.createBuffer(2, buffer.length + 1748, 44100);
+      for (let channel = 0; channel < 2; channel++) padded.copyToChannel(buffer.getChannelData(channel), channel, 1105);
+      buffer = padded;
+    }
+    Object.assign(window, { __nativeMusicLoop: { context, buffer } });
+    return { duration: buffer.duration, sampleRate: buffer.sampleRate };
+  }, { file: PARTY_MUSIC_FILE, retainPadding, seconds: PARTY_MUSIC_LOOP_SECONDS });
+  const loop = partyMusicLoopBounds(decoded);
+  const result = await page.evaluate(async ({ start, end }) => {
+    const { context, buffer } = (window as unknown as {
+      __nativeMusicLoop: { context: OfflineAudioContext; buffer: AudioBuffer };
+    }).__nativeMusicLoop;
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
+    source.loopStart = start;
     source.loopEnd = end;
     source.connect(context.destination);
     source.start(0, end - 1);
@@ -261,9 +276,9 @@ test('the native decoded loop crosses its boundary without an encoder-padding ga
       bytes.setInt16(44 + i * 4 + channel * 2, Math.round(Math.max(-1, Math.min(1, channels[channel][i])) * 32767), true);
     let binary = ''; const encoded = new Uint8Array(wav);
     for (let i = 0; i < encoded.length; i += 8192) binary += String.fromCharCode(...encoded.subarray(i, i + 8192));
-    return { decodedSeconds: buffer.duration, loopSeconds: end, step, silenceMs: maxSilence / 44.1,
+    return { decodedSeconds: buffer.duration, loopStart: start, loopSeconds: end - start, step, silenceMs: maxSilence / 44.1,
       beforeRms: rms(seam - 4410, seam), afterRms: rms(seam, seam + 4410), wav: btoa(binary) };
-  }, { file: PARTY_MUSIC_FILE, end: PARTY_MUSIC_LOOP_SECONDS });
+  }, loop);
   const sample = info.outputPath('native-loop-seam.wav');
   writeFileSync(sample, Buffer.from(result.wav, 'base64'));
   await info.attach('native-loop-seam', { path: sample, contentType: 'audio/wav' });
@@ -271,7 +286,7 @@ test('the native decoded loop crosses its boundary without an encoder-padding ga
   const measured = info.outputPath('native-loop-metrics.json');
   writeFileSync(measured, JSON.stringify(metrics, null, 2));
   await info.attach('native-loop-metrics', { path: measured, contentType: 'application/json' });
-  expect(result.decodedSeconds).toBeCloseTo(PARTY_MUSIC_LOOP_SECONDS, 2);
+  expect(result.loopSeconds).toBeCloseTo(PARTY_MUSIC_LOOP_SECONDS, 8);
   expect(result.beforeRms).toBeGreaterThan(0.003);
   expect(result.afterRms).toBeGreaterThan(0.003);
   expect(result.step).toBeLessThan(0.01);

@@ -4,6 +4,12 @@ export const DEFAULT_PARTY_MUSIC_ENABLED = true;
 export const PARTY_MUSIC_FILE = '/audio/ogiri/waiting-funk.mp3';
 // Joth's 32-bar loop at 116 BPM, after removing the source's iTunSMPB padding.
 export const PARTY_MUSIC_LOOP_SECONDS = 2919724 / 44100;
+// LAME skip/discard metadata in this MP3. Some decoders retain these frames.
+export function partyMusicLoopBounds(buffer: Pick<AudioBuffer, 'duration' | 'sampleRate'>) {
+  const paddedSeconds = PARTY_MUSIC_LOOP_SECONDS + (1105 + 643) / 44100;
+  const start = Math.abs(buffer.duration - paddedSeconds) < 2 / buffer.sampleRate ? 1105 / 44100 : 0;
+  return { start, end: Math.min(buffer.duration, start + PARTY_MUSIC_LOOP_SECONDS) };
+}
 export const PARTY_MUSIC_GAIN = 0.06;
 const DUCK_GAIN = PARTY_MUSIC_GAIN * 0.2;
 
@@ -72,8 +78,9 @@ export function createPartyMusic(context: AudioContext, destination: AudioNode) 
       const gain = context.createGain();
       source.buffer = buffer;
       source.loop = true;
-      source.loopStart = 0;
-      source.loopEnd = Math.min(buffer.duration, PARTY_MUSIC_LOOP_SECONDS);
+      const loop = partyMusicLoopBounds(buffer);
+      source.loopStart = loop.start;
+      source.loopEnd = loop.end;
       source.connect(gain);
       gain.connect(destination);
       const now = context.currentTime;
@@ -84,7 +91,7 @@ export function createPartyMusic(context: AudioContext, destination: AudioNode) 
       current = voice;
       voices.add(voice);
       source.onended = () => disconnect(voice);
-      source.start(now);
+      source.start(now, loop.start);
       return true;
     },
     failed: () => failed,

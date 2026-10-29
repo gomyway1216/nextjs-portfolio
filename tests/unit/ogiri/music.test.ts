@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   createPartyMusic, DEFAULT_PARTY_MUSIC_ENABLED, PARTY_MUSIC_FILE, PARTY_MUSIC_GAIN,
-  PARTY_MUSIC_LOOP_SECONDS, shouldPlayPartyMusic,
+  PARTY_MUSIC_LOOP_SECONDS, partyMusicLoopBounds, shouldPlayPartyMusic,
 } from '@/lib/ogiri/music';
 import type { RoomView } from '@/lib/ogiri/types';
 
@@ -19,7 +19,7 @@ function audioFixture() {
   const destination = {} as AudioNode;
   const context = {
     state: 'running', currentTime: 10, resume: vi.fn(), close: vi.fn(),
-    decodeAudioData: vi.fn(async () => ({ duration: PARTY_MUSIC_LOOP_SECONDS }) as AudioBuffer),
+    decodeAudioData: vi.fn(async () => ({ duration: PARTY_MUSIC_LOOP_SECONDS, sampleRate: 44100 }) as AudioBuffer),
     createBufferSource: () => {
       const source = { buffer: null, loop: false, loopStart: 0, loopEnd: 0,
         connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null };
@@ -64,9 +64,22 @@ describe('waiting music', () => {
     expect(context.decodeAudioData).toHaveBeenCalledOnce();
     expect(sources).toHaveLength(1);
     expect(sources[0]).toMatchObject({ loop: true, loopStart: 0, loopEnd: PARTY_MUSIC_LOOP_SECONDS });
-    expect(sources[0].start).toHaveBeenCalledExactlyOnceWith(10);
+    expect(sources[0].start).toHaveBeenCalledExactlyOnceWith(10, 0);
     expect(gains[0].connect).toHaveBeenCalledWith(destination);
     expect(gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledWith(PARTY_MUSIC_GAIN, 10.2);
+  });
+  it.each([44100, 48000])('excludes retained encoder padding at %s Hz without trimming gapless decodes', async sampleRate => {
+    expect(partyMusicLoopBounds({ duration: PARTY_MUSIC_LOOP_SECONDS, sampleRate })).toEqual({
+      start: 0, end: PARTY_MUSIC_LOOP_SECONDS,
+    });
+    const { music, context, sources } = audioFixture();
+    context.decodeAudioData.mockResolvedValue({
+      duration: Math.round((PARTY_MUSIC_LOOP_SECONDS + 1748 / 44100) * sampleRate) / sampleRate, sampleRate,
+    } as AudioBuffer);
+    await music.start();
+    expect(sources[0].loopStart).toBe(1105 / 44100);
+    expect(sources[0].loopEnd - sources[0].loopStart).toBeCloseTo(PARTY_MUSIC_LOOP_SECONDS, 8);
+    expect(sources[0].start).toHaveBeenCalledExactlyOnceWith(10, 1105 / 44100);
   });
   it('does not start late when disabled during loading, and reuses the cache on the next start', async () => {
     const { music, sources, fetchMusic } = audioFixture();

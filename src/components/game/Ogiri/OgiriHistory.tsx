@@ -202,7 +202,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                 {history.matches.map((match, i) => (
                   <article className={styles.historyCard} key={i}>
                     <p className={styles.eyebrow}>
-                      ROUND {match.round} · お題 {i + 1}
+                      ROUND {match.round} · お題 {i + 1}{(match.multiplier ?? 1) > 1 && ` · 得点${match.multiplier}倍`}
                     </p>
                     <h3>{match.text}</h3>
                     <div className={styles.historyAnswers}>
@@ -214,6 +214,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                           </small>}
                           <p>
                             <strong>{answer.votes}票</strong> · {history.gameType === 'majority' ? '選んだ人の合計 ' : ''}+{answer.points} 点
+                            {answer.shutout && <> · <b>全票ボーナス</b></>}
                           </p>
                         </div>
                       ))}

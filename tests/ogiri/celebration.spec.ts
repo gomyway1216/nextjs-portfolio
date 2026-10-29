@@ -46,7 +46,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
         const scoring = this.buffer && !this.loop && this.buffer.duration >= 2 && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？';
         if (scoring) probe.pointsVoices++;
         if (scoring && probe.countStartAt === null
-          && document.querySelector('[data-score-final="400"]')) {
+          && document.querySelector('[data-score-final="600"]')) {
           probe.countStartAt = performance.now() + Math.max(0, (args[0] ?? this.context.currentTime) - this.context.currentTime) * 1000;
         }
         startBuffer.apply(this, args);
@@ -81,7 +81,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
       // Capture the initial DOM value even when a browser/test round trip takes
       // longer than the one-second animation; no precise frame timing is assumed.
       new MutationObserver(() => {
-        const score = document.querySelector('[data-testid="score-count"][data-score-final="400"], [data-testid="score-count"][data-score-final="300"]');
+        const score = document.querySelector('[data-testid="score-count"][data-score-final="600"], [data-testid="score-count"][data-score-final="300"]');
         if (!score) return;
         const sample = {
           phase: document.querySelector('h1')?.textContent ?? '',
@@ -89,7 +89,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
           value: Number(score.textContent),
           counting: score.getAttribute('data-counting'),
         };
-        if (probe.revealAt === null && sample.phase === 'これ書いたの、だれ？' && sample.target === 400)
+        if (probe.revealAt === null && sample.phase === 'これ書いたの、だれ？' && sample.target === 600)
           probe.revealAt = performance.now();
         if (JSON.stringify(probe.scores.at(-1)) !== JSON.stringify(sample)) probe.scores.push(sample);
       }).observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-counting', 'data-score-final'] });
@@ -120,13 +120,13 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
         expect((await context.request.post(path, { data: { type: 'vote', matchId: mine.match.id, choice: 0 } })).ok()).toBe(true);
     }
     room = await read(host.context());
-    expect(room.match?.result?.points).toEqual([400, 0]);
-    const animatedScore = tv.locator('[data-testid="score-count"][data-score-final="400"]');
-    await expect(animatedScore).toHaveText('400');
+    expect(room.match?.result?.points).toEqual([600, 0]);
+    const animatedScore = tv.locator('[data-testid="score-count"][data-score-final="600"]');
+    await expect(animatedScore).toHaveText('600');
     await expect(animatedScore).toHaveAttribute('data-counting', 'false');
     const revealScores = (await snapshot()).scores.filter(sample => sample.phase === 'これ書いたの、だれ？');
-    expect(revealScores.some(sample => sample.value < 400)).toBe(true);
-    expect(revealScores.at(-1)?.value).toBe(400);
+    expect(revealScores.some(sample => sample.value < 600)).toBe(true);
+    expect(revealScores.at(-1)?.value).toBe(600);
     const sync = await snapshot();
     expect(sync.countStartAt).not.toBeNull();
     expect(sync.revealAt).not.toBeNull();
@@ -150,7 +150,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     expect(room.match?.result?.points).toEqual([100, 100]);
     await expect(tv.locator('[data-testid="score-count"][data-score-final="100"]')).toHaveText(['100', '100']);
     // Re-score the same mounted result: its old 100 must reset to 0 before counting to 300.
-    // Keep the first winner's 400 intact, even if they also answered this second match.
+    // Keep the first winner's 600 (2 votes + win + shutout) intact, even if they also answered this second match.
     await action({ type: 'hide', matchId: room.match!.id, choice: room.match!.result!.authors[0] === firstWinner ? 0 : 1 });
     await expect(tv.locator('[data-testid="score-count"][data-score-final="300"]')).toHaveText('300');
     const rescored = (await snapshot()).scores.filter(sample => sample.target === 300);
@@ -201,14 +201,14 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     await tv.getByRole('button', { name: '動き多', exact: true }).click();
     await resetPeak();
     await action({ type: 'finish' });
-    expect(room.players.find(player => player.name === firstWinner)?.score).toBe(400);
-    expect(room.players.reduce((sum, player) => sum + player.score, 0)).toBe(700);
+    expect(room.players.find(player => player.name === firstWinner)?.score).toBe(600);
+    expect(room.players.reduce((sum, player) => sum + player.score, 0)).toBe(900);
     await expect(tv.getByRole('heading', { name: '結果、出ました。', exact: true })).toBeVisible();
-    await expect(animatedScore).toHaveText('400');
+    await expect(animatedScore).toHaveText('600');
     await expect(animatedScore).toHaveAttribute('data-counting', 'false');
-    const finalScores = (await snapshot()).scores.filter(sample => sample.phase === '結果、出ました。' && sample.target === 400);
+    const finalScores = (await snapshot()).scores.filter(sample => sample.phase === '結果、出ました。' && sample.target === 600);
     expect(finalScores.length).toBeGreaterThan(0);
-    expect(finalScores.every(sample => sample.value === 400 && sample.counting === 'false')).toBe(true);
+    expect(finalScores.every(sample => sample.value === 600 && sample.counting === 'false')).toBe(true);
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
     await action({ type: 'rematch' });

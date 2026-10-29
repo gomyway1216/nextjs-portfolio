@@ -11,6 +11,7 @@ import {
   type Settings,
 } from './types';
 import { gameHighlights, gamePlayerIds } from './party';
+import { roundMultiplier, SHUTOUT_BONUS } from './plan';
 import { normalizePlayerText } from './text';
 import { GameError } from './errors';
 import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
@@ -217,6 +218,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
   if (room.round > 0) (room.pastRounds ??= []).push({ round: room.round, matches: room.matches });
   room.round++;
   room.matchIndex = 0;
+  const multiplier = roundMultiplier(room.round, room.settings.rounds);
   room.matches = pairPlayers(
     players.map((p) => p.id),
     room.pairCounts,
@@ -235,6 +237,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
       votes: {},
       scored: false,
       points: [0, 0],
+      multiplier,
     };
   });
   room.phase = 'answering';
@@ -250,13 +253,24 @@ function eligible(room: Room, match: Match) {
       room.matches.some((assignment) => assignment.players.includes(p.id)),
   );
 }
+/** Every vote on one answer, from at least two voters, while the other answer was also shown. */
+export function shutoutIndex(counts: number[], shown: boolean[]): number | null {
+  if (!shown[0] || !shown[1]) return null;
+  const index = counts.findIndex((votes, i) => votes >= 2 && counts[1 - i] === 0);
+  return index < 0 ? null : index;
+}
 function scoreMatch(room: Room, match: Match) {
   if (match.scored) return;
+  const shown = [0, 1].map((i) => visible(room, match, i));
   const counts = [0, 1].map((i) =>
-    visible(room, match, i) ? Object.values(match.votes).filter((v) => v === i).length : 0,
+    shown[i] ? Object.values(match.votes).filter((v) => v === i).length : 0,
   );
+  const multiplier = match.multiplier ?? 1;
+  match.shutout = shutoutIndex(counts, shown);
   match.points = counts.map((votes, i) =>
-    visible(room, match, i) ? votes * 100 + (votes > counts[1 - i] ? 200 : 0) : 0,
+    shown[i]
+      ? (votes * 100 + (votes > counts[1 - i] ? 200 : 0) + (match.shutout === i ? SHUTOUT_BONUS : 0)) * multiplier
+      : 0,
   );
   match.players.forEach((id, i) => {
     room.players[id].score += match.points[i];
@@ -618,6 +632,7 @@ export function project(
           voted: Boolean(me && Object.hasOwn(current.votes, me)),
           votesReceived: room.phase === 'voting' ? eligible(room, current).filter(player => Object.hasOwn(current.votes, player.id)).length : Object.keys(current.votes).length,
           eligible: eligible(room, current).length,
+          multiplier: current.multiplier ?? 1,
           result:
             room.phase === 'reveal'
               ? {
@@ -630,6 +645,7 @@ export function project(
                   authors: current.players.map((id) =>
                     room.players[id].kicked ? '退出したプレイヤー' : room.players[id].name,
                   ),
+                  shutout: current.shutout ?? null,
                 }
               : null,
         }

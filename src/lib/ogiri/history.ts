@@ -88,8 +88,10 @@ export function snapshotHistory(
                 text: visible ? m.answers[id] : null,
                 votes: visible ? Object.values(m.votes).filter((v) => v === i).length : 0,
                 points: visible ? m.points[i] : 0,
+                ...(visible && m.shutout === i ? { shutout: true } : {}),
               };
             }),
+            ...((m.multiplier ?? 1) > 1 ? { multiplier: m.multiplier } : {}),
           })),
     ),
   };
@@ -120,11 +122,11 @@ export function historyText(history: GameHistory): string {
     ]),
     ...history.matches.flatMap((m, i) => [
       '',
-      `ROUND ${m.round} / お題${i + 1}: ${m.text}`,
+      `ROUND ${m.round}${(m.multiplier ?? 1) > 1 ? ` (得点${m.multiplier}倍)` : ''} / お題${i + 1}: ${m.text}`,
       ...(m.note ? [m.note] : []),
       ...m.answers.map(
         (a) =>
-          `${a.avatar} ${a.name}: ${a.text ?? '未回答・非表示'} (${a.votes}票 / ${a.points} 点)`,
+          `${a.avatar} ${a.name}: ${a.text ?? '未回答・非表示'} (${a.votes}票 / ${a.points} 点${a.shutout ? ' · 全票ボーナス' : ''})`,
       ),
       ...(m.awards?.map(a => `獲得点: ${a.avatar} ${a.name} +${a.points} 点`) ?? []),
     ]),

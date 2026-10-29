@@ -82,6 +82,10 @@ export interface Match {
   votes: Record<string, number>;
   scored: boolean;
   points: number[];
+  /** Final-round matches double every point; absent on rooms created before the multiplier. */
+  multiplier?: number;
+  /** Index of the answer that took every vote (2+ voters, both answers shown). */
+  shutout?: number | null;
 }
 export interface Room {
   drawing?: DrawingRound;
@@ -132,9 +136,10 @@ export interface GameHistory extends HistoryRef {
   matches: {
     round: number;
     text: string;
-    answers: { name: string; avatar: string; text: string | null; votes: number; points: number }[];
+    answers: { name: string; avatar: string; text: string | null; votes: number; points: number; shutout?: boolean }[];
     awards?: { name: string; avatar: string; points: number }[];
     note?: string;
+    multiplier?: number;
   }[];
 }
 export interface PartyGameResult {
@@ -236,7 +241,8 @@ export interface RoomView {
     voted: boolean;
     votesReceived: number;
     eligible: number;
-    result: null | { counts: number[]; points: number[]; authors: string[] };
+    multiplier: number;
+    result: null | { counts: number[]; points: number[]; authors: string[]; shutout: number | null };
   };
 }
 export interface GameHighlights {

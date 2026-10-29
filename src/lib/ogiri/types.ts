@@ -18,10 +18,16 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'minority' | 'thermometer';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
+  minority: '少数派が勝ち', thermometer: 'みんなの温度計',
 };
+/** Everyone answers the same question at once; no written answers and no per-voter choices are public. */
+export type ChoiceGameType = 'majority' | 'minority' | 'thermometer';
+export const isChoiceGame = (type: GameType | undefined): type is ChoiceGameType =>
+  type === 'majority' || type === 'minority' || type === 'thermometer';
+export type SideGameType = ChoiceGameType | 'identity';
 export interface Settings {
   gameType?: GameType;
   rounds: number;
@@ -163,9 +169,13 @@ export interface PartyGameResult {
   correctOption: string | null;
   counts: Record<string, number>;
   awards: { id: string; points: number }[];
+  /** Thermometer only: room average of the valid ratings. */
+  average?: number;
 }
 export interface PartyGameView {
-  type: 'majority' | 'identity';
+  type: SideGameType;
+  /** Thermometer only: what 0 and 100 mean for this prompt. */
+  scale?: { low: string; high: string };
   prompt: string;
   answer: string;
   answerRequired: boolean;
@@ -185,8 +195,9 @@ export interface PartyGameView {
 /** Private round state. Never spread into RoomView. */
 export interface SideGameRound {
   round: number;
-  type: 'majority' | 'identity';
+  type: SideGameType;
   prompt: string;
+  scale?: { low: string; high: string };
   players: string[];
   options: { id: string; label: string }[];
   answers: Record<string, string>;

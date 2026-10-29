@@ -1,13 +1,14 @@
 import { GameError } from './errors';
 import { MAJORITY_PROMPTS, IDENTITY_PROMPTS } from './side-prompts';
+import { MINORITY_PROMPTS, THERMOMETER_PROMPTS } from './choice-prompts';
 import { normalizePlayerText } from './text';
-import type { Action, PartyGameResult, PartyGameView, Room, SideGameRound } from './types';
+import { isChoiceGame, type Action, type PartyGameResult, type PartyGameView, type Room, type SideGameRound } from './types';
 
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (ok, message, status = 400) => {
   if (!ok) throw new GameError(message, status);
 };
 export const currentSideRound = (room: Room) => room.sideRounds?.at(-1);
-export const isSideGame = (room: Room) => room.gameType === 'majority' || room.gameType === 'identity';
+export const isSideGame = (room: Room) => isChoiceGame(room.gameType) || room.gameType === 'identity';
 export const sidePlayers = (room: Room, round = currentSideRound(room)) => (round?.players ?? [])
   .filter(id => room.players[id]?.active && !room.players[id].kicked && !room.players[id].spectator);
 const shuffled = <T>(values: T[], rng: () => number) => {
@@ -21,13 +22,20 @@ const shuffled = <T>(values: T[], rng: () => number) => {
 const currentAuthor = (room: Room, round: SideGameRound) => round.type === 'identity' ? round.order[room.matchIndex] : null;
 const ballots = (room: Room, round: SideGameRound) => round.ballots[String(room.matchIndex)] ?? {};
 const eligible = (room: Room, round: SideGameRound) => sidePlayers(room, round).filter(id => id !== currentAuthor(room, round));
-const options = (room: Room, round: SideGameRound) => round.type === 'majority' ? round.options : round.players
+const options = (room: Room, round: SideGameRound) => round.type !== 'identity' ? round.options : round.players
   .filter(id => !room.players[id].kicked && !room.players[id].spectator)
   .map(id => ({ id, label: room.players[id].name, avatar: room.players[id].avatar }));
+/** A thermometer rating is the canonical decimal string of an integer 0–100. */
+const validChoice = (room: Room, round: SideGameRound, choice: unknown) => typeof choice === 'string' && (
+  round.type === 'thermometer' ? /^(?:100|[1-9]?\d)$/.test(choice) : options(room, round).some(option => option.id === choice));
+const POOLS = {
+  majority: MAJORITY_PROMPTS, minority: MINORITY_PROMPTS, thermometer: THERMOMETER_PROMPTS, identity: IDENTITY_PROMPTS,
+} as const;
+const THERMOMETER_AWARDS = [100, 50, 25];
 
 export function beginSideRound(room: Room, now: number, rng: () => number) {
   const type = room.gameType;
-  requireThat(type === 'majority' || type === 'identity', 'ゲームを選んでください。');
+  requireThat(isChoiceGame(type) || type === 'identity', 'ゲームを選んでください。');
   const players = Object.values(room.players).filter(p => p.active && !p.kicked && !p.spectator);
   requireThat(players.length >= 3, '3人以上の参加者が必要です。', 409);
   const ranked = Object.values(room.players).filter(p => !p.kicked && !p.spectator);
@@ -36,7 +44,7 @@ export function beginSideRound(room: Room, now: number, rng: () => number) {
     player.roundScore = 0;
     player.answerReady = false;
   }
-  const pool = type === 'majority' ? MAJORITY_PROMPTS : IDENTITY_PROMPTS;
+  const pool = POOLS[type];
   let available = pool.map((_, index) => index).filter(index => !room.usedPrompts.includes(`${type}:${index}`));
   if (!available.length) {
     room.usedPrompts = room.usedPrompts.filter(id => !id.startsWith(`${type}:`));
@@ -44,12 +52,14 @@ export function beginSideRound(room: Room, now: number, rng: () => number) {
   }
   const index = available[Math.min(available.length - 1, Math.floor(rng() * available.length))];
   room.usedPrompts.push(`${type}:${index}`);
-  const majority = MAJORITY_PROMPTS[index];
+  const choice = type === 'majority' ? MAJORITY_PROMPTS[index] : type === 'minority' ? MINORITY_PROMPTS[index] : null;
+  const scale = type === 'thermometer' ? THERMOMETER_PROMPTS[index] : null;
   const round: SideGameRound = {
     round: ++room.round, type,
-    prompt: type === 'majority' ? majority.text : IDENTITY_PROMPTS[index],
+    prompt: choice?.text ?? scale?.text ?? IDENTITY_PROMPTS[index],
+    ...(scale ? { scale: { low: scale.low, high: scale.high } } : {}),
     players: players.map(p => p.id),
-    options: type === 'majority' ? majority.options.map((label, i) => ({ id: String(i), label })) : [],
+    options: choice ? choice.options.map((label, i) => ({ id: String(i), label })) : [],
     answers: {}, order: [], ballots: {}, results: [],
   };
   (room.sideRounds ??= []).push(round);
@@ -64,12 +74,32 @@ function scoreSideQuestion(room: Room, round: SideGameRound) {
   const validAuthor = author && !room.players[author].kicked ? author : null;
   const votes = Object.entries(ballots(room, round)).filter(([id, choice]) =>
     round.players.includes(id) && !room.players[id].kicked && !room.players[id].spectator && id !== author &&
-    options(room, round).some(option => option.id === choice));
-  const counts = Object.fromEntries(options(room, round).map(option => [option.id, votes.filter(([, choice]) => choice === option.id).length]));
+    validChoice(room, round, choice));
+  const counts: Record<string, number> = round.type === 'thermometer' ? {} :
+    Object.fromEntries(options(room, round).map(option => [option.id, votes.filter(([, choice]) => choice === option.id).length]));
   const awards = new Map<string, number>();
+  let average: number | undefined;
   if (round.type === 'majority') {
     const max = Math.max(0, ...Object.values(counts));
     for (const [id, choice] of votes) if (max > 0 && counts[choice] === max) awards.set(id, 100);
+  } else if (round.type === 'minority') {
+    // The least-picked option among those somebody picked wins; when every picked option is tied, nobody does.
+    const picked = Object.values(counts).filter(count => count > 0);
+    const fewest = Math.min(...picked);
+    if (picked.length && fewest < Math.max(...picked))
+      for (const [id, choice] of votes) if (counts[choice] === fewest) awards.set(id, 100);
+  } else if (round.type === 'thermometer') {
+    for (const [, choice] of votes) counts[choice] = (counts[choice] ?? 0) + 1;
+    if (votes.length >= 2) {
+      // Compare n·|v − mean| as integers so exact ties stay ties. Rank 1 + strictly closer players.
+      const sum = votes.reduce((total, [, choice]) => total + Number(choice), 0);
+      const distances = votes.map(([id, choice]) => [id, Math.abs(Number(choice) * votes.length - sum)] as const);
+      for (const [id, distance] of distances) {
+        const points = THERMOMETER_AWARDS[distances.filter(([, other]) => other < distance).length] ?? 0;
+        if (points) awards.set(id, points);
+      }
+      average = Math.round(sum / votes.length * 10) / 10;
+    }
   } else if (validAuthor) {
     for (const [id, choice] of votes) if (choice === author) awards.set(id, 100);
     const bonus = votes.filter(([, choice]) => choice !== author).length * 50;
@@ -79,6 +109,7 @@ function scoreSideQuestion(room: Room, round: SideGameRound) {
     correctOption: validAuthor || null,
     counts,
     awards: [...awards].map(([id, points]) => ({ id, points })),
+    ...(average === undefined ? {} : { average }),
   };
   for (const { id, points } of result.awards) {
     room.players[id].score += points;
@@ -145,7 +176,7 @@ export function sideAction(room: Room, playerId: string, action: Action, now: nu
   } else if (action.type === 'partyVote') {
     requireThat(room.phase === 'voting' && now < room.deadline, '投票の受付は終了しました。', 409);
     requireThat(eligible(room, round).includes(playerId), '自分の回答には投票できません。', 403);
-    requireThat(typeof action.choice === 'string' && options(room, round).some(option => option.id === action.choice), '選択肢を選んでください。');
+    requireThat(validChoice(room, round, action.choice), round.type === 'thermometer' ? '0〜100の数字を選んでください。' : '選択肢を選んでください。');
     const votes = round.ballots[String(room.matchIndex)] ??= {};
     requireThat(!Object.hasOwn(votes, playerId), '投票済みです。', 409);
     votes[playerId] = action.choice;
@@ -161,6 +192,7 @@ export function projectSideGame(room: Room, me: string | null): PartyGameView | 
   const stored = room.phase === 'reveal' ? round.results.find(result => result.index === room.matchIndex)?.result : null;
   return {
     type: round.type, prompt: round.prompt,
+    ...(round.scale ? { scale: { ...round.scale } } : {}),
     answer: me && round.type === 'identity' && room.phase === 'answering' ? round.answers[me] ?? '' : '',
     answerRequired: Boolean(me && round.type === 'identity' && room.phase === 'answering' && participants.includes(me)),
     readyCount: participants.filter(id => room.players[id].answerReady).length,
@@ -172,9 +204,10 @@ export function projectSideGame(room: Room, me: string | null): PartyGameView | 
     voted: Boolean(me && Object.hasOwn(ballots(room, round), me)),
     votesReceived: room.phase === 'voting' ? eligible(room, round).filter(id => Object.hasOwn(ballots(room, round), id)).length : Object.keys(ballots(room, round)).length,
     eligible: eligible(room, round).length,
-    index: round.type === 'majority' ? room.round : room.matchIndex + 1,
-    total: round.type === 'majority' ? room.settings.rounds : room.phase === 'answering' ? participants.length : round.order.length,
+    index: round.type !== 'identity' ? room.round : room.matchIndex + 1,
+    total: round.type !== 'identity' ? room.settings.rounds : room.phase === 'answering' ? participants.length : round.order.length,
     result: stored ? { correctOption: stored.correctOption && !room.players[stored.correctOption]?.kicked ? stored.correctOption : null,
-      counts: { ...stored.counts }, awards: stored.awards.filter(award => !room.players[award.id]?.kicked) } : null,
+      counts: { ...stored.counts }, awards: stored.awards.filter(award => !room.players[award.id]?.kicked),
+      ...(stored.average === undefined ? {} : { average: stored.average }) } : null,
   };
 }

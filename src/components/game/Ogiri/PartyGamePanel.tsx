@@ -8,12 +8,25 @@ import { Character } from './Character';
 import { MysteryCharacter } from './MysteryCharacter';
 import common from './Ogiri.module.css';
 import styles from './PartyGamePanel.module.css';
+import { ThermometerEnds, ThermometerScale, ThermometerVote } from './Thermometer';
 
 export const GAME_RULES: Record<GameType, string> = {
   ogiri: '2つのお題にボケて、作者以外が投票。1票100点、勝ったら追加で200点。',
   majority: '全員が同じ選択肢から1つ選びます。最多票の側に入れば100点。同率最多でも得点！',
   identity: '同じお題に1人1回答。匿名のひとことを見て作者を当てます。正解100点、作者は外された票1つにつき50点。',
   drawing: '絵→言葉→絵と、みんなで同時に伝言。最後に答え合わせして、好きな絵に1票100点！',
+  minority: '全員が同じ選択肢から1つ選びます。選ばれた中で一番少ない側なら100点。全部同数なら全員0点。',
+  thermometer: 'お題に0〜100度でこっそり回答。みんなの平均に一番近い人100点、2番目50点、3番目25点！',
+};
+const VOTE_HELP: Partial<Record<GameType, string>> = {
+  identity: 'これを書いたのは？ 名前とキャラから選んでね。',
+  minority: 'どれにする？ みんなが選ばなそうな方へ！',
+  thermometer: 'みんなの平均は何度？ 平均に近づけて送ってね。',
+};
+const AWARD_HEADING: Partial<Record<GameType, string>> = {
+  majority: '多数派のみなさん、得点です。',
+  minority: '少数派のみなさん、得点です。',
+  thermometer: '平均に近かった人、得点です。',
 };
 
 export function PartyGamePicker({ value, onChange }: { value: GameType; onChange: (value: GameType) => void }) {
@@ -105,11 +118,17 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
   const answerers = view.players.filter(p => p.answeringThisRound);
   const author = side.result?.correctOption ? view.players.find(p => p.id === side.result?.correctOption) : null;
   const maxVotes = Math.max(0, ...Object.values(side.result?.counts ?? {}));
+  const picked = Object.values(side.result?.counts ?? {}).filter(count => count > 0);
+  const fewest = picked.length && Math.min(...picked) < maxVotes ? Math.min(...picked) : 0;
   const awards = side.result?.awards.filter(award => award.points > 0) ?? [];
   return (
     <section className={`${styles.panel} ${tv ? styles.tv : ''}`} aria-label={GAME_TITLES[side.type]}>
       <p className={common.eyebrow}>{GAME_TITLES[side.type]} · {side.type === 'identity' && view.phase !== 'answering' ? `ひとこと ${side.index} / ${side.total}` : `お題 ${view.round} / ${view.settings.rounds}`}</p>
       <h2 className={styles.prompt}>{side.prompt}</h2>
+      {side.type === 'thermometer' && view.phase === 'voting' && (tv || !side.canVote || side.voted) && <ThermometerEnds side={side} />}
+      {side.type === 'thermometer' && view.phase === 'voting' && !tv && side.canVote && !side.voted &&
+        <ThermometerVote key={`${view.game}:${view.round}`} side={side} disabled={disabled || remaining === 0} send={send} />}
+      {side.type === 'thermometer' && view.phase === 'reveal' && <ThermometerScale side={side} />}
       {view.phase === 'answering' ? <>
         {!tv && side.answerRequired ? (
           <IdentityAnswer key={`${view.game}:${view.round}`} view={view} disabled={disabled} send={send} />
@@ -141,19 +160,20 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
           </div>
         </div>}
         {view.phase === 'voting' && <p className={styles.voteHelp} role="status">
-          {side.voted ? '投票済み。みんなの予想を待っています。' : side.isAuthor ? 'あなたが書いたひとことです。今回はみんなの予想を待とう。' : !side.canVote ? '投票は参加者のスマホからどうぞ。' : side.type === 'identity' ? 'これを書いたのは？ 名前とキャラから選んでね。' : 'どれにする？ みんなが選びそうな方へ！'}
+          {side.voted ? '投票済み。みんなの予想を待っています。' : side.isAuthor ? 'あなたが書いたひとことです。今回はみんなの予想を待とう。' : !side.canVote ? '投票は参加者のスマホからどうぞ。' : VOTE_HELP[side.type] ?? 'どれにする？ みんなが選びそうな方へ！'}
         </p>}
         {side.type === 'identity' && view.phase === 'reveal' && <p className={styles.identityAccuracy}>
           正解 {side.result?.counts[side.result.correctOption ?? ''] ?? 0} / {side.votesReceived}票
         </p>}
-        {(view.phase === 'voting' || side.type === 'majority') && <div className={`${styles.options} ${side.type === 'identity' ? styles.peopleOptions : ''}`}>
+        {side.type !== 'thermometer' && (view.phase === 'voting' || side.type !== 'identity') && <div className={`${styles.options} ${side.type === 'identity' ? styles.peopleOptions : ''}`}>
           {side.options.map((option, index) => {
             const count = side.result?.counts[option.id] ?? 0;
-            const winner = side.type === 'majority' && Boolean(side.result) && maxVotes > 0 && count === maxVotes;
+            const winner = Boolean(side.result) && (side.type === 'majority' ? maxVotes > 0 && count === maxVotes
+              : side.type === 'minority' && fewest > 0 && count === fewest);
             const content = <>
               {option.avatar ? <Character avatar={option.avatar} size="medium" /> : <span className={styles.optionLetter}>{String.fromCharCode(65 + index)}</span>}
               <b>{option.label}</b>
-              {side.result && <small>{count}票{winner && ' · 多数派！'}</small>}
+              {side.result && <small>{count}票{winner && (side.type === 'minority' ? ' · 少数派！' : ' · 多数派！')}</small>}
             </>;
             return !tv && side.canVote && view.phase === 'voting' ? (
               <button key={option.id} className={styles.optionCard} disabled={disabled || side.voted || remaining === 0}
@@ -163,7 +183,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
           })}
         </div>}
         {view.phase === 'reveal' ? <>
-          <h3 className={styles.awardHeading}>{side.type === 'majority' ? '多数派のみなさん、得点です。' : '当てた人も、だました人も。'}</h3>
+          <h3 className={styles.awardHeading}>{AWARD_HEADING[side.type] ?? '当てた人も、だました人も。'}</h3>
           <div className={styles.awards} aria-label="今回の獲得ポイント">
             {awards.length ? awards.map(award => {
               const player = view.players.find(p => p.id === award.id);
@@ -172,7 +192,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
                 <b>{player?.name ?? '退出したプレイヤー'}</b>
                 <strong>+<AnimatedScore value={award.points} animate={!reduced} /> 点</strong>
               </article>;
-            }) : <p>今回は得点なし。次のお題でどうぞ。</p>}
+            }) : <p>{side.type === 'minority' && side.result && picked.length ? '全部同じ人数で、少数派なし！ 次のお題でどうぞ。' : '今回は得点なし。次のお題でどうぞ。'}</p>}
           </div>
         </> : <p className={styles.voteStatus} aria-live="polite">{side.votesReceived} / {side.eligible} 人が投票済み</p>}
       </>}

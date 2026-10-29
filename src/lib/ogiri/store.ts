@@ -24,6 +24,8 @@ import { settlePartyPoints } from './party';
 import { hashPassphrase, verifyPassphrase, type PassphraseHash } from './passphrase';
 import { normalizePlayerText } from './text';
 
+const dummyPassphraseHash: PassphraseHash = { salt: '0'.repeat(32), hash: '0'.repeat(64) };
+
 export const COLLECTION = 'ogiri_party_rooms';
 export const HISTORY_COLLECTION = 'ogiri_party_history';
 function collection(name = COLLECTION) {
@@ -218,7 +220,8 @@ export async function recoverWithPassphrase(code: string, name: unknown, value: 
     room.revision++;
   });
   const checked = candidate as { id: string; verifier: PassphraseHash } | null;
-  if (!checked || !await verifyPassphrase(value, checked.verifier))
+  const verified = await verifyPassphrase(value, checked?.verifier ?? dummyPassphraseHash);
+  if (!checked || !verified)
     throw new GameError('ニックネームと合言葉を確認してください。', 401);
   let session: ReturnType<typeof identity> | null = null;
   const room = await mutate(code, (room, now) => {
@@ -226,7 +229,7 @@ export async function recoverWithPassphrase(code: string, name: unknown, value: 
     const player = room.players[checked.id];
     // A concurrent change/kick must revoke an in-flight login too.
     if (!player || player.kicked || player.passphraseHash?.salt !== checked.verifier.salt ||
-      player.passphraseHash.hash !== checked.verifier.hash)
+      player.passphraseHash?.hash !== checked.verifier.hash)
       throw new GameError('ニックネームと合言葉を確認してください。', 401);
     session = identity(player.id);
     player.secretHash = session.hash;

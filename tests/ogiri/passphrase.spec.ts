@@ -39,6 +39,13 @@ test('a chosen passphrase restores one resting participant and follows all four 
     const player = before.players.find(player => player.id === id)!;
     const passphrase = 'みんなでぽっぷにあそぶ';
     await oldPage.getByText('自分で決めた合言葉で戻る', { exact: true }).click();
+    await oldPage.getByLabel('設定する合言葉', { exact: true }).fill('😀'.repeat(64));
+    await expect(oldPage.getByRole('button', { name: '合言葉を設定', exact: true })).toBeEnabled();
+    await oldPage.getByLabel('設定する合言葉', { exact: true }).fill('');
+    await oldPage.getByLabel('設定する合言葉', { exact: true }).fill('x'.repeat(65));
+    await expect(oldPage.getByLabel('設定する合言葉', { exact: true })).toHaveValue('x'.repeat(65));
+    await expect(oldPage.getByRole('button', { name: '合言葉を設定', exact: true })).toBeDisabled();
+    await expect(oldPage.getByText('合言葉は64文字以内で設定してください。', { exact: true })).toBeVisible();
     await oldPage.getByLabel('設定する合言葉', { exact: true }).fill(passphrase);
     await oldPage.getByLabel('合言葉の確認', { exact: true }).fill('かくにんをまちがえた');
     await oldPage.getByRole('button', { name: '合言葉を設定', exact: true }).click();

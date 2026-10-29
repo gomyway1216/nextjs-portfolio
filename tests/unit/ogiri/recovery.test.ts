@@ -75,12 +75,21 @@ it('shares the durable attempt limit with recovery codes and refuses a kicked pa
   await command(host.view.code, host.token, { type: 'kick', playerId: member.view.me! });
   const expiry = memory.room!.expiresAt;
   await expect(recoverWithPassphrase(host.view.code, '参加者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
-  for (let index = 0; index < 28; index++)
-    await expect(recoverWithPassphrase(host.view.code, 'いない参加者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  expect(memory.room!.recoveryAttempts?.count).toBe(1);
+  memory.room!.recoveryAttempts!.count = 29;
   await expect(recoverRoom(host.view.code, 'WRONG')).rejects.toMatchObject({ status: 401 });
   expect(memory.room!.recoveryAttempts?.count).toBe(30);
   expect(memory.room!.expiresAt).toBe(expiry);
   await expect(recoverWithPassphrase(host.view.code, '主催者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 429 });
+});
+
+it('performs password verification for unknown and unconfigured names too', async () => {
+  const host = await makeRoom('主催者', 'rabbit');
+  const verify = vi.spyOn(passphrases, 'verifyPassphrase');
+  for (const name of ['いない参加者', '主催者'])
+    await expect(recoverWithPassphrase(host.view.code, name, 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  expect(verify).toHaveBeenCalledTimes(2);
+  expect(memory.room!.recoveryAttempts?.count).toBe(2);
 });
 
 it('rechecks a passphrase changed while a login was being verified', async () => {

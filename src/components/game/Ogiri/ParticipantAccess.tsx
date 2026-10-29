@@ -18,6 +18,7 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
   const [passphrase, setPassphrase] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [passphraseStatus, setPassphraseStatus] = useState('');
+  const passphraseLength = [...passphrase.normalize('NFC')].length;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- private, browser-only tab storage
     setCode(view.me ? view.recoveryCode ?? recallRecovery(view.code, view.me) : '');
@@ -40,7 +41,7 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
       <p>{view.hasPassphrase ? '合言葉は設定済みです。下のフォームで変更できます。' : '先に合言葉を設定すると、復帰コードを控えなくても別端末から戻れます。'}</p>
       <form className={styles.form} onSubmit={async event => {
         event.preventDefault();
-        if (passphrase !== confirmation) {
+        if (passphrase.normalize('NFC') !== confirmation.normalize('NFC')) {
           setPassphraseStatus('確認用の合言葉が一致していません。');
           return;
         }
@@ -53,15 +54,17 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
         <label>合言葉（6〜64文字・日本語もOK）
           <input aria-label="設定する合言葉" type="password" autoComplete="new-password" required
             minLength={6} maxLength={128} disabled={busy} value={passphrase} onChange={event => setPassphrase(event.target.value)} />
+          <small>{passphraseLength} / 64文字</small>
         </label>
         <label>合言葉（確認）
           <input aria-label="合言葉の確認" type="password" autoComplete="new-password" required
             minLength={6} maxLength={128} disabled={busy} value={confirmation} onChange={event => setConfirmation(event.target.value)} />
         </label>
-        <button className={styles.secondary} disabled={busy || !connected}>
+        <button className={styles.secondary} disabled={busy || !connected || passphraseLength < 6 || passphraseLength > 64}>
           {busy ? '設定中…' : view.hasPassphrase ? '合言葉を変更' : '合言葉を設定'}
         </button>
       </form>
+      {passphraseLength > 64 && <p role="alert">合言葉は64文字以内で設定してください。</p>}
       {passphraseStatus && <p role="status">{passphraseStatus}</p>}
       <small>このルームの4ゲームで共通です。メール登録は不要。合言葉は他のサイトと使い回さず、本人だけで覚えておいてください。</small>
     </details>

@@ -43,7 +43,7 @@ test('result cards select every next game in the same room with one request', as
     host.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === path) sent.push(request.postDataJSON());
     });
-    for (const [index, gameType] of (['majority', 'identity', 'drawing', 'minority', 'thermometer', 'ogiri'] satisfies GameType[]).entries()) {
+    for (const [index, gameType] of (['majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf', 'ogiri'] satisfies GameType[]).entries()) {
       await expect(chooser.getByRole('heading', { name: '次、なにやる？', exact: true })).toBeVisible();
       await expect(chooser.getByRole('button')).toHaveCount(Object.keys(GAME_TITLES).length);
       await expect(chooser.getByRole('button').first().locator('small')).toHaveCSS('color', 'rgb(25, 22, 47)');

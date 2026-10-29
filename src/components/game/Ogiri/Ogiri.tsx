@@ -21,6 +21,7 @@ import { MysteryCharacter } from './MysteryCharacter';
 import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
+import { WordWolfPanel } from './WordWolfPanel';
 import { ParticipantAccess } from './ParticipantAccess';
 import { GAME_CHOICES, NextGameChoices } from './NextGameChoices';
 import { ReactionBar, ReactionFloats } from './Reactions';
@@ -42,6 +43,7 @@ const partyPhaseName = {
   drawing: { ...phaseName, answering: '絵とことばで、伝言中。', voting: '好きな絵に、一票。', reveal: 'その絵、そう来たか。' },
   minority: { ...phaseName, voting: '少数派を、ねらえ。', reveal: 'そっちは少なかったか。' },
   thermometer: { ...phaseName, voting: 'みんなは、何度？', reveal: '平均、こちら。' },
+  wordwolf: { ...phaseName, answering: 'ひとりだけ、ちがう。', voting: 'ウルフは、だれだ。', reveal: '正体、こちら。' },
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -254,7 +256,7 @@ export function OgiriLanding() {
               「お前か！」ってなる。
             </p>
             <p>
-              大喜利・多数決・作者当て・絵の伝言・少数派・温度計。
+              大喜利・多数決・作者当て・絵の伝言・少数派・温度計・ワードウルフ。
               <br />
               次のゲームも、同じ部屋で。
             </p>
@@ -446,7 +448,7 @@ function SettingsForm({
         {(
           [
             ['rounds', 'ラウンド数', [1, 2, 3, 4, 5]],
-            ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
+            ['answerSeconds', s.gameType === 'wordwolf' ? '話し合い時間（秒）' : '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
             ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
         ).filter(([key]) => (key !== 'answerSeconds' || !isChoiceGame(s.gameType)) && (key !== 'rounds' || s.gameType !== 'drawing')).map(([key, label, values]) => (
@@ -464,14 +466,22 @@ function SettingsForm({
           </label>
         ))}
       </div>
-      {!isChoiceGame(s.gameType) && <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>}
+      {s.gameType === 'wordwolf' && <label>
+        ウルフの人数
+        <select aria-label="ウルフの人数" value={s.wolves ?? 1}
+          onChange={(e) => set({ ...s, wolves: Number(e.target.value) === 2 ? 2 : 1 })}>
+          <option value={1}>1人</option>
+          <option value={2}>2人（6人以上のとき）</option>
+        </select>
+      </label>}
+      {!isChoiceGame(s.gameType) && <small>{s.gameType === 'wordwolf' ? '話し合いは時間が来ると投票へ進みます（自動進行ON）。主催者は延長・スキップできます。' : '回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。'}</small>}
       <label className={styles.check}>
         <input
           type="checkbox"
           checked={s.autoAdvance}
           onChange={(e) => set({ ...s, autoAdvance: e.target.checked })}
         />
-        {isChoiceGame(s.gameType) ? '全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
+        {isChoiceGame(s.gameType) ? '全員投票後・結果発表後に自動で進行' : s.gameType === 'wordwolf' ? '話し合いの時間切れ・全員OK後・全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
       </label>
       {(!s.gameType || s.gameType === 'ogiri') && <><label className={styles.check}>
         <input
@@ -973,7 +983,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   aria-label={v.phase === 'answering' ? '回答時間の目安' : '残り時間'}
                 >
                   {v.paused ? '休憩' : waitingForAnswers ? '待機' : remaining}
-                  <small>{v.paused ? '再開まで待ってね' : waitingForAnswers ? 'まだ回答できるよ' : v.phase === 'answering' ? '秒・目安' : '秒'}</small>
+                  <small>{v.paused ? '再開まで待ってね' : waitingForAnswers ? gameType === 'wordwolf' ? '主催者を待っています' : 'まだ回答できるよ' : v.phase === 'answering' && gameType !== 'wordwolf' ? '秒・目安' : '秒'}</small>
                 </div>
               )}
             </header>
@@ -1033,7 +1043,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
-                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
                       <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
                       <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
                     </section>
@@ -1120,6 +1130,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               </section>
             )}
             {gameType === 'drawing' ? <DrawingGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} send={send} />
+              : gameType === 'wordwolf' ? <WordWolfPanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />
               : gameType !== 'ogiri' && <PartyGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />}
             {gameType === 'ogiri' && v.match && (
               <section className={styles.battle} key={v.match.id}>
@@ -1315,7 +1326,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                               disabled={busy || !connected}
                               onClick={() => void send({ type: 'extend' })}
                             >
-                              {v.phase === 'answering' ? '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
+                              {v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを＋60秒' : '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
                             </button>
                           )}
                           <button
@@ -1331,7 +1342,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             onClick={() => {
                               if (
                                 ['answering', 'voting'].includes(v.phase) &&
-                                !window.confirm(v.phase === 'answering' ? gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
+                                !window.confirm(v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを終えて投票へ進みますか？' : gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
                               )
                                 return;
                               void send({ type: 'next' });

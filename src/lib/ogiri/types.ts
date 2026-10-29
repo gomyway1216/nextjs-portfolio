@@ -18,10 +18,10 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'minority' | 'thermometer';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'minority' | 'thermometer' | 'wordwolf';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
-  minority: '少数派が勝ち', thermometer: 'みんなの温度計',
+  minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ',
 };
 /** Everyone answers the same question at once; no written answers and no per-voter choices are public. */
 export type ChoiceGameType = 'majority' | 'minority' | 'thermometer';
@@ -40,6 +40,8 @@ export interface Settings {
   customMode?: 'mix' | 'only';
   /** Participants may submit prompts that wait for the host's approval. */
   customSubmissions?: boolean;
+  /** ワードウルフ only: 2 applies from 6 players, otherwise 1. */
+  wolves?: 1 | 2;
 }
 export const DEFAULT_SETTINGS: Settings = {
   rounds: 3,
@@ -107,6 +109,8 @@ export interface Match {
 }
 export interface Room {
   drawing?: DrawingRound;
+  /** Private: words and roles. Never spread into RoomView. */
+  wordWolf?: WordWolfRound[];
   /** Durable recovery throttle shared across server instances. */
   recoveryAttempts?: { count: number; resetAt: number };
   /** Snapshot of the game actually started, independent of the next game's settings. */
@@ -228,6 +232,7 @@ export interface RoomView {
   /** Only the authenticated participant's setup status, never a verifier. */
   hasPassphrase?: boolean;
   drawingGame?: DrawingGameView;
+  wordWolfGame?: WordWolfView;
   /** Transient issuance response only. Never populated by project/poll/history. */
   recoveryCode?: string;
   resting?: boolean;
@@ -308,7 +313,8 @@ export type Action =
   | { type: 'customPromptAdd'; text: string }
   | { type: 'customPromptApprove' | 'customPromptRemove'; id: string }
   | { type: 'kick'; playerId: string }
-  | { type: 'hide'; matchId: string; choice: number };
+  | { type: 'hide'; matchId: string; choice: number }
+  | { type: 'wolfAccept' };
 
 export interface DrawingData {
   v: 1;
@@ -361,4 +367,45 @@ export interface DrawingGameView {
 export interface DrawingHistoryChain {
   prompt: string;
   steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number }[];
+}
+export interface WordWolfRound {
+  round: number;
+  /** Index into WORD_WOLF_PAIRS and which side the wolves received. */
+  pair: number;
+  wolfSide: 0 | 1;
+  players: string[];
+  wolves: string[];
+  ballots: Record<string, string>;
+  accused: string | null;
+  guess: string | null;
+  guessCorrect: boolean;
+  counts: Record<string, number>;
+  awards: { id: string; points: number }[];
+  scored: boolean;
+}
+export interface WordWolfView {
+  /** Only the authenticated assigned player's own word. Roles are never told before the result. */
+  myWord: string | null;
+  wolfCount: number;
+  readyCount: number;
+  playerCount: number;
+  options: { id: string; name: string; avatar: string }[];
+  canVote: boolean;
+  voted: boolean;
+  votesReceived: number;
+  eligible: number;
+  accused: null | { id: string; name: string; avatar: string; votes: number; isWolf: boolean };
+  counts: Record<string, number> | null;
+  canGuess: boolean;
+  guessing: boolean;
+  canAccept: boolean;
+  result: null | {
+    citizenWord: string;
+    wolfWord: string;
+    wolves: { id: string; name: string; avatar: string }[];
+    guess: string | null;
+    guessCorrect: boolean;
+    winner: 'citizens' | 'wolves';
+    awards: { id: string; points: number }[];
+  };
 }

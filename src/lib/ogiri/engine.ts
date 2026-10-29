@@ -15,6 +15,7 @@ import { roundMultiplier, SHUTOUT_BONUS } from './plan';
 import { normalizePlayerText } from './text';
 import { GameError } from './errors';
 import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
+import { projectReactions } from './reactions';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 
 export { GameError } from './errors';
@@ -581,6 +582,7 @@ export function project(
           }))
       : undefined,
     highlights: ['ranking', 'finished'].includes(room.phase) ? gameHighlights(room, prompts) : null,
+    reactions: projectReactions(room.reactions, room.phase, turnKey(room)),
     code: room.code,
     revision: room.revision,
     game: room.game,

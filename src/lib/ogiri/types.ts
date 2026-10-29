@@ -113,6 +113,8 @@ export interface Room {
   pairCounts: Record<string, number>;
   game: number;
   pastRounds?: { round: number; matches: Match[] }[];
+  /** Display-only crowd reactions for the current turn. Never archived. */
+  reactions?: import('./reactions').ReactionState;
   historyId?: string;
   archivedGame?: number;
   history?: HistoryRef[];
@@ -214,6 +216,8 @@ export interface RoomView {
   }[];
   partyGames?: number;
   highlights?: GameHighlights | null;
+  /** Anonymous reaction totals for the current turn while voting/reveal, else null. */
+  reactions?: import('./reactions').ReactionCounts | null;
   hostPlays?: boolean;
   history?: HistoryRef[];
   turn: string;

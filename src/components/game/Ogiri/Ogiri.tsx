@@ -23,6 +23,7 @@ import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
 import { ParticipantAccess } from './ParticipantAccess';
 import { NextGameChoices } from './NextGameChoices';
+import { ReactionBar, ReactionFloats } from './Reactions';
 import { rememberRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
@@ -1173,6 +1174,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </p>
               </section>
             )}
+            {v.reactions && (tv ? <ReactionFloats view={v} reduced={reduced} />
+              : v.me && <ReactionBar code={code} view={v} reduced={reduced} onView={accept} />)}
             {['ranking', 'finished'].includes(v.phase) && (
               <section className={styles.ranking}>
                 {v.phase === 'finished' && (

@@ -30,6 +30,10 @@ export interface Settings {
   autoAdvance: boolean;
   categories: Category[];
   halloween: boolean;
+  /** Approved room prompts are mixed in by default; 'only' asks only them (catalog tops up). */
+  customMode?: 'mix' | 'only';
+  /** Participants may submit prompts that wait for the host's approval. */
+  customSubmissions?: boolean;
 }
 export const DEFAULT_SETTINGS: Settings = {
   rounds: 3,
@@ -51,6 +55,14 @@ export interface Prompt {
   license: string;
   enabled: boolean;
   createdAt: string;
+}
+/** Room-scoped prompt written by the host or a participant. Pending ones are host-only. */
+export interface CustomPrompt {
+  id: string;
+  text: string;
+  author: string;
+  approved: boolean;
+  createdAt: number;
 }
 export interface Player {
   /** Private salted scrypt verifier. Never project into room/history responses. */
@@ -112,6 +124,8 @@ export interface Room {
   historyId?: string;
   archivedGame?: number;
   history?: HistoryRef[];
+  customPrompts?: CustomPrompt[];
+  customPromptSeq?: number;
 }
 export interface HistoryRef {
   gameType?: GameType;
@@ -135,6 +149,7 @@ export interface GameHistory extends HistoryRef {
     answers: { name: string; avatar: string; text: string | null; votes: number; points: number }[];
     awards?: { name: string; avatar: string; points: number }[];
     note?: string;
+    custom?: boolean;
   }[];
 }
 export interface PartyGameResult {
@@ -211,6 +226,10 @@ export interface RoomView {
   highlights?: GameHighlights | null;
   hostPlays?: boolean;
   history?: HistoryRef[];
+  /** Approved custom prompts in this room; the texts are never public. */
+  customPromptCount?: number;
+  /** Host: every submission. Participant: only their own. TV: never. */
+  customPrompts?: { id: string; text: string; author: string; approved: boolean; mine: boolean }[];
   turn: string;
   code: string;
   revision: number;
@@ -233,6 +252,7 @@ export interface RoomView {
     answers: (string | null)[];
     canVote: boolean;
     isAuthor?: boolean;
+    custom?: boolean;
     voted: boolean;
     votesReceived: number;
     eligible: number;
@@ -264,6 +284,8 @@ export type Action =
   | { type: 'settings'; settings: Settings }
   | { type: 'rematch'; gameType?: GameType }
   | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'leave' | 'return' | 'heartbeat' }
+  | { type: 'customPromptAdd'; text: string }
+  | { type: 'customPromptApprove' | 'customPromptRemove'; id: string }
   | { type: 'kick'; playerId: string }
   | { type: 'hide'; matchId: string; choice: number };
 

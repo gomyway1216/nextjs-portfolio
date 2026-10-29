@@ -15,6 +15,7 @@ import { normalizePlayerText } from './text';
 import { GameError } from './errors';
 import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
+import { customPromptAction, dropPendingCustomPrompts, isCustomPromptAction, isCustomPromptId, pickCustomPrompts, projectCustomPrompts, withCustomPrompts } from './custom-prompts';
 
 export { GameError } from './errors';
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (
@@ -57,6 +58,11 @@ export function settingsInput(value: unknown): Settings {
       s.categories.every((c) => Object.hasOwn(CATEGORIES, c)),
     'ジャンルが正しくありません。',
   );
+  requireThat(
+    [undefined, 'mix', 'only'].includes(s.customMode) &&
+      [undefined, true, false].includes(s.customSubmissions),
+    '設定が正しくありません。',
+  );
   return {
     gameType: s.gameType ?? 'ogiri',
     rounds: s.gameType === 'drawing' ? 1 : s.rounds,
@@ -65,6 +71,8 @@ export function settingsInput(value: unknown): Settings {
     autoAdvance: s.autoAdvance,
     halloween: s.halloween,
     categories: [...new Set(s.categories)],
+    ...(s.customMode === 'only' ? { customMode: 'only' as const } : {}),
+    ...(s.customSubmissions ? { customSubmissions: true } : {}),
   };
 }
 export function newPlayer(
@@ -194,21 +202,23 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
       players.length * room.settings.rounds
   )
     room.usedPrompts = [];
+  const custom = pickCustomPrompts(room, players.length, rng);
   let pool = eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id));
   requireThat(
-    pool.length >= players.length,
+    pool.length >= players.length - custom.length,
     'このジャンルの未出題のお題が足りません。ジャンルを増やしてください。',
     409,
   );
   pool = shuffled(pool, rng);
   // Round-robin categories avoids long runs of a single genre without synthetic prompt variations.
   const selected: Prompt[] = [];
-  while (selected.length < players.length) {
+  while (selected.length < players.length - custom.length) {
     const previous = selected.at(-1)?.category;
     let index = pool.findIndex((p) => p.category !== previous);
     if (index < 0) index = 0;
     selected.push(pool.splice(index, 1)[0]);
   }
+  for (const prompt of custom) selected.splice(Math.floor(rng() * (selected.length + 1)), 0, prompt);
   for (const p of rankPlayers(room)) {
     room.players[p.id].previousRank = p.rank;
     room.players[p.id].roundScore = 0;
@@ -360,7 +370,7 @@ export function act(
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat', 'customPromptAdd', 'customPromptRemove'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -451,6 +461,7 @@ export function act(
     room.players[action.playerId].kicked = true;
     room.players[action.playerId].active = false;
     moderateDrawing(room, action.playerId);
+    dropPendingCustomPrompts(room, action.playerId);
     for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
     const current = room.matches[room.matchIndex];
     if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
@@ -473,6 +484,8 @@ export function act(
     for (const [id, vote] of Object.entries(m.votes))
       if (vote === action.choice) delete m.votes[id];
     if (m.scored) rescoreMatch(room, m);
+  } else if (isCustomPromptAction(action)) {
+    customPromptAction(room, playerId, action, now);
   } else {
     requireThat(!room.pausedAt, '一時停止中です。', 409);
     if (action.type === 'start') {
@@ -539,6 +552,7 @@ export function project(
   prompts: Prompt[],
 ): RoomView {
   const me = playerId && room.players[playerId] && !room.players[playerId].kicked ? playerId : null;
+  prompts = withCustomPrompts(room, prompts);
   const promptText = (id: string) =>
     prompts.find((p) => p.id === id)?.text ?? 'お題を読み込めませんでした';
   const current = room.matches[room.matchIndex];
@@ -552,6 +566,7 @@ export function project(
     drawingGame: projectDrawing(room, me),
     turn: turnKey(room),
     history: room.history ?? [],
+    ...projectCustomPrompts(room, me),
     partyGames: room.partyGames ?? 0,
     partyPlayers: Object.values(room.players).some(
       (p) => !p.kicked && p.spectator && (p.partyPoints ?? 0) > 0,
@@ -615,6 +630,7 @@ export function project(
           ),
           canVote: Boolean(me && eligible(room, current).some((p) => p.id === me)),
           isAuthor: Boolean(me && current.players.includes(me)),
+          ...(isCustomPromptId(current.promptId) ? { custom: true } : {}),
           voted: Boolean(me && Object.hasOwn(current.votes, me)),
           votesReceived: room.phase === 'voting' ? eligible(room, current).filter(player => Object.hasOwn(current.votes, player.id)).length : Object.keys(current.votes).length,
           eligible: eligible(room, current).length,

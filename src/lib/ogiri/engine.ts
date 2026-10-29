@@ -578,6 +578,7 @@ export function project(
     paused: Boolean(room.pausedAt),
     serverTime: room.pausedAt || now,
     me,
+    ...(me ? { hasPassphrase: Boolean(room.players[me].passphraseHash), participantName: room.players[me].name } : {}),
     resting: Boolean(me && !room.players[me].active),
     isHost: me === room.hostId,
     hostPlays: !room.players[room.hostId].spectator,

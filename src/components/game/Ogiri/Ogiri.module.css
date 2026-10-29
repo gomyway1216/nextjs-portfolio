@@ -292,7 +292,7 @@ a.historyCard:hover {
   font-size: 14px;
   font-weight: 700;
 }
-.app input:not([type='checkbox']),
+.app input:not([type='checkbox']):not([type='radio']),
 .app textarea,
 .app select {
   border: 1px solid #81739060;
@@ -309,6 +309,7 @@ a.historyCard:hover {
   height: 18px;
   accent-color: #7553ba;
 }
+.app input[type='radio'] { width: 18px; height: 18px; accent-color: #7553ba; }
 .app fieldset {
   border: 0;
   padding: 0;
@@ -2103,5 +2104,10 @@ a.historyCard:hover {
 .participantAccess p, .participantAccess small { display: block; margin: .65rem 0; line-height: 1.6; }
 .participantAccess summary { cursor: pointer; font-weight: 700; }
 .participantAccess .row { flex-wrap: wrap; }
+.participantAccess details { margin-top: 1rem; }
+.participantAccess .form { max-width: 32rem; margin-top: 1rem; }
+.recoveryMethods { display: flex; flex-wrap: wrap; gap: 1rem; }
+.recoveryMethods label { display: flex; align-items: center; gap: .45rem; cursor: pointer; }
+.recoveryMethods input { width: auto; }
 .participantAccess .secondary { background: #eee4ff; color: #251345; }
 .participantAccess output { display: block; font-size: 1.65rem; font-weight: 800; letter-spacing: .12em; margin: 1rem 0; overflow-wrap: anywhere; }

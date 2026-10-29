@@ -227,6 +227,7 @@ describe('drawing relay', () => {
     expect(project(room, 'p3', 106, prompts).drawingGame).toMatchObject({ eligible: 3, votesReceived: 2 });
     act(room, 'p3', { type: 'drawingVote', choice: works.find(work => work.author === 'p0')!.id }, 107, prompts);
     expect(room.phase).toBe('reveal');
+    expect(project(room, null, 107, prompts).drawingGame).toMatchObject({ eligible: 3, votesReceived: 4 });
     expect(room.players.p0.score).toBe(300);
     expect(room.players.p1.score).toBe(100);
   });

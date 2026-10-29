@@ -616,7 +616,7 @@ export function project(
           canVote: Boolean(me && eligible(room, current).some((p) => p.id === me)),
           isAuthor: Boolean(me && current.players.includes(me)),
           voted: Boolean(me && Object.hasOwn(current.votes, me)),
-          votesReceived: Object.keys(current.votes).length,
+          votesReceived: room.phase === 'voting' ? eligible(room, current).filter(player => Object.hasOwn(current.votes, player.id)).length : Object.keys(current.votes).length,
           eligible: eligible(room, current).length,
           result:
             room.phase === 'reveal'

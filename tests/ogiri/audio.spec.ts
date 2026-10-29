@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { SOUND_CUES, type SoundCue } from '../../src/lib/ogiri/sound';
 
 test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.92' } });
 
@@ -64,6 +65,7 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   await page.getByText('音設定', { exact: true }).click();
   const volume = page.getByRole('slider', { name: '効果音の音量', exact: true });
   await expect(volume).toHaveValue('60');
+  await expect(page.getByLabel('試聴する効果音', { exact: true })).toHaveValue('count');
   await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await resetPeak();
   await page.getByRole('button', { name: '音を試す', exact: true }).click();
@@ -71,6 +73,23 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   await page.waitForTimeout(1800);
   const at60 = await snapshot();
   expect(at60.maxPeak).toBeLessThan(0.97);
+  if (width === 1920) {
+    const palette = [];
+    for (const cue of ['select', 'join', 'start', 'submit', 'vote', 'voting', 'reveal', 'ranking', 'champion', 'tick', 'bounce', 'count', 'cheer']) {
+      await page.getByLabel('試聴する効果音', { exact: true }).selectOption(cue);
+      await resetPeak();
+      await page.getByRole('button', { name: '音を試す', exact: true }).click();
+      await expect.poll(async () => (await snapshot()).maxRms, { message: `${cue} must reach the actual master output` }).toBeGreaterThan(0.003);
+      const duration = cue === 'count' ? 1.3 : cue === 'cheer' ? 1.73 : Math.max(...SOUND_CUES[cue as SoundCue].map(tone => tone.at + tone.duration));
+      await page.waitForTimeout(duration * 1000 + 150);
+      const measured = await snapshot();
+      expect(measured.maxPeak).toBeLessThan(0.97);
+      palette.push({ cue, maxRms: measured.maxRms, maxPeak: measured.maxPeak });
+    }
+    await info.attach('actual-palette-output', { body: JSON.stringify(palette), contentType: 'application/json' });
+    await page.waitForTimeout(1800);
+  }
+  await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await volume.fill('100');
   await resetPeak();
   await page.getByRole('button', { name: '音を試す', exact: true }).click();

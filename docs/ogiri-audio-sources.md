@@ -1,17 +1,22 @@
 # パーティーゲームの効果音
 
-2026-10-28確認。Jackboxの音声は利用していません。3つの主な発表音は、下記の作者公開ページでCC0を確認した素材を短縮・加工してローカル配信します。アプリから外部の音声サービスには接続しません。
+2026-10-28確認。Jackboxの音声は利用していません。回答登場は独自の短いポップ合成音、得点・優勝は下記の作者公開ページでCC0を確認済みの録音素材です。アプリから外部の音声サービスには接続しません。
+
+方向性の参考はJackbox公式の [Party Pack 10の音作り解説](https://www.jackboxgames.com/blog/behind-the-scenes-of-pp10-audio)です。FixyTextのアナログ・ドラムマシン由来の打楽器、ゲームの見た目に合う音色、遊びを邪魔しないバランスという考え方を参考にしました。[Party Starterの公式トレーラー紹介](https://www.jackboxgames.com/blog/watch-the-official-trailer-for-the-jackbox-party-starter)も参照先として記録します。今回の音と短いリズムは独自に作り、Jackboxの音声・旋律の抽出や転用はしていません。
 
 |ゲーム内ファイル|作者・原作・公開ページ|加工|
 |---|---|---|
-|`public/audio/ogiri/cheer.mp3`|AuraVoice / Nocturnal_Vanguard, [Cheers](https://opengameart.org/content/cheers-0), 元 `cheers_1.ogg`|実際に録音された女性グループの歓声。先頭約115msの無音と末尾を除去、短いフェード、mono 22050Hz、ピーク0.85へ正規化、64kbps MP3。約1.73秒。|
-|`public/audio/ogiri/boing.mp3`|Aeva, [BOING!](https://opengameart.org/content/boing), 元 `boing.flac`|作者がArturia MicroFreakで作ったバネ音。冒頭1.1秒へ短縮、末尾フェード、mono 22050Hz、ピーク0.85へ正規化、64kbps MP3。|
-|`public/audio/ogiri/score-count.mp3`|LordTomorrow, [Coin Splash](https://opengameart.org/content/coin-splash), 元 `coinsplash_0.ogg`; Luke.RUSTLTD, [10 8bit coin sounds](https://opengameart.org/content/10-8bit-coin-sounds), 元 `coin1.wav`|実際のコイン音を加速・ピッチ変更して0〜640msに7回配置。最後に8bitコイン音を820msから置き、全体を1000msに編集。ピーク0.85へ正規化、mono 22050Hz、64kbps MP3。|
+|`public/audio/ogiri/cheer.mp3`|AuraVoice / Nocturnal_Vanguard, [Cheers](https://opengameart.org/content/cheers-0), 元 `cheers_1.ogg`|実際に録音された女性グループの歓声。先頭約115msの無音と末尾を除去、短いフェード、mono 22050Hz、ピーク0.85へ正規化、64kbps MP3。約1.73秒。優勝時に使用。|
+|`public/audio/ogiri/points-cheer.mp3` / `score-count.mp3`（旧URL互換）|同じCC0録音。上記の保存済み `cheer.mp3` から派生|先頭から1.30秒を使用、冒頭4ms・末尾180msをフェード、ピーク上限0.85、mono 22050Hz、64kbps MP3。得点時の短い実声の歓声。|
 
-全素材の許諾は [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。クレジットは必須ではありませんが出典と作者をここに残します。3ファイルの合計は40KB未満です。Kenney公式CC0パックも調査しましたが、今回は上記の3作品を採用しています。
+録音素材の許諾は [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。クレジットは必須ではありませんが出典と作者をここに残します。通常の新しい画面が先読みする2ファイルは合計約26KBです。新しい録音や有料サービスは使用していません。
 
-開始・参加・回答送信・投票など他の短音は独自Web Audio合成です。ブラウザで有効にする際に3ファイルを一度読み込み・デコードし、得点発表時はデコード済みバッファを即時再生します。音量100%を32%へ制限していた係数は外し、ユーザー音量をそのまま最終gainに適用。上流でコンプレッサーとピーク上限0.96のリミッターを使います。音量は端末のlocalStorageに保存し、ページ更新後も引き継ぎますが、初期ミュートとクリックによる再生開始は維持します。
+回答が現れるときのポップは、950Hzから620Hzへ短く下がる100msの独自sine波です。ビブラート・往復するピッチ・低音のバズを使いません。以前のMicroFreak由来のバネ音とコイン連打音は使用を止めました。開いたままの旧画面でも先読みが404にならないよう、旧URL `boing.mp3` はこの独自ポップをmono 22050Hz / 64kbps MP3化した互換ファイル、`score-count.mp3` は新しい得点の声と同じ内容で残します。新しい画面はこの2つの互換URLを読み込みません。旧素材の記録: Aeva / [BOING!](https://opengameart.org/content/boing)、LordTomorrow / [Coin Splash](https://opengameart.org/content/coin-splash)、Luke.RUSTLTD / [10 8bit coin sounds](https://opengameart.org/content/10-8bit-coin-sounds)（いずれも確認時CC0）。
 
-音設定は「閉じる」、Escape、パネル外の操作で閉じます。音量スライダーは同じ音設定の操作として扱い、調整中にパネルを勝手に閉じません。
+得点の声はゲームの種別に依存せず、発表前後の同じ参加者の得点が実際に増えたときだけ鳴らします。0点・無投票・答えを見せるだけの発表はポップ音にし、同じ状態のpollで声を繰り返しません。優勝時の既存の録音歓声は維持します。音設定の初期試聴は現在の「イェーイ！（得点）」です。
 
-再現用の短縮WAVは `.artifacts/ogiri/audible-sounds/`。`npx tsx scripts/ogiri/render-sounds.ts` でもサンプルを出力できます（MP3のWAV化にffmpegを使用）。端末の物理音量・消音・出力先はアプリから変更しません。
+13種類全体の音色も更新し、選択は乾いたクリック、入場は木を叩くような2打と小さなポップ、開始は短いスネアの助走と温かいブラスの和音、送信は紙を払うような打音、投票は低めのtick-tock、順位は短いドラムのリズムと和音にしました。高い音の階段状のアルペジオ、音程を往復するバネや合成の疑似歓声は使いません。これらは独自Web Audio合成で、他作品の音声やメロディーを取り込んでいません。ブラウザで音を有効にする際に2ファイルを一度読み込み・デコードし、得点発表時はデコード済みバッファを描画前に即時再生します。音量100%を32%へ制限していた係数は使わず、ユーザー音量をそのまま最終gainに適用。上流でコンプレッサーとピーク上限0.96のリミッターを使います。音量は端末のlocalStorageに保存し、初期ミュートとクリックによる再生開始を維持します。
+
+音設定は「閉じる」、Escape、パネル外の操作で閉じます。音量スライダーの操作ではパネルを閉じません。ミュート・非表示では再生音を止め、閉じた画面のAudioContextを解放します。
+
+再現用WAVは `npx tsx scripts/ogiri/render-sounds.ts` で `.artifacts/ogiri/sounds/` に出力できます（MP3のWAV化と出力処理にffmpegを使用）。`bounce.wav` がポップ、`count.wav` が得点の実声です。端末の物理音量・消音・出力先はアプリから変更しません。

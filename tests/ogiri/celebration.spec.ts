@@ -8,9 +8,10 @@ type CelebrationProbe = {
   countStartAt: number | null;
   revealAt: number | null;
   scores: { phase: string; target: number; value: number; counting: string | null }[];
+  pointsVoices: number;
 };
 
-test('four players see scores count up while the TV plays bounce, count and cheer effects', async ({ page: host, browser, baseURL }, info) => {
+test('four players hear a pop, a synchronized points voice and a final cheer without cheering zero-point reveals', async ({ page: host, browser, baseURL }, info) => {
   const contexts: BrowserContext[] = [];
   const errors: string[] = [];
   try {
@@ -37,10 +38,11 @@ test('four players see scores count up while the TV plays bounce, count and chee
     await tv.setViewportSize({ width: 1920, height: 1080 });
     await tv.emulateMedia({ reducedMotion: 'no-preference' });
     await tv.addInitScript(() => {
-      const probe: CelebrationProbe = { maxRms: 0, countStartAt: null, revealAt: null, scores: [] };
+      const probe: CelebrationProbe = { maxRms: 0, countStartAt: null, revealAt: null, scores: [], pointsVoices: 0 };
       Object.defineProperty(window, '__celebrationProbe', { value: probe });
       const startBuffer = AudioBufferSourceNode.prototype.start;
       AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
+        if (this.buffer && this.buffer.duration > 1.25 && this.buffer.duration < 1.4) probe.pointsVoices++;
         if (probe.countStartAt === null && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？'
           && document.querySelector('[data-score-final="400"]')) {
           probe.countStartAt = performance.now() + Math.max(0, (args[0] ?? this.context.currentTime) - this.context.currentTime) * 1000;
@@ -88,7 +90,7 @@ test('four players see scores count up while the TV plays bounce, count and chee
     await tv.goto(`/games/ogiri/${room.code}/tv`);
     const snapshot = () => tv.evaluate(() => {
       const probe = (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe;
-      return { maxRms: probe.maxRms, scores: probe.scores, countStartAt: probe.countStartAt, revealAt: probe.revealAt };
+      return { maxRms: probe.maxRms, scores: probe.scores, countStartAt: probe.countStartAt, revealAt: probe.revealAt, pointsVoices: probe.pointsVoices };
     });
     const resetPeak = () => tv.evaluate(() => {
       (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe.maxRms = 0;
@@ -102,7 +104,7 @@ test('four players see scores count up while the TV plays bounce, count and chee
       expect((await context.request.post(path, { data: { type: 'answerReady', ready: true, turn: mine.turn } })).ok()).toBe(true);
     }
     await expect(tv.getByRole('heading', { name: 'どっちで笑った？', exact: true })).toBeVisible();
-    await tv.waitForTimeout(800); // Finish the short answer-entry bounce before measuring count audio.
+    await tv.waitForTimeout(250); // Finish the 100ms pop before measuring the scoring voice.
     await tv.screenshot({ path: info.outputPath('mystery-speakers-tv.png'), fullPage: true });
     await resetPeak();
     for (const context of contexts) {
@@ -127,6 +129,7 @@ test('four players see scores count up while the TV plays bounce, count and chee
     await info.attach('score-audio-sync', { body: JSON.stringify({ audioDomGapMs }), contentType: 'application/json' });
     await tv.screenshot({ path: info.outputPath('revealed-speakers-tv.png'), fullPage: true });
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
+    expect((await snapshot()).pointsVoices).toBe(1);
 
     const firstWinner = room.match!.result!.authors[0];
     await action({ type: 'next' });
@@ -147,6 +150,16 @@ test('four players see scores count up while the TV plays bounce, count and chee
     expect(rescored[0]?.value).toBe(0);
     expect(rescored.at(-1)?.value).toBe(300);
 
+    // Close the next match without votes: an answer-only reveal and repeated polls must not cheer.
+    await action({ type: 'next' });
+    await expect(tv.getByRole('heading', { name: 'どっちで笑った？', exact: true })).toBeVisible();
+    const voicesBeforeZero = (await snapshot()).pointsVoices;
+    await action({ type: 'next' });
+    expect(room.match?.result?.points).toEqual([0, 0]);
+    await expect(tv.getByRole('heading', { name: 'これ書いたの、だれ？', exact: true })).toBeVisible();
+    await tv.waitForTimeout(3200); // More than two normal polls of the identical result.
+    expect((await snapshot()).pointsVoices).toBe(voicesBeforeZero);
+
     await tv.getByRole('button', { name: '動き多', exact: true }).click();
     await resetPeak();
     await action({ type: 'finish' });
@@ -161,7 +174,7 @@ test('four players see scores count up while the TV plays bounce, count and chee
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
     await tv.getByText('音設定', { exact: true }).click();
-    await tv.waitForTimeout(2800); // Isolate preview audio from the automatic finish cheer.
+    await tv.waitForTimeout(1800); // Isolate preview audio from the automatic finish cheer.
     for (const cue of ['count', 'cheer']) {
       await tv.getByLabel('試聴する効果音', { exact: true }).selectOption(cue);
       await resetPeak();

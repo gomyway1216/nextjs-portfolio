@@ -3,6 +3,7 @@ import { GAME_TITLES, type GameHistory, type Prompt, type Room } from './types';
 import { partyStandings } from '../party/points';
 import { gamePlayerIds } from './party';
 import { drawingHistory } from './drawing-game';
+import { wordWolfHistory } from './word-wolf';
 import { drawingSvg } from './drawing-data';
 
 export const HISTORY_TTL = 90 * 24 * 60 * 60 * 1000;
@@ -72,7 +73,7 @@ export function snapshotHistory(
       rank,
       score,
     })),
-    matches: room.gameType === 'drawing' ? [] : room.gameType === 'majority' || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
+    matches: room.gameType === 'drawing' ? [] : room.gameType === 'wordwolf' ? wordWolfHistory(room) : room.gameType === 'majority' || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
       ({ round, matches }) =>
         matches
           .filter((m) => m.scored)

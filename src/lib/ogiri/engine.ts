@@ -15,6 +15,7 @@ import { normalizePlayerText } from './text';
 import { GameError } from './errors';
 import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
+import { advanceWordWolf, beginWordWolf, currentWordWolf, isWordWolf, moderateWordWolf, projectWordWolf, syncWordWolf, wordWolfAction } from './word-wolf';
 
 export { GameError } from './errors';
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (
@@ -34,7 +35,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'wordwolf'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
     'ラウンド数は1〜5です。',
@@ -57,6 +58,7 @@ export function settingsInput(value: unknown): Settings {
       s.categories.every((c) => Object.hasOwn(CATEGORIES, c)),
     'ジャンルが正しくありません。',
   );
+  requireThat(s.wolves === undefined || s.wolves === 1 || s.wolves === 2, 'ウルフの人数は1人か2人です。');
   return {
     gameType: s.gameType ?? 'ogiri',
     rounds: s.gameType === 'drawing' ? 1 : s.rounds,
@@ -65,6 +67,7 @@ export function settingsInput(value: unknown): Settings {
     autoAdvance: s.autoAdvance,
     halloween: s.halloween,
     categories: [...new Set(s.categories)],
+    ...(s.wolves ? { wolves: s.wolves } : {}),
   };
 }
 export function newPlayer(
@@ -283,11 +286,18 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
       beginSideRound(room, now, rng);
       return;
     }
+    if (isWordWolf(room)) {
+      beginWordWolf(room, now, rng);
+      return;
+    }
   } else if (isDrawingGame(room)) {
     advanceDrawing(room, now);
     return;
   } else if (isSideGame(room)) {
     advanceSideGame(room, now, rng);
+    return;
+  } else if (isWordWolf(room)) {
+    advanceWordWolf(room, now, rng);
     return;
   }
   switch (room.phase) {
@@ -329,7 +339,8 @@ export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.rand
   if (room.pausedAt || !room.deadline || now < room.deadline || room.phase === 'finished')
     return false;
   // The answer timer is a guide: only everyone's OK or the host closes submissions.
-  if (room.phase === 'answering') return false;
+  // ワードウルフ's talk timer is real, so it moves on to voting by itself when automatic.
+  if (room.phase === 'answering' && !(isWordWolf(room) && room.settings.autoAdvance)) return false;
   if (['reveal', 'ranking'].includes(room.phase) && !room.settings.autoAdvance) return false;
   advance(room, now, prompts, rng);
   room.revision++;
@@ -342,6 +353,10 @@ function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: ()
   }
   if (isSideGame(room)) {
     syncSideProgress(room, now, rng);
+    return;
+  }
+  if (isWordWolf(room)) {
+    syncWordWolf(room, now, rng);
     return;
   }
   if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
@@ -417,6 +432,7 @@ export function act(
     room.pastRounds = [];
     room.sideRounds = [];
     delete room.drawing;
+    delete room.wordWolf;
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -451,6 +467,7 @@ export function act(
     room.players[action.playerId].kicked = true;
     room.players[action.playerId].active = false;
     moderateDrawing(room, action.playerId);
+    moderateWordWolf(room, action.playerId);
     for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
     const current = room.matches[room.matchIndex];
     if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
@@ -483,6 +500,8 @@ export function act(
       advance(room, now, prompts, rng);
     } else if (isDrawingGame(room)) {
       drawingAction(room, playerId, action, now);
+    } else if (isWordWolf(room)) {
+      wordWolfAction(room, playerId, action, now);
     } else if (isSideGame(room)) {
       sideAction(room, playerId, action, now);
     } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type)) {
@@ -545,11 +564,12 @@ export function project(
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   const participants = gamePlayerIds(room);
   const side = isSideGame(room) ? currentSideRound(room) : undefined;
-  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? room.matches.flatMap((m) => m.players));
+  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? (isWordWolf(room) ? currentWordWolf(room)?.players : undefined) ?? room.matches.flatMap((m) => m.players));
   return {
     gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
     sideGame: projectSideGame(room, me),
     drawingGame: projectDrawing(room, me),
+    wordWolfGame: projectWordWolf(room, me),
     turn: turnKey(room),
     history: room.history ?? [],
     partyGames: room.partyGames ?? 0,

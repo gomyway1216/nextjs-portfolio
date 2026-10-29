@@ -14,6 +14,7 @@ export const GAME_RULES: Record<GameType, string> = {
   majority: '全員が同じ選択肢から1つ選びます。最多票の側に入れば100点。同率最多でも得点！',
   identity: '同じお題に1人1回答。匿名のひとことを見て作者を当てます。正解100点、作者は外された票1つにつき50点。',
   drawing: '絵→言葉→絵と、みんなで同時に伝言。最後に答え合わせして、好きな絵に1票100点！',
+  wordwolf: 'ひとりだけ少しちがうお題の「ウルフ」を、話し合いで探します。見つけたら市民に100点、逃げ切ればウルフに300点。見つかったウルフは市民のお題を当てれば逆転！',
 };
 
 export function PartyGamePicker({ value, onChange }: { value: GameType; onChange: (value: GameType) => void }) {

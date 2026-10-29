@@ -21,6 +21,8 @@ import { DEFAULT_SETTINGS, type Action, type GameHistory, type Room } from './ty
 import { prompts } from './prompts';
 import { snapshotHistory, validHistoryId } from './history';
 import { settlePartyPoints } from './party';
+import { hashPassphrase, verifyPassphrase, type PassphraseHash } from './passphrase';
+import { normalizePlayerText } from './text';
 
 export const COLLECTION = 'ogiri_party_rooms';
 export const HISTORY_COLLECTION = 'ogiri_party_history';
@@ -181,6 +183,62 @@ export async function regenerateRecoveryCode(code: string, token: string | undef
   return { ...project(room, authenticate(room, token), Date.now(), prompts), recoveryCode };
 }
 
+function countRecoveryAttempt(room: Room, now: number) {
+  const attempts = room.recoveryAttempts;
+  if (attempts && attempts.resetAt > now && attempts.count >= 30)
+    throw new GameError('復帰の試行が多すぎます。5分ほど待ってください。', 429);
+  room.recoveryAttempts = !attempts || attempts.resetAt <= now
+    ? { count: 1, resetAt: now + 5 * 60000 }
+    : { ...attempts, count: attempts.count + 1 };
+}
+
+export async function setRecoveryPassphrase(code: string, token: string | undefined, value: unknown) {
+  // Reject unauthenticated callers before doing expensive password hashing.
+  if (!(await readRoom(code, token)).me) throw new GameError('参加し直してください。', 401);
+  const verifier = await hashPassphrase(value);
+  const room = await mutate(code, room => {
+    const id = authenticate(room, token);
+    if (!id) throw new GameError('参加し直してください。', 401);
+    room.players[id].passphraseHash = verifier;
+    room.revision++;
+  });
+  return project(room, authenticate(room, token), Date.now(), prompts);
+}
+
+export async function recoverWithPassphrase(code: string, name: unknown, value: unknown) {
+  const normalizedName = typeof name === 'string' ? normalizePlayerText(name).toLocaleLowerCase('ja') : '';
+  let candidate: { id: string; verifier: PassphraseHash } | null = null;
+  // Persist the shared room throttle BEFORE scrypt; retries cannot bypass it.
+  await mutate(code, (room, now) => {
+    candidate = null;
+    countRecoveryAttempt(room, now);
+    const player = Object.values(room.players).find(player =>
+      !player.kicked && player.name.toLocaleLowerCase('ja') === normalizedName);
+    if (player?.passphraseHash) candidate = { id: player.id, verifier: player.passphraseHash };
+    room.revision++;
+  });
+  const checked = candidate as { id: string; verifier: PassphraseHash } | null;
+  if (!checked || !await verifyPassphrase(value, checked.verifier))
+    throw new GameError('ニックネームと合言葉を確認してください。', 401);
+  let session: ReturnType<typeof identity> | null = null;
+  const room = await mutate(code, (room, now) => {
+    session = null;
+    const player = room.players[checked.id];
+    // A concurrent change/kick must revoke an in-flight login too.
+    if (!player || player.kicked || player.passphraseHash?.salt !== checked.verifier.salt ||
+      player.passphraseHash.hash !== checked.verifier.hash)
+      throw new GameError('ニックネームと合言葉を確認してください。', 401);
+    session = identity(player.id);
+    player.secretHash = session.hash;
+    player.lastSeen = now;
+    room.expiresAt = now + ROOM_TTL;
+    room.revision++;
+  });
+  if (!session) throw new GameError('ニックネームと合言葉を確認してください。', 401);
+  const recovered = session as ReturnType<typeof identity>;
+  return { view: project(room, recovered.id, Date.now(), prompts), token: recovered.token };
+}
+
 /** Count failures in the existing room document so cold starts cannot bypass the throttle.
  * A recovered device replaces the old session, while keeping the participant and role. */
 export async function recoverRoom(code: string, input: unknown) {
@@ -189,13 +247,7 @@ export async function recoverRoom(code: string, input: unknown) {
   const room = await mutate(code, (room, now) => {
     // mutate may retry after a concurrent update; never retain a rejected attempt's session.
     session = null;
-    const attempts = room.recoveryAttempts;
-    if (attempts && attempts.resetAt > now && attempts.count >= 30) {
-      throw new GameError('復帰の試行が多すぎます。5分ほど待ってください。', 429);
-    }
-    room.recoveryAttempts = !attempts || attempts.resetAt <= now
-      ? { count: 1, resetAt: now + 5 * 60000 }
-      : { ...attempts, count: attempts.count + 1 };
+    countRecoveryAttempt(room, now);
     const candidate = /^[A-HJ-NP-Z2-9]{8}$/.test(normalized) ? recoveryHash(room, normalized) : '';
     const player = Object.values(room.players).find(player => !player.kicked && player.recoveryHash === candidate);
     if (player) {

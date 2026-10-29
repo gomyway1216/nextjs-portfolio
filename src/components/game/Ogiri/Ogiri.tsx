@@ -76,7 +76,9 @@ function JoinForm({
   const router = useRouter();
   const [hostPlays, setHostPlays] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [recoveryMethod, setRecoveryMethod] = useState<'code' | 'passphrase'>('code');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [passphrase, setPassphrase] = useState('');
   const [gameType, setGameType] = useState<GameType>(initialGameType);
   const [name, setName] = useState(''),
     [avatar, setAvatar] = useState(AVATARS[0]);
@@ -89,8 +91,8 @@ function JoinForm({
     setError('');
     try {
       const view = await request(create ? '' : `/${room.trim().toUpperCase()}`, {
-        type: recovering ? 'recover' : 'join',
-        ...(recovering ? { recoveryCode } : {}),
+        type: recovering ? recoveryMethod === 'passphrase' ? 'recoverPassphrase' : 'recover' : 'join',
+        ...(recovering ? recoveryMethod === 'passphrase' ? { passphrase } : { recoveryCode } : {}),
         name,
         avatar,
         ...(create ? { hostPlays, gameType } : {}),
@@ -127,7 +129,23 @@ function JoinForm({
           />
         </label>
       )}
-      {recovering ? <label>
+      {recovering && <div className={styles.recoveryMethods} role="radiogroup" aria-label="復帰方法">
+        <label><input type="radio" name="recoveryMethod" checked={recoveryMethod === 'code'}
+          onChange={() => setRecoveryMethod('code')} />復帰コード</label>
+        <label><input type="radio" name="recoveryMethod" checked={recoveryMethod === 'passphrase'}
+          onChange={() => setRecoveryMethod('passphrase')} />合言葉</label>
+      </div>}
+      {recovering ? recoveryMethod === 'passphrase' ? <>
+        <label>ニックネーム
+          <input aria-label="ニックネーム" autoComplete="username" required maxLength={32}
+            value={name} onChange={event => setName(event.target.value)} />
+        </label>
+        <label>合言葉
+          <input aria-label="合言葉" type="password" autoComplete="current-password" required maxLength={128}
+            value={passphrase} onChange={event => setPassphrase(event.target.value)} />
+          <small>元の端末で設定した合言葉。名前・キャラ・得点・通算を引き継ぎます。</small>
+        </label>
+      </> : <label>
         復帰コード
         <input aria-label="復帰コード" autoComplete="off" autoCapitalize="characters" spellCheck={false}
           placeholder="ABCD-EF23" maxLength={9} required value={recoveryCode}
@@ -188,7 +206,7 @@ function JoinForm({
       <button className={styles.primary} disabled={busy || (!recovering && [...name.normalize('NFKC')].length > 16)}>
         {busy ? '接続中…' : create ? 'ルームを作成 →' : recovering ? '同じ参加者で復帰 →' : 'ルームに参加 →'}
       </button>
-      <small>登録不要・無料。同じブラウザはCookie、別端末は復帰コードで同じ部屋に戻れます。部屋は最後のゲーム操作から8時間有効です。</small>
+      <small>登録不要・無料。同じブラウザはCookie、別端末は設定した合言葉か復帰コードで同じ部屋に戻れます。部屋は最後のゲーム操作から8時間有効です。</small>
     </form>
   );
 }
@@ -674,6 +692,18 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   }
+  async function savePassphrase(passphrase: string) {
+    if (tv || busy) return false;
+    setBusy(true);
+    setError('');
+    try {
+      accept(await request(`/${code}`, { type: 'setPassphrase', passphrase }));
+      return true;
+    } catch (error) {
+      setError((error as Error).message);
+      return false;
+    } finally { setBusy(false); }
+  }
   const v = view,
     mine = v?.players.find((p) => p.id === v.me);
   const gameType = v?.gameType ?? v?.settings.gameType ?? 'ogiri';
@@ -1157,7 +1187,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 )}
               </section>
             )}
-            {!tv && v.me && <ParticipantAccess view={v} busy={busy} connected={connected} send={send} regenerate={regenerateRecovery} />}
+            {!tv && v.me && <ParticipantAccess view={v} busy={busy} connected={connected} send={send} regenerate={regenerateRecovery} savePassphrase={savePassphrase} />}
             {!tv && mine && (
               <div className={styles.myScore}>
                 <Character avatar={mine.avatar} /> {mine.name}

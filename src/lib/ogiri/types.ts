@@ -53,6 +53,8 @@ export interface Prompt {
   createdAt: string;
 }
 export interface Player {
+  /** Private salted scrypt verifier. Never project into room/history responses. */
+  passphraseHash?: { salt: string; hash: string };
   /** Private recovery capability; plaintext is returned only at issuance. */
   recoveryHash?: string;
   answerReady?: boolean;
@@ -188,6 +190,8 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  /** Only the authenticated participant's setup status, never a verifier. */
+  hasPassphrase?: boolean;
   drawingGame?: DrawingGameView;
   /** Transient issuance response only. Never populated by project/poll/history. */
   recoveryCode?: string;

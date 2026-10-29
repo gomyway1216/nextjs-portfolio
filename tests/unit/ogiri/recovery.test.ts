@@ -19,13 +19,82 @@ vi.mock('@/lib/firebase-admin', () => ({
 }));
 import { NextRequest } from 'next/server';
 import { act, joinRoom, newPlayer, project } from '@/lib/ogiri/engine';
-import { authenticate, command, enterRoom, makeRoom, readRoom, recoverRoom, regenerateRecoveryCode } from '@/lib/ogiri/store';
+import { authenticate, command, enterRoom, makeRoom, readRoom, recoverRoom, regenerateRecoveryCode, recoverWithPassphrase, setRecoveryPassphrase } from '@/lib/ogiri/store';
+import * as passphrases from '@/lib/ogiri/passphrase';
 import { guardRecovery } from '@/lib/ogiri/http';
 import { snapshotHistory } from '@/lib/ogiri/history';
 import { prompts } from '@/lib/ogiri/prompts';
 
 beforeEach(() => { vi.stubEnv('OGIRI_EMULATOR', ''); memory.room = null; memory.writes = 0; memory.conflict = false; });
-afterEach(() => { vi.unstubAllEnvs(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+it('sets an optional private passphrase and restores the same resting participant with nonzero scores', async () => {
+  const host = await makeRoom('進行役', 'rabbit', false);
+  const member = await enterRoom(host.view.code, undefined, '参加者', 'pudding');
+  const id = member.view.me!;
+  const value = 'ぱーてぃーであそぶ';
+  memory.room!.players[id].score = 450;
+  memory.room!.players[id].partyPoints = 17;
+  await command(host.view.code, member.token, { type: 'leave' });
+  expect((await setRecoveryPassphrase(host.view.code, member.token, value)).hasPassphrase).toBe(true);
+  expect(JSON.stringify(memory.room)).not.toContain(value);
+  const restored = await recoverWithPassphrase(host.view.code, ' 参加者 ', value.normalize('NFD'));
+  expect(restored.view).toMatchObject({ me: id, resting: true, hasPassphrase: true });
+  expect(restored.view.players.find(player => player.id === id)).toMatchObject({ name: '参加者', avatar: 'pudding', score: 450, partyPoints: 17, active: false });
+  expect(authenticate(memory.room!, member.token)).toBeNull();
+  expect(authenticate(memory.room!, restored.token)).toBe(id);
+  expect(Object.keys(memory.room!.players)).toHaveLength(2);
+  for (const view of [await readRoom(host.view.code, restored.token), await readRoom(host.view.code), await readRoom(host.view.code, restored.token, true)]) {
+    expect(JSON.stringify(view)).not.toMatch(/passphraseHash|"salt"|"hash"/);
+    expect(JSON.stringify(view)).not.toContain(value);
+  }
+  expect((await readRoom(host.view.code)).hasPassphrase).toBeUndefined();
+  expect((await readRoom(host.view.code, restored.token, true)).hasPassphrase).toBeUndefined();
+  expect(JSON.stringify(snapshotHistory(memory.room!, 'a'.repeat(32), Date.now(), prompts))).not.toMatch(/passphrase|salt|secretHash/i);
+  // The original random recovery code stays usable as an alternative.
+  expect((await recoverRoom(host.view.code, member.view.recoveryCode)).view.me).toBe(id);
+});
+
+it('requires authenticated setup, preserves host controls, and revokes an old passphrase after changing it', async () => {
+  const host = await makeRoom('主催者', 'rabbit', false);
+  await expect(setRecoveryPassphrase(host.view.code, undefined, 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  expect(memory.room!.players[host.view.me!].passphraseHash).toBeUndefined();
+  await setRecoveryPassphrase(host.view.code, host.token, 'おぼえやすいことば');
+  await setRecoveryPassphrase(host.view.code, host.token, 'あたらしいことば');
+  const expiry = memory.room!.expiresAt;
+  await expect(recoverWithPassphrase(host.view.code, '主催者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  expect(memory.room!.expiresAt).toBe(expiry);
+  const restored = await recoverWithPassphrase(host.view.code, '主催者', 'あたらしいことば');
+  expect(restored.view).toMatchObject({ me: host.view.me, isHost: true, hostPlays: false });
+});
+
+it('shares the durable attempt limit with recovery codes and refuses a kicked participant', async () => {
+  const host = await makeRoom('主催者', 'rabbit');
+  const member = await enterRoom(host.view.code, undefined, '参加者', 'pudding');
+  await setRecoveryPassphrase(host.view.code, member.token, 'おぼえやすいことば');
+  await command(host.view.code, host.token, { type: 'kick', playerId: member.view.me! });
+  const expiry = memory.room!.expiresAt;
+  await expect(recoverWithPassphrase(host.view.code, '参加者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  for (let index = 0; index < 28; index++)
+    await expect(recoverWithPassphrase(host.view.code, 'いない参加者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  await expect(recoverRoom(host.view.code, 'WRONG')).rejects.toMatchObject({ status: 401 });
+  expect(memory.room!.recoveryAttempts?.count).toBe(30);
+  expect(memory.room!.expiresAt).toBe(expiry);
+  await expect(recoverWithPassphrase(host.view.code, '主催者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 429 });
+});
+
+it('rechecks a passphrase changed while a login was being verified', async () => {
+  const host = await makeRoom('主催者', 'rabbit');
+  await setRecoveryPassphrase(host.view.code, host.token, 'おぼえやすいことば');
+  const verify = passphrases.verifyPassphrase;
+  vi.spyOn(passphrases, 'verifyPassphrase').mockImplementationOnce(async (value, stored) => {
+    const result = await verify(value, stored);
+    memory.room!.players[host.view.me!].passphraseHash = await passphrases.hashPassphrase('あたらしいことば');
+    return result;
+  });
+  await expect(recoverWithPassphrase(host.view.code, '主催者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
+  expect(authenticate(memory.room!, host.token)).toBe(host.view.me);
+});
 
 it('issues a private readable code, restores exactly the same identity and rotates old sessions', async () => {
   const host = await makeRoom('進行役', 'rabbit', false);

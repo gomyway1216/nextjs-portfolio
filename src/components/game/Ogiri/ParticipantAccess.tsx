@@ -5,15 +5,19 @@ import type { Action, RoomView } from '@/lib/ogiri/types';
 import { recallRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
-export function ParticipantAccess({ view, busy, connected, send, regenerate }: {
+export function ParticipantAccess({ view, busy, connected, send, regenerate, savePassphrase }: {
   view: RoomView;
   busy: boolean;
   connected: boolean;
   send: (action: Action) => Promise<boolean>;
   regenerate: () => Promise<void>;
+  savePassphrase: (value: string) => Promise<boolean>;
 }) {
   const [code, setCode] = useState('');
   const [copyStatus, setCopyStatus] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [passphraseStatus, setPassphraseStatus] = useState('');
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- private, browser-only tab storage
     setCode(view.me ? view.recoveryCode ?? recallRecovery(view.code, view.me) : '');
@@ -30,6 +34,37 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate }: {
     </div>
     <p>休憩しても名前・キャラ・得点・パーティー通算は残ります。割り当て済みの回答は戻って続けられます。新しい割り当ては次のラウンド・ゲームからです。</p>
     {view.isHost && <p>休憩中も主催者の進行操作を使えます。</p>}
+    <details>
+      <summary>自分で決めた合言葉で戻る</summary>
+      <p>復帰するときのニックネーム：<b>{view.players.find(player => player.id === view.me)?.name}</b></p>
+      <p>{view.hasPassphrase ? '合言葉は設定済みです。下のフォームで変更できます。' : '先に合言葉を設定すると、復帰コードを控えなくても別端末から戻れます。'}</p>
+      <form className={styles.form} onSubmit={async event => {
+        event.preventDefault();
+        if (passphrase !== confirmation) {
+          setPassphraseStatus('確認用の合言葉が一致していません。');
+          return;
+        }
+        setPassphraseStatus('');
+        if (await savePassphrase(passphrase)) {
+          setPassphrase(''); setConfirmation('');
+          setPassphraseStatus('合言葉を設定しました。別端末では「同じ参加者で戻る」→「合言葉」を選んでください。');
+        }
+      }}>
+        <label>合言葉（6〜64文字・日本語もOK）
+          <input aria-label="設定する合言葉" type="password" autoComplete="new-password" required
+            minLength={6} maxLength={128} disabled={busy} value={passphrase} onChange={event => setPassphrase(event.target.value)} />
+        </label>
+        <label>合言葉（確認）
+          <input aria-label="合言葉の確認" type="password" autoComplete="new-password" required
+            minLength={6} maxLength={128} disabled={busy} value={confirmation} onChange={event => setConfirmation(event.target.value)} />
+        </label>
+        <button className={styles.secondary} disabled={busy || !connected}>
+          {busy ? '設定中…' : view.hasPassphrase ? '合言葉を変更' : '合言葉を設定'}
+        </button>
+      </form>
+      {passphraseStatus && <p role="status">{passphraseStatus}</p>}
+      <small>このルームの4ゲームで共通です。メール登録は不要。合言葉は他のサイトと使い回さず、本人だけで覚えておいてください。</small>
+    </details>
     <details>
       <summary>別の端末で戻るための復帰コード</summary>
       {code ? <>

@@ -89,7 +89,6 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
       palette.push({ cue, maxRms: measured.maxRms, maxPeak: measured.maxPeak });
     }
     await info.attach('actual-palette-output', { body: JSON.stringify(palette), contentType: 'application/json' });
-    await page.waitForTimeout(5000);
   }
   await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await volume.fill('100');

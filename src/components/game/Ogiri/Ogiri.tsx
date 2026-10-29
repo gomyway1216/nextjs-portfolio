@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, GAME_TITLES, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
+import { hintAt, shouldNudgeHint } from '@/lib/ogiri/hints';
 import { RoundPlan } from './RoundPlan';
 import { GAME_RULES, PartyGamePanel, PartyGamePicker } from './PartyGamePanel';
 import { rememberHistory } from '@/lib/ogiri/history-local';
@@ -334,15 +335,22 @@ function AnswerForm({
   code,
   disabled,
   send,
+  remaining,
+  answerSeconds,
 }: {
   assignment: RoomView['assignments'][number];
   code: string;
   disabled: boolean;
   send: (a: Action) => Promise<boolean>;
+  remaining: number;
+  answerSeconds: number;
 }) {
   const key = `ogiri:draft:${code}:${assignment.id}`;
   const [text, setText] = useState(assignment.answer),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    // Seeded on the first tap so each player and prompt gets its own order without a hydration mismatch.
+    [hintState, setHintState] = useState<{ seed: number; tap: number } | null>(null);
+  const hint = hintState && hintAt(assignment.text, hintState.seed, hintState.tap);
   const saved = assignment.answer;
   const characterCount = [...normalizePlayerText(text)].length;
   // This also restores the unsent Japanese draft after a full reload.
@@ -376,6 +384,16 @@ function AnswerForm({
         }}
         disabled={disabled || busy}
       />
+      <div className={styles.hintRow}>
+        <button
+          type="button"
+          className={`${styles.hintButton} ${!hint && !disabled && shouldNudgeHint(remaining, answerSeconds, text) ? styles.hintNudge : ''}`}
+          onClick={() => setHintState((h) => h ? { ...h, tap: h.tap + 1 } : { seed: Math.floor(Math.random() * 0xffffffff), tap: 0 })}
+        >
+          💡 {hint ? '別の型' : '答えの型ヒント'}
+        </button>
+        {hint && <p aria-live="polite" data-testid="answer-hint">型：「{hint.ja}」</p>}
+      </div>
       <div className={styles.row}>
         <small>{characterCount} / 100文字</small>
         <button
@@ -1037,6 +1055,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       code={code}
                       disabled={v.paused || !connected || Boolean(mine?.answerReady)}
                       send={send}
+                      remaining={remaining}
+                      answerSeconds={v.settings.answerSeconds}
                     />
                   ))}
                 </div>

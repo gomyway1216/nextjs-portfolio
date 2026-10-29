@@ -2135,3 +2135,30 @@ a.historyCard:hover {
 .recoveryMethods input { width: auto; }
 .participantAccess .secondary { background: #eee4ff; color: #251345; }
 .participantAccess output { display: block; font-size: 1.65rem; font-weight: 800; letter-spacing: .12em; margin: 1rem 0; overflow-wrap: anywhere; }
+.hintRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.hintRow p {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.hintButton {
+  border: 1px dashed #ffffff60;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  padding: 6px 14px;
+  font-size: 14px;
+}
+.hintNudge {
+  animation: hintPulse 1.6s ease-in-out infinite;
+}
+@keyframes hintPulse {
+  50% {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 4px #ffffff18;
+  }
+}

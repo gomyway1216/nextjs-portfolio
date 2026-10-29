@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -141,6 +141,42 @@ describe('main CI deduplication', () => {
       const divergent = git('rev-parse', 'HEAD').trim();
       writeFileSync(eventPath, JSON.stringify({ before: sha }));
       expect(workflowsForPush(eventPath, divergent, definitions, git)).toEqual(names);
+    });
+  });
+  it.each([
+    { revision: 'valid', expected: ['website.yml', 'security.yml'] },
+    { revision: '', expected: names },
+    { revision: 'invalid', expected: names },
+  ])('CLI dispatches the selected fallback for push revision $revision', ({ revision, expected }) => {
+    withPush([['src/lib/ogiri/engine.ts']], ({ eventPath, sha, repo }) => {
+      mkdirSync(join(repo, 'scripts'), { recursive: true });
+      mkdirSync(join(repo, '.github/workflows'), { recursive: true });
+      for (const name of ['ci-main.mjs', 'strict-workflow-yaml.mjs'])
+        writeFileSync(join(repo, 'scripts', name), readFileSync(new URL(`../../scripts/${name}`, import.meta.url)));
+      for (const name of names)
+        writeFileSync(join(repo, '.github/workflows', name), readFileSync(new URL(`../../.github/workflows/${name}`, import.meta.url)));
+      const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+        import { pathToFileURL } from 'node:url';
+        import { realpathSync } from 'node:fs';
+        const dispatched = [];
+        globalThis.fetch = async (url, options) => {
+          if (options.method === 'POST') {
+            dispatched.push(new URL(url).pathname.split('/').at(-2));
+            return new Response(null, { status: 204 });
+          }
+          return Response.json([]);
+        };
+        process.argv[1] = realpathSync(process.env.MAIN_CI_TEST_SCRIPT);
+        await import(pathToFileURL(process.argv[1]));
+        console.log('DISPATCHED=' + JSON.stringify(dispatched));
+      `], { encoding: 'utf8', env: { ...process.env,
+        GITHUB_REPOSITORY: 'test/repo', GITHUB_SHA: revision === 'valid' ? sha : revision,
+        GITHUB_EVENT_PATH: eventPath, GITHUB_STEP_SUMMARY: '', GH_TOKEN: 'test-token',
+        GITHUB_API_URL: 'https://api.example.invalid', MAIN_CI_TEST_SCRIPT: join(repo, 'scripts/ci-main.mjs'),
+      } });
+      expect(result.status, result.stderr).toBe(0);
+      const dispatched = result.stdout.split('\n').find((line) => line.startsWith('DISPATCHED='));
+      expect(JSON.parse(dispatched!.slice('DISPATCHED='.length))).toEqual(expected);
     });
   });
   it('keeps PR and manual entry points, with one lightweight main push entry point', () => {

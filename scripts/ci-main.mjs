@@ -54,8 +54,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const repo = process.env.GITHUB_REPOSITORY;
   const sha = process.env.GITHUB_SHA;
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || !/^[a-f0-9]{40}$/.test(sha ?? ''))
-    throw new Error('Missing repository or push revision');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo ?? '')) throw new Error('Missing repository');
   if (!token) throw new Error('Missing GH_TOKEN or GITHUB_TOKEN');
   async function api(path, body) {
     const response = await fetch(`${process.env.GITHUB_API_URL || 'https://api.github.com'}/repos/${repo}/${path}`, {
@@ -70,6 +69,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   let reuse = false;
   try {
+    if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('Missing push revision');
     const pulls = await api(`commits/${sha}/pulls?per_page=100`);
     const pull = pulls.find((p) => p.merged_at && p.merge_commit_sha === sha && p.base.ref === 'main');
     if (pull) {

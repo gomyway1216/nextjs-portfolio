@@ -187,8 +187,10 @@ for (const count of [3, 4, 12]) test(`${count} drawing relayers, separate GM and
     const fitTv = async (label: string) => {
       for (const size of [{ width: 1920, height: 1080 }, { width: 3840, height: 2160 }]) {
         await tv.setViewportSize(size);
-        if (count === 12) await tv.screenshot({ path: info.outputPath(`${label}-${size.width}.png`), fullPage: true });
+        if (count === 12) await tv.screenshot({ path: info.outputPath(`${label}-${size.width}.png`), fullPage: true, scale: 'css' });
         const bounds = await tv.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight, innerWidth, innerHeight }));
+        expect(bounds.innerWidth).toBe(size.width);
+        expect(bounds.innerHeight).toBe(size.height);
         expect(bounds.width, `${label} width ${size.width}`).toBeLessThanOrEqual(bounds.innerWidth + 2);
         expect(bounds.height, `${label} height ${size.width}`).toBeLessThanOrEqual(bounds.innerHeight + 2);
       }

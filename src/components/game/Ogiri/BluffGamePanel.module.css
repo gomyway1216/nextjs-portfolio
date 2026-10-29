@@ -1,0 +1,27 @@
+.truthLine {
+  text-align: center;
+  margin: 8px 0;
+  font-size: clamp(20px, 2.4vw, 36px);
+  overflow-wrap: anywhere;
+}
+.truthLine b {
+  padding: 0 0.3em;
+  background: #fff14a;
+}
+.own {
+  opacity: 0.72;
+  border-style: dashed !important;
+}
+.authors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.source {
+  text-align: center;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.source a {
+  color: inherit;
+}

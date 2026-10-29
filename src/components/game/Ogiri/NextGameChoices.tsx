@@ -10,6 +10,7 @@ const choices = [
   { type: 'majority', avatar: '🐸', description: 'みんな、そっち派？' },
   { type: 'identity', avatar: '', description: 'これ書いたの、お前か。' },
   { type: 'drawing', avatar: 'alien', description: 'その絵、そう伝わる？' },
+  { type: 'bluff', avatar: '🦊', description: '本当の答え、どれだ？' },
 ] satisfies { type: GameType; avatar: string; description: string }[];
 
 export function NextGameChoices({ currentGame, disabled, choose }: {

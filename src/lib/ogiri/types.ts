@@ -18,9 +18,10 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'bluff';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
+  bluff: 'うそ回答まぜ',
 };
 export interface Settings {
   gameType?: GameType;
@@ -85,6 +86,7 @@ export interface Match {
 }
 export interface Room {
   drawing?: DrawingRound;
+  bluffRounds?: BluffRound[];
   /** Durable recovery throttle shared across server instances. */
   recoveryAttempts?: { count: number; resetAt: number };
   /** Snapshot of the game actually started, independent of the next game's settings. */
@@ -190,6 +192,7 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  bluffGame?: BluffGameView;
   /** Includes the GM, who is intentionally absent from the player standings. */
   participantName?: string;
   /** Only the authenticated participant's setup status, never a verifier. */
@@ -318,4 +321,40 @@ export interface DrawingGameView {
 export interface DrawingHistoryChain {
   prompt: string;
   steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number }[];
+}
+export const BLUFF_MAX_LENGTH = 40;
+/** Private bluff round: the truth and authors never leave the room before the reveal. */
+export interface BluffRound {
+  round: number;
+  prompt: string;
+  truth: string;
+  also: string[];
+  sourceUrl: string;
+  players: string[];
+  fakes: Record<string, string>;
+  options: { id: string; label: string; truth: boolean; authors: string[] }[];
+  ballots: Record<string, string>;
+  result: null | { truth: string; counts: Record<string, number>; awards: { id: string; points: number }[] };
+}
+export interface BluffGameView {
+  prompt: string;
+  index: number;
+  total: number;
+  answer: string;
+  answerRequired: boolean;
+  readyCount: number;
+  answererCount: number;
+  options: { id: string; label: string }[];
+  mine: string | null;
+  canVote: boolean;
+  voted: boolean;
+  votesReceived: number;
+  eligible: number;
+  result: null | {
+    truth: string;
+    counts: Record<string, number>;
+    authors: Record<string, string[]>;
+    awards: { id: string; points: number }[];
+    sourceUrl: string;
+  };
 }

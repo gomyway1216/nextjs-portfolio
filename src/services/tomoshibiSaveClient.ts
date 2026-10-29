@@ -50,16 +50,37 @@ export async function loadTomoshibiSave(): Promise<string> {
 /**
  * Store a save, or clear the slot when `save` is ''. Never throws: the local
  * save is the real one, so a failure here must not interrupt play.
+ *
+ * Returns whether the server took it, so the page can say so. Autosave ignores
+ * the answer; the manual button shows it.
  */
-export async function saveTomoshibiSave(save: string): Promise<void> {
+export async function saveTomoshibiSave(save: string): Promise<boolean> {
   try {
     await ensureGameSignIn();
     if (save === '') {
       await deleteGameSave(GAME_KEY);
-      return;
+      return true;
     }
     await saveGameSave<TomoshibiSlot>(GAME_KEY, { json: save });
+    return true;
   } catch (error) {
     console.error('[tomoshibi] storing the cloud save failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Whether the player is on a real account rather than the anonymous one that
+ * `ensureGameSignIn` hands guests.
+ *
+ * Both keep a cloud save, but only a real account can be signed into somewhere
+ * else — so this is what decides whether to promise the run will follow them.
+ */
+export async function isTomoshibiAccountSignedIn(): Promise<boolean> {
+  try {
+    const user = await ensureGameSignIn();
+    return !user.isAnonymous;
+  } catch {
+    return false;
   }
 }

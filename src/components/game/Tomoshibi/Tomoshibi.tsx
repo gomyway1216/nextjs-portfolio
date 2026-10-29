@@ -40,7 +40,11 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadTomoshibiSave, saveTomoshibiSave } from '@/services/tomoshibiSaveClient';
+import {
+  isTomoshibiAccountSignedIn,
+  loadTomoshibiSave,
+  saveTomoshibiSave,
+} from '@/services/tomoshibiSaveClient';
 
 const GAME_URL = '/games/tomoshibi/index.html';
 
@@ -78,6 +82,12 @@ export function Tomoshibi() {
   const cloudSave = useRef('');
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef('');
+  // クラウド側の状態。**自動保存は見えないので、見えるようにする。**
+  // 1手ごとに保存してはいるが、画面に何も出ないので
+  // 「アカウントに残っているのか」が遊ぶ側から分からなかった。
+  const [cloud, setCloud] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [onAccount, setOnAccount] = useState<boolean | null>(null);
 
   const start = useCallback(async () => {
     if (!hasWebGL2()) {
@@ -86,7 +96,29 @@ export function Tomoshibi() {
     }
     setPhase('preparing');
     cloudSave.current = await loadTomoshibiSave();
+    setOnAccount(await isTomoshibiAccountSignedIn());
     setPhase('playing');
+  }, []);
+
+  /**
+   * 「今すぐ保存」。
+   *
+   * 自動保存があるので機能としては重複しているが、**重複していることが
+   * 分からない**のが問題だった。押せば結果が返るので、アカウントに
+   * 残っていることをその場で確かめられる。
+   *
+   * ゲームがまだ一度も状態を渡していなければ送るものが無い。
+   */
+  const saveNow = useCallback(async () => {
+    if (!latest.current) return;
+    if (pending.current) {
+      clearTimeout(pending.current);
+      pending.current = null;
+    }
+    setCloud('saving');
+    const ok = await saveTomoshibiSave(latest.current);
+    setCloud(ok ? 'saved' : 'error');
+    if (ok) setSavedAt(new Date());
   }, []);
 
   // 離脱時に、待たせているセーブを捨てずに送る。
@@ -123,7 +155,11 @@ export function Tomoshibi() {
       }
       pending.current = setTimeout(() => {
         pending.current = null;
-        void saveTomoshibiSave(latest.current);
+        setCloud('saving');
+        void saveTomoshibiSave(latest.current).then((ok) => {
+          setCloud(ok ? 'saved' : 'error');
+          if (ok) setSavedAt(new Date());
+        });
       }, WRITE_DELAY_MS);
     };
   }, []);
@@ -201,9 +237,45 @@ export function Tomoshibi() {
           borderRadius: 8,
         }}
       />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          marginTop: '0.5rem',
+        }}
+      >
+        <span style={{ fontSize: '0.85rem', opacity: 0.75 }}>
+          {cloud === 'saving' && 'アカウントに保存中…'}
+          {cloud === 'error' && '⚠ アカウントに保存できませんでした(手元の保存は残っています)'}
+          {cloud === 'saved' && savedAt &&
+            `${onAccount ? 'アカウント' : 'この端末'}に保存済み ${savedAt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`}
+          {cloud === 'idle' && (onAccount
+            ? '1手ごとに自動保存されます(アカウントに紐づけ済み)'
+            : 'ログインすると、別の端末でも続きから遊べます')}
+        </span>
+        <button
+          type="button"
+          onClick={saveNow}
+          disabled={cloud === 'saving'}
+          style={{
+            padding: '0.35rem 0.9rem',
+            borderRadius: 6,
+            border: '1px solid rgba(127,127,127,0.4)',
+            background: 'transparent',
+            color: 'inherit',
+            fontSize: '0.85rem',
+            cursor: cloud === 'saving' ? 'progress' : 'pointer',
+          }}
+        >
+          今すぐ保存
+        </button>
+      </div>
       <p style={{ fontSize: '0.85rem', opacity: 0.7, marginTop: '0.5rem' }}>
         キーボード操作です。移動: 矢印キー / WASD、攻撃: スペース、持ち物: I、中断: ESC 2回。
-        進行は自動保存され、ログインしていれば別の端末でも続きから遊べます。
+        進行は1手ごとに自動保存されます。
       </p>
     </div>
   );

@@ -11,10 +11,15 @@ import {
   type Settings,
 } from './types';
 import { gameHighlights, gamePlayerIds } from './party';
+import { roundMultiplier, SHUTOUT_BONUS } from './plan';
 import { normalizePlayerText } from './text';
 import { GameError } from './errors';
 import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
+import { projectReactions } from './reactions';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
+import { customPromptAction, dropPendingCustomPrompts, isCustomPromptAction, isCustomPromptId, pickCustomPrompts, projectCustomPrompts, withCustomPrompts } from './custom-prompts';
+import { advanceWordWolf, beginWordWolf, currentWordWolf, isWordWolf, moderateWordWolf, projectWordWolf, syncWordWolf, wordWolfAction } from './word-wolf';
+import { advanceBluff, beginBluffRound, bluffAction, currentBluffRound, isBluffGame, moderateBluff, projectBluff, syncBluff } from './bluff-game';
 
 export { GameError } from './errors';
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (
@@ -34,7 +39,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
     'ラウンド数は1〜5です。',
@@ -57,6 +62,12 @@ export function settingsInput(value: unknown): Settings {
       s.categories.every((c) => Object.hasOwn(CATEGORIES, c)),
     'ジャンルが正しくありません。',
   );
+  requireThat(
+    [undefined, 'mix', 'only'].includes(s.customMode) &&
+      [undefined, true, false].includes(s.customSubmissions),
+    '設定が正しくありません。',
+  );
+  requireThat(s.wolves === undefined || s.wolves === 1 || s.wolves === 2, 'ウルフの人数は1人か2人です。');
   return {
     gameType: s.gameType ?? 'ogiri',
     rounds: s.gameType === 'drawing' ? 1 : s.rounds,
@@ -65,6 +76,9 @@ export function settingsInput(value: unknown): Settings {
     autoAdvance: s.autoAdvance,
     halloween: s.halloween,
     categories: [...new Set(s.categories)],
+    ...(s.customMode === 'only' ? { customMode: 'only' as const } : {}),
+    ...(s.customSubmissions ? { customSubmissions: true } : {}),
+    ...(s.wolves ? { wolves: s.wolves } : {}),
   };
 }
 export function newPlayer(
@@ -194,21 +208,23 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
       players.length * room.settings.rounds
   )
     room.usedPrompts = [];
+  const custom = pickCustomPrompts(room, players.length, rng);
   let pool = eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id));
   requireThat(
-    pool.length >= players.length,
+    pool.length >= players.length - custom.length,
     'このジャンルの未出題のお題が足りません。ジャンルを増やしてください。',
     409,
   );
   pool = shuffled(pool, rng);
   // Round-robin categories avoids long runs of a single genre without synthetic prompt variations.
   const selected: Prompt[] = [];
-  while (selected.length < players.length) {
+  while (selected.length < players.length - custom.length) {
     const previous = selected.at(-1)?.category;
     let index = pool.findIndex((p) => p.category !== previous);
     if (index < 0) index = 0;
     selected.push(pool.splice(index, 1)[0]);
   }
+  for (const prompt of custom) selected.splice(Math.floor(rng() * (selected.length + 1)), 0, prompt);
   for (const p of rankPlayers(room)) {
     room.players[p.id].previousRank = p.rank;
     room.players[p.id].roundScore = 0;
@@ -217,6 +233,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
   if (room.round > 0) (room.pastRounds ??= []).push({ round: room.round, matches: room.matches });
   room.round++;
   room.matchIndex = 0;
+  const multiplier = roundMultiplier(room.round, room.settings.rounds);
   room.matches = pairPlayers(
     players.map((p) => p.id),
     room.pairCounts,
@@ -235,6 +252,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
       votes: {},
       scored: false,
       points: [0, 0],
+      multiplier,
     };
   });
   room.phase = 'answering';
@@ -250,13 +268,24 @@ function eligible(room: Room, match: Match) {
       room.matches.some((assignment) => assignment.players.includes(p.id)),
   );
 }
+/** Every vote on one answer, from at least two voters, while the other answer was also shown. */
+export function shutoutIndex(counts: number[], shown: boolean[]): number | null {
+  if (!shown[0] || !shown[1]) return null;
+  const index = counts.findIndex((votes, i) => votes >= 2 && counts[1 - i] === 0);
+  return index < 0 ? null : index;
+}
 function scoreMatch(room: Room, match: Match) {
   if (match.scored) return;
+  const shown = [0, 1].map((i) => visible(room, match, i));
   const counts = [0, 1].map((i) =>
-    visible(room, match, i) ? Object.values(match.votes).filter((v) => v === i).length : 0,
+    shown[i] ? Object.values(match.votes).filter((v) => v === i).length : 0,
   );
+  const multiplier = match.multiplier ?? 1;
+  match.shutout = shutoutIndex(counts, shown);
   match.points = counts.map((votes, i) =>
-    visible(room, match, i) ? votes * 100 + (votes > counts[1 - i] ? 200 : 0) : 0,
+    shown[i]
+      ? (votes * 100 + (votes > counts[1 - i] ? 200 : 0) + (match.shutout === i ? SHUTOUT_BONUS : 0)) * multiplier
+      : 0,
   );
   match.players.forEach((id, i) => {
     room.players[id].score += match.points[i];
@@ -283,11 +312,25 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
       beginSideRound(room, now, rng);
       return;
     }
+    if (isWordWolf(room)) {
+      beginWordWolf(room, now, rng);
+      return;
+    }
+    if (isBluffGame(room)) {
+      beginBluffRound(room, now, rng);
+      return;
+    }
   } else if (isDrawingGame(room)) {
     advanceDrawing(room, now);
     return;
   } else if (isSideGame(room)) {
     advanceSideGame(room, now, rng);
+    return;
+  } else if (isWordWolf(room)) {
+    advanceWordWolf(room, now, rng);
+    return;
+  } else if (isBluffGame(room)) {
+    advanceBluff(room, now, rng);
     return;
   }
   switch (room.phase) {
@@ -329,7 +372,8 @@ export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.rand
   if (room.pausedAt || !room.deadline || now < room.deadline || room.phase === 'finished')
     return false;
   // The answer timer is a guide: only everyone's OK or the host closes submissions.
-  if (room.phase === 'answering') return false;
+  // ワードウルフ's talk timer is real, so it moves on to voting by itself when automatic.
+  if (room.phase === 'answering' && !(isWordWolf(room) && room.settings.autoAdvance)) return false;
   if (['reveal', 'ranking'].includes(room.phase) && !room.settings.autoAdvance) return false;
   advance(room, now, prompts, rng);
   room.revision++;
@@ -342,6 +386,14 @@ function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: ()
   }
   if (isSideGame(room)) {
     syncSideProgress(room, now, rng);
+    return;
+  }
+  if (isWordWolf(room)) {
+    syncWordWolf(room, now, rng);
+    return;
+  }
+  if (isBluffGame(room)) {
+    syncBluff(room, now, rng);
     return;
   }
   if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
@@ -360,7 +412,7 @@ export function act(
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat', 'customPromptAdd', 'customPromptRemove'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -417,6 +469,8 @@ export function act(
     room.pastRounds = [];
     room.sideRounds = [];
     delete room.drawing;
+    delete room.wordWolf;
+    delete room.bluffRounds;
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -451,6 +505,9 @@ export function act(
     room.players[action.playerId].kicked = true;
     room.players[action.playerId].active = false;
     moderateDrawing(room, action.playerId);
+    dropPendingCustomPrompts(room, action.playerId);
+    moderateWordWolf(room, action.playerId);
+    moderateBluff(room, action.playerId);
     for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
     const current = room.matches[room.matchIndex];
     if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
@@ -473,6 +530,8 @@ export function act(
     for (const [id, vote] of Object.entries(m.votes))
       if (vote === action.choice) delete m.votes[id];
     if (m.scored) rescoreMatch(room, m);
+  } else if (isCustomPromptAction(action)) {
+    customPromptAction(room, playerId, action, now);
   } else {
     requireThat(!room.pausedAt, '一時停止中です。', 409);
     if (action.type === 'start') {
@@ -483,8 +542,12 @@ export function act(
       advance(room, now, prompts, rng);
     } else if (isDrawingGame(room)) {
       drawingAction(room, playerId, action, now);
+    } else if (isWordWolf(room)) {
+      wordWolfAction(room, playerId, action, now);
     } else if (isSideGame(room)) {
       sideAction(room, playerId, action, now);
+    } else if (isBluffGame(room)) {
+      bluffAction(room, playerId, action, now);
     } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type)) {
       throw new GameError('このゲームでは使えない操作です。');
     } else if (action.type === 'answer') {
@@ -539,19 +602,24 @@ export function project(
   prompts: Prompt[],
 ): RoomView {
   const me = playerId && room.players[playerId] && !room.players[playerId].kicked ? playerId : null;
+  prompts = withCustomPrompts(room, prompts);
   const promptText = (id: string) =>
     prompts.find((p) => p.id === id)?.text ?? 'お題を読み込めませんでした';
   const current = room.matches[room.matchIndex];
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   const participants = gamePlayerIds(room);
   const side = isSideGame(room) ? currentSideRound(room) : undefined;
-  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? room.matches.flatMap((m) => m.players));
+  const bluff = isBluffGame(room) ? currentBluffRound(room) : undefined;
+  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? (isWordWolf(room) ? currentWordWolf(room)?.players : undefined) ?? bluff?.players ?? room.matches.flatMap((m) => m.players));
   return {
     gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
     sideGame: projectSideGame(room, me),
     drawingGame: projectDrawing(room, me),
+    wordWolfGame: projectWordWolf(room, me),
+    bluffGame: projectBluff(room, me),
     turn: turnKey(room),
     history: room.history ?? [],
+    ...projectCustomPrompts(room, me),
     partyGames: room.partyGames ?? 0,
     partyPlayers: Object.values(room.players).some(
       (p) => !p.kicked && p.spectator && (p.partyPoints ?? 0) > 0,
@@ -567,6 +635,7 @@ export function project(
           }))
       : undefined,
     highlights: ['ranking', 'finished'].includes(room.phase) ? gameHighlights(room, prompts) : null,
+    reactions: projectReactions(room.reactions, room.phase, turnKey(room)),
     code: room.code,
     revision: room.revision,
     game: room.game,
@@ -596,7 +665,7 @@ export function project(
       previousRank: p.previousRank,
       active: p.active,
       connected: now - p.lastSeen < 65000,
-      answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
+      answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : bluff ? Number(Boolean(bluff.fakes[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
     })),
     assignments:
       me && room.players[me].active && room.phase === 'answering'
@@ -615,9 +684,11 @@ export function project(
           ),
           canVote: Boolean(me && eligible(room, current).some((p) => p.id === me)),
           isAuthor: Boolean(me && current.players.includes(me)),
+          ...(isCustomPromptId(current.promptId) ? { custom: true } : {}),
           voted: Boolean(me && Object.hasOwn(current.votes, me)),
           votesReceived: room.phase === 'voting' ? eligible(room, current).filter(player => Object.hasOwn(current.votes, player.id)).length : Object.keys(current.votes).length,
           eligible: eligible(room, current).length,
+          multiplier: current.multiplier ?? 1,
           result:
             room.phase === 'reveal'
               ? {
@@ -630,6 +701,7 @@ export function project(
                   authors: current.players.map((id) =>
                     room.players[id].kicked ? '退出したプレイヤー' : room.players[id].name,
                   ),
+                  shutout: current.shutout ?? null,
                 }
               : null,
         }

@@ -22,7 +22,7 @@ export const GAME_COVER_SIZE = { width: 960, height: 540 } as const;
 export const games: Game[] = [
   {
     id: 'ogiri', title: 'みんなのパーティー',
-    description: '大喜利・多数決・作者当て・絵の伝言を同じ部屋で。スマホ参加3〜12人、テレビ対応、20キャラと通算ポイント。',
+    description: '大喜利・多数決・作者当て・絵の伝言・少数派・温度計・ワードウルフ・うそ回答まぜを同じ部屋で。スマホ参加3〜12人、テレビ対応、20キャラと通算ポイント。',
     thumbnail: '💬', path: '/games/ogiri', difficulty: 'Easy', category: 'Party',
   },
   {

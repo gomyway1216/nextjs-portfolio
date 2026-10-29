@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore as adminFirestore, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore as adminFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getFirestore } from '@/lib/firebase-admin';
 import {
   act,
@@ -23,6 +23,7 @@ import { snapshotHistory, validHistoryId } from './history';
 import { settlePartyPoints } from './party';
 import { hashPassphrase, verifyPassphrase, type PassphraseHash } from './passphrase';
 import { normalizePlayerText } from './text';
+import { applyReaction, planReaction, REACTION_KINDS } from './reactions';
 
 const dummyPassphraseHash: PassphraseHash = { salt: '0'.repeat(32), hash: '0'.repeat(64) };
 
@@ -306,6 +307,31 @@ export async function command(
     act(room, id, action, now, prompts);
   });
   return project(room, authenticate(room, token), Date.now(), prompts);
+}
+
+/** Reactions skip the optimistic whole-room write: an authenticated read, then field
+ * increments only. Concurrent game commands see the new update time and simply retry. */
+export async function react(code: string, token: string | undefined, counts: unknown, turn: unknown) {
+  const ref = collection().doc(code);
+  const room = (await ref.get()).data() as Room | undefined;
+  const now = Date.now();
+  if (!room || room.expiresAt <= now)
+    throw new GameError('ルームが見つからないか、有効期限が切れています。', 404);
+  const id = authenticate(room, token);
+  if (!id) throw new GameError('参加し直してください。', 401);
+  const current = turnKey(room);
+  const plan = planReaction(room.reactions, { phase: room.phase, turn: current, clientTurn: turn, playerId: id, counts }, now);
+  await ref.update(plan.reset
+    ? { reactions: applyReaction(undefined, current, id, plan, now), revision: FieldValue.increment(1) }
+    : {
+        ...Object.fromEntries(REACTION_KINDS.filter((kind) => plan.counts[kind] > 0)
+          .map((kind) => [`reactions.counts.${kind}`, FieldValue.increment(plan.counts[kind])])),
+        [`reactions.last.${id}`]: now,
+        revision: FieldValue.increment(1),
+      });
+  room.reactions = applyReaction(room.reactions, current, id, plan, now);
+  room.revision++;
+  return project(room, id, Date.now(), prompts);
 }
 
 export async function readDrawing(code: string, id: string, token?: string) {

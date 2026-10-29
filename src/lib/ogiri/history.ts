@@ -1,9 +1,12 @@
 import { rankPlayers } from './engine';
-import { GAME_TITLES, type GameHistory, type Prompt, type Room } from './types';
+import { GAME_TITLES, isChoiceGame, type GameHistory, type Prompt, type Room } from './types';
 import { partyStandings } from '../party/points';
 import { gamePlayerIds } from './party';
 import { drawingHistory } from './drawing-game';
+import { wordWolfHistory } from './word-wolf';
+import { bluffHistory } from './bluff-game';
 import { drawingSvg } from './drawing-data';
+import { isCustomPromptId, withCustomPrompts } from './custom-prompts';
 
 export const HISTORY_TTL = 90 * 24 * 60 * 60 * 1000;
 export const validHistoryId = (id: string) => /^[a-f0-9]{32}$/.test(id);
@@ -13,15 +16,24 @@ function sideHistory(room: Room): GameHistory['matches'] {
     const awards = entry.result.awards.filter(award => !room.players[award.id]?.kicked).map(award => ({
       name: room.players[award.id].name, avatar: room.players[award.id].avatar, points: award.points,
     }));
-    if (round.type === 'majority') return {
+    const pickedBy = (choice: string) => entry.result.awards.filter(award => round.ballots[String(entry.index)]?.[award.id] === choice)
+      .reduce((sum, award) => sum + award.points, 0);
+    if (round.type === 'thermometer') return {
+      round: round.round, text: `${round.prompt}（0: ${round.scale?.low ?? ''} / 100: ${round.scale?.high ?? ''}）`,
+      answers: Object.entries(entry.result.counts).sort(([a], [b]) => Number(a) - Number(b)).map(([value, votes]) => ({
+        name: '温度', avatar: '', text: `${value}度`, votes, points: pickedBy(value),
+      })),
+      awards, note: `${entry.result.average === undefined ? '回答2人未満のため得点なし。' : `平均 ${entry.result.average}。`}平均に一番近い人100点、2番目50点、3番目25点。同じ近さは同順位。`,
+    };
+    if (round.type === 'majority' || round.type === 'minority') return {
       round: round.round, text: round.prompt,
       answers: round.options.map((option, index) => ({
         name: `選択肢${index + 1}`, avatar: '', text: option.label,
         votes: entry.result.counts[option.id] ?? 0,
-        points: entry.result.awards.filter(award => round.ballots[String(entry.index)]?.[award.id] === option.id)
-          .reduce((sum, award) => sum + award.points, 0),
+        points: pickedBy(option.id),
       })),
-      awards, note: '最多票の選択肢を選ぶと100点。同率最多はすべて対象、無投票は0点。',
+      awards, note: round.type === 'majority' ? '最多票の選択肢を選ぶと100点。同率最多はすべて対象、無投票は0点。'
+        : '選ばれた中で一番少ない選択肢を選ぶと100点。同率最少はすべて対象。選ばれた選択肢が全部同数なら全員0点。',
     };
     const author = entry.author ? room.players[entry.author] : undefined;
     const visible = author && !author.kicked;
@@ -44,6 +56,7 @@ export function snapshotHistory(
   prompts: Prompt[],
 ): GameHistory {
   const participants = gamePlayerIds(room);
+  prompts = withCustomPrompts(room, prompts);
   return {
     version: 1,
     gameType: room.gameType ?? 'ogiri',
@@ -72,13 +85,14 @@ export function snapshotHistory(
       rank,
       score,
     })),
-    matches: room.gameType === 'drawing' ? [] : room.gameType === 'majority' || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
+    matches: room.gameType === 'drawing' ? [] : room.gameType === 'wordwolf' ? wordWolfHistory(room) : room.gameType === 'bluff' ? bluffHistory(room) : isChoiceGame(room.gameType) || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
       ({ round, matches }) =>
         matches
           .filter((m) => m.scored)
           .map((m) => ({
             round,
             text: prompts.find((p) => p.id === m.promptId)?.text ?? 'お題が見つかりません',
+            ...(isCustomPromptId(m.promptId) ? { custom: true } : {}),
             answers: m.players.map((id, i) => {
               const player = room.players[id];
               const visible = Boolean(player && !m.hidden[id] && !player.kicked && m.answers[id]);
@@ -88,8 +102,10 @@ export function snapshotHistory(
                 text: visible ? m.answers[id] : null,
                 votes: visible ? Object.values(m.votes).filter((v) => v === i).length : 0,
                 points: visible ? m.points[i] : 0,
+                ...(visible && m.shutout === i ? { shutout: true } : {}),
               };
             }),
+            ...((m.multiplier ?? 1) > 1 ? { multiplier: m.multiplier } : {}),
           })),
     ),
   };
@@ -120,11 +136,11 @@ export function historyText(history: GameHistory): string {
     ]),
     ...history.matches.flatMap((m, i) => [
       '',
-      `ROUND ${m.round} / お題${i + 1}: ${m.text}`,
+      `ROUND ${m.round}${(m.multiplier ?? 1) > 1 ? ` (得点${m.multiplier}倍)` : ''} / お題${i + 1}${m.custom ? '（自作）' : ''}: ${m.text}`,
       ...(m.note ? [m.note] : []),
       ...m.answers.map(
         (a) =>
-          `${a.avatar} ${a.name}: ${a.text ?? '未回答・非表示'} (${a.votes}票 / ${a.points} 点)`,
+          `${a.avatar} ${a.name}: ${a.text ?? '未回答・非表示'} (${a.votes}${history.gameType === 'thermometer' ? '人' : '票'} / ${a.points} 点${a.shutout ? ' · 全票ボーナス' : ''})`,
       ),
       ...(m.awards?.map(a => `獲得点: ${a.avatar} ${a.name} +${a.points} 点`) ?? []),
     ]),

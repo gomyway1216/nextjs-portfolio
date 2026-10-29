@@ -3,7 +3,7 @@ import { GAME_TITLES, type GameType, type RoomView } from '../../src/lib/ogiri/t
 
 test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.150' } });
 
-test('result cards select all four next games in the same room with one request', async ({ page: host, browser, baseURL }, info) => {
+test('result cards select every next game in the same room with one request', async ({ page: host, browser, baseURL }, info) => {
   const contexts: BrowserContext[] = [];
   const errors: string[] = [];
   const watch = (page: Page) => page.on('pageerror', error => errors.push(error.message));
@@ -43,12 +43,12 @@ test('result cards select all four next games in the same room with one request'
     host.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === path) sent.push(request.postDataJSON());
     });
-    for (const [index, gameType] of (['majority', 'identity', 'drawing', 'ogiri'] satisfies GameType[]).entries()) {
+    for (const [index, gameType] of (['majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf', 'bluff', 'ogiri'] satisfies GameType[]).entries()) {
       await expect(chooser.getByRole('heading', { name: '次、なにやる？', exact: true })).toBeVisible();
-      await expect(chooser.getByRole('button')).toHaveCount(4);
+      await expect(chooser.getByRole('button')).toHaveCount(Object.keys(GAME_TITLES).length);
       await expect(chooser.getByRole('button').first().locator('small')).toHaveCSS('color', 'rgb(25, 22, 47)');
       await chooser.scrollIntoViewIfNeeded();
-      await expect.poll(() => chooser.locator('img').evaluateAll(images => images.length === 4 && images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
+      await expect.poll(() => chooser.locator('img').evaluateAll((images, cards) => images.length === cards && images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0), Object.keys(GAME_TITLES).length)).toBe(true);
       await expect(participant.getByRole('region', { name: '次のゲーム', exact: true })).toHaveCount(0);
       await expect(tv.getByRole('region', { name: '次のゲーム', exact: true })).toHaveCount(0);
       if (index === 0) {

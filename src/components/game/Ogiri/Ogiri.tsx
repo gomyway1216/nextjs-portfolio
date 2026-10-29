@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
-import { AVATARS, CATEGORIES, GAME_TITLES, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { AVATARS, CATEGORIES, GAME_TITLES, isChoiceGame, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
+import { hintAt, shouldNudgeHint } from '@/lib/ogiri/hints';
 import { RoundPlan } from './RoundPlan';
+import { roundMultiplier, SHUTOUT_BONUS } from '@/lib/ogiri/plan';
 import { GAME_RULES, PartyGamePanel, PartyGamePicker } from './PartyGamePanel';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
@@ -19,8 +21,12 @@ import { MysteryCharacter } from './MysteryCharacter';
 import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
+import { WordWolfPanel } from './WordWolfPanel';
+import { BluffGamePanel } from './BluffGamePanel';
 import { ParticipantAccess } from './ParticipantAccess';
-import { NextGameChoices } from './NextGameChoices';
+import { GAME_CHOICES, NextGameChoices } from './NextGameChoices';
+import { ReactionBar, ReactionFloats } from './Reactions';
+import { CustomPrompts } from './CustomPrompts';
 import { rememberRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
@@ -36,6 +42,10 @@ const partyPhaseName = {
   majority: { ...phaseName, voting: '多数派に、まざれ。', reveal: 'そっちが多かったか。' },
   identity: { ...phaseName, answering: 'ひとこと、仕込み中。', voting: 'これ、だれが書いた？', reveal: '正体、こちら。' },
   drawing: { ...phaseName, answering: '絵とことばで、伝言中。', voting: '好きな絵に、一票。', reveal: 'その絵、そう来たか。' },
+  minority: { ...phaseName, voting: '少数派を、ねらえ。', reveal: 'そっちは少なかったか。' },
+  thermometer: { ...phaseName, voting: 'みんなは、何度？', reveal: '平均、こちら。' },
+  wordwolf: { ...phaseName, answering: 'ひとりだけ、ちがう。', voting: 'ウルフは、だれだ。', reveal: '正体、こちら。' },
+  bluff: { ...phaseName, answering: 'うそ、仕込み中。', voting: '本当の答えは、どれ？', reveal: 'だまされたのは、だれ？' },
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -248,7 +258,7 @@ export function OgiriLanding() {
               「お前か！」ってなる。
             </p>
             <p>
-              大喜利・多数決・作者当て・絵の伝言。
+              大喜利・多数決・作者当て・絵の伝言・少数派・温度計・ワードウルフ・うそ回答。
               <br />
               次のゲームも、同じ部屋で。
             </p>
@@ -257,17 +267,17 @@ export function OgiriLanding() {
               <span>⏱ 時間はゆっくり、調整OK</span>
               <span>🎃 ハロウィンにも</span>
             </div>
-            <div className={styles.modeTeasers} aria-label="遊べる4つのゲーム">
-              {(['ogiri', 'majority', 'identity', 'drawing'] as const).map(type => <button key={type} type="button" onClick={() => {
+            <div className={styles.modeTeasers} aria-label={`遊べる${GAME_CHOICES.length}つのゲーム`}>
+              {GAME_CHOICES.map(({ type, avatar, description }) => <button key={type} type="button" onClick={() => {
                 setSelectedGameType(type);
                 setCreate(true);
                 requestAnimationFrame(() => document.getElementById('party-entry')?.scrollIntoView({
                   behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start',
                 }));
               }}>
-                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={type === 'ogiri' ? '🐱' : type === 'drawing' ? 'alien' : '🐸'} size="medium" />}
+                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={avatar} size="medium" />}
                 <b>{GAME_TITLES[type]}</b>
-                <span>{type === 'ogiri' ? '二人のボケに一票。' : type === 'majority' ? 'みんな、そっち派？' : type === 'drawing' ? 'その絵、そう伝わる？' : 'これ書いたの、お前か。'}</span>
+                <span>{description}</span>
                 <small>このゲームで部屋を作る →</small>
               </button>)}
             </div>
@@ -321,7 +331,7 @@ export function OgiriLanding() {
             全員が同じWi-Fiにいる必要はありません。テレビは表示専用、主催者は通常は進行専用です。主催者も遊ぶ場合はスマホで参加してください。ゲーム中の新規参加は再戦までお待ちください。
           </p>
           <p>
-            同点は同じ順位。大喜利は自分の対戦、絵の伝言は自分の絵への投票をお休み。大喜利・作者当ては100文字、絵の伝言の言葉は80文字までです。
+            同点は同じ順位。大喜利は自分の対戦、絵の伝言は自分の絵への投票をお休み。大喜利・作者当ては100文字、絵の伝言の言葉は80文字、うそ回答は40文字までです。うそ回答では自分のうそに投票できません。
             終了順位でパーティーポイント（10・7・5・3pt）を獲得し、同じルームの再戦でも通算します。
           </p>
         </section>
@@ -334,15 +344,22 @@ function AnswerForm({
   code,
   disabled,
   send,
+  remaining,
+  answerSeconds,
 }: {
   assignment: RoomView['assignments'][number];
   code: string;
   disabled: boolean;
   send: (a: Action) => Promise<boolean>;
+  remaining: number;
+  answerSeconds: number;
 }) {
   const key = `ogiri:draft:${code}:${assignment.id}`;
   const [text, setText] = useState(assignment.answer),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    // Seeded on the first tap so each player and prompt gets its own order without a hydration mismatch.
+    [hintState, setHintState] = useState<{ seed: number; tap: number } | null>(null);
+  const hint = hintState && hintAt(assignment.text, hintState.seed, hintState.tap);
   const saved = assignment.answer;
   const characterCount = [...normalizePlayerText(text)].length;
   // This also restores the unsent Japanese draft after a full reload.
@@ -376,9 +393,20 @@ function AnswerForm({
         }}
         disabled={disabled || busy}
       />
+      <div className={styles.hintRow}>
+        <button
+          type="button"
+          className={`${styles.hintButton} ${!hint && !disabled && shouldNudgeHint(remaining, answerSeconds, text) ? styles.hintNudge : ''}`}
+          onClick={() => setHintState((h) => h ? { ...h, tap: h.tap + 1 } : { seed: Math.floor(Math.random() * 0xffffffff), tap: 0 })}
+        >
+          💡 {hint ? '別の型' : '答えの型ヒント'}
+        </button>
+        {hint && <p aria-live="polite" data-testid="answer-hint">型：「{hint.ja}」</p>}
+      </div>
       <div className={styles.row}>
         <small>{characterCount} / 100文字</small>
         <button
+          type="submit"
           className={styles.primary}
           disabled={disabled || busy || characterCount === 0 || characterCount > 100}
         >
@@ -423,10 +451,10 @@ function SettingsForm({
         {(
           [
             ['rounds', 'ラウンド数', [1, 2, 3, 4, 5]],
-            ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
+            ['answerSeconds', s.gameType === 'wordwolf' ? '話し合い時間（秒）' : '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
             ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
-        ).filter(([key]) => (key !== 'answerSeconds' || s.gameType !== 'majority') && (key !== 'rounds' || s.gameType !== 'drawing')).map(([key, label, values]) => (
+        ).filter(([key]) => (key !== 'answerSeconds' || !isChoiceGame(s.gameType)) && (key !== 'rounds' || s.gameType !== 'drawing')).map(([key, label, values]) => (
           <label key={key}>
             {label}
             <select
@@ -441,14 +469,22 @@ function SettingsForm({
           </label>
         ))}
       </div>
-      {s.gameType !== 'majority' && <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>}
+      {s.gameType === 'wordwolf' && <label>
+        ウルフの人数
+        <select aria-label="ウルフの人数" value={s.wolves ?? 1}
+          onChange={(e) => set({ ...s, wolves: Number(e.target.value) === 2 ? 2 : 1 })}>
+          <option value={1}>1人</option>
+          <option value={2}>2人（6人以上のとき）</option>
+        </select>
+      </label>}
+      {!isChoiceGame(s.gameType) && <small>{s.gameType === 'wordwolf' ? '話し合いは時間が来ると投票へ進みます（自動進行ON）。主催者は延長・スキップできます。' : '回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。'}</small>}
       <label className={styles.check}>
         <input
           type="checkbox"
           checked={s.autoAdvance}
           onChange={(e) => set({ ...s, autoAdvance: e.target.checked })}
         />
-        {s.gameType === 'majority' ? '全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
+        {isChoiceGame(s.gameType) ? '全員投票後・結果発表後に自動で進行' : s.gameType === 'wordwolf' ? '話し合いの時間切れ・全員OK後・全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
       </label>
       {(!s.gameType || s.gameType === 'ogiri') && <><label className={styles.check}>
         <input
@@ -480,6 +516,25 @@ function SettingsForm({
           ))}
         </div>
       </fieldset>
+      <label>
+        自作お題の出し方
+        <select
+          aria-label="自作お題の出し方"
+          value={s.customMode ?? 'mix'}
+          onChange={(e) => set({ ...s, customMode: e.target.value === 'only' ? 'only' : undefined })}
+        >
+          <option value="mix">いつものお題にまぜる（全問出題）</option>
+          <option value="only">自作お題だけで遊ぶ</option>
+        </select>
+      </label>
+      <label className={styles.check}>
+        <input
+          type="checkbox"
+          checked={Boolean(s.customSubmissions)}
+          onChange={(e) => set({ ...s, customSubmissions: e.target.checked || undefined })}
+        />
+        参加者からお題を募集する（主催者が採用したものだけ出題）
+      </label>
       </>}
       <button className={styles.secondary}>設定を保存</button>
       {saved && <small role="status">設定を保存しました。</small>}
@@ -712,6 +767,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
   const manualResult = isManualResult(v);
+  const multiplier = v ? v.match?.multiplier ?? roundMultiplier(v.round, v.settings.rounds) : 1;
   const waitingForAnswers = v?.phase === 'answering' && remaining === 0;
   const answerers = v?.players.filter((p) => p.answeringThisRound && p.active) ?? [];
   const readyCount = answerers.filter((p) => p.answerReady).length;
@@ -930,10 +986,15 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   aria-label={v.phase === 'answering' ? '回答時間の目安' : '残り時間'}
                 >
                   {v.paused ? '休憩' : waitingForAnswers ? '待機' : remaining}
-                  <small>{v.paused ? '再開まで待ってね' : waitingForAnswers ? 'まだ回答できるよ' : v.phase === 'answering' ? '秒・目安' : '秒'}</small>
+                  <small>{v.paused ? '再開まで待ってね' : waitingForAnswers ? gameType === 'wordwolf' ? '主催者を待っています' : 'まだ回答できるよ' : v.phase === 'answering' && gameType !== 'wordwolf' ? '秒・目安' : '秒'}</small>
                 </div>
               )}
             </header>
+            {gameType === 'ogiri' && ['answering', 'voting', 'reveal'].includes(v.phase) && multiplier > 1 && (
+              <p className={styles.finalRound} role="status" data-testid="final-round">
+                <b>FINAL ROUND</b> 最終ラウンドは得点{multiplier}倍！ 票・勝利・全票ボーナスすべてが倍になります。
+              </p>
+            )}
             {v.paused && (
               <p className={styles.pause} role="status">
                 ☕ 一時停止中です。主催者の再開をお待ちください。
@@ -973,10 +1034,19 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <p>
                     {gameType === 'ogiri' ? '1つのお題に2人が回答し、それ以外の人が投票します。' : GAME_RULES[gameType]}進行専用の主催者とテレビは人数に含みません。
                   </p>
+                  {gameType === 'ogiri' && (Boolean(v.customPromptCount) || v.settings.customSubmissions) && (
+                    <p role="status">
+                      ✍️ 自作お題 {v.customPromptCount ?? 0}問{v.settings.customMode === 'only' ? 'だけで出題（足りない分はいつものお題）' : 'をいつものお題にまぜて出題'}
+                      {v.settings.customSubmissions ? '。参加者からのお題も募集中！' : '。'}
+                    </p>
+                  )}
+                  {!tv && gameType === 'ogiri' && v.me && !v.isHost && v.settings.customSubmissions && (
+                    <CustomPrompts view={v} busy={busy} send={send} />
+                  )}
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
-                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'majority' ? `全${v.settings.rounds}お題。全員が1お題につき1票ずつ投票します。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : gameType === 'bluff' ? `全${v.settings.rounds}問。全員がうその答えを1つ書き、本当の答えとまぜて1人1票。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
                       <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
                       <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
                     </section>
@@ -1037,6 +1107,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       code={code}
                       disabled={v.paused || !connected || Boolean(mine?.answerReady)}
                       send={send}
+                      remaining={remaining}
+                      answerSeconds={v.settings.answerSeconds}
                     />
                   ))}
                 </div>
@@ -1061,11 +1133,13 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               </section>
             )}
             {gameType === 'drawing' ? <DrawingGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} send={send} />
+              : gameType === 'wordwolf' ? <WordWolfPanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />
+              : gameType === 'bluff' ? <BluffGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />
               : gameType !== 'ogiri' && <PartyGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />}
             {gameType === 'ogiri' && v.match && (
               <section className={styles.battle} key={v.match.id}>
                 <p className={styles.eyebrow}>
-                  お題 {v.match.index} / {v.match.total}
+                  お題 {v.match.index} / {v.match.total}{v.match.custom && ' · ✍️ 自作お題'}
                 </p>
                 <h2 className={styles.prompt}>{v.match.text}</h2>
                 {v.phase === 'voting' && (
@@ -1085,6 +1159,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                         key={i}
                       >
                         <span className={styles.letter}>{i ? 'B' : 'A'}</span>
+                        {result?.shutout === i && <span className={styles.shutoutStamp} data-testid="shutout-stamp" aria-hidden="true">全票！</span>}
                         <p>{answer ?? '今回はパス！'}</p>
                         {!tv && v.phase === 'voting' && m.canVote && (
                           <button
@@ -1104,7 +1179,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             <div className={styles.voteBar}>
                               <span style={{ width: `${total ? (count / total) * 100 : 0}%` }} />
                             </div>
-                            <strong>+<AnimatedScore value={result.points[i]} animate={!reduced} /> 点</strong>
+                            <strong>+<AnimatedScore value={result.points[i]} animate={!reduced} /> 点{m.multiplier > 1 && result.points[i] > 0 && <small> ×{m.multiplier}</small>}</strong>
+                            {result.shutout === i && (
+                              <small className={styles.shutoutNote}>全票獲得！ 全票ボーナス +{SHUTOUT_BONUS * m.multiplier}点</small>
+                            )}
                             {result.counts[0] === result.counts[1] ? (
                               <small>引き分け！</small>
                             ) : (
@@ -1142,6 +1220,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </p>
               </section>
             )}
+            {v.reactions && (tv ? <ReactionFloats view={v} reduced={reduced} />
+              : v.me && <ReactionBar code={code} view={v} reduced={reduced} onView={accept} />)}
             {['ranking', 'finished'].includes(v.phase) && (
               <section className={styles.ranking}>
                 {v.phase === 'finished' && (
@@ -1229,6 +1309,9 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {['lobby', 'finished'].includes(v.phase) && (
                     <SettingsForm key={`${v.game}:${v.phase}`} settings={v.settings} send={send} />
                   )}
+                  {['lobby', 'finished'].includes(v.phase) && (v.settings.gameType ?? 'ogiri') === 'ogiri' && (
+                    <CustomPrompts view={v} busy={busy} send={send} />
+                  )}
                   <div className={styles.controls}>
                     {v.phase === 'lobby' ? (
                       <button
@@ -1247,7 +1330,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                               disabled={busy || !connected}
                               onClick={() => void send({ type: 'extend' })}
                             >
-                              {v.phase === 'answering' ? '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
+                              {v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを＋60秒' : '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
                             </button>
                           )}
                           <button
@@ -1263,7 +1346,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             onClick={() => {
                               if (
                                 ['answering', 'voting'].includes(v.phase) &&
-                                !window.confirm(v.phase === 'answering' ? gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
+                                !window.confirm(v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを終えて投票へ進みますか？' : gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
                               )
                                 return;
                               void send({ type: 'next' });

@@ -966,6 +966,54 @@ a.historyCard:hover {
 .result > small {
   grid-column: 1/-1;
 }
+.result > .shutoutNote {
+  color: #b3124e;
+  font-weight: 900;
+}
+.shutoutStamp {
+  position: absolute;
+  top: -18px;
+  right: 18px;
+  z-index: 2;
+  padding: 6px 16px;
+  border: 4px solid #d1144f;
+  border-radius: 12px;
+  background: #fff8de;
+  color: #d1144f;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  transform: rotate(-9deg);
+  box-shadow: 3px 3px 0 #19162f;
+  animation: shutoutStamp 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 0.35s both;
+}
+@keyframes shutoutStamp {
+  0% { opacity: 0; transform: rotate(-9deg) scale(2.4); }
+  70% { opacity: 1; transform: rotate(-9deg) scale(0.92); }
+  100% { opacity: 1; transform: rotate(-9deg) scale(1); }
+}
+.finalRound {
+  background: #d1144f;
+  color: #fff8de;
+  border: 3px solid #19162f;
+  box-shadow: 4px 4px 0 #19162f;
+  padding: 10px 18px;
+  border-radius: 12px;
+  text-align: center;
+  font-weight: 800;
+  margin-bottom: 20px !important;
+}
+.finalRound b {
+  margin-right: 10px;
+  color: var(--lime);
+  letter-spacing: 0.08em;
+}
+.tv .finalRound {
+  font-size: 2.4vh;
+}
+.tv .shutoutStamp {
+  font-size: 4.2vh;
+}
 .voteBar {
   grid-row: 2;
   grid-column: 1/-1;
@@ -2135,3 +2183,30 @@ a.historyCard:hover {
 .recoveryMethods input { width: auto; }
 .participantAccess .secondary { background: #eee4ff; color: #251345; }
 .participantAccess output { display: block; font-size: 1.65rem; font-weight: 800; letter-spacing: .12em; margin: 1rem 0; overflow-wrap: anywhere; }
+.hintRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.hintRow p {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.hintButton {
+  border: 1px dashed #ffffff60;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  padding: 6px 14px;
+  font-size: 14px;
+}
+.hintNudge {
+  animation: hintPulse 1.6s ease-in-out infinite;
+}
+@keyframes hintPulse {
+  50% {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 4px #ffffff18;
+  }
+}

@@ -1074,6 +1074,30 @@ a.historyCard:hover {
 .ranking {
   position: relative;
 }
+.nextGameChoices {
+  margin-top: 28px;
+  padding: 22px;
+  border: 3px solid #19162f;
+  border-radius: 24px 14px 25px 16px;
+  box-shadow: 6px 7px 0 #19162f;
+  background: #fff8de;
+  color: #19162f;
+  text-align: left;
+}
+.nextGameChoices h2 { margin: 0 0 10px; font-size: clamp(25px, 3vw, 38px); color: #19162f; }
+.nextGameChoices > p { margin: 0; line-height: 1.6; }
+.nextGameChoices .modeTeasers { margin-top: 18px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.nextGameChoices .modeTeasers button:first-child { background: #fff3a0; }
+.nextGameChoices .modeTeasers small { color: #19162f; font-weight: 800; }
+.nextGameChoices .modeTeasers button:disabled { opacity: .6; cursor: wait; }
+.nextGameChoices .modeTeasers button:not(:disabled):hover { outline: 3px solid #19162f; outline-offset: 2px; }
+@media (max-width: 1000px) {
+  .nextGameChoices .modeTeasers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .nextGameChoices { padding: 16px; }
+  .nextGameChoices .modeTeasers { grid-template-columns: 1fr; }
+}
 .resultTabs {
   display: flex;
   align-items: center;

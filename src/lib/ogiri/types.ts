@@ -262,7 +262,8 @@ export type Action =
   | { type: 'answer'; matchId: string; text: string }
   | { type: 'vote'; matchId: string; choice: number }
   | { type: 'settings'; settings: Settings }
-  | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'rematch' | 'leave' | 'return' | 'heartbeat' }
+  | { type: 'rematch'; gameType?: GameType }
+  | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'leave' | 'return' | 'heartbeat' }
   | { type: 'kick'; playerId: string }
   | { type: 'hide'; matchId: string; choice: number };
 

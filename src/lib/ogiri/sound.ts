@@ -1,4 +1,5 @@
 import type { RoomView } from './types';
+import { createPartyMusic } from './music';
 
 export interface Tone {
   at: number;
@@ -129,6 +130,7 @@ export function createPartyAudio(context: AudioContext) {
   compressor.connect(makeup);
   makeup.connect(limiter);
   limiter.connect(master);
+  const music = createPartyMusic(context, mix);
   const samples = new Map<SoundCue, AudioBuffer>();
   let preparing: Promise<void> | undefined;
   type Voice = { source: AudioScheduledSourceNode; gain: GainNode; filter?: BiquadFilterNode; vibrato?: OscillatorNode; vibratoGain?: GainNode };
@@ -168,6 +170,7 @@ export function createPartyAudio(context: AudioContext) {
     active.clear();
   };
   return {
+    music,
     async resume() {
       await context.resume();
       if (context.state !== 'running') throw new Error('Audio output is not running');
@@ -184,6 +187,7 @@ export function createPartyAudio(context: AudioContext) {
     setVolume,
     stop,
     close: () => {
+      music.close();
       stop();
       context.onstatechange = null;
       mix.disconnect();
@@ -198,6 +202,7 @@ export function createPartyAudio(context: AudioContext) {
       setVolume(volume);
       if (['start', 'bounce', 'ranking', 'champion', 'cheer', 'count'].includes(cue) || active.size > 24) stop();
       const sample = samples.get(cue);
+      music.duck(sample?.duration ?? Math.max(...SOUND_CUES[cue].map(tone => tone.at + tone.duration)));
       if (sample) {
         const source = context.createBufferSource(), gain = context.createGain();
         source.buffer = sample;

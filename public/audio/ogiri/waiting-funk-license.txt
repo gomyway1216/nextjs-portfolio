@@ -1,0 +1,9 @@
+Funked Up — Joth
+Source: https://opengameart.org/content/funked-up
+Original file: https://opengameart.org/sites/default/files/Funked%20Up.mp3
+License: CC0 1.0 — https://creativecommons.org/publicdomain/zero/1.0/
+Optional credit: Joth — https://opengameart.org/users/joth
+
+Removed encoder padding specified in the source iTunSMPB tag, applied 5 ms edge fades, reduced gain to 0.72,
+and encoded as 44.1 kHz stereo MP3 at 112 kbps for local delivery.
+No Jackbox audio was used.

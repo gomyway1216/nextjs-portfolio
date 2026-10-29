@@ -559,7 +559,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     const previous = lastSoundView.current;
     lastSoundView.current = view;
     if (!sound || document.hidden) return;
-    if (view.paused || (previous && previous.turn !== view.turn)) audio.current?.stop();
+    if ((view.paused && !previous?.paused) || (previous && previous.turn !== view.turn)) audio.current?.stop();
     const cue = phaseSound(previous, view);
     if (cue) audio.current?.play(cue, volume);
   }, [view, sound, volume]);

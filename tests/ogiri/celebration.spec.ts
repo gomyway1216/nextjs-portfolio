@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext } from '@playwright/test';
+import { test, expect, type BrowserContext, type Response } from '@playwright/test';
 import type { RoomView } from '../../src/lib/ogiri/types';
 
 test.use({ extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.93' } });
@@ -166,6 +166,37 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     await expect(tv.getByRole('heading', { name: 'これ書いたの、だれ？', exact: true })).toBeVisible();
     await tv.waitForTimeout(3200); // More than two normal polls of the identical result.
     expect((await snapshot()).pointsVoices).toBe(voicesBeforeZero);
+
+    // A host can audition a long cue while the game is paused, including slider changes/polls.
+    await action({ type: 'pause' });
+    const pausedNotice = tv.getByRole('status').filter({ hasText: '一時停止中です' });
+    await expect(pausedNotice).toBeVisible();
+    let pausedReads = 0;
+    const pausedPoll = (response: Response) => {
+      if (response.request().method() === 'GET' && new URL(response.url()).pathname === path && response.ok()) pausedReads++;
+    };
+    tv.on('response', pausedPoll);
+    await tv.getByRole('button', { name: '音設定', exact: true }).click();
+    await tv.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
+    const stopsBeforePreview = (await snapshot()).longStops;
+    await resetPeak();
+    await tv.getByRole('button', { name: '音を試す', exact: true }).click();
+    await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
+    pausedReads = 0;
+    await tv.getByRole('slider', { name: '効果音の音量', exact: true }).fill('85');
+    await expect.poll(() => pausedReads).toBeGreaterThanOrEqual(2);
+    expect((await snapshot()).longStops).toBe(stopsBeforePreview);
+    await resetPeak();
+    await tv.waitForTimeout(200);
+    expect((await snapshot()).maxRms).toBeGreaterThan(0.0001);
+    tv.off('response', pausedPoll);
+    await tv.getByRole('button', { name: '音設定を閉じる', exact: true }).click();
+    await tv.getByRole('button', { name: 'ミュート', exact: true }).click();
+    await action({ type: 'resume' });
+    await expect(pausedNotice).toHaveCount(0);
+    await tv.getByRole('button', { name: '効果音をオン', exact: true }).click();
+    await expect(tv.getByRole('button', { name: 'ミュート', exact: true })).toBeVisible();
+    await tv.evaluate(() => { (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe.longStops = 0; });
 
     await tv.getByRole('button', { name: '動き多', exact: true }).click();
     await resetPeak();

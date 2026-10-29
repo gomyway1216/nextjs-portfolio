@@ -4,6 +4,7 @@ import { partyStandings } from '../party/points';
 import { gamePlayerIds } from './party';
 import { drawingHistory } from './drawing-game';
 import { drawingSvg } from './drawing-data';
+import { isCustomPromptId, withCustomPrompts } from './custom-prompts';
 
 export const HISTORY_TTL = 90 * 24 * 60 * 60 * 1000;
 export const validHistoryId = (id: string) => /^[a-f0-9]{32}$/.test(id);
@@ -44,6 +45,7 @@ export function snapshotHistory(
   prompts: Prompt[],
 ): GameHistory {
   const participants = gamePlayerIds(room);
+  prompts = withCustomPrompts(room, prompts);
   return {
     version: 1,
     gameType: room.gameType ?? 'ogiri',
@@ -79,6 +81,7 @@ export function snapshotHistory(
           .map((m) => ({
             round,
             text: prompts.find((p) => p.id === m.promptId)?.text ?? 'お題が見つかりません',
+            ...(isCustomPromptId(m.promptId) ? { custom: true } : {}),
             answers: m.players.map((id, i) => {
               const player = room.players[id];
               const visible = Boolean(player && !m.hidden[id] && !player.kicked && m.answers[id]);
@@ -122,7 +125,7 @@ export function historyText(history: GameHistory): string {
     ]),
     ...history.matches.flatMap((m, i) => [
       '',
-      `ROUND ${m.round}${(m.multiplier ?? 1) > 1 ? ` (得点${m.multiplier}倍)` : ''} / お題${i + 1}: ${m.text}`,
+      `ROUND ${m.round}${(m.multiplier ?? 1) > 1 ? ` (得点${m.multiplier}倍)` : ''} / お題${i + 1}${m.custom ? '（自作）' : ''}: ${m.text}`,
       ...(m.note ? [m.note] : []),
       ...m.answers.map(
         (a) =>

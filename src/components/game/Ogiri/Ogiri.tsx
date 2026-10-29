@@ -24,6 +24,7 @@ import { DrawingGamePanel } from './DrawingGamePanel';
 import { ParticipantAccess } from './ParticipantAccess';
 import { NextGameChoices } from './NextGameChoices';
 import { ReactionBar, ReactionFloats } from './Reactions';
+import { CustomPrompts } from './CustomPrompts';
 import { rememberRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
@@ -500,6 +501,25 @@ function SettingsForm({
           ))}
         </div>
       </fieldset>
+      <label>
+        自作お題の出し方
+        <select
+          aria-label="自作お題の出し方"
+          value={s.customMode ?? 'mix'}
+          onChange={(e) => set({ ...s, customMode: e.target.value === 'only' ? 'only' : undefined })}
+        >
+          <option value="mix">いつものお題にまぜる（全問出題）</option>
+          <option value="only">自作お題だけで遊ぶ</option>
+        </select>
+      </label>
+      <label className={styles.check}>
+        <input
+          type="checkbox"
+          checked={Boolean(s.customSubmissions)}
+          onChange={(e) => set({ ...s, customSubmissions: e.target.checked || undefined })}
+        />
+        参加者からお題を募集する（主催者が採用したものだけ出題）
+      </label>
       </>}
       <button className={styles.secondary}>設定を保存</button>
       {saved && <small role="status">設定を保存しました。</small>}
@@ -999,6 +1019,15 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   <p>
                     {gameType === 'ogiri' ? '1つのお題に2人が回答し、それ以外の人が投票します。' : GAME_RULES[gameType]}進行専用の主催者とテレビは人数に含みません。
                   </p>
+                  {gameType === 'ogiri' && (Boolean(v.customPromptCount) || v.settings.customSubmissions) && (
+                    <p role="status">
+                      ✍️ 自作お題 {v.customPromptCount ?? 0}問{v.settings.customMode === 'only' ? 'だけで出題（足りない分はいつものお題）' : 'をいつものお題にまぜて出題'}
+                      {v.settings.customSubmissions ? '。参加者からのお題も募集中！' : '。'}
+                    </p>
+                  )}
+                  {!tv && gameType === 'ogiri' && v.me && !v.isHost && v.settings.customSubmissions && (
+                    <CustomPrompts view={v} busy={busy} send={send} />
+                  )}
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
@@ -1093,7 +1122,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             {gameType === 'ogiri' && v.match && (
               <section className={styles.battle} key={v.match.id}>
                 <p className={styles.eyebrow}>
-                  お題 {v.match.index} / {v.match.total}
+                  お題 {v.match.index} / {v.match.total}{v.match.custom && ' · ✍️ 自作お題'}
                 </p>
                 <h2 className={styles.prompt}>{v.match.text}</h2>
                 {v.phase === 'voting' && (
@@ -1262,6 +1291,9 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   </p>
                   {['lobby', 'finished'].includes(v.phase) && (
                     <SettingsForm key={`${v.game}:${v.phase}`} settings={v.settings} send={send} />
+                  )}
+                  {['lobby', 'finished'].includes(v.phase) && (v.settings.gameType ?? 'ogiri') === 'ogiri' && (
+                    <CustomPrompts view={v} busy={busy} send={send} />
                   )}
                   <div className={styles.controls}>
                     {v.phase === 'lobby' ? (

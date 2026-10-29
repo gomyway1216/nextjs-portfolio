@@ -202,7 +202,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                 {history.matches.map((match, i) => (
                   <article className={styles.historyCard} key={i}>
                     <p className={styles.eyebrow}>
-                      ROUND {match.round} · お題 {i + 1}{(match.multiplier ?? 1) > 1 && ` · 得点${match.multiplier}倍`}
+                      ROUND {match.round} · お題 {i + 1}{(match.multiplier ?? 1) > 1 && ` · 得点${match.multiplier}倍`}{match.custom && ' · ✍️ 自作'}
                     </p>
                     <h3>{match.text}</h3>
                     <div className={styles.historyAnswers}>

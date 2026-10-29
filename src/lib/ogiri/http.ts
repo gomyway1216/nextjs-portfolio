@@ -8,14 +8,21 @@ export function guardRecovery(request: NextRequest) {
   if (isRateLimited(`ogiri:recovery:${clientIpFrom(request)}`, { limit: 24, windowMs: 60000 }))
     throw new GameError('復帰の操作が多すぎます。1分ほど待ってください。', 429);
 }
+function sameOriginJson(request: NextRequest) {
+  const origin = request.headers.get('origin');
+  if (origin && origin !== new URL(request.url).origin)
+    throw new GameError('このサイトから操作してください。', 403);
+  if (!request.headers.get('content-type')?.startsWith('application/json'))
+    throw new GameError('JSON形式で送信してください。', 415);
+}
+/** Reactions get their own bucket so twelve phones on one Wi-Fi mashing 😂 never starve votes. */
+export function guardReaction(request: NextRequest) {
+  sameOriginJson(request);
+  if (isRateLimited(`ogiri:react:${clientIpFrom(request)}`, { limit: 480, windowMs: 60000 }))
+    throw new GameError('リアクションが多すぎます。少し待ってね。', 429);
+}
 export function guard(request: NextRequest, mutation = false, creating = false) {
-  if (mutation) {
-    const origin = request.headers.get('origin');
-    if (origin && origin !== new URL(request.url).origin)
-      throw new GameError('このサイトから操作してください。', 403);
-    if (!request.headers.get('content-type')?.startsWith('application/json'))
-      throw new GameError('JSON形式で送信してください。', 415);
-  }
+  if (mutation) sameOriginJson(request);
   const kind = creating ? 'create' : mutation ? 'write' : 'read';
   if (
     isRateLimited(`ogiri:${kind}:${clientIpFrom(request)}`, {

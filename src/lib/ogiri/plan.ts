@@ -10,3 +10,6 @@ export function roundPlan(players: number, rounds: number) {
     totalAnswersPerPlayer: 2 * rounds,
   };
 }
+export const SHUTOUT_BONUS = 200;
+/** The last scheduled round of a multi-round game doubles votes, the win bonus and the shutout bonus. */
+export const roundMultiplier = (round: number, rounds: number) => (rounds > 1 && round === rounds ? 2 : 1);

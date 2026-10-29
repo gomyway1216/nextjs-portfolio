@@ -10,6 +10,7 @@ import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/pol
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { hintAt, shouldNudgeHint } from '@/lib/ogiri/hints';
 import { RoundPlan } from './RoundPlan';
+import { roundMultiplier, SHUTOUT_BONUS } from '@/lib/ogiri/plan';
 import { GAME_RULES, PartyGamePanel, PartyGamePicker } from './PartyGamePanel';
 import { rememberHistory } from '@/lib/ogiri/history-local';
 import { CHARACTERS, characterFor } from '@/lib/ogiri/characters';
@@ -730,6 +731,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
     : 0;
   const manualResult = isManualResult(v);
+  const multiplier = v ? v.match?.multiplier ?? roundMultiplier(v.round, v.settings.rounds) : 1;
   const waitingForAnswers = v?.phase === 'answering' && remaining === 0;
   const answerers = v?.players.filter((p) => p.answeringThisRound && p.active) ?? [];
   const readyCount = answerers.filter((p) => p.answerReady).length;
@@ -952,6 +954,11 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </div>
               )}
             </header>
+            {gameType === 'ogiri' && ['answering', 'voting', 'reveal'].includes(v.phase) && multiplier > 1 && (
+              <p className={styles.finalRound} role="status" data-testid="final-round">
+                <b>FINAL ROUND</b> 最終ラウンドは得点{multiplier}倍！ 票・勝利・全票ボーナスすべてが倍になります。
+              </p>
+            )}
             {v.paused && (
               <p className={styles.pause} role="status">
                 ☕ 一時停止中です。主催者の再開をお待ちください。
@@ -1105,6 +1112,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                         key={i}
                       >
                         <span className={styles.letter}>{i ? 'B' : 'A'}</span>
+                        {result?.shutout === i && <span className={styles.shutoutStamp} data-testid="shutout-stamp" aria-hidden="true">全票！</span>}
                         <p>{answer ?? '今回はパス！'}</p>
                         {!tv && v.phase === 'voting' && m.canVote && (
                           <button
@@ -1124,7 +1132,10 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                             <div className={styles.voteBar}>
                               <span style={{ width: `${total ? (count / total) * 100 : 0}%` }} />
                             </div>
-                            <strong>+<AnimatedScore value={result.points[i]} animate={!reduced} /> 点</strong>
+                            <strong>+<AnimatedScore value={result.points[i]} animate={!reduced} /> 点{m.multiplier > 1 && result.points[i] > 0 && <small> ×{m.multiplier}</small>}</strong>
+                            {result.shutout === i && (
+                              <small className={styles.shutoutNote}>全票獲得！ 全票ボーナス +{SHUTOUT_BONUS * m.multiplier}点</small>
+                            )}
                             {result.counts[0] === result.counts[1] ? (
                               <small>引き分け！</small>
                             ) : (

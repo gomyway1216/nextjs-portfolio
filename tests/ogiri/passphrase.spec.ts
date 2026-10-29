@@ -14,6 +14,9 @@ test('a chosen passphrase restores one resting participant and follows all four 
     const created = await host.request.post('/api/ogiri', { data: { name: '合言葉の確認係', avatar: 'rabbit', hostPlays: false } });
     expect(created.ok()).toBe(true);
     let room: RoomView = await created.json();
+    await host.goto(`/games/ogiri/${room.code}`);
+    await host.getByText('自分で決めた合言葉で戻る', { exact: true }).click();
+    await expect(host.getByRole('region', { name: '休憩と復帰' }).getByText('合言葉の確認係', { exact: true })).toBeVisible();
     const path = `/api/ogiri/${room.code}`;
     const action = async (data: object) => {
       room = await (await host.request.get(path)).json();

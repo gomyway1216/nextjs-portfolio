@@ -37,7 +37,7 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
     {view.isHost && <p>休憩中も主催者の進行操作を使えます。</p>}
     <details>
       <summary>自分で決めた合言葉で戻る</summary>
-      <p>復帰するときのニックネーム：<b>{view.players.find(player => player.id === view.me)?.name}</b></p>
+      <p>復帰するときのニックネーム：<b>{view.participantName ?? view.players.find(player => player.id === view.me)?.name}</b></p>
       <p>{view.hasPassphrase ? '合言葉は設定済みです。下のフォームで変更できます。' : '先に合言葉を設定すると、復帰コードを控えなくても別端末から戻れます。'}</p>
       <form className={styles.form} onSubmit={async event => {
         event.preventDefault();

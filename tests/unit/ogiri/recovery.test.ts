@@ -49,7 +49,9 @@ it('sets an optional private passphrase and restores the same resting participan
     expect(JSON.stringify(view)).not.toContain(value);
   }
   expect((await readRoom(host.view.code)).hasPassphrase).toBeUndefined();
+  expect((await readRoom(host.view.code)).participantName).toBeUndefined();
   expect((await readRoom(host.view.code, restored.token, true)).hasPassphrase).toBeUndefined();
+  expect((await readRoom(host.view.code, restored.token, true)).participantName).toBeUndefined();
   expect(JSON.stringify(snapshotHistory(memory.room!, 'a'.repeat(32), Date.now(), prompts))).not.toMatch(/passphrase|salt|secretHash/i);
   // The original random recovery code stays usable as an alternative.
   expect((await recoverRoom(host.view.code, member.view.recoveryCode)).view.me).toBe(id);
@@ -59,7 +61,7 @@ it('requires authenticated setup, preserves host controls, and revokes an old pa
   const host = await makeRoom('主催者', 'rabbit', false);
   await expect(setRecoveryPassphrase(host.view.code, undefined, 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });
   expect(memory.room!.players[host.view.me!].passphraseHash).toBeUndefined();
-  await setRecoveryPassphrase(host.view.code, host.token, 'おぼえやすいことば');
+  expect((await setRecoveryPassphrase(host.view.code, host.token, 'おぼえやすいことば')).participantName).toBe('主催者');
   await setRecoveryPassphrase(host.view.code, host.token, 'あたらしいことば');
   const expiry = memory.room!.expiresAt;
   await expect(recoverWithPassphrase(host.view.code, '主催者', 'おぼえやすいことば')).rejects.toMatchObject({ status: 401 });

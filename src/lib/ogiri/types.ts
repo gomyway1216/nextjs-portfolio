@@ -190,6 +190,8 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  /** Includes the GM, who is intentionally absent from the player standings. */
+  participantName?: string;
   /** Only the authenticated participant's setup status, never a verifier. */
   hasPassphrase?: boolean;
   drawingGame?: DrawingGameView;

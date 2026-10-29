@@ -13,6 +13,7 @@ export const GAME_RULES: Record<GameType, string> = {
   ogiri: '2つのお題にボケて、作者以外が投票。1票100点、勝ったら追加で200点。',
   majority: '全員が同じ選択肢から1つ選びます。最多票の側に入れば100点。同率最多でも得点！',
   identity: '同じお題に1人1回答。匿名のひとことを見て作者を当てます。正解100点、作者は外された票1つにつき50点。',
+  drawing: '絵→言葉→絵と、みんなで同時に伝言。最後に答え合わせして、好きな絵に1票100点！',
 };
 
 export function PartyGamePicker({ value, onChange }: { value: GameType; onChange: (value: GameType) => void }) {

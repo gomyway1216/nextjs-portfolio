@@ -1,0 +1,57 @@
+.panel { margin: 24px 0; color: #fffdf3; }
+.panel h2 { color: #fffdf3; font-size: clamp(23px, 2.4vw, 40px); line-height: 1.35; margin: 12px 0; overflow-wrap: anywhere; }
+.panel > h3 { color: #fffdf3; }
+.eyebrow { font-weight: 900; letter-spacing: .06em; }
+.answer { max-width: 700px; margin: 0 auto; }
+.answer > .picture { max-height: 42vh; }
+.answer label { display: grid; gap: 8px; margin-top: 16px; }
+.answer textarea { width: 100%; border: 3px solid #19162f; border-radius: 12px; padding: 14px; background: white; color: #19162f; font: inherit; }
+.answerButtons { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 8px; }
+.editor { margin: 16px 0; }
+.palette { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; background: #fff8de; color: #19162f; border: 3px solid #19162f; border-radius: 14px 14px 0 0; }
+.palette button { min-width: 38px; min-height: 38px; padding: 7px; border: 2px solid #19162f; border-radius: 8px; background: #fff; color: #19162f; font-weight: 800; cursor: pointer; }
+.palette button[aria-pressed='true'] { outline: 3px solid #fff14a; outline-offset: 2px; }
+.palette label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.palette select { background: white; border: 2px solid #19162f; border-radius: 8px; color: #19162f; min-height: 38px; font: inherit; }
+.canvas { display: block; width: 100%; height: auto; background: white; border: 3px solid #19162f; border-top: 0; border-radius: 0 0 12px 12px; touch-action: none; cursor: crosshair; }
+.canvas[aria-disabled='true'] { cursor: default; opacity: .8; }
+.picture { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; background: white; border-radius: 10px; border: 2px solid #19162f; }
+.picturePlaceholder { min-height: 100px; display: grid; place-items: center; background: #ffffff20; border-radius: 10px; }
+.chainGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+.threeSteps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.chainStep { display: flex; flex-direction: column; background: #fff8de; color: #19162f; border: 3px solid #19162f; box-shadow: 5px 5px 0 #19162f; border-radius: 14px; padding: 14px; min-width: 0; }
+.chainStep > b { margin-bottom: 10px; }
+.chainStep > p:last-child { margin-top: auto; padding-top: 12px; font-weight: 800; }
+.chainGrid .chainStep small { color: #19162f; }
+.guess { display: grid; place-items: center; flex: 1; min-height: 180px; padding: 16px; font-size: clamp(22px, 2vw, 36px); font-weight: 900; background: #ffb8db; border-radius: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.caption, .voteStatus { font-size: 22px; text-align: center; font-weight: 800; }
+.gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.work { display: grid; gap: 5px; padding: 9px; background: #fff8de; color: #19162f; border: 3px solid #19162f; border-radius: 12px; min-width: 0; text-align: left; cursor: pointer; font: inherit; }
+.work > span { display: flex; align-items: center; gap: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+.workName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.work > span > :first-child { flex-shrink: 0; }
+.zoom { max-width: min(90vw, 760px); width: 760px; max-height: 92dvh; overflow-y: auto; padding: 20px; border: 4px solid #19162f; border-radius: 20px; background: #fff8de; color: #19162f; }
+.zoom::backdrop { background: #08051dbb; }
+.zoom > button:first-child { display: block; margin: 0 0 12px auto; }
+.zoom > .picture { max-height: 60dvh; }
+.zoom > p { margin: 12px 0; }
+.panel.tv { margin-top: 1vh; }
+.tv .chainGrid { gap: 1vw; margin: 2vh 0; }
+.tv .chainStep { padding: .8vw; font-size: 1.1vw; }
+.tv .guess { min-height: 22vh; }
+.tv .chainStep .picture { height: 24vh; }
+.tv .gallery { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6vw; margin: 1vh 0; }
+.tv .gallery .picture { height: 8.5vh; grid-column: 1 / -1; }
+.tv .work { grid-template-columns: minmax(0, 1fr) auto; padding: .3vw; gap: .1vh .4vw; border-width: 2px; font-size: .9vw; }
+.tv .work > span { min-width: 0; font-size: .8vw; }
+.tv .work > b { white-space: nowrap; font-size: .8vw; }
+.tv .gallery .work img { width: 24px; height: 24px; }
+.tv .voteStatus { margin: .5vh 0; font-size: 1.2vw; }
+@media (max-width: 720px) {
+  .chainGrid { grid-template-columns: 1fr; }
+  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .zoom { max-width: calc(100vw - 24px); padding: 12px; }
+  .chainStep .picture { max-height: 50vh; }
+  .guess { min-height: 100px; }
+  .work { padding: 6px; font-size: 12px; }
+}

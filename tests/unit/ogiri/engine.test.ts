@@ -117,6 +117,24 @@ describe('Ogiri party engine', () => {
       act(room, outsider, { type: 'vote', matchId: match.id, choice: 1 }, now + 4, prompts),
     ).toThrow('投票済み');
   });
+  it('counts active voter progress while preserving a resting voter’s ballot and its score at reveal', () => {
+    const room = setup(6);
+    start(room);
+    allAnswers(room);
+    next(room);
+    const match = room.matches[0];
+    const voters = Object.keys(room.players).filter(id => !match.players.includes(id));
+    act(room, voters[0], { type: 'vote', matchId: match.id, choice: 0 }, now + 3, prompts);
+    act(room, voters[0], { type: 'leave' }, now + 4, prompts);
+    expect(project(room, null, now + 4, prompts).match).toMatchObject({ eligible: 3, votesReceived: 0 });
+    for (const id of voters.slice(1, 3)) act(room, id, { type: 'vote', matchId: match.id, choice: 0 }, now + 5, prompts);
+    expect(project(room, null, now + 5, prompts).match).toMatchObject({ eligible: 3, votesReceived: 2 });
+    act(room, voters[3], { type: 'vote', matchId: match.id, choice: 0 }, now + 6, prompts);
+    expect(room.phase).toBe('reveal');
+    expect(project(room, null, now + 6, prompts).match).toMatchObject({ votesReceived: 4, result: { counts: [4, 0] } });
+    expect(match.votes[voters[0]]).toBe(0);
+    expect(room.players[match.players[0]].score).toBe(600);
+  });
   it('scores votes and bonuses exactly once, with equal ranks on ties', () => {
     const room = setup(4);
     start(room);

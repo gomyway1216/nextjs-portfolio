@@ -14,6 +14,7 @@ import { gameHighlights, gamePlayerIds } from './party';
 import { normalizePlayerText } from './text';
 import { GameError } from './errors';
 import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
+import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 
 export { GameError } from './errors';
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (
@@ -33,7 +34,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
     'ラウンド数は1〜5です。',
@@ -58,7 +59,7 @@ export function settingsInput(value: unknown): Settings {
   );
   return {
     gameType: s.gameType ?? 'ogiri',
-    rounds: s.rounds,
+    rounds: s.gameType === 'drawing' ? 1 : s.rounds,
     answerSeconds: s.answerSeconds,
     voteSeconds: s.voteSeconds,
     autoAdvance: s.autoAdvance,
@@ -266,10 +267,17 @@ function rescoreMatch(room: Room, match: Match) {
 function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) {
   if (room.phase === 'lobby') {
     room.gameType = room.settings.gameType ?? 'ogiri';
+    if (isDrawingGame(room)) {
+      beginDrawing(room, now, rng);
+      return;
+    }
     if (isSideGame(room)) {
       beginSideRound(room, now, rng);
       return;
     }
+  } else if (isDrawingGame(room)) {
+    advanceDrawing(room, now);
+    return;
   } else if (isSideGame(room)) {
     advanceSideGame(room, now, rng);
     return;
@@ -320,6 +328,10 @@ export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.rand
   return true;
 }
 function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: () => number) {
+  if (isDrawingGame(room)) {
+    syncDrawing(room, now);
+    return;
+  }
   if (isSideGame(room)) {
     syncSideProgress(room, now, rng);
     return;
@@ -340,7 +352,7 @@ export function act(
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'leave', 'return', 'heartbeat'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -405,6 +417,7 @@ export function act(
     room.matches = [];
     room.pastRounds = [];
     room.sideRounds = [];
+    delete room.drawing;
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -438,6 +451,7 @@ export function act(
     );
     room.players[action.playerId].kicked = true;
     room.players[action.playerId].active = false;
+    moderateDrawing(room, action.playerId);
     for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
     const current = room.matches[room.matchIndex];
     if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
@@ -468,9 +482,11 @@ export function act(
     } else if (action.type === 'next') {
       requireThat(!['lobby', 'finished'].includes(room.phase), '今は進められません。');
       advance(room, now, prompts, rng);
+    } else if (isDrawingGame(room)) {
+      drawingAction(room, playerId, action, now);
     } else if (isSideGame(room)) {
       sideAction(room, playerId, action, now);
-    } else if (action.type === 'partyAnswer' || action.type === 'partyVote') {
+    } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type)) {
       throw new GameError('このゲームでは使えない操作です。');
     } else if (action.type === 'answer') {
       requireThat(
@@ -516,6 +532,7 @@ export function act(
   room.revision++;
 }
 /** Explicit allowlist: never spread the private room or player record into a response. */
+export const turnKey = (room: Room) => `${room.game}:${room.round}:${room.phase}:${room.matchIndex}${isDrawingGame(room) ? `:${room.drawing?.stage ?? 0}` : ''}`;
 export function project(
   room: Room,
   playerId: string | null,
@@ -529,11 +546,12 @@ export function project(
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   const participants = gamePlayerIds(room);
   const side = isSideGame(room) ? currentSideRound(room) : undefined;
-  const roundParticipants = new Set(side?.players ?? room.matches.flatMap((m) => m.players));
+  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? room.matches.flatMap((m) => m.players));
   return {
     gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
     sideGame: projectSideGame(room, me),
-    turn: `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`,
+    drawingGame: projectDrawing(room, me),
+    turn: turnKey(room),
     history: room.history ?? [],
     partyGames: room.partyGames ?? 0,
     partyPlayers: Object.values(room.players).some(
@@ -598,7 +616,7 @@ export function project(
           canVote: Boolean(me && eligible(room, current).some((p) => p.id === me)),
           isAuthor: Boolean(me && current.players.includes(me)),
           voted: Boolean(me && Object.hasOwn(current.votes, me)),
-          votesReceived: Object.keys(current.votes).length,
+          votesReceived: room.phase === 'voting' ? eligible(room, current).filter(player => Object.hasOwn(current.votes, player.id)).length : Object.keys(current.votes).length,
           eligible: eligible(room, current).length,
           result:
             room.phase === 'reveal'

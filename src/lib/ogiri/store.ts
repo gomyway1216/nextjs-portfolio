@@ -14,7 +14,9 @@ import {
   rankPlayers,
   ROOM_TTL,
   tick,
+  turnKey,
 } from './engine';
+import { drawingAsset } from './drawing-game';
 import { DEFAULT_SETTINGS, type Action, type GameHistory, type Room } from './types';
 import { prompts } from './prompts';
 import { snapshotHistory, validHistoryId } from './history';
@@ -242,13 +244,19 @@ export async function command(
     if (!id) throw new GameError('参加し直してください。', 401);
     tick(room, now, prompts);
     if (
-      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote'].includes(action.type) &&
-      turn !== `${room.game}:${room.round}:${room.phase}:${room.matchIndex}`
+      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type) &&
+      turn !== turnKey(room)
     )
       throw new GameError('画面が更新されました。もう一度操作してください。', 409);
     act(room, id, action, now, prompts);
   });
   return project(room, authenticate(room, token), Date.now(), prompts);
+}
+
+export async function readDrawing(code: string, id: string, token?: string) {
+  const room = (await collection().doc(code).get()).data() as Room | undefined;
+  if (!room || room.expiresAt <= Date.now()) throw new GameError('ルームの有効期限が切れています。', 404);
+  return drawingAsset(room, id, authenticate(room, token));
 }
 
 export async function readHistory(id: string): Promise<GameHistory> {

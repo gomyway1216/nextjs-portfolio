@@ -4,10 +4,8 @@ on:
   push:
     branches: [main]
 
-concurrency:
-  group: main-ci-${{ github.ref }}
-  cancel-in-progress: true
-
+# Each push owns a distinct before..SHA range; every lightweight selector must run.
+# Heavy workflows retain their own concurrency cancellation for superseded checks.
 permissions:
   contents: read
   pull-requests: read

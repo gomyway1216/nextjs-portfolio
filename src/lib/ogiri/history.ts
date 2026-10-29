@@ -4,6 +4,7 @@ import { partyStandings } from '../party/points';
 import { gamePlayerIds } from './party';
 import { drawingHistory } from './drawing-game';
 import { wordWolfHistory } from './word-wolf';
+import { bluffHistory } from './bluff-game';
 import { drawingSvg } from './drawing-data';
 import { isCustomPromptId, withCustomPrompts } from './custom-prompts';
 
@@ -84,7 +85,7 @@ export function snapshotHistory(
       rank,
       score,
     })),
-    matches: room.gameType === 'drawing' ? [] : room.gameType === 'wordwolf' ? wordWolfHistory(room) : isChoiceGame(room.gameType) || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
+    matches: room.gameType === 'drawing' ? [] : room.gameType === 'wordwolf' ? wordWolfHistory(room) : room.gameType === 'bluff' ? bluffHistory(room) : isChoiceGame(room.gameType) || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
       ({ round, matches }) =>
         matches
           .filter((m) => m.scored)

@@ -20,6 +20,11 @@ describe('every catalog game has card text in both locales', () => {
     expect(en.games.ogiri.description).toContain('drawing relay');
     expect(games.find(game => game.id === 'ogiri')?.description).toContain('絵の伝言');
   });
+  it('includes the bluffing quiz in both party catalog descriptions', () => {
+    expect(ja.games.ogiri.description).toContain('うそ回答まぜ');
+    expect(en.games.ogiri.description).toContain('bluffing quiz');
+    expect(games.find(game => game.id === 'ogiri')?.description).toContain('うそ回答まぜ');
+  });
   const locales = { en, ja } as Record<string, { games?: Record<string, { title?: string; description?: string }> }>;
 
   for (const game of games) {

@@ -22,6 +22,7 @@ import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
 import { WordWolfPanel } from './WordWolfPanel';
+import { BluffGamePanel } from './BluffGamePanel';
 import { ParticipantAccess } from './ParticipantAccess';
 import { GAME_CHOICES, NextGameChoices } from './NextGameChoices';
 import { ReactionBar, ReactionFloats } from './Reactions';
@@ -44,6 +45,7 @@ const partyPhaseName = {
   minority: { ...phaseName, voting: '少数派を、ねらえ。', reveal: 'そっちは少なかったか。' },
   thermometer: { ...phaseName, voting: 'みんなは、何度？', reveal: '平均、こちら。' },
   wordwolf: { ...phaseName, answering: 'ひとりだけ、ちがう。', voting: 'ウルフは、だれだ。', reveal: '正体、こちら。' },
+  bluff: { ...phaseName, answering: 'うそ、仕込み中。', voting: '本当の答えは、どれ？', reveal: 'だまされたのは、だれ？' },
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -256,7 +258,7 @@ export function OgiriLanding() {
               「お前か！」ってなる。
             </p>
             <p>
-              大喜利・多数決・作者当て・絵の伝言・少数派・温度計・ワードウルフ。
+              大喜利・多数決・作者当て・絵の伝言・少数派・温度計・ワードウルフ・うそ回答。
               <br />
               次のゲームも、同じ部屋で。
             </p>
@@ -329,7 +331,7 @@ export function OgiriLanding() {
             全員が同じWi-Fiにいる必要はありません。テレビは表示専用、主催者は通常は進行専用です。主催者も遊ぶ場合はスマホで参加してください。ゲーム中の新規参加は再戦までお待ちください。
           </p>
           <p>
-            同点は同じ順位。大喜利は自分の対戦、絵の伝言は自分の絵への投票をお休み。大喜利・作者当ては100文字、絵の伝言の言葉は80文字までです。
+            同点は同じ順位。大喜利は自分の対戦、絵の伝言は自分の絵への投票をお休み。大喜利・作者当ては100文字、絵の伝言の言葉は80文字、うそ回答は40文字までです。うそ回答では自分のうそに投票できません。
             終了順位でパーティーポイント（10・7・5・3pt）を獲得し、同じルームの再戦でも通算します。
           </p>
         </section>
@@ -1043,7 +1045,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
-                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : gameType === 'bluff' ? `全${v.settings.rounds}問。全員がうその答えを1つ書き、本当の答えとまぜて1人1票。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
                       <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
                       <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
                     </section>
@@ -1131,6 +1133,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
             )}
             {gameType === 'drawing' ? <DrawingGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} send={send} />
               : gameType === 'wordwolf' ? <WordWolfPanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />
+              : gameType === 'bluff' ? <BluffGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />
               : gameType !== 'ogiri' && <PartyGamePanel view={v} tv={tv} busy={busy} connected={connected} reduced={reduced} remaining={remaining} send={send} />}
             {gameType === 'ogiri' && v.match && (
               <section className={styles.battle} key={v.match.id}>

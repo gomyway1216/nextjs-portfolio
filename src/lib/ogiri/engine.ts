@@ -19,6 +19,7 @@ import { projectReactions } from './reactions';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 import { customPromptAction, dropPendingCustomPrompts, isCustomPromptAction, isCustomPromptId, pickCustomPrompts, projectCustomPrompts, withCustomPrompts } from './custom-prompts';
 import { advanceWordWolf, beginWordWolf, currentWordWolf, isWordWolf, moderateWordWolf, projectWordWolf, syncWordWolf, wordWolfAction } from './word-wolf';
+import { advanceBluff, beginBluffRound, bluffAction, currentBluffRound, isBluffGame, moderateBluff, projectBluff, syncBluff } from './bluff-game';
 
 export { GameError } from './errors';
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (
@@ -38,7 +39,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
     'ラウンド数は1〜5です。',
@@ -315,6 +316,10 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
       beginWordWolf(room, now, rng);
       return;
     }
+    if (isBluffGame(room)) {
+      beginBluffRound(room, now, rng);
+      return;
+    }
   } else if (isDrawingGame(room)) {
     advanceDrawing(room, now);
     return;
@@ -323,6 +328,9 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
     return;
   } else if (isWordWolf(room)) {
     advanceWordWolf(room, now, rng);
+    return;
+  } else if (isBluffGame(room)) {
+    advanceBluff(room, now, rng);
     return;
   }
   switch (room.phase) {
@@ -382,6 +390,10 @@ function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: ()
   }
   if (isWordWolf(room)) {
     syncWordWolf(room, now, rng);
+    return;
+  }
+  if (isBluffGame(room)) {
+    syncBluff(room, now, rng);
     return;
   }
   if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
@@ -458,6 +470,7 @@ export function act(
     room.sideRounds = [];
     delete room.drawing;
     delete room.wordWolf;
+    delete room.bluffRounds;
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -494,6 +507,7 @@ export function act(
     moderateDrawing(room, action.playerId);
     dropPendingCustomPrompts(room, action.playerId);
     moderateWordWolf(room, action.playerId);
+    moderateBluff(room, action.playerId);
     for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
     const current = room.matches[room.matchIndex];
     if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
@@ -532,6 +546,8 @@ export function act(
       wordWolfAction(room, playerId, action, now);
     } else if (isSideGame(room)) {
       sideAction(room, playerId, action, now);
+    } else if (isBluffGame(room)) {
+      bluffAction(room, playerId, action, now);
     } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type)) {
       throw new GameError('このゲームでは使えない操作です。');
     } else if (action.type === 'answer') {
@@ -593,12 +609,14 @@ export function project(
   const showMatch = current && ['voting', 'reveal'].includes(room.phase);
   const participants = gamePlayerIds(room);
   const side = isSideGame(room) ? currentSideRound(room) : undefined;
-  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? (isWordWolf(room) ? currentWordWolf(room)?.players : undefined) ?? room.matches.flatMap((m) => m.players));
+  const bluff = isBluffGame(room) ? currentBluffRound(room) : undefined;
+  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? (isWordWolf(room) ? currentWordWolf(room)?.players : undefined) ?? bluff?.players ?? room.matches.flatMap((m) => m.players));
   return {
     gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
     sideGame: projectSideGame(room, me),
     drawingGame: projectDrawing(room, me),
     wordWolfGame: projectWordWolf(room, me),
+    bluffGame: projectBluff(room, me),
     turn: turnKey(room),
     history: room.history ?? [],
     ...projectCustomPrompts(room, me),
@@ -647,7 +665,7 @@ export function project(
       previousRank: p.previousRank,
       active: p.active,
       connected: now - p.lastSeen < 65000,
-      answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
+      answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : bluff ? Number(Boolean(bluff.fakes[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
     })),
     assignments:
       me && room.players[me].active && room.phase === 'answering'

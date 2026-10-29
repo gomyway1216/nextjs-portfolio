@@ -14,6 +14,7 @@ export const GAME_CHOICES = [
   { type: 'minority', avatar: 'hedgehog', description: 'あえて、そっち？' },
   { type: 'thermometer', avatar: 'capybara', description: 'みんなは、何度？' },
   { type: 'wordwolf', avatar: '🦊', description: 'ひとりだけ、話がずれてる。' },
+  { type: 'bluff', avatar: '🐙', description: '本当の答え、どれだ？' },
 ] satisfies { type: GameType; avatar: string; description: string }[];
 
 export function NextGameChoices({ currentGame, disabled, choose }: {

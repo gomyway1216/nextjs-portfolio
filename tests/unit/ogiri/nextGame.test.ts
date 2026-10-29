@@ -14,7 +14,7 @@ function finishedRoom() {
   return room;
 }
 
-it.each(['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf'] satisfies GameType[])(
+it.each(['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf', 'bluff'] satisfies GameType[])(
   'selects %s in the rematch without replacing participants, secrets, totals or history', gameType => {
     const room = finishedRoom();
     const player = structuredClone(room.players.a);

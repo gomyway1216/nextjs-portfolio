@@ -91,14 +91,15 @@ async function roomFixture(page: Page, browser: Browser, baseURL?: string) {
   };
   await action({ type: 'settings', settings: { ...room.settings, autoAdvance: false, answerSeconds: 180, voteSeconds: 60 } });
   await page.goto(`/games/ogiri/${room.code}/tv`);
-  return { path, action, close: () => Promise.all(contexts.map(context => context.close())) };
+  return { path, roomUrl: `/games/ogiri/${room.code}`, action,
+    close: () => Promise.all(contexts.map(context => context.close())) };
 }
 
 test('waiting music is lazy, shares output/cache, ducks and obeys room/device lifecycle', async ({ page, browser, baseURL }, info) => {
   await installProbe(page);
   const errors: string[] = [];
   let navigating = false;
-  let pollUrl: URL | undefined;
+  let pollUrl: URL | null = null;
   page.on('pageerror', error => {
     // WebKit reports the old document's explicitly cancelled poll during navigation.
     if (navigating && pollUrl && browser.browserType().name() === 'webkit' &&
@@ -143,6 +144,17 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     const output = info.outputPath('actual-music-output.json');
     writeFileSync(output, JSON.stringify({ background, underEffect, recovered: levels }, null, 2));
     await info.attach('actual-music-output', { path: output, contentType: 'application/json' });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.screenshot({ path: info.outputPath('waiting-music-settings-tv.png'), fullPage: true });
+    const phone = await page.context().newPage();
+    await phone.setViewportSize({ width: 390, height: 844 });
+    await phone.goto(room.roomUrl);
+    await phone.getByRole('button', { name: '音設定', exact: true }).click();
+    await expect(phone.getByRole('checkbox', { name: '回答・投票中にBGM', exact: true })).toBeChecked();
+    expect(await phone.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+    await phone.screenshot({ path: info.outputPath('waiting-music-settings-phone.png'), fullPage: true });
+    await phone.close();
+    await page.bringToFront();
     await room.action({ type: 'pause' });
     await expect.poll(async () => (await snapshot(page)).active).toBe(0);
     await room.action({ type: 'resume' });
@@ -175,8 +187,10 @@ test('waiting music is lazy, shares output/cache, ducks and obeys room/device li
     await music.check();
     await expect.poll(async () => (await snapshot(page)).active).toBe(1);
     navigating = true;
-    await page.locator('a[href="/games/ogiri"]').first().click();
-    await expect.poll(async () => (await snapshot(page)).states).toEqual(['closed']);
+    try {
+      await page.locator('a[href="/games/ogiri"]').first().click();
+      await expect.poll(async () => (await snapshot(page)).states).toEqual(['closed']);
+    } finally { navigating = false; }
     expect(errors).toEqual([]);
   } finally { await room.close(); }
 });

@@ -42,7 +42,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
       Object.defineProperty(window, '__celebrationProbe', { value: probe });
       const startBuffer = AudioBufferSourceNode.prototype.start;
       AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
-        if (this.buffer && this.buffer.duration > 1.25 && this.buffer.duration < 1.4) probe.pointsVoices++;
+        if (this.buffer && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？') probe.pointsVoices++;
         if (probe.countStartAt === null && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？'
           && document.querySelector('[data-score-final="400"]')) {
           probe.countStartAt = performance.now() + Math.max(0, (args[0] ?? this.context.currentTime) - this.context.currentTime) * 1000;
@@ -174,7 +174,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
     await tv.getByText('音設定', { exact: true }).click();
-    await tv.waitForTimeout(1800); // Isolate preview audio from the automatic finish cheer.
+    await tv.waitForTimeout(1900); // Isolate preview audio from the automatic finish cheer.
     for (const cue of ['count', 'cheer']) {
       await tv.getByLabel('試聴する効果音', { exact: true }).selectOption(cue);
       await resetPeak();

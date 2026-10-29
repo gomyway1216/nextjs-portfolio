@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
-import { AVATARS, CATEGORIES, GAME_TITLES, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { AVATARS, CATEGORIES, GAME_TITLES, isChoiceGame, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { RoundPlan } from './RoundPlan';
@@ -20,7 +20,7 @@ import { PartyResults } from './PartyResults';
 import { AnimatedScore } from './AnimatedScore';
 import { DrawingGamePanel } from './DrawingGamePanel';
 import { ParticipantAccess } from './ParticipantAccess';
-import { NextGameChoices } from './NextGameChoices';
+import { GAME_CHOICES, NextGameChoices } from './NextGameChoices';
 import { rememberRecovery } from '@/lib/ogiri/recovery-local';
 import styles from './Ogiri.module.css';
 
@@ -36,6 +36,8 @@ const partyPhaseName = {
   majority: { ...phaseName, voting: '多数派に、まざれ。', reveal: 'そっちが多かったか。' },
   identity: { ...phaseName, answering: 'ひとこと、仕込み中。', voting: 'これ、だれが書いた？', reveal: '正体、こちら。' },
   drawing: { ...phaseName, answering: '絵とことばで、伝言中。', voting: '好きな絵に、一票。', reveal: 'その絵、そう来たか。' },
+  minority: { ...phaseName, voting: '少数派を、ねらえ。', reveal: 'そっちは少なかったか。' },
+  thermometer: { ...phaseName, voting: 'みんなは、何度？', reveal: '平均、こちら。' },
 };
 async function request(path: string, data?: unknown, signal?: AbortSignal): Promise<RoomView> {
   const controller = new AbortController();
@@ -248,7 +250,7 @@ export function OgiriLanding() {
               「お前か！」ってなる。
             </p>
             <p>
-              大喜利・多数決・作者当て・絵の伝言。
+              大喜利・多数決・作者当て・絵の伝言・少数派・温度計。
               <br />
               次のゲームも、同じ部屋で。
             </p>
@@ -257,17 +259,17 @@ export function OgiriLanding() {
               <span>⏱ 時間はゆっくり、調整OK</span>
               <span>🎃 ハロウィンにも</span>
             </div>
-            <div className={styles.modeTeasers} aria-label="遊べる4つのゲーム">
-              {(['ogiri', 'majority', 'identity', 'drawing'] as const).map(type => <button key={type} type="button" onClick={() => {
+            <div className={styles.modeTeasers} aria-label={`遊べる${GAME_CHOICES.length}つのゲーム`}>
+              {GAME_CHOICES.map(({ type, avatar, description }) => <button key={type} type="button" onClick={() => {
                 setSelectedGameType(type);
                 setCreate(true);
                 requestAnimationFrame(() => document.getElementById('party-entry')?.scrollIntoView({
                   behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start',
                 }));
               }}>
-                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={type === 'ogiri' ? '🐱' : type === 'drawing' ? 'alien' : '🐸'} size="medium" />}
+                {type === 'identity' ? <MysteryCharacter size="medium" /> : <Character avatar={avatar} size="medium" />}
                 <b>{GAME_TITLES[type]}</b>
-                <span>{type === 'ogiri' ? '二人のボケに一票。' : type === 'majority' ? 'みんな、そっち派？' : type === 'drawing' ? 'その絵、そう伝わる？' : 'これ書いたの、お前か。'}</span>
+                <span>{description}</span>
                 <small>このゲームで部屋を作る →</small>
               </button>)}
             </div>
@@ -426,7 +428,7 @@ function SettingsForm({
             ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
             ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
-        ).filter(([key]) => (key !== 'answerSeconds' || s.gameType !== 'majority') && (key !== 'rounds' || s.gameType !== 'drawing')).map(([key, label, values]) => (
+        ).filter(([key]) => (key !== 'answerSeconds' || !isChoiceGame(s.gameType)) && (key !== 'rounds' || s.gameType !== 'drawing')).map(([key, label, values]) => (
           <label key={key}>
             {label}
             <select
@@ -441,14 +443,14 @@ function SettingsForm({
           </label>
         ))}
       </div>
-      {s.gameType !== 'majority' && <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>}
+      {!isChoiceGame(s.gameType) && <small>回答時間は目安です。時間が来ても全員の「これでOK！」を待ちます。</small>}
       <label className={styles.check}>
         <input
           type="checkbox"
           checked={s.autoAdvance}
           onChange={(e) => set({ ...s, autoAdvance: e.target.checked })}
         />
-        {s.gameType === 'majority' ? '全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
+        {isChoiceGame(s.gameType) ? '全員投票後・結果発表後に自動で進行' : '全員の回答確定後・全員投票後・結果発表後に自動で進行'}
       </label>
       {(!s.gameType || s.gameType === 'ogiri') && <><label className={styles.check}>
         <input
@@ -976,7 +978,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
-                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'majority' ? `全${v.settings.rounds}お題。全員が1お題につき1票ずつ投票します。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
                       <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
                       <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
                     </section>

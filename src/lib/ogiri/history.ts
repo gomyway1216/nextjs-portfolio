@@ -1,5 +1,5 @@
 import { rankPlayers } from './engine';
-import { GAME_TITLES, type GameHistory, type Prompt, type Room } from './types';
+import { GAME_TITLES, isChoiceGame, type GameHistory, type Prompt, type Room } from './types';
 import { partyStandings } from '../party/points';
 import { gamePlayerIds } from './party';
 import { drawingHistory } from './drawing-game';
@@ -13,15 +13,24 @@ function sideHistory(room: Room): GameHistory['matches'] {
     const awards = entry.result.awards.filter(award => !room.players[award.id]?.kicked).map(award => ({
       name: room.players[award.id].name, avatar: room.players[award.id].avatar, points: award.points,
     }));
-    if (round.type === 'majority') return {
+    const pickedBy = (choice: string) => entry.result.awards.filter(award => round.ballots[String(entry.index)]?.[award.id] === choice)
+      .reduce((sum, award) => sum + award.points, 0);
+    if (round.type === 'thermometer') return {
+      round: round.round, text: `${round.prompt}（0: ${round.scale?.low ?? ''} / 100: ${round.scale?.high ?? ''}）`,
+      answers: Object.entries(entry.result.counts).sort(([a], [b]) => Number(a) - Number(b)).map(([value, votes]) => ({
+        name: '温度', avatar: '', text: `${value}度`, votes, points: pickedBy(value),
+      })),
+      awards, note: `${entry.result.average === undefined ? '回答2人未満のため得点なし。' : `平均 ${entry.result.average}。`}平均に一番近い人100点、2番目50点、3番目25点。同じ近さは同順位。`,
+    };
+    if (round.type === 'majority' || round.type === 'minority') return {
       round: round.round, text: round.prompt,
       answers: round.options.map((option, index) => ({
         name: `選択肢${index + 1}`, avatar: '', text: option.label,
         votes: entry.result.counts[option.id] ?? 0,
-        points: entry.result.awards.filter(award => round.ballots[String(entry.index)]?.[award.id] === option.id)
-          .reduce((sum, award) => sum + award.points, 0),
+        points: pickedBy(option.id),
       })),
-      awards, note: '最多票の選択肢を選ぶと100点。同率最多はすべて対象、無投票は0点。',
+      awards, note: round.type === 'majority' ? '最多票の選択肢を選ぶと100点。同率最多はすべて対象、無投票は0点。'
+        : '選ばれた中で一番少ない選択肢を選ぶと100点。同率最少はすべて対象。選ばれた選択肢が全部同数なら全員0点。',
     };
     const author = entry.author ? room.players[entry.author] : undefined;
     const visible = author && !author.kicked;
@@ -72,7 +81,7 @@ export function snapshotHistory(
       rank,
       score,
     })),
-    matches: room.gameType === 'drawing' ? [] : room.gameType === 'majority' || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
+    matches: room.gameType === 'drawing' ? [] : isChoiceGame(room.gameType) || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
       ({ round, matches }) =>
         matches
           .filter((m) => m.scored)
@@ -124,7 +133,7 @@ export function historyText(history: GameHistory): string {
       ...(m.note ? [m.note] : []),
       ...m.answers.map(
         (a) =>
-          `${a.avatar} ${a.name}: ${a.text ?? '未回答・非表示'} (${a.votes}票 / ${a.points} 点)`,
+          `${a.avatar} ${a.name}: ${a.text ?? '未回答・非表示'} (${a.votes}${history.gameType === 'thermometer' ? '人' : '票'} / ${a.points} 点)`,
       ),
       ...(m.awards?.map(a => `獲得点: ${a.avatar} ${a.name} +${a.points} 点`) ?? []),
     ]),

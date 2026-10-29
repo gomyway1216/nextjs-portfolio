@@ -22,7 +22,7 @@ for (const count of [3, 4, 12]) test(`${count} drawing relayers, separate GM and
   watch(host);
   try {
     await host.goto('/games/ogiri');
-    await expect(host.getByLabel('遊べる4つのゲーム').getByRole('button', { name: /おえかき伝言便/ })).toBeVisible();
+    await expect(host.getByLabel(/^遊べる\d+つのゲーム$/).getByRole('button', { name: /おえかき伝言便/ })).toBeVisible();
     await host.getByRole('button', { name: '主催する', exact: true }).click();
     await host.getByLabel('遊ぶゲーム', { exact: true }).selectOption('drawing');
     await host.getByRole('textbox', { name: 'ニックネーム' }).fill('伝言の進行役');

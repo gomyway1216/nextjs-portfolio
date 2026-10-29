@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { GAME_TITLES, type GameHistory, type HistoryRef } from '@/lib/ogiri/types';
+import { GAME_TITLES, isChoiceGame, type GameHistory, type HistoryRef } from '@/lib/ogiri/types';
 import { drawingHistoryHtml, historyText, validHistoryId } from '@/lib/ogiri/history';
 import { readLocalHistory, rememberHistory } from '@/lib/ogiri/history-local';
 import styles from './Ogiri.module.css';
@@ -209,11 +209,11 @@ export function OgiriHistory({ id }: { id?: string }) {
                       {match.answers.map((answer, j) => (
                         <div key={j}>
                           <p className={styles.historyAnswer}>{answer.text ?? '未回答・非表示'}</p>
-                          {history.gameType !== 'majority' && <small>
+                          {!isChoiceGame(history.gameType) && <small>
                             <Character avatar={answer.avatar} /> {answer.name}
                           </small>}
                           <p>
-                            <strong>{answer.votes}票</strong> · {history.gameType === 'majority' ? '選んだ人の合計 ' : ''}+{answer.points} 点
+                            <strong>{answer.votes}{history.gameType === 'thermometer' ? '人' : '票'}</strong> · {isChoiceGame(history.gameType) ? '選んだ人の合計 ' : ''}+{answer.points} 点
                           </p>
                         </div>
                       ))}

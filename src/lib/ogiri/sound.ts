@@ -77,7 +77,10 @@ export const SOUND_CUES = {
 } satisfies Record<string, Tone[]>;
 export type SoundCue = keyof typeof SOUND_CUES;
 export const SOUND_FILES: Partial<Record<SoundCue, string>> = {
+  start: '/audio/ogiri/start-stinger.mp3',
+  bounce: '/audio/ogiri/answer-pop.mp3',
   count: '/audio/ogiri/points-cheer.mp3',
+  ranking: '/audio/ogiri/ranking-stinger.mp3',
   cheer: '/audio/ogiri/cheer.mp3',
 };
 
@@ -96,6 +99,7 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
     return before && player.score > before.score;
   })) return 'count';
   if (previous.turn === next.turn) return null;
+  if (previous.phase === 'lobby' && ['answering', 'voting'].includes(next.phase)) return 'start';
   if (next.phase === 'answering') return 'start';
   if (next.phase === 'voting') return 'bounce';
   if (next.phase === 'reveal') return 'bounce';
@@ -190,7 +194,7 @@ export function createPartyAudio(context: AudioContext) {
     play(cue: SoundCue, volume: number) {
       if (context.state !== 'running') return false;
       setVolume(volume);
-      if (cue === 'champion' || cue === 'cheer' || cue === 'count' || active.size > 24) stop();
+      if (['start', 'bounce', 'ranking', 'champion', 'cheer', 'count'].includes(cue) || active.size > 24) stop();
       const sample = samples.get(cue);
       if (sample) {
         const source = context.createBufferSource(), gain = context.createGain();

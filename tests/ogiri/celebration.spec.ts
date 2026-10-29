@@ -9,6 +9,7 @@ type CelebrationProbe = {
   revealAt: number | null;
   scores: { phase: string; target: number; value: number; counting: string | null }[];
   pointsVoices: number;
+  longStops: number;
 };
 
 test('four players hear a pop, a synchronized points voice and a final cheer without cheering zero-point reveals', async ({ page: host, browser, baseURL }, info) => {
@@ -38,16 +39,22 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     await tv.setViewportSize({ width: 1920, height: 1080 });
     await tv.emulateMedia({ reducedMotion: 'no-preference' });
     await tv.addInitScript(() => {
-      const probe: CelebrationProbe = { maxRms: 0, countStartAt: null, revealAt: null, scores: [], pointsVoices: 0 };
+      const probe: CelebrationProbe = { maxRms: 0, countStartAt: null, revealAt: null, scores: [], pointsVoices: 0, longStops: 0 };
       Object.defineProperty(window, '__celebrationProbe', { value: probe });
       const startBuffer = AudioBufferSourceNode.prototype.start;
       AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['start']>) {
-        if (this.buffer && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？') probe.pointsVoices++;
-        if (probe.countStartAt === null && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？'
+        const scoring = this.buffer && !this.loop && this.buffer.duration >= 2 && document.querySelector('h1')?.textContent === 'これ書いたの、だれ？';
+        if (scoring) probe.pointsVoices++;
+        if (scoring && probe.countStartAt === null
           && document.querySelector('[data-score-final="400"]')) {
           probe.countStartAt = performance.now() + Math.max(0, (args[0] ?? this.context.currentTime) - this.context.currentTime) * 1000;
         }
         startBuffer.apply(this, args);
+      };
+      const stopBuffer = AudioBufferSourceNode.prototype.stop;
+      AudioBufferSourceNode.prototype.stop = function (this: AudioBufferSourceNode, ...args: Parameters<AudioBufferSourceNode['stop']>) {
+        if (this.buffer && !this.loop && this.buffer.duration >= 4) probe.longStops++;
+        stopBuffer.apply(this, args);
       };
       const createGain = AudioContext.prototype.createGain;
       AudioContext.prototype.createGain = function () {
@@ -90,7 +97,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     await tv.goto(`/games/ogiri/${room.code}/tv`);
     const snapshot = () => tv.evaluate(() => {
       const probe = (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe;
-      return { maxRms: probe.maxRms, scores: probe.scores, countStartAt: probe.countStartAt, revealAt: probe.revealAt, pointsVoices: probe.pointsVoices };
+      return { maxRms: probe.maxRms, scores: probe.scores, countStartAt: probe.countStartAt, revealAt: probe.revealAt, pointsVoices: probe.pointsVoices, longStops: probe.longStops };
     });
     const resetPeak = () => tv.evaluate(() => {
       (window as unknown as { __celebrationProbe: CelebrationProbe }).__celebrationProbe.maxRms = 0;
@@ -104,7 +111,7 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
       expect((await context.request.post(path, { data: { type: 'answerReady', ready: true, turn: mine.turn } })).ok()).toBe(true);
     }
     await expect(tv.getByRole('heading', { name: 'どっちで笑った？', exact: true })).toBeVisible();
-    await tv.waitForTimeout(250); // Finish the 100ms pop before measuring the scoring voice.
+    await tv.waitForTimeout(700); // Finish the recorded entrance before measuring the scoring cue.
     await tv.screenshot({ path: info.outputPath('mystery-speakers-tv.png'), fullPage: true });
     await resetPeak();
     for (const context of contexts) {
@@ -173,8 +180,11 @@ test('four players hear a pop, a synchronized points voice and a final cheer wit
     expect(finalScores.every(sample => sample.value === 400 && sample.counting === 'false')).toBe(true);
     await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.005);
 
+    await action({ type: 'rematch' });
+    await expect(tv.getByRole('heading', { name: 'メンバー、募集中。', exact: true })).toBeVisible();
+    await expect.poll(async () => (await snapshot()).longStops).toBeGreaterThan(0);
     await tv.getByText('音設定', { exact: true }).click();
-    await tv.waitForTimeout(1900); // Isolate preview audio from the automatic finish cheer.
+    await tv.waitForTimeout(200); // The new lobby has stopped the long final cue.
     for (const cue of ['count', 'cheer']) {
       await tv.getByLabel('試聴する効果音', { exact: true }).selectOption(cue);
       await resetPeak();

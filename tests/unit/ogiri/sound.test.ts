@@ -28,7 +28,7 @@ describe('original party audio', () => {
   it('keeps existing open tabs able to preload the legacy sound URLs', () => {
     const directory = path.join(process.cwd(), 'public/audio/ogiri');
     expect(statSync(path.join(directory, 'boing.mp3')).size).toBeGreaterThan(0);
-    expect(statSync(path.join(directory, 'boing.mp3')).size).toBeLessThan(5000);
+    expect(statSync(path.join(directory, 'boing.mp3')).size).toBeLessThan(8000);
     expect(readFileSync(path.join(directory, 'score-count.mp3')))
       .toEqual(readFileSync(path.join(directory, 'points-cheer.mp3')));
   });
@@ -58,10 +58,10 @@ describe('original party audio', () => {
       expect(tone.frequency).toBeGreaterThan(500);
       expect(tone.endFrequency ?? tone.frequency).toBeGreaterThan(500);
     }
-    expect(Object.keys(SOUND_FILES).sort()).toEqual(['cheer', 'count']);
+    expect(Object.keys(SOUND_FILES).sort()).toEqual(['bounce', 'cheer', 'count', 'ranking', 'start']);
     expect(SOUND_FILES.count).toBe('/audio/ogiri/points-cheer.mp3');
     expect(Object.values(SOUND_FILES).reduce((total, file) => total + statSync(path.join(process.cwd(), 'public', file)).size, 0))
-      .toBeLessThan(40000);
+      .toBeLessThan(160000);
   });
   it('cleans every voice on mute and clamps volume without trying to autoplay suspended audio', async () => {
     const oscillators: { stop: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] =
@@ -131,17 +131,28 @@ describe('original party audio', () => {
     try {
       await audio.prepare();
       await audio.prepare();
-      expect(fetchSample).toHaveBeenCalledTimes(2);
+      expect(fetchSample).toHaveBeenCalledTimes(5);
       const before = oscillators.length;
       audio.play('count', 1);
       expect(oscillators).toHaveLength(before + 1); // Decoded clip, no delayed synthesis or fetch.
-      expect(fetchSample).toHaveBeenCalledTimes(2);
+      expect(fetchSample).toHaveBeenCalledTimes(5);
+      const scoringVoice = oscillators.at(-1)!;
+      audio.play('bounce', 1);
+      expect(scoringVoice.stop).toHaveBeenCalledOnce();
+      expect(scoringVoice.disconnect).toHaveBeenCalledOnce();
       audio.stop();
       expect(oscillators.at(-1)!.stop).toHaveBeenCalledOnce();
     } finally { vi.unstubAllGlobals(); }
     await audio.close();
     expect(context.close).toHaveBeenCalledOnce();
   });
+});
+
+it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('opens %s with the start stinger before later entrances', gameType => {
+  const lobby = { ...view('lobby'), gameType };
+  const active = { ...view(gameType === 'majority' ? 'voting' : 'answering'), gameType };
+  expect(phaseSound(lobby, active)).toBe('start');
+  expect(phaseSound(view('ranking'), view('voting'))).toBe('bounce');
 });
 
 it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('requires an actual score increase for the %s points voice', gameType => {

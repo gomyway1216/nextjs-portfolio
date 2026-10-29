@@ -70,7 +70,7 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   await resetPeak();
   await page.getByRole('button', { name: '音を試す', exact: true }).click();
   await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.05);
-  await page.waitForTimeout(1900);
+  await page.waitForTimeout(5000);
   const at60 = await snapshot();
   expect(at60.maxPeak).toBeLessThan(0.97);
   if (width === 1920) {
@@ -80,21 +80,22 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
       await resetPeak();
       await page.getByRole('button', { name: '音を試す', exact: true }).click();
       await expect.poll(async () => (await snapshot()).maxRms, { message: `${cue} must reach the actual master output` }).toBeGreaterThan(0.003);
-      const duration = cue === 'count' ? 0.464 : cue === 'cheer' ? 1.83 : Math.max(...SOUND_CUES[cue as SoundCue].map(tone => tone.at + tone.duration));
+      const recordedDuration: Partial<Record<SoundCue, number>> = { start: 3, bounce: 0.62, count: 2.8, ranking: 3.7, cheer: 4.8 };
+      const duration = recordedDuration[cue as SoundCue] ?? Math.max(...SOUND_CUES[cue as SoundCue].map(tone => tone.at + tone.duration));
       await page.waitForTimeout(duration * 1000 + 150);
       const measured = await snapshot();
       expect(measured.maxPeak).toBeLessThan(0.97);
       palette.push({ cue, maxRms: measured.maxRms, maxPeak: measured.maxPeak });
     }
     await info.attach('actual-palette-output', { body: JSON.stringify(palette), contentType: 'application/json' });
-    await page.waitForTimeout(1900);
+    await page.waitForTimeout(5000);
   }
   await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await volume.fill('100');
   await resetPeak();
   await page.getByRole('button', { name: '音を試す', exact: true }).click();
   await expect.poll(async () => (await snapshot()).maxRms).toBeGreaterThan(0.08);
-  await page.waitForTimeout(1900);
+  await page.waitForTimeout(5000);
   const at100 = await snapshot();
   expect(at100.maxRms).toBeGreaterThan(at60.maxRms * 1.4);
   expect(at100.maxPeak).toBeLessThan(0.97);

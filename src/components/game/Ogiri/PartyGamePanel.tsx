@@ -30,9 +30,10 @@ export function PartyGamePicker({ value, onChange }: { value: GameType; onChange
   );
 }
 
-function IdentityAnswer({ view, disabled, send }: {
+function IdentityAnswer({ view, disabled, offline, send }: {
   view: RoomView;
   disabled: boolean;
+  offline: boolean;
   send: (action: Action) => Promise<boolean>;
 }) {
   const side = view.sideGame!;
@@ -76,7 +77,7 @@ function IdentityAnswer({ view, disabled, send }: {
         </label>
         <div className={common.row}>
           <small>{count} / 100文字</small>
-          <button className={common.primary} disabled={disabled || saving || Boolean(mine?.answerReady) || count < 1 || count > 100}>
+          <button className={common.primary} disabled={disabled || offline || saving || Boolean(mine?.answerReady) || count < 1 || count > 100}>
             {saving ? '送信中…' : side.answer && !dirty ? '送信済み ✓' : side.answer ? '回答を更新' : 'この回答を送る'}
           </button>
         </div>
@@ -84,9 +85,9 @@ function IdentityAnswer({ view, disabled, send }: {
       </form>
       {dirty && side.answer && <p>未送信の変更があります。先に「回答を更新」を押してね。</p>}
       {mine?.answerReady ? (
-        <button className={common.secondary} disabled={disabled || saving} onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
+        <button className={common.secondary} disabled={disabled || offline || saving} onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
       ) : (
-        <button className={common.primary} disabled={disabled || saving || !side.answer || dirty} onClick={() => void send({ type: 'answerReady', ready: true })}>これでOK！</button>
+        <button className={common.primary} disabled={disabled || offline || saving || !side.answer || dirty} onClick={() => void send({ type: 'answerReady', ready: true })}>これでOK！</button>
       )}
     </div>
   );
@@ -103,7 +104,8 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
 }) {
   const side = view.sideGame;
   if (!side || !['answering', 'voting', 'reveal'].includes(view.phase)) return null;
-  const disabled = busy || view.paused || !connected;
+  const held = busy || view.paused;
+  const disabled = held || !connected;
   const answerers = view.players.filter(p => p.answeringThisRound);
   const author = side.result?.correctOption ? view.players.find(p => p.id === side.result?.correctOption) : null;
   const maxVotes = Math.max(0, ...Object.values(side.result?.counts ?? {}));
@@ -114,7 +116,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
       <h2 className={styles.prompt}>{side.prompt}</h2>
       {view.phase === 'answering' ? <>
         {!tv && side.answerRequired ? (
-          <IdentityAnswer key={`${view.game}:${view.round}`} view={view} disabled={disabled} send={send} />
+          <IdentityAnswer key={`${view.game}:${view.round}`} view={view} disabled={held} offline={!connected} send={send} />
         ) : (
           <div className={styles.answerWait}>
             <p>スマホで1つ送ったら「これでOK！」。名前はまだ内緒。</p>

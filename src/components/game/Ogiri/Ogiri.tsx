@@ -354,11 +354,14 @@ function AnswerForm({
   assignment,
   code,
   disabled,
+  sendDisabled,
   send,
 }: {
   assignment: RoomView['assignments'][number];
   code: string;
   disabled: boolean;
+  /** Only sending needs the network; typing is a local draft and keeps the keyboard open. */
+  sendDisabled: boolean;
   send: (a: Action) => Promise<boolean>;
 }) {
   const key = `ogiri:draft:${code}:${assignment.id}`;
@@ -401,7 +404,7 @@ function AnswerForm({
         <small>{characterCount} / 100文字</small>
         <button
           className={styles.primary}
-          disabled={disabled || busy || characterCount === 0 || characterCount > 100}
+          disabled={disabled || sendDisabled || busy || characterCount === 0 || characterCount > 100}
         >
           {busy
             ? '送信中…'
@@ -1099,7 +1102,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                       key={a.id}
                       assignment={a}
                       code={code}
-                      disabled={v.paused || !connected || Boolean(mine?.answerReady)}
+                      disabled={v.paused || Boolean(mine?.answerReady)}
+                      sendDisabled={busy || !connected}
                       send={send}
                     />
                   ))}

@@ -25,7 +25,7 @@ function ShiritoriPrompt({ code, assignment }: { code: string; assignment: NonNu
   </>;
 }
 
-function DrawingAnswer({ view, disabled, send }: { view: RoomView; disabled: boolean; send: (action: Action) => Promise<boolean> }) {
+function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disabled: boolean; offline: boolean; send: (action: Action) => Promise<boolean> }) {
   const assignment = view.drawingGame!.assignment!;
   const shiritori = view.gameType === 'shiritori';
   const ready = Boolean(view.players.find(player => player.id === view.me)?.answerReady);
@@ -85,15 +85,15 @@ function DrawingAnswer({ view, disabled, send }: { view: RoomView; disabled: boo
     </>}
     {error && <p role="alert">{error}</p>}
     <div className={styles.answerButtons}>
-      <button type="button" className={common.primary} disabled={locked || invalid || (!dirty && assignment.saved)} onClick={async () => {
+      <button type="button" className={common.primary} disabled={locked || offline || invalid || (!dirty && assignment.saved)} onClick={async () => {
         setSaving(true);
         const ok = await send(assignment.kind === 'draw' ? { type: 'drawingSubmit', drawing: data, ...(shiritori ? { word: text } : {}) } : { type: 'drawingGuess', text });
         if (ok && assignment.kind === 'draw') setBase(JSON.stringify(data));
         setSaving(false);
       }}>{saving ? '送信中…' : assignment.saved && !dirty ? '送信済み ✓' : assignment.saved ? updateLabel : assignment.kind === 'draw' ? 'この絵を送る' : 'この言葉を送る'}</button>
-      {ready ? <button type="button" className={common.secondary} disabled={disabled || saving || loading}
+      {ready ? <button type="button" className={common.secondary} disabled={disabled || offline || saving || loading}
         onClick={() => void send({ type: 'answerReady', ready: false })}>{shiritori ? '絵を直す' : '伝言を直す'}</button>
-        : <button type="button" className={common.primary} disabled={disabled || saving || loading || !assignment.saved || dirty}
+        : <button type="button" className={common.primary} disabled={disabled || offline || saving || loading || !assignment.saved || dirty}
           onClick={() => void send({ type: 'answerReady', ready: true })}>これでOK！</button>}
     </div>
     <small>送ったあとも「これでOK！」までは直せます。下書きはこの端末に保存します。</small>
@@ -144,14 +144,15 @@ export function DrawingGamePanel({ view, tv, busy, connected, reduced, send }: {
 }) {
   const game = view.drawingGame;
   if (!game || !['answering', 'voting', 'reveal'].includes(view.phase)) return null;
-  const disabled = busy || view.paused || !connected;
+  const held = busy || view.paused;
+  const disabled = held || !connected;
   const shiritori = view.gameType === 'shiritori';
   const unit = shiritori ? 'しりとり' : '伝言';
   const drawingTurn = shiritori || game.stage % 2 === 1;
   return <section className={`${styles.panel} ${tv ? styles.tv : ''}`} aria-label={GAME_TITLES[shiritori ? 'shiritori' : 'drawing']}>
     {view.phase === 'answering' ? <>
       <p className={styles.eyebrow}>{unit} {game.stage} / {game.stages} · {shiritori ? '絵でつなぐ番' : drawingTurn ? '絵で伝える番' : '言葉で伝える番'}</p>
-      {!tv && game.assignment ? <DrawingAnswer key={game.assignment.key} view={view} disabled={disabled} send={send} /> : <>
+      {!tv && game.assignment ? <DrawingAnswer key={game.assignment.key} view={view} disabled={held} offline={!connected} send={send} /> : <>
         <h2>どんな{unit}になってるかな。</h2>
         <p>スマホで{drawingTurn ? '絵を描いて' : '絵を言葉にして'}、送ったら「これでOK！」。</p>
         <div className={common.playerGrid}>{view.players.filter(player => player.answeringThisRound).map(player =>

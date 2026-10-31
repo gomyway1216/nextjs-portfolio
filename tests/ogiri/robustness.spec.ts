@@ -47,3 +47,49 @@ test('a rejected answer stays on screen past the next poll until it is read', as
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
 
+test('a dropped poll leaves typing and focus alone, and blocks only sending', async ({ browser, baseURL }) => {
+  test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
+  const contexts: BrowserContext[] = [];
+  try {
+    const { path, phone } = await started(browser, baseURL, 'ogiri', contexts, 2);
+    const answer = phone.getByRole('textbox', { name: '回答', exact: true }).first();
+    await answer.fill('書きかけ');
+    await answer.focus();
+    await phone.route(`**${path}`, route => route.abort());
+    await expect(phone.getByText('接続を確認しています。自動で再接続します。回答の下書きは保存されています。', { exact: true })).toBeVisible();
+    await expect(answer).toBeEnabled();
+    await expect(answer).toBeFocused();
+    await expect(phone.getByRole('button', { name: 'この回答を送る', exact: true }).first()).toBeDisabled();
+    await answer.pressSequentially('のまま');
+    await expect(answer).toHaveValue('書きかけのまま');
+    await phone.unroute(`**${path}`);
+    await expect(phone.getByRole('button', { name: 'この回答を送る', exact: true }).first()).toBeEnabled();
+    await expect(answer).toHaveValue('書きかけのまま');
+  } finally { await Promise.all(contexts.map(context => context.close())); }
+});
+
+test('the second answer cannot be tapped into nothing while the first is still sending', async ({ browser, baseURL }) => {
+  test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
+  const contexts: BrowserContext[] = [];
+  try {
+    const { path, phone } = await started(browser, baseURL, 'ogiri', contexts, 3);
+    const answers = phone.getByRole('textbox', { name: '回答', exact: true });
+    await answers.first().fill('ひとつめ');
+    await answers.last().fill('ふたつめ');
+    let release!: () => void, entered!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const sending = new Promise<void>(resolve => { entered = resolve; });
+    await phone.route(`**${path}`, async route => {
+      if (route.request().method() === 'POST' && route.request().postDataJSON()?.type === 'answer') { entered(); await held; }
+      await route.continue();
+    }, { times: 1 });
+    await phone.getByRole('button', { name: 'この回答を送る', exact: true }).first().click();
+    await sending;
+    await expect(phone.getByRole('button', { name: 'この回答を送る', exact: true })).toBeDisabled();
+    release();
+    await expect(phone.getByRole('button', { name: '送信済み ✓', exact: true })).toHaveCount(1);
+    await phone.getByRole('button', { name: 'この回答を送る', exact: true }).click();
+    await expect(phone.getByRole('button', { name: '送信済み ✓', exact: true })).toHaveCount(2);
+  } finally { await Promise.all(contexts.map(context => context.close())); }
+});
+

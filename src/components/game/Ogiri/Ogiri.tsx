@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 import { AVATARS, CATEGORIES, GAME_TITLES, maxRounds, roundsFor, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { RoundPlan } from './RoundPlan';
@@ -219,7 +220,7 @@ export function OgiriLanding() {
   // Restoring browser-only storage after hydration is intentional.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLastRoom(localStorage.getItem('ogiri:lastRoom') ?? '');
+    setLastRoom(loadDraft('ogiri:lastRoom') ?? '');
     const game = new URLSearchParams(window.location.search).get('game');
     if (game && Object.hasOwn(GAME_TITLES, game)) {
       setSelectedGameType(game as GameType);
@@ -349,7 +350,7 @@ function AnswerForm({
   // This also restores the unsent Japanese draft after a full reload.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setText(localStorage.getItem(key) ?? assignment.answer);
+    setText(loadDraft(key) ?? assignment.answer);
   }, [key, assignment.answer]);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -357,7 +358,7 @@ function AnswerForm({
     if (await send({ type: 'answer', matchId: assignment.id, text })) {
       const stored = normalizePlayerText(text);
       setText(stored);
-      localStorage.removeItem(key);
+      clearDraft(key);
     }
     setBusy(false);
   }
@@ -373,7 +374,7 @@ function AnswerForm({
         value={text}
         onChange={(e) => {
           setText(e.target.value);
-          localStorage.setItem(key, e.target.value);
+          saveDraft(key, e.target.value);
         }}
         disabled={disabled || busy}
       />
@@ -718,12 +719,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const readyCount = answerers.filter((p) => p.answerReady).length;
   const everyoneReady = answerers.length > 0 && readyCount === answerers.length;
   const hasUnsentChanges = typeof window !== 'undefined' && v?.phase === 'answering' && v.assignments.some((a) => {
-    const draft = localStorage.getItem(`ogiri:draft:${code}:${a.id}`);
+    const draft = loadDraft(`ogiri:draft:${code}:${a.id}`);
     return draft !== null && draft !== a.answer;
   });
   async function confirmAnswers() {
     if (v?.assignments.some((a) => {
-      const draft = localStorage.getItem(`ogiri:draft:${code}:${a.id}`);
+      const draft = loadDraft(`ogiri:draft:${code}:${a.id}`);
       return draft !== null && draft !== a.answer;
     })) {
       setError('未送信の変更があります。「回答を更新」で送信してから確定してください。');

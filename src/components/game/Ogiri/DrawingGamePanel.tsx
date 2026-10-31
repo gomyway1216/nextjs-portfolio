@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { drawingInput, emptyDrawing } from '@/lib/ogiri/drawing-data';
+import { loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { SHIRITORI_WORD_MAX, shiritoriProblem, shiritoriWord } from '@/lib/ogiri/shiritori';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { GAME_TITLES, type Action, type DrawingData, type DrawingGameView, type RoomView } from '@/lib/ogiri/types';
@@ -37,8 +38,7 @@ function DrawingAnswer({ view, disabled, send }: { view: RoomView; disabled: boo
     async function restore() {
       setLoading(true);
       try {
-        let draft: string | null = null;
-        try { draft = localStorage.getItem(key); } catch { /* Storage is optional. */ }
+        const draft = loadDraft(key);
         if (assignment.kind === 'draw') {
           const saved = assignment.savedDrawingId ? await loadDrawing(view.code, assignment.savedDrawingId) : emptyDrawing();
           let value = saved;
@@ -57,7 +57,7 @@ function DrawingAnswer({ view, disabled, send }: { view: RoomView; disabled: boo
   const invalid = assignment.kind === 'draw' ? !data.strokes.length || Boolean(problem) : !normalized || [...normalized].length > 80;
   const updateLabel = shiritori ? '絵を更新' : '伝言を更新';
   const locked = disabled || saving || loading || ready;
-  const persist = (value: string, target = key) => { try { localStorage.setItem(target, value); } catch { /* Still usable without a draft. */ } };
+  const persist = (value: string, target = key) => saveDraft(target, value);
   return <div className={styles.answer}>
     {assignment.kind === 'draw' ? <>
       {shiritori ? <ShiritoriPrompt code={view.code} assignment={assignment} /> : <>

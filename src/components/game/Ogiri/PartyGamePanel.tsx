@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { GAME_TITLES, type Action, type GameType, type RoomView } from '@/lib/ogiri/types';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { AnimatedScore } from './AnimatedScore';
 import { Character } from './Character';
@@ -44,14 +45,14 @@ function IdentityAnswer({ view, disabled, send }: {
   const dirty = normalized !== side.answer;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore unsent local Japanese input.
-    setText(localStorage.getItem(key) ?? side.answer);
+    setText(loadDraft(key) ?? side.answer);
   }, [key, side.answer]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     if (await send({ type: 'partyAnswer', text })) {
       setText(normalized);
-      localStorage.removeItem(key);
+      clearDraft(key);
     }
     setSaving(false);
   }
@@ -69,7 +70,7 @@ function IdentityAnswer({ view, disabled, send }: {
             disabled={disabled || saving || Boolean(mine?.answerReady)}
             onChange={event => {
               setText(event.target.value);
-              localStorage.setItem(key, event.target.value);
+              saveDraft(key, event.target.value);
             }}
           />
         </label>

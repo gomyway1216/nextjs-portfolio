@@ -143,7 +143,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
           </div>
         </div>}
         {view.phase === 'voting' && <p className={styles.voteHelp} role="status">
-          {side.voted ? '投票済み。みんなの予想を待っています。' : side.isAuthor ? 'あなたが書いたひとことです。今回はみんなの予想を待とう。' : !side.canVote ? '投票は参加者のスマホからどうぞ。' : side.type === 'identity' ? 'これを書いたのは？ 名前とキャラから選んでね。' : 'どれにする？ みんなが選びそうな方へ！'}
+          {side.voted ? '投票済み。みんなの予想を待っています。' : side.isAuthor ? 'あなたが書いたひとことです。今回はみんなの予想を待とう。' : view.resting ? '休憩中なので、今回の投票はお休みです。' : !side.canVote ? '投票は参加者のスマホからどうぞ。' : side.type === 'identity' ? 'これを書いたのは？ 名前とキャラから選んでね。' : 'どれにする？ みんなが選びそうな方へ！'}
         </p>}
         {side.type === 'identity' && view.phase === 'reveal' && <p className={styles.identityAccuracy}>
           正解 {side.result?.counts[side.result.correctOption ?? ''] ?? 0} / {side.votesReceived}票

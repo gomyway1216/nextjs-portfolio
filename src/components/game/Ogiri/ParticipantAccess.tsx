@@ -29,7 +29,12 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
     <div className={styles.row}>
       <b>{view.resting ? 'いまは休憩中です' : 'このルームの参加者として接続中'}</b>
       <button className={styles.secondary} disabled={busy || !connected}
-        onClick={() => void send({ type: view.resting ? 'return' : 'leave' })}>
+        onClick={() => {
+          // One stray tap here used to drop a player from every later round without any notice.
+          if (!view.resting && !['lobby', 'finished'].includes(view.phase) &&
+            !window.confirm('休憩すると、次のラウンドからお題が回ってこなくなります。休憩しますか？')) return;
+          void send({ type: view.resting ? 'return' : 'leave' });
+        }}>
         {view.resting ? '参加に戻る' : '休憩する'}
       </button>
     </div>

@@ -912,6 +912,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
           </section>
         ) : (
           <>
+            {!tv && v.resting && (
+              <p className={styles.pause} role="status">
+                休憩中なので、次のお題は回ってきません。{' '}
+                <button disabled={busy || !connected} onClick={() => void send({ type: 'return' })}>今すぐ戻る</button>
+              </p>
+            )}
             <header className={styles.roundHeader}>
               <div>
                 <p className={styles.eyebrow}>
@@ -1139,7 +1145,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 </div>
                 <p className={styles.voteStatus} aria-live="polite">
                   {v.phase === 'voting'
-                    ? `${v.match.votesReceived} / ${v.match.eligible} 人が投票済み${!tv && mine && !v.match.canVote ? ' · 自分の対戦は投票をお休み' : ''}`
+                    ? `${v.match.votesReceived} / ${v.match.eligible} 人が投票済み${!tv && v.resting ? ' · 休憩中は投票をお休み' : !tv && mine && v.match.isAuthor ? ' · 自分の対戦は投票をお休み' : ''}`
                     : 'はい、次の無茶ぶりへ。'}
                 </p>
               </section>

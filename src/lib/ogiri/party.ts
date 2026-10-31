@@ -12,7 +12,7 @@ export function gamePlayerIds(room: Room): Set<string> {
 /** Called inside the same conditional commit as the game result and immutable archive. */
 export function settlePartyPoints(room: Room, standings: { id: string; rank: number }[]) {
   if (room.phase !== 'finished' || room.partyAwardedGame === room.game) return;
-  const played = room.drawing?.scored || (room.sideRounds ?? []).some(round => round.results.length > 0) || [...(room.pastRounds ?? []).flatMap((r) => r.matches), ...room.matches].some(
+  const played = room.drawing?.scored || Object.keys(room.drawing?.awards ?? {}).length > 0 || (room.sideRounds ?? []).some(round => round.results.length > 0) || [...(room.pastRounds ?? []).flatMap((r) => r.matches), ...room.matches].some(
     (m) => m.scored,
   );
   room.partyAwardedGame = room.game;

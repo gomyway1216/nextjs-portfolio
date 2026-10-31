@@ -520,6 +520,7 @@ a.historyCard:hover {
 .modeTeasers button:nth-child(2) { background: #bfeeff; }
 .modeTeasers button:nth-child(3) { background: #ffb8db; }
 .modeTeasers button:nth-child(4) { background: #c4f7c9; }
+.modeTeasers button:nth-child(5) { background: #ffd9a8; grid-column: 1 / -1; }
 .modeTeasers b { font-size: 17px; line-height: 1.4; }
 .modeTeasers span { font-size: 13px; line-height: 1.5; }
 .modeTeasers small { font-size: 11px; margin-top: auto; }
@@ -1086,7 +1087,8 @@ a.historyCard:hover {
 }
 .nextGameChoices h2 { margin: 0 0 10px; font-size: clamp(25px, 3vw, 38px); color: #19162f; }
 .nextGameChoices > p { margin: 0; line-height: 1.6; }
-.nextGameChoices .modeTeasers { margin-top: 18px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.nextGameChoices .modeTeasers { margin-top: 18px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.nextGameChoices .modeTeasers button:nth-child(5) { grid-column: auto; }
 .nextGameChoices .modeTeasers button:first-child { background: #fff3a0; }
 .nextGameChoices .modeTeasers small { color: #19162f; font-weight: 800; }
 .nextGameChoices .modeTeasers button:disabled { opacity: .6; cursor: wait; }

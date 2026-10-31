@@ -18,9 +18,10 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
+  shiritori: 'おえかきしりとり',
 };
 export interface Settings {
   gameType?: GameType;
@@ -252,7 +253,7 @@ export interface GameHighlights {
   } | null;
 }
 export type Action =
-  | { type: 'drawingSubmit'; drawing: DrawingData }
+  | { type: 'drawingSubmit'; drawing: DrawingData; word?: string }
   | { type: 'drawingGuess'; text: string }
   | { type: 'drawingVote'; choice: string }
   | { type: 'partyAnswer'; text: string }
@@ -301,12 +302,14 @@ export interface DrawingGameView {
     savedDrawingId: string | null;
     answer: string;
     saved: boolean;
+    /** Shiritori only: the opening sound, set when no picture has to reveal it. */
+    sound: string | null;
   };
   chain: null | {
     index: number;
     total: number;
     prompt: string;
-    steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawingId: string | null; text: string | null }[];
+    steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawingId: string | null; text: string | null; link: boolean | null }[];
   };
   gallery: { id: string; author: string; name: string; avatar: string; votes: number; points: number }[];
   canVote: boolean;
@@ -317,5 +320,5 @@ export interface DrawingGameView {
 }
 export interface DrawingHistoryChain {
   prompt: string;
-  steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number }[];
+  steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number; link?: boolean | null }[];
 }

@@ -5,7 +5,7 @@
 .answer { max-width: 700px; margin: 0 auto; }
 .answer > .picture { max-height: 42vh; }
 .answer label { display: grid; gap: 8px; margin-top: 16px; }
-.answer textarea { width: 100%; border: 3px solid #19162f; border-radius: 12px; padding: 14px; background: white; color: #19162f; font: inherit; }
+.answer textarea, .answer input { width: 100%; border: 3px solid #19162f; border-radius: 12px; padding: 14px; background: white; color: #19162f; font: inherit; }
 .answerButtons { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 8px; }
 .editor { margin: 16px 0; }
 .palette { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; background: #fff8de; color: #19162f; border: 3px solid #19162f; border-radius: 14px 14px 0 0; }
@@ -23,6 +23,13 @@
 .chainStep > b { margin-bottom: 10px; }
 .chainStep > p:last-child { margin-top: auto; padding-top: 12px; font-weight: 800; }
 .chainGrid .chainStep small { color: #19162f; }
+.chainGrid .word { margin-bottom: 10px; font-size: clamp(20px, 1.7vw, 32px); font-weight: 900; overflow-wrap: anywhere; }
+.chainGrid .link { margin: 10px 0 0; padding: 6px 10px; border: 2px solid #19162f; border-radius: 10px; background: #ffb8db; font-weight: 900; text-align: center; }
+.chainGrid .linked { background: #c4f7c9; }
+@keyframes stepIn { from { opacity: 0; transform: translateY(12px); } }
+@keyframes wordIn { from { opacity: 0; } }
+.sequence .chainStep { animation: stepIn .45s ease-out both; animation-delay: calc(var(--step) * 4s); }
+.sequence .word, .sequence .link { animation: wordIn .3s ease-out both; animation-delay: calc(var(--step) * 4s + 1.6s); }
 .guess { display: grid; place-items: center; flex: 1; min-height: 180px; padding: 16px; font-size: clamp(22px, 2vw, 36px); font-weight: 900; background: #ffb8db; border-radius: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .caption, .voteStatus { font-size: 22px; text-align: center; font-weight: 800; }
 .gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
@@ -46,6 +53,7 @@
 .tv .work > span { min-width: 0; font-size: .8vw; }
 .tv .work > b { white-space: nowrap; font-size: .8vw; }
 .tv .gallery .work img { width: 24px; height: 24px; }
+.tv .gallery.crowded { grid-template-columns: repeat(9, minmax(0, 1fr)); }
 .tv .voteStatus { margin: .5vh 0; font-size: 1.2vw; }
 @media (max-width: 720px) {
   .chainGrid { grid-template-columns: 1fr; }

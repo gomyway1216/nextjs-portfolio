@@ -510,6 +510,8 @@ function SettingsForm({
 export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) {
   const [view, setView] = useState<RoomView | null>(null),
     [error, setError] = useState(''),
+    // A rejected action needs reading; `error` is cleared by the next good poll, within 1.5 seconds.
+    [actionError, setActionError] = useState(''),
     [connected, setConnected] = useState(true);
   const [qr, setQr] = useState(''),
     [clock, setClock] = useState(0),
@@ -536,6 +538,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const lastSoundView = useRef<RoomView | null>(null);
   const accept = useCallback((next: RoomView) => {
     if (latest.current && next.revision < latest.current.revision) return;
+    if (latest.current && latest.current.turn !== next.turn) setActionError('');
     rememberRecovery(next);
     const receivedAt = Date.now();
     latest.current = next;
@@ -688,7 +691,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   async function send(action: Action) {
     if (tv || busy) return false;
     setBusy(true);
-    setError('');
+    setActionError('');
     try {
       const v = latest.current;
       const next = await request(`/${code}${action.type === 'drawingSubmit' ? '/drawing' : ''}`, { ...action, turn: v?.turn });
@@ -700,7 +703,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       sync.current?.resume();
       return true;
     } catch (error) {
-      setError((error as Error).message);
+      setActionError((error as Error).message);
       return false;
     } finally {
       setBusy(false);
@@ -709,20 +712,20 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   async function regenerateRecovery() {
     if (tv || busy) return;
     setBusy(true);
-    setError('');
+    setActionError('');
     try { accept(await request(`/${code}`, { type: 'recoveryCode' })); }
-    catch (error) { setError((error as Error).message); }
+    catch (error) { setActionError((error as Error).message); }
     finally { setBusy(false); }
   }
   async function savePassphrase(passphrase: string) {
     if (tv || busy) return false;
     setBusy(true);
-    setError('');
+    setActionError('');
     try {
       accept(await request(`/${code}`, { type: 'setPassphrase', passphrase }));
       return true;
     } catch (error) {
-      setError((error as Error).message);
+      setActionError((error as Error).message);
       return false;
     } finally { setBusy(false); }
   }
@@ -919,6 +922,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
         {error && (
           <p role="alert" className={styles.error}>
             {error}
+          </p>
+        )}
+        {actionError && (
+          <p role="alert" className={styles.actionError}>
+            <span>{actionError}</span>
+            <button type="button" aria-label="お知らせを閉じる" onClick={() => setActionError('')}>×</button>
           </p>
         )}
         {!v ? (

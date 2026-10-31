@@ -23,6 +23,10 @@ export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
   shiritori: 'おえかきしりとり',
 };
+/** Ogiri can run as a long evening and the one-prompt modes stay short. Drawing modes play once and
+ * ignore this, so the host's choice is still there for the next game in the room. */
+export const maxRounds = (type: GameType = 'ogiri') => type === 'majority' || type === 'identity' ? 5 : 20;
+export const roundsFor = (type: GameType | undefined, rounds: number) => Math.min(rounds, maxRounds(type));
 export interface Settings {
   gameType?: GameType;
   rounds: number;

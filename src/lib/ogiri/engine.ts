@@ -2,6 +2,8 @@ import {
   AVATARS,
   CATEGORIES,
   DEFAULT_SETTINGS,
+  maxRounds,
+  roundsFor,
   type Action,
   type Match,
   type Player,
@@ -36,8 +38,8 @@ export function settingsInput(value: unknown): Settings {
   const s = value as Settings;
   requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
-    Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
-    'ラウンド数は1〜5です。',
+    Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= maxRounds(s.gameType),
+    `ラウンド数は1〜${maxRounds(s.gameType)}です。`,
   );
   requireThat(
     Number.isInteger(s.answerSeconds) && s.answerSeconds >= 30 && s.answerSeconds <= 600,
@@ -59,7 +61,7 @@ export function settingsInput(value: unknown): Settings {
   );
   return {
     gameType: s.gameType ?? 'ogiri',
-    rounds: s.gameType === 'drawing' ? 1 : s.rounds,
+    rounds: roundsFor(s.gameType, s.rounds),
     answerSeconds: s.answerSeconds,
     voteSeconds: s.voteSeconds,
     autoAdvance: s.autoAdvance,
@@ -89,12 +91,15 @@ export function newPlayer(
     lastSeen: now,
   };
 }
-function roomSettings(value: unknown, prompts: Prompt[]): Settings {
+const PROMPT_SHORTAGE = 'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。';
+const promptPool = (settings: Settings, prompts: Prompt[]) => prompts.filter(p => p.enabled &&
+  (settings.halloween ? p.category === 'halloween' : !settings.categories.length || settings.categories.includes(p.category)));
+const playing = (room: Room) => Object.values(room.players).filter(p => p.active && !p.kicked && !p.spectator);
+/** People can still join after this, so the start of the game checks the final head count again. */
+function roomSettings(value: unknown, room: Room, prompts: Prompt[]): Settings {
   const settings = settingsInput(value);
-  const pool = prompts.filter(p => p.enabled &&
-    (settings.halloween ? p.category === 'halloween' : !settings.categories.length || settings.categories.includes(p.category)));
-  requireThat(settings.gameType !== 'ogiri' || pool.length >= settings.rounds * 12,
-    'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。');
+  requireThat(settings.gameType !== 'ogiri' ||
+    promptPool(settings, prompts).length >= settings.rounds * Math.max(3, playing(room).length), PROMPT_SHORTAGE);
   return settings;
 }
 export function createRoom(code: string, host: Player, now: number): Room {
@@ -182,12 +187,10 @@ export function rankPlayers(room: Room) {
   }));
 }
 function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => number) {
-  const players = Object.values(room.players).filter((p) => p.active && !p.kicked && !p.spectator);
+  const players = playing(room);
   requireThat(players.length >= 3, '3人以上の参加者が必要です。', 409);
-  const categories = room.settings.halloween ? ['halloween'] : room.settings.categories;
-  const eligiblePrompts = prompts.filter(
-    (p) => p.enabled && (!categories.length || categories.includes(p.category)),
-  );
+  const eligiblePrompts = promptPool(room.settings, prompts);
+  requireThat(room.round > 0 || eligiblePrompts.length >= players.length * room.settings.rounds, PROMPT_SHORTAGE, 409);
   if (
     room.round === 0 &&
     eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id)).length <
@@ -317,7 +320,9 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
         room.phase = 'finished';
         room.deadline = 0;
       } else if (
-        Object.values(room.players).filter((p) => p.active && !p.kicked && !p.spectator).length < 3
+        playing(room).length < 3 ||
+        // A player back from a rest can outgrow the prompts checked at the start: end here rather than stall.
+        promptPool(room.settings, prompts).filter((p) => !room.usedPrompts.includes(p.id)).length < playing(room).length
       ) {
         room.phase = 'finished';
         room.deadline = 0;
@@ -391,7 +396,7 @@ export function act(
       '設定は参加受付中に変更できます。',
       409,
     );
-    room.settings = roomSettings(action.settings, prompts);
+    room.settings = roomSettings(action.settings, room, prompts);
   } else if (action.type === 'extend') {
     requireThat(room.deadline > 0 && !['lobby', 'finished'].includes(room.phase), '今は延長できません。', 409);
     room.deadline = Math.max(room.deadline, room.pausedAt || now) + (room.phase === 'answering' ? 60000 : 30000);
@@ -410,7 +415,7 @@ export function act(
     requireThat(room.phase === 'finished', '終了後に再戦できます。', 409);
     // Select the next mode and reopen this room in the same conditional update.
     if (action.gameType !== undefined)
-      room.settings = roomSettings({ ...room.settings, gameType: action.gameType }, prompts);
+      room.settings = roomSettings({ ...room.settings, gameType: action.gameType, rounds: roundsFor(action.gameType, room.settings.rounds) }, room, prompts);
     room.phase = 'lobby';
     room.round = 0;
     room.matches = [];

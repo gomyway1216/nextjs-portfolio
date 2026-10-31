@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
-import { AVATARS, CATEGORIES, GAME_TITLES, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { AVATARS, CATEGORIES, GAME_TITLES, maxRounds, roundsFor, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { RoundPlan } from './RoundPlan';
@@ -417,13 +417,13 @@ function SettingsForm({
       onChange={() => setSaved(false)}
     >
       <PartyGamePicker value={s.gameType ?? 'ogiri'} onChange={gameType => {
-        set({ ...s, gameType, rounds: gameType === 'drawing' ? 1 : s.rounds });
+        set({ ...s, gameType, rounds: roundsFor(gameType, s.rounds) });
         setSaved(false);
       }} />
       <div className={styles.settingGrid}>
         {(
           [
-            ['rounds', 'ラウンド数', [1, 2, 3, 4, 5]],
+            ['rounds', 'ラウンド数', Array.from({ length: maxRounds(s.gameType) }, (_, i) => i + 1)],
             ['answerSeconds', '回答時間（秒）', [30, 60, 90, 120, 180, 300, 600]],
             ['voteSeconds', '投票時間（秒）', [10, 15, 20, 30, 45, 60, 90, 120]],
           ] as const
@@ -915,7 +915,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               <div>
                 <p className={styles.eyebrow}>
                   {gameType === 'ogiri' ? v.settings.halloween ? '🎃 HALLOWEEN PARTY' : 'ことばであそぼう。' : GAME_TITLES[gameType]}{' '}
-                  {v.round > 0 && `ROUND ${v.round} / ${v.settings.rounds}`}
+                  {v.round > 0 && gameType !== 'drawing' && gameType !== 'shiritori' && `ROUND ${v.round} / ${v.settings.rounds}`}
                 </p>
                 <h1>{(gameType === 'ogiri' ? phaseName : partyPhaseName[gameType])[v.phase]}</h1>
               </div>

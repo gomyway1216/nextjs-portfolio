@@ -57,7 +57,6 @@ export function beginDrawing(room: Room, now: number, rng: () => number) {
     player.previousRank = 1;
   }
   room.round = 1;
-  room.settings.rounds = 1;
   room.matchIndex = 0;
   room.phase = 'answering';
   room.deadline = now + room.settings.answerSeconds * 1000;

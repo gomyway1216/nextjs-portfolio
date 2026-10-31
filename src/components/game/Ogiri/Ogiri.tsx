@@ -228,7 +228,7 @@ function JoinForm({
       {!askForSeat && <button className={styles.primary} disabled={busy || (!recovering && [...name.normalize('NFKC')].length > 16)}>
         {busy ? '接続中…' : create ? 'ルームを作成 →' : recovering ? '同じ参加者で復帰 →' : 'ルームに参加 →'}
       </button>}
-      <small>登録不要・無料。同じブラウザはCookie、別端末は設定した合言葉か復帰コードで同じ部屋に戻れます。部屋は最後のゲーム操作から8時間有効です。</small>
+      <small>登録不要・無料。同じブラウザはCookie、別端末はテレビのQRから名前を選ぶか、設定した合言葉か復帰コードで同じ部屋に戻れます。部屋は最後のゲーム操作から8時間有効です。</small>
     </form>
   );
 }
@@ -965,6 +965,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   結果を確認したら、主催者が「次へ進む」を押してください。
                 </p>
               )}
+              {tv && qr && v.phase !== 'lobby' && (
+                <aside className={styles.rejoinQr}>
+                  <span>抜けちゃった人は<br />ここから戻れます</span>
+                  <Image unoptimized src={qr} alt="スマートフォンで読み取ってルームに入り直す" width={240} height={240} />
+                </aside>
+              )}
               {v.deadline > 0 && !manualResult && !['finished', 'lobby'].includes(v.phase) && (
                 <div
                   className={`${styles.timer} ${remaining <= 10 && !waitingForAnswers ? styles.urgent : ''}`}
@@ -1266,6 +1272,12 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   >
                     テレビ画面を開く ↗
                   </a>
+                  {qr && v.phase !== 'lobby' && (
+                    <div className={styles.hostRejoinQr}>
+                      <Image unoptimized src={qr} alt="スマートフォンで読み取ってルームに入り直す" width={120} height={120} />
+                      <small>抜けた人はこのQRから戻れます。テレビ画面の右上にも出ています。</small>
+                    </div>
+                  )}
                   <p className={styles.tvUrl}>
                     テレビ用URL:{' '}
                     <span>

@@ -1074,6 +1074,11 @@ a.historyCard:hover {
 }
 .rejoinSeats button span { min-width: 0; overflow-wrap: anywhere; }
 .rejoinSeats p, .rejoinSeats small { grid-column: 1 / -1; }
+.rejoinQr { margin-left: auto; display: flex; align-items: center; gap: .7vw; font-size: 1vw; font-weight: 800; line-height: 1.45; text-align: right; }
+/* Taller than the header's 6.5vw timer: the margins let it use the gaps instead of pushing a full 12-player layout off the TV. */
+.rejoinQr img { display: block; width: 15vh; height: 15vh; margin: -1.75vh 0; border-radius: 8px; }
+.hostRejoinQr { display: flex; align-items: center; gap: 12px; }
+.hostRejoinQr img { flex-shrink: 0; border-radius: 8px; }
 .pause {
   background: #593a81;
   padding: 12px 20px;

@@ -1059,6 +1059,21 @@ a.historyCard:hover {
   padding: 10px 4px;
   min-height: 44px;
 }
+.rejoinRequests { position: sticky; top: 8px; z-index: 5; display: grid; gap: 8px; margin: 12px 0; }
+.rejoinRequests p {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 10px 14px;
+  background: #fff8de; color: #19162f; border: 3px solid #19162f; border-radius: 12px;
+}
+.rejoinRequests small { color: #19162f; margin-left: auto; }
+.rejoinRequests button:first-of-type { margin-left: auto; }
+.rejoinRequests .secondary { color: #19162f; border-color: #19162f; }
+.rejoinSeats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.rejoinSeats button {
+  display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px; cursor: pointer;
+  background: #fff8de; color: #19162f; border: 3px solid #19162f; border-radius: 12px; font: inherit; font-weight: 800; text-align: left;
+}
+.rejoinSeats button span { min-width: 0; overflow-wrap: anywhere; }
+.rejoinSeats p, .rejoinSeats small { grid-column: 1 / -1; }
 .pause {
   background: #593a81;
   padding: 12px 20px;

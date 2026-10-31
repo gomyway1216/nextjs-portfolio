@@ -7,10 +7,12 @@ import {
   act,
   createRoom,
   GameError,
+  isRejoinPending,
   joinRoom,
   newPlayer,
   settingsInput,
   project,
+  requestRejoin,
   rankPlayers,
   ROOM_TTL,
   tick,
@@ -269,6 +271,16 @@ export async function recoverRoom(code: string, input: unknown) {
     token: recovered.token,
   };
 }
+/** The caller keeps the new session in its cookie; it starts working only when the host approves. */
+export async function requestRejoinSeat(code: string, playerId: unknown) {
+  if (typeof playerId !== 'string' || !/^[a-f0-9]{24}$/.test(playerId)) throw new GameError('戻る参加者を選んでください。');
+  const session = identity(playerId);
+  const room = await mutate(code, (room, now) => {
+    countRecoveryAttempt(room, now);
+    requestRejoin(room, playerId, session.hash, now);
+  });
+  return { view: { ...project(room, null, Date.now(), prompts), rejoinPending: true }, token: session.token };
+}
 export async function readRoom(code: string, token?: string, tv = false) {
   const ref = collection().doc(code);
   let room = (await ref.get()).data() as Room | undefined;
@@ -286,7 +298,9 @@ export async function readRoom(code: string, token?: string, tv = false) {
       true,
     );
   }
-  return project(room, tv ? null : authenticate(room, token), Date.now(), prompts);
+  const [id, secret] = tv ? [] : token?.split('.') ?? [];
+  const pending = Boolean(id && secret && isRejoinPending(room, id, hash(secret), Date.now()));
+  return { ...project(room, tv ? null : authenticate(room, token), Date.now(), prompts), ...(pending ? { rejoinPending: true } : {}) };
 }
 export async function command(
   code: string,

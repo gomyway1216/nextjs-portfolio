@@ -88,7 +88,14 @@ export interface Match {
   scored: boolean;
   points: number[];
 }
+export interface RejoinSeat {
+  id: string;
+  name: string;
+  avatar: string;
+}
 export interface Room {
+  /** A device asking for a quiet seat. The hash replaces the old session once the host agrees. */
+  rejoinRequests?: Record<string, { secretHash: string; at: number }>;
   drawing?: DrawingRound;
   /** Durable recovery throttle shared across server instances. */
   recoveryAttempts?: { count: number; resetAt: number };
@@ -195,6 +202,11 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  /** Quiet seats offered to a visitor without a session, for example after scanning the TV QR. */
+  rejoinSeats?: RejoinSeat[];
+  rejoinRequests?: RejoinSeat[];
+  /** This visitor asked for a seat and is waiting for the host. */
+  rejoinPending?: boolean;
   /** Includes the GM, who is intentionally absent from the player standings. */
   participantName?: string;
   /** Only the authenticated participant's setup status, never a verifier. */
@@ -270,6 +282,7 @@ export type Action =
   | { type: 'rematch'; gameType?: GameType }
   | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'leave' | 'return' | 'heartbeat' }
   | { type: 'kick'; playerId: string }
+  | { type: 'rejoinAnswer'; playerId: string; approve: boolean }
   | { type: 'hide'; matchId: string; choice: number };
 
 export interface DrawingData {

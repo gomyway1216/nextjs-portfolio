@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import QRCode from 'qrcode';
-import { AVATARS, CATEGORIES, GAME_TITLES, maxRounds, roundsFor, type Action, type GameType, type RoomView, type Settings } from '@/lib/ogiri/types';
+import { AVATARS, CATEGORIES, GAME_TITLES, maxRounds, roundsFor, type Action, type GameType, type RejoinSeat, type RoomView, type Settings } from '@/lib/ogiri/types';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { isManualResult, startRoomPolling, type SyncStop } from '@/lib/ogiri/polling';
 import { normalizePlayerText } from '@/lib/ogiri/text';
@@ -70,16 +70,20 @@ function JoinForm({
   create = false,
   onJoined,
   initialGameType = 'ogiri',
+  seats = [],
+  midGame = false,
 }: {
   code?: string;
   create?: boolean;
   onJoined?: (view: RoomView) => void;
   initialGameType?: GameType;
+  seats?: RejoinSeat[];
+  midGame?: boolean;
 }) {
   const router = useRouter();
   const [hostPlays, setHostPlays] = useState(false);
-  const [recovering, setRecovering] = useState(false);
-  const [recoveryMethod, setRecoveryMethod] = useState<'code' | 'passphrase'>('code');
+  const [recovering, setRecovering] = useState(midGame);
+  const [recoveryMethod, setRecoveryMethod] = useState<'seat' | 'code' | 'passphrase'>(code ? 'seat' : 'code');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [passphrase, setPassphrase] = useState('');
   const [gameType, setGameType] = useState<GameType>(initialGameType);
@@ -88,18 +92,12 @@ function JoinForm({
   const [room, setRoom] = useState(code ?? ''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  const askForSeat = recovering && recoveryMethod === 'seat';
+  async function enter(data: object) {
     setBusy(true);
     setError('');
     try {
-      const view = await request(create ? '' : `/${room.trim().toUpperCase()}`, {
-        type: recovering ? recoveryMethod === 'passphrase' ? 'recoverPassphrase' : 'recover' : 'join',
-        ...(recovering ? recoveryMethod === 'passphrase' ? { passphrase } : { recoveryCode } : {}),
-        name,
-        avatar,
-        ...(create ? { hostPlays, gameType } : {}),
-      });
+      const view = await request(create ? '' : `/${room.trim().toUpperCase()}`, data);
       rememberRecovery(view);
       try { localStorage.setItem('ogiri:lastRoom', view.code); } catch { /* Optional recent room. */ }
       if (onJoined) onJoined(view);
@@ -109,6 +107,17 @@ function JoinForm({
     } finally {
       setBusy(false);
     }
+  }
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (askForSeat) return;
+    await enter({
+      type: recovering ? recoveryMethod === 'passphrase' ? 'recoverPassphrase' : 'recover' : 'join',
+      ...(recovering ? recoveryMethod === 'passphrase' ? { passphrase } : { recoveryCode } : {}),
+      name,
+      avatar,
+      ...(create ? { hostPlays, gameType } : {}),
+    });
   }
   return (
     <form onSubmit={submit} className={styles.form}>
@@ -133,12 +142,22 @@ function JoinForm({
         </label>
       )}
       {recovering && <div className={styles.recoveryMethods} role="radiogroup" aria-label="復帰方法">
+        {code && <label><input type="radio" name="recoveryMethod" checked={recoveryMethod === 'seat'}
+          onChange={() => setRecoveryMethod('seat')} />名前を選ぶ</label>}
         <label><input type="radio" name="recoveryMethod" checked={recoveryMethod === 'code'}
           onChange={() => setRecoveryMethod('code')} />復帰コード</label>
         <label><input type="radio" name="recoveryMethod" checked={recoveryMethod === 'passphrase'}
           onChange={() => setRecoveryMethod('passphrase')} />合言葉</label>
       </div>}
-      {recovering ? recoveryMethod === 'passphrase' ? <>
+      {askForSeat ? <div className={styles.rejoinSeats} role="group" aria-label="戻る参加者を選ぶ">
+        {seats.map((seat) => <button type="button" key={seat.id} disabled={busy}
+          onClick={() => void enter({ type: 'rejoinRequest', playerId: seat.id })}>
+          <Character avatar={seat.avatar} size="medium" decorative />
+          <span>{seat.name}</span>
+        </button>)}
+        {!seats.length && <p>接続が切れた人の名前がここに出ます。切れてから1分ほどかかります。</p>}
+        <small>自分の名前を押すと、主催者の画面に確認が出ます。許可されると、名前・キャラ・得点のまま戻れます。</small>
+      </div> : recovering ? recoveryMethod === 'passphrase' ? <>
         <label>ニックネーム
           <input aria-label="ニックネーム" autoComplete="username" required maxLength={32}
             value={name} onChange={event => setName(event.target.value)} />
@@ -206,9 +225,9 @@ function JoinForm({
           {error}
         </p>
       )}
-      <button className={styles.primary} disabled={busy || (!recovering && [...name.normalize('NFKC')].length > 16)}>
+      {!askForSeat && <button className={styles.primary} disabled={busy || (!recovering && [...name.normalize('NFKC')].length > 16)}>
         {busy ? '接続中…' : create ? 'ルームを作成 →' : recovering ? '同じ参加者で復帰 →' : 'ルームに参加 →'}
-      </button>
+      </button>}
       <small>登録不要・無料。同じブラウザはCookie、別端末は設定した合言葉か復帰コードで同じ部屋に戻れます。部屋は最後のゲーム操作から8時間有効です。</small>
     </form>
   );
@@ -912,6 +931,21 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
           </section>
         ) : (
           <>
+            {(tv || v.isHost) && Boolean(v.rejoinRequests?.length) && (
+              <section className={styles.rejoinRequests} aria-label="入り直しの依頼">
+                {v.rejoinRequests!.map((seat) => (
+                  <p key={seat.id} role="status">
+                    <Character avatar={seat.avatar} /> <b>{seat.name}</b>さんが入り直しを待っています
+                    {tv ? <small>主催者の画面で許可してね</small> : <>
+                      <button className={styles.primary} disabled={busy}
+                        onClick={() => void send({ type: 'rejoinAnswer', playerId: seat.id, approve: true })}>入れる</button>
+                      <button className={styles.secondary} disabled={busy}
+                        onClick={() => void send({ type: 'rejoinAnswer', playerId: seat.id, approve: false })}>断る</button>
+                    </>}
+                  </p>
+                ))}
+              </section>
+            )}
             {!tv && v.resting && (
               <p className={styles.pause} role="status">
                 休憩中なので、次のお題は回ってきません。{' '}
@@ -947,18 +981,25 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                 ☕ 一時停止中です。主催者の再開をお待ちください。
               </p>
             )}
-            {!tv && !v.me && (
+            {!tv && !v.me && (v.rejoinPending ? (
+              <section className={styles.joinCard} role="status">
+                <h2>主催者の許可を待っています</h2>
+                <p>許可されると、この画面のまま自動で戻ります。主催者に声をかけてね。</p>
+              </section>
+            ) : (
               <section className={styles.joinCard}>
                 <h2>ルーム {code} に参加</h2>
                 <JoinForm
                   code={code}
+                  seats={v.rejoinSeats}
+                  midGame={!['lobby', 'finished'].includes(v.phase)}
                   onJoined={(next) => {
                     accept(next);
                     sync.current?.resume();
                   }}
                 />
               </section>
-            )}
+            ))}
             {v.phase === 'lobby' && (
               <div className={styles.lobby}>
                 <section className={styles.lobbyPlayers}>

@@ -49,6 +49,7 @@
 .tv .chainStep .picture { height: 24vh; }
 .tv .gallery { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6vw; margin: 1vh 0; }
 .tv .gallery .picture { height: 8.5vh; grid-column: 1 / -1; }
+.tv .gallery .picturePlaceholder { height: 8.5vh; min-height: 0; margin: 0; grid-column: 1 / -1; }
 .tv .work { grid-template-columns: minmax(0, 1fr) auto; padding: .3vw; gap: .1vh .4vw; border-width: 2px; font-size: .9vw; }
 .tv .work > span { min-width: 0; font-size: .8vw; }
 .tv .work > b { white-space: nowrap; font-size: .8vw; }

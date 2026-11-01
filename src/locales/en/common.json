@@ -737,6 +737,25 @@
         "Move analysis and suggestions"
       ]
     },
+    "blokus": {
+      "title": "Blokus",
+      "description": "Claim the board corner by corner with 21 pieces, against AI rivals from easy to master. Four-colour classic or two-player Duo.",
+      "longDescription": "Blokus is an abstract strategy game of territory. Every colour has the same 21 pieces, and each new piece must touch your own colour at a corner but never along an edge. Play the four-colour classic on a 20×20 board against three AIs, or Duo on a 14×14 board against one. Five AI levels run from a casual beginner to a master that plays out its best ideas before it moves.",
+      "howToPlay": [
+        "Pick a piece from your tray, then rotate or flip it",
+        "Your first piece must cover your start square",
+        "Every later piece must touch your own colour at a corner, never along an edge",
+        "When no piece fits you are out; the game ends when nobody can move",
+        "The fewest squares left in hand wins: all 21 placed scores +15, or +20 with the single square last"
+      ],
+      "features": [
+        "Classic four-colour and two-player Duo",
+        "Five AI levels, tested against each other in self-play",
+        "Mouse, touch and keyboard controls",
+        "Open corners marked on the board",
+        "Official scoring"
+      ]
+    },
     "othello": {
       "title": "Othello",
       "description": "Flip discs, claim corners, and outscore the AI by the final board.",

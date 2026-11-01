@@ -112,6 +112,34 @@ describe('removing an author during an identity reveal', () => {
   });
 });
 
+describe('prompt history across games', () => {
+  it('keeps unused prompts through a rematch when enough remain for the real head count', () => {
+    const value = room(4);
+    value.settings.halloween = true;
+    value.phase = 'finished';
+    value.round = 0;
+    value.usedPrompts = [...prompts.filter(p => p.category === 'halloween').slice(0, 8).map(p => p.id), 'majority:3'];
+    act(value, 'host', { type: 'settings', settings: { ...value.settings, rounds: 8 } }, 110, prompts);
+    act(value, 'host', { type: 'rematch' }, 111, prompts);
+    expect(value.usedPrompts).toHaveLength(9);
+    act(value, 'host', { type: 'start' }, 112, prompts);
+    const first = value.matches.map(match => match.promptId);
+    expect(first.some(id => prompts.find(p => p.id === id)?.category !== 'halloween')).toBe(false);
+    expect(first.filter(id => value.usedPrompts.slice(0, 8).includes(id))).toHaveLength(0);
+  });
+
+  it('clears only ogiri prompts when a genre really has run out', () => {
+    const value = room(4);
+    value.settings.halloween = true;
+    value.phase = 'lobby';
+    value.round = 0;
+    value.usedPrompts = [...prompts.filter(p => p.category === 'halloween').slice(0, 80).map(p => p.id), 'majority:3', 'drawing:4', 'shiritori:5'];
+    act(value, 'host', { type: 'start' }, 112, prompts);
+    expect(value.usedPrompts.slice(0, 3)).toEqual(['majority:3', 'drawing:4', 'shiritori:5']);
+    expect(value.usedPrompts).toHaveLength(3 + 4);
+  });
+});
+
 it('does not bring back a rejoin request once the owner has checked in', () => {
   const value = room(4);
   const owner = 'p0', later = 100 + 70000;

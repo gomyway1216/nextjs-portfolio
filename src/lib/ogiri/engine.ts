@@ -218,7 +218,7 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
     eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id)).length <
       players.length * room.settings.rounds
   )
-    room.usedPrompts = [];
+    room.usedPrompts = room.usedPrompts.filter((id) => id.includes(':')); // The other modes keep theirs.
   let pool = eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id));
   requireThat(
     pool.length >= players.length,
@@ -464,19 +464,6 @@ export function act(
       p.partyEarned = 0;
       p.answerReady = false;
     }
-    // Retain recent prompts between games, but never exhaust a selected genre forever.
-    const available = prompts.filter(
-      (p) =>
-        p.enabled &&
-        (room.settings.halloween
-          ? p.category === 'halloween'
-          : !room.settings.categories.length || room.settings.categories.includes(p.category)),
-    );
-    if (
-      available.filter((p) => !room.usedPrompts.includes(p.id)).length <
-      room.settings.rounds * 12
-    )
-      room.usedPrompts = [];
   } else if (action.type === 'kick') {
     requireThat(
       typeof action.playerId === 'string' &&

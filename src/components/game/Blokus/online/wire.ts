@@ -10,7 +10,7 @@
 
 import type { GameRoom, MultiplayerPlayer } from '@/services/gameRoomService';
 import { PASS, applyMove, newGame, passTurn, type GameState, type Mode } from '../engine';
-import { SHARED, ownerOf, seatFor, type Seating } from '../seating';
+import { SHARED, ownerOf, type Seating } from '../seating';
 
 export interface WireSeat {
   /** Empty for the seat waiting opposite a lone host. */
@@ -31,8 +31,12 @@ export interface BlokusNetworkState {
   mode: Mode;
   movesJson: string;
   seatsJson: string;
+  /** Which of the room's games this is. Sent with a move, as a rematch starts `turnNumber` over. */
+  matchId: number;
   /** The length of the move list. A move is sent with it, so one made against an old board is refused. */
   turnNumber: number;
+  /** The seat that plays the shared colour next: the server keeps it, as who has left isn't in the moves. */
+  sharedTurnSeat: number;
   turnStartedAt: number;
   turnLimitMs: number;
   gameOver: boolean;
@@ -106,15 +110,13 @@ export const leftSeatsOf = (wire: WireSeating): number[] =>
   wire.seats.flatMap((seat, index) => (seat.left ? [index] : []));
 
 /**
- * The seat to play now. `seatFor`, except that the shared colour goes round only
- * the seats still here, as the server does: read this rather than `seatFor`
- * online, or the turn shows on a player who has gone.
+ * The seat to play now: the colour's owner, or for the shared colour the seat the
+ * server says. Read this rather than `seatFor` online: after someone leaves, the
+ * rotation can't be worked out from the pieces played.
  */
-export const seatToPlay = (seating: Seating, game: GameState, left: readonly number[]): number => {
+export const seatToPlay = (seating: Seating, game: GameState, sharedTurnSeat: number): number => {
   const owner = ownerOf(seating, game.toMove);
-  if (owner !== SHARED) return owner;
-  const present = seating.seats.flatMap((_, seat) => (left.includes(seat) ? [] : [seat]));
-  return present[seatFor({ ...seating, seats: present.map((seat) => seating.seats[seat]) }, game)];
+  return owner === SHARED ? sharedTurnSeat : owner;
 };
 
 export const INVITE_PATH = '/games/blokus';

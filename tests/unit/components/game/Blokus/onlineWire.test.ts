@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PASS, applyMove, encodeMove, legalMoves, moveCells, newGame, passTurn } from '@/components/game/Blokus/engine';
-import { defaultSeating, seatFor } from '@/components/game/Blokus/seating';
+import { defaultSeating } from '@/components/game/Blokus/seating';
 import { errorText, getBlokusOnlineStrings } from '@/components/game/Blokus/online/strings';
 import {
   inviteUrl,
@@ -117,34 +117,21 @@ describe('seats', () => {
     expect(leftSeatsOf(wire)).toEqual([2]);
   });
 
-  it('is seatFor for a colour with an owner', () => {
+  it('finds the owner of a colour, whatever the shared seat says', () => {
     const seating = defaultSeating('classic', 4);
     const game = newGame('classic');
-    expect(seatToPlay(seating, game, [])).toBe(0);
+    expect(seatToPlay(seating, game, 3)).toBe(0);
     passTurn(game);
-    expect(seatToPlay(seating, game, [])).toBe(1);
+    expect(seatToPlay(seating, game, 3)).toBe(1);
   });
 
-  it('is seatFor for the shared colour while everyone is here', () => {
-    const seating = defaultSeating('classic', 3);
-    const game = newGame('classic');
-    [PASS, PASS, PASS].forEach(() => passTurn(game));
-    expect(game.toMove).toBe(3);
-    expect(seatToPlay(seating, game, [])).toBe(seatFor(seating, game));
-  });
-
-  it('takes the shared colour round only those still here', () => {
+  it('takes the server at its word for the shared colour', () => {
     const seating = defaultSeating('classic', 3);
     const game = newGame('classic');
     [0, 1, 2].forEach(() => passTurn(game));
-    const sharedPieces = legalMoves(game);
-    const expected = [0, 2, 0];
-    expected.forEach((seat, index) => {
-      expect(game.toMove).toBe(3);
-      expect(seatToPlay(seating, game, [1])).toBe(seat);
-      const move = index === 0 ? sharedPieces[0] : legalMoves(game)[0];
-      applyMove(game, move);
-    });
+    expect(game.toMove).toBe(3);
+    expect(seatToPlay(seating, game, 2)).toBe(2);
+    expect(seatToPlay(seating, game, 0)).toBe(0);
   });
 });
 

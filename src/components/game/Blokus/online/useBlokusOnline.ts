@@ -263,6 +263,8 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
   const seatsJson = state?.seatsJson ?? room?.seatsJson;
   const winnersJson = state?.winnersJson;
   const turnNumber = state?.turnNumber ?? null;
+  const match = state?.matchId ?? null;
+  const sharedTurnSeat = state?.sharedTurnSeat ?? 0;
 
   const wire = useMemo(() => parseSeats(seatsJson), [seatsJson]);
   const seating = useMemo(() => (mode && wire ? toSeating(mode, wire) : null), [mode, wire]);
@@ -273,7 +275,7 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
   const game = replayed?.game ?? null;
   const playing = room?.status === 'playing' && !!game && !game.over;
   const mySeat = wire?.seats.findIndex((seat) => seat.id === playerId) ?? -1;
-  const currentSeat = playing && seating ? seatToPlay(seating, game, leftSeats) : -1;
+  const currentSeat = playing && seating ? seatToPlay(seating, game, sharedTurnSeat) : -1;
   const isMyTurn = currentSeat >= 0 && currentSeat === mySeat;
   const turnDeadline = playing && state ? state.turnStartedAt + state.turnLimitMs - clockOffset : null;
 
@@ -281,12 +283,12 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
   // that has run out. The server checks the time itself and takes the first
   // claim; the later ones are refused as stale, and are meant to be.
   useEffect(() => {
-    if (!roomId || turnDeadline === null || turnNumber === null) return undefined;
+    if (!roomId || turnDeadline === null || turnNumber === null || match === null) return undefined;
     let timer: ReturnType<typeof setTimeout>;
     let cancelled = false;
     const claim = async () => {
       try {
-        await gameActionClient.claimBlokusTimeout({ roomId, playerId, turn: turnNumber });
+        await gameActionClient.claimBlokusTimeout({ roomId, playerId, turn: turnNumber, match });
       } catch {
         // Offline for now. The retry below is what gets the game going again.
       }
@@ -299,7 +301,7 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [roomId, playerId, turnNumber, turnDeadline, mySeat]);
+  }, [roomId, playerId, turnNumber, match, turnDeadline, mySeat]);
 
   // A refusal is about a board that has gone once the next turn is up.
   useEffect(() => setError(null), [turnNumber]);
@@ -382,21 +384,21 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
   const submitMove = useCallback(
     async (move: number): Promise<boolean> => {
       // A double tap must not send the same turn twice: the second would come back as an error.
-      if (!roomId || turnNumber === null || sendingRef.current) return false;
+      if (!roomId || turnNumber === null || match === null || sendingRef.current) return false;
       sendingRef.current = true;
       setSending(true);
-      const sent = await settled(() => gameActionClient.submitBlokusMove({ roomId, playerId, move, turn: turnNumber }));
+      const sent = await settled(() => gameActionClient.submitBlokusMove({ roomId, playerId, move, turn: turnNumber, match }));
       sendingRef.current = false;
       setSending(false);
       return sent;
     },
-    [settled, roomId, playerId, turnNumber],
+    [settled, roomId, playerId, turnNumber, match],
   );
 
   const claimTimeout = useCallback(async (): Promise<boolean> => {
-    if (!roomId || turnNumber === null) return false;
-    return settled(() => gameActionClient.claimBlokusTimeout({ roomId, playerId, turn: turnNumber }));
-  }, [settled, roomId, playerId, turnNumber]);
+    if (!roomId || turnNumber === null || match === null) return false;
+    return settled(() => gameActionClient.claimBlokusTimeout({ roomId, playerId, turn: turnNumber, match }));
+  }, [settled, roomId, playerId, turnNumber, match]);
 
   const leave = useCallback(async (): Promise<void> => {
     const leaving = roomId;

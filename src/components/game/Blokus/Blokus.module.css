@@ -471,6 +471,12 @@
 }
 
 /* ---- setup ---- */
+.onlineButton {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 0.75rem;
+}
+
 .modePicker {
   border: none;
   margin: 0;

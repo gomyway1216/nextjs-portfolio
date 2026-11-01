@@ -128,7 +128,7 @@ test('the second answer cannot be tapped into nothing while the first is still s
     await phone.route(`**${path}`, async route => {
       if (route.request().method() === 'POST' && route.request().postDataJSON()?.type === 'answer') { entered(); await held; }
       await route.continue();
-    }, { times: 1 });
+    });
     await phone.getByRole('button', { name: 'この回答を送る', exact: true }).first().click();
     await sending;
     await expect(phone.getByRole('button', { name: 'この回答を送る', exact: true })).toBeDisabled();

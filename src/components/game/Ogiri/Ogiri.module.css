@@ -523,7 +523,7 @@ a.historyCard:hover {
 .modeTeasers button:nth-child(5) { background: #ffd9a8; grid-column: 1 / -1; }
 .modeTeasers b { font-size: 17px; line-height: 1.4; }
 .modeTeasers span { font-size: 13px; line-height: 1.5; }
-.modeTeasers small { font-size: 11px; margin-top: auto; }
+.modeTeasers small { font-size: 11px; margin-top: auto; color: #19162f; }
 @media (max-width: 760px) {
   .modeTeasers { grid-template-columns: 1fr; }
   .modeTeasers button { display: grid; grid-template-columns: 54px 1fr; align-items: center; }
@@ -671,6 +671,7 @@ a.historyCard:hover {
   padding-top: 12px;
   border-top: 2px dashed #19162f70;
 }
+.soundCheck small { color: #19162f; }
 .soundCheck p {
   font-weight: 800;
   margin-bottom: 8px;

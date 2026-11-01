@@ -44,6 +44,10 @@ for (const [label, block] of blockers) test(`a phone with ${label} localStorage 
     await answers.last().fill('ふたつめの回答');
     await phone.getByRole('button', { name: 'この回答を送る', exact: true }).click();
     await expect(phone.getByRole('button', { name: 'これでOK！', exact: true })).toBeEnabled();
+    await answers.last().fill('送っていない書き直し');
+    await expect(phone.getByRole('button', { name: 'これでOK！', exact: true })).toBeDisabled();
+    await phone.getByRole('button', { name: '回答を更新', exact: true }).click();
+    await expect(phone.getByRole('button', { name: 'これでOK！', exact: true })).toBeEnabled();
     expect(errors).toEqual([]);
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

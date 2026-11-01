@@ -1,12 +1,14 @@
 /**
- * Blokus on one device: classic four-colour on 20×20 for two to four players, or
- * Duo on 14×14. Any seat but the first can be an AI or a friend sharing the screen.
+ * Blokus: classic four-colour on 20×20 for two to four players, or Duo on 14×14.
+ * On one device any seat but the first can be an AI or a friend sharing the
+ * screen. In an online room the server holds the game, and this page draws it
+ * and sends moves.
  */
 
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, RotateCcw, RotateCw, SlidersHorizontal } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, RotateCcw, RotateCw, SlidersHorizontal, Users } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, DifficultySelector, GameStats, GameTopBar, InfoModal } from '../common';
@@ -37,6 +39,9 @@ import {
   type Orientation,
 } from './engine';
 import { getBlokusStrings, type BlokusStrings } from './i18n';
+import { BlokusOnlineBar } from './online/BlokusOnlineBar';
+import { BlokusOnlineLobby } from './online/BlokusOnlineLobby';
+import { useBlokusOnline } from './online/useBlokusOnline';
 import { SeatPicker } from './SeatPicker';
 import {
   SHARED,
@@ -186,11 +191,12 @@ const Blokus = () => {
   const t = useMemo(() => getBlokusStrings(language), [language]);
 
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const [seating, setSeating] = useState<Seating>(() => tableFor('classic', 4, [], 'medium'));
-  const [showSetup, setShowSetup] = useState(true);
+  const [soloSeating, setSeating] = useState<Seating>(() => tableFor('classic', 4, [], 'medium'));
+  const [inSetup, setShowSetup] = useState(true);
+  const [wantsOnline, setWantsOnline] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
-  const [game, setGame] = useState<GameState>(() => newGame('classic'));
+  const [soloGame, setGame] = useState<GameState>(() => newGame('classic'));
   const [latest, setLatest] = useState<number[]>([]);
   const [heldPiece, setHeld] = useState<Held | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -201,18 +207,31 @@ const Blokus = () => {
   const clientRef = useRef<BlokusAiClient | null>(null);
   const seedRef = useRef(1);
 
+  const online = useBlokusOnline();
+  const { game: roomGame, seating: roomSeating, mySeat, lobbyState } = online;
+  const room = roomGame && roomSeating && (lobbyState === 'playing' || lobbyState === 'finished') ? { game: roomGame, seating: roomSeating } : null;
+  const inRoom = room !== null;
+  const showLobby = !inRoom && (wantsOnline || online.active || online.invite !== null);
+  const showSetup = !inRoom && !showLobby && inSetup;
+  const game = room?.game ?? soloGame;
+  const seating = room?.seating ?? soloSeating;
+
   const { mode } = seating;
   const { size, colors } = game.rules;
-  const controls = useCallback((seat: number) => isHuman(seating, seat), [seating]);
+  const controls = useCallback((seat: number) => (inRoom ? seat === mySeat : isHuman(seating, seat)), [inRoom, mySeat, seating]);
   const views = useMemo(() => viewsOf(seating), [seating]);
   /** The colour the tray shows: the one being played, or the next one a person here gets. */
-  const handColor = useMemo(() => nextColorFor(seating, game, controls), [seating, game, controls]);
+  const handColor = useMemo(
+    () => (inRoom && online.isMyTurn ? game.toMove : nextColorFor(seating, game, controls)),
+    [inRoom, online.isMyTurn, seating, game, controls],
+  );
   const held = heldPiece?.color === handColor ? heldPiece : null;
   const humanMoves = useMemo(() => (game.over ? [] : legalMoves(game, handColor)), [game, handColor]);
   const legalSet = useMemo(() => new Set(humanMoves), [humanMoves]);
   const playable = useMemo(() => new Set(humanMoves.map(movePiece)), [humanMoves]);
-  const seatToMove = seatFor(seating, game);
-  const myTurn = !showSetup && !game.over && controls(seatToMove);
+  const seatToMove = inRoom ? online.currentSeat : seatFor(seating, game);
+  // Still their turn while a move is on its way: the board only changes when the server says so.
+  const myTurn = inRoom ? online.isMyTurn : !showSetup && !showLobby && !game.over && controls(seatToMove);
   // While a colour with no hand waits for its pass, the tray already shows the next one: not a hand that can move yet.
   const handIsUp = myTurn && handColor === game.toMove;
   const humanOut = !game.over && seatsAreOut(seating, game, controls);
@@ -258,7 +277,7 @@ const Blokus = () => {
 
   // Whoever is to move: the AI thinks, and anyone with nothing to play goes out.
   useEffect(() => {
-    if (showSetup || game.over) return;
+    if (inRoom || showSetup || showLobby || game.over) return;
     const moves = legalMoves(game);
 
     if (moves.length === 0) {
@@ -284,7 +303,7 @@ const Blokus = () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [game, showSetup, seating, seatToMove, views, humanOut, pass, play]);
+  }, [game, inRoom, showSetup, showLobby, seating, seatToMove, views, humanOut, pass, play]);
 
   const resetTo = useCallback((nextMode: Mode) => {
     setGame(newGame(nextMode));
@@ -351,8 +370,9 @@ const Blokus = () => {
     }
     setNotice(null);
     setHeld(null);
-    play(game, move);
-  }, [handIsUp, held, legalSet, t, play, game]);
+    if (inRoom) void online.submitMove(move);
+    else play(game, move);
+  }, [handIsUp, held, legalSet, t, play, game, inRoom, online]);
 
   // Where a piece goes when it arrives by touch or key, with no pointer over the board to show it.
   const landing = useCallback(
@@ -478,14 +498,14 @@ const Blokus = () => {
 
   // R, F and Esc work wherever the focus is, as the piece is held rather than on the board.
   useEffect(() => {
-    if (showSetup || showInfo) return;
+    if (showSetup || showLobby || showInfo) return;
     const listener = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (handleKey(event.key)) event.preventDefault();
     };
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, [handleKey, showSetup, showInfo]);
+  }, [handleKey, showSetup, showLobby, showInfo]);
 
   const corners = useMemo(() => {
     if (showSetup || game.over || game.hands[handColor] === 0 || game.out[handColor]) return [];
@@ -504,7 +524,8 @@ const Blokus = () => {
     return open;
   }, [game, handColor, held, humanMoves, showSetup, size]);
 
-  const latestCells = useMemo(() => latest.filter((move) => move >= 0).map(moveCells), [latest]);
+  const latestMoves = inRoom ? online.latestMoves : latest;
+  const latestCells = useMemo(() => latestMoves.filter((move) => move >= 0).map(moveCells), [latestMoves]);
 
   const difficultyOptions = useMemo(
     () => DIFFICULTY_VALUES.map((value) => ({ value, label: t.difficulties[value].label, description: t.difficulties[value].description })),
@@ -514,7 +535,7 @@ const Blokus = () => {
   const status = (() => {
     if (game.over) return { main: t.finalScores, sub: '' };
     if (myTurn) {
-      const manyHere = humanCount(seating) > 1;
+      const manyHere = !inRoom && humanCount(seating) > 1;
       if (!handIsUp || humanMoves.length === 0) return { main: manyHere ? t.passing(colorName(t, seating, game.toMove)) : t.youPass, sub: '' };
       const { colors: mine } = seating.seats[seatToMove];
       const which = mine.length > 1 || !mine.includes(game.toMove) ? t.playingColor(t.colors[mode][game.toMove]) : '';
@@ -525,7 +546,7 @@ const Blokus = () => {
     return { main: humanOut ? t.youAreOut : t.thinking(name), sub: humanOut ? t.thinking(name) : '' };
   })();
 
-  const canPlace = handIsUp && ghost?.legal === true;
+  const canPlace = handIsUp && !online.sending && ghost?.legal === true;
   const seats = Array.from({ length: colors }, (_, color) => color);
   const names = useMemo(() => Array.from({ length: colors }, (_, color) => colorName(t, seating, color)), [colors, seating, t]);
   const heldText =
@@ -553,7 +574,15 @@ const Blokus = () => {
     >
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-      {showSetup ? (
+      {showLobby ? (
+        <BlokusOnlineLobby
+          online={online}
+          onBack={() => {
+            setWantsOnline(false);
+            online.dismissInvite();
+          }}
+        />
+      ) : showSetup ? (
         <DifficultySelector
           title={t.title}
           subtitle={t.subtitle}
@@ -567,6 +596,10 @@ const Blokus = () => {
           kickerLabel={t.gameSetup}
           setupContent={
             <>
+              <button type="button" className={`${styles.btn} ${styles.btnSecondary} ${styles.onlineButton}`} data-testid="blokus-online" onClick={() => setWantsOnline(true)}>
+                <Users className={styles.btnIcon} aria-hidden="true" />
+                {t.playOnline}
+              </button>
               <fieldset className={styles.modePicker}>
                 <legend className={styles.modeTitle}>{t.modeTitle}</legend>
                 <div className={styles.modeOptions}>
@@ -596,7 +629,8 @@ const Blokus = () => {
           }
         />
       ) : (
-        <div className={styles.layout} data-mode={game.rules.mode}>
+        <div className={styles.layout} data-mode={game.rules.mode} data-room={inRoom}>
+          {inRoom && <BlokusOnlineBar online={online} />}
           <div className={styles.boardColumn}>
             <div className={styles.status} role="status" aria-live="polite" data-testid="blokus-status">
               <span className={styles.statusMain}>
@@ -645,7 +679,7 @@ const Blokus = () => {
               })}
             </ul>
 
-            {game.over ? (
+            {inRoom && game.over ? null : game.over ? (
               <Result game={game} seating={seating} t={t} onNewGame={startGame} onMenu={backToMenu} />
             ) : (
               <>
@@ -693,16 +727,18 @@ const Blokus = () => {
                   onSelect={selectPiece}
                   drag={drag}
                 />
-                <div className={styles.actions}>
-                  <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={startGame}>
-                    <RotateCcw className={styles.btnIcon} aria-hidden="true" />
-                    {t.newGame}
-                  </button>
-                  <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={backToMenu}>
-                    <SlidersHorizontal className={styles.btnIcon} aria-hidden="true" />
-                    {t.changeDifficulty}
-                  </button>
-                </div>
+                {!inRoom && (
+                  <div className={styles.actions}>
+                    <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={startGame}>
+                      <RotateCcw className={styles.btnIcon} aria-hidden="true" />
+                      {t.newGame}
+                    </button>
+                    <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={backToMenu}>
+                      <SlidersHorizontal className={styles.btnIcon} aria-hidden="true" />
+                      {t.changeDifficulty}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

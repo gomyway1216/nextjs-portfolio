@@ -16,6 +16,7 @@ export interface BlokusStrings {
   modes: Record<Mode, { label: string; description: string }>;
   /** Colour names in turn order, per mode. */
   colors: Record<Mode, readonly string[]>;
+  playOnline: string;
   playersTitle: string;
   playerCount: (count: number) => string;
   player: (number: number) => string;
@@ -102,6 +103,7 @@ const en: BlokusStrings = {
     classic: ['Blue', 'Yellow', 'Red', 'Green'],
     duo: ['Violet', 'Orange'],
   },
+  playOnline: 'Play online with friends',
   playersTitle: 'Players',
   playerCount: (count) => `${count} players`,
   player: (number) => `Player ${number}`,
@@ -211,6 +213,7 @@ const ja: BlokusStrings = {
     classic: ['青', '黄', '赤', '緑'],
     duo: ['紫', 'オレンジ'],
   },
+  playOnline: '友達とオンラインで対戦',
   playersTitle: '人数',
   playerCount: (count) => `${count}人`,
   player: (number) => `プレイヤー${number}`,

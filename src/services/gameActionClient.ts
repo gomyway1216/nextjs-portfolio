@@ -194,6 +194,52 @@ export function submitOthelloMove(args: {
 }
 
 /**
+ * Blokus — place a piece, as an engine move id. Server validates the seat
+ * (including the shared colour's rotation), that `turn` is current and that
+ * the move is legal, then auto-passes every colour after it with no move.
+ */
+export function submitBlokusMove(args: {
+  roomId: string;
+  playerId: string;
+  move: number;
+  turn: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'place', ...args });
+}
+
+/**
+ * Blokus — the turn has run out. Any member may call it; the server checks
+ * the time on its own clock and passes that colour for good.
+ */
+export function claimBlokusTimeout(args: {
+  roomId: string;
+  playerId: string;
+  turn: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'timeout', ...args });
+}
+
+/** Blokus lobby — take a colour, swapping with whoever holds it. */
+export function pickBlokusColor(args: {
+  roomId: string;
+  playerId: string;
+  color: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'pick', ...args });
+}
+
+/**
+ * Blokus — the host plays again with the same seats. If someone has left,
+ * the room goes back to the lobby instead.
+ */
+export function rematchBlokus(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'rematch', ...args });
+}
+
+/**
  * Shichinarabe — play a card from hand. Server validates that it's the
  * caller's turn, that the card is in their hand, and that it's adjacent
  * to the current run for that suit. Auto-advances to the next active

@@ -77,6 +77,8 @@ const Placed = memo(function Placed({ board, rules }: { board: Int8Array; rules:
 
 interface BoardTextProps {
   game: GameState;
+  /** The colour being played, whose start square and corners are read out. */
+  color: number;
   corners: BoardProps['corners'];
   /** Display name of each colour. */
   names: readonly string[];
@@ -84,7 +86,7 @@ interface BoardTextProps {
 }
 
 /** The board in words for a screen reader, since the SVG is geometry with no cells to label. */
-export const BoardText = memo(function BoardText({ game, corners, names, strings }: BoardTextProps) {
+export const BoardText = memo(function BoardText({ game, color, corners, names, strings }: BoardTextProps) {
   const { size, starts } = game.rules;
   const rows = [];
   for (let row = 0; row < size; row++) {
@@ -98,11 +100,11 @@ export const BoardText = memo(function BoardText({ game, corners, names, strings
     const filled = entries.filter(({ cols }) => cols.length > 0);
     if (filled.length > 0) rows.push(<li key={row}>{strings.boardRow(row + 1, filled)}</li>);
   }
-  const [startRow, startCol] = starts[0];
+  const [startRow, startCol] = starts[color];
   return (
     <div className={styles.visuallyHidden} data-testid="blokus-board-text">
       <h2>{strings.boardTextTitle}</h2>
-      {game.placed[0] === 0 && <p>{strings.startSquare(strings.cell(startRow + 1, startCol + 1))}</p>}
+      {game.placed[color] === 0 && <p>{strings.startSquare(strings.cell(startRow + 1, startCol + 1))}</p>}
       {corners.length > 0 && <p>{strings.openCorners(corners.map(({ row, col }) => strings.cell(row + 1, col + 1)))}</p>}
       {rows.length > 0 ? <ul>{rows}</ul> : <p>{strings.boardEmpty}</p>}
     </div>

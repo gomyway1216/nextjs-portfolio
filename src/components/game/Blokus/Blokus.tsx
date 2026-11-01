@@ -209,6 +209,8 @@ const Blokus = () => {
   const playable = useMemo(() => new Set(humanMoves.map(movePiece)), [humanMoves]);
   const seatToMove = seatFor(seating, game);
   const myTurn = !showSetup && !game.over && controls(seatToMove);
+  // While a colour with no hand waits for its pass, the tray already shows the next one: not a hand that can move yet.
+  const handIsUp = myTurn && handColor === game.toMove;
   const humanOut = !game.over && seatsAreOut(seating, game, controls);
 
   useEffect(() => {
@@ -337,7 +339,7 @@ const Blokus = () => {
   }, [held, legalSet]);
 
   const placeHeld = useCallback(() => {
-    if (!myTurn || !held?.at) return;
+    if (!handIsUp || !held?.at) return;
     const move = encodeMove(held.orientation.index, held.at.row, held.at.col);
     if (!legalSet.has(move)) {
       setNotice(t.noFit);
@@ -346,7 +348,7 @@ const Blokus = () => {
     setNotice(null);
     setHeld(null);
     play(game, move);
-  }, [myTurn, held, legalSet, t, play, game]);
+  }, [handIsUp, held, legalSet, t, play, game]);
 
   // Where a piece goes when it arrives by touch or key, with no pointer over the board to show it.
   const landing = useCallback(
@@ -509,7 +511,7 @@ const Blokus = () => {
     if (game.over) return { main: t.finalScores, sub: '' };
     if (myTurn) {
       const manyHere = humanCount(seating) > 1;
-      if (humanMoves.length === 0) return { main: manyHere ? t.passing(colorName(t, seating, game.toMove)) : t.youPass, sub: '' };
+      if (!handIsUp || humanMoves.length === 0) return { main: manyHere ? t.passing(colorName(t, seating, game.toMove)) : t.youPass, sub: '' };
       const { colors: mine } = seating.seats[seatToMove];
       const which = mine.length > 1 || !mine.includes(game.toMove) ? t.playingColor(t.colors[mode][game.toMove]) : '';
       const hint = notice ?? (held ? '' : t.yourTurnHint);
@@ -519,7 +521,7 @@ const Blokus = () => {
     return { main: humanOut ? t.youAreOut : t.thinking(name), sub: humanOut ? t.thinking(name) : '' };
   })();
 
-  const canPlace = myTurn && ghost?.legal === true;
+  const canPlace = handIsUp && ghost?.legal === true;
   const seats = Array.from({ length: colors }, (_, color) => color);
   const names = useMemo(() => Array.from({ length: colors }, (_, color) => colorName(t, seating, color)), [colors, seating, t]);
   const heldText =
@@ -618,7 +620,7 @@ const Blokus = () => {
             <div className={styles.visuallyHidden} role="status" aria-live="polite" data-testid="blokus-held-text">
               {heldText}
             </div>
-            <BoardText game={game} corners={corners} names={names} strings={t} />
+            <BoardText game={game} color={handColor} corners={corners} names={names} strings={t} />
           </div>
 
           <div className={styles.sideColumn}>

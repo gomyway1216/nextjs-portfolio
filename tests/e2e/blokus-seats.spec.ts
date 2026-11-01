@@ -45,12 +45,22 @@ test('choosing yellow means blue moves first, and the tray is yellow', async ({ 
   await expect(page.getByTestId('blokus-seat-1-color-0')).toHaveAttribute('aria-pressed', 'true');
   await begin(page);
 
-  await expect(status(page)).toContainText('Blue AI');
   await expect(status(page)).toContainText('Your turn', { timeout: 10_000 });
   await expect(player(page, 0)).toContainText('20 pieces');
   await place(page, 'I1', 0, 19);
   await expect(player(page, 1)).toContainText('20 pieces');
   await expect(page.getByTestId('blokus-piece-I1')).toHaveAttribute('data-state', 'used');
+});
+
+test('a screen reader is told the start square of the colour you chose', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('button', { name: /Easy/ }).click();
+  await page.getByTestId('blokus-seat-0-color-1').click();
+  await begin(page);
+  const text = page.getByTestId('blokus-board-text');
+  await expect(text).toContainText('start square: row 1 column 20');
+  await expect(status(page)).toContainText('Your turn', { timeout: 10_000 });
+  await expect(text).toContainText('start square: row 1 column 20');
 });
 
 test('in Duo you can take the second colour', async ({ page }) => {

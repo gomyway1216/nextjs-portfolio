@@ -7,7 +7,7 @@
  * seed), so seat order cannot favour either. Duo plays each seed twice, once
  * with each arm moving first. `--players 2` plays classic as two sides of two
  * colours; `--players 3` seats A against two Bs round the shared colour, and an
- * even split is then 33%. A share counts the games an arm wins, with ties split; `--no-time` drops the clock so only the node budget stops a search,
+ * even split is then 33%, and A takes each seat in turn. A share counts the games an arm wins, with ties split; `--no-time` drops the clock so only the node budget stops a search,
  * which makes a run reproducible. Every colour's first piece is random, because
  * the upper levels are deterministic and would otherwise replay one game.
  * `--wa`/`--wb` override an arm's evaluation: `--wa reach=0.5,rivals=1`, and
@@ -132,8 +132,9 @@ let share = 0;
 let gap = 0;
 let maxMs = 0;
 let played = 0;
-for (let n = 0; n < games; n += 2) {
-  for (const parity of [0, 1]) {
+const rotations = players === 3 ? [0, 1, 2] : [0, 1];
+for (let n = 0; n < games; n += rotations.length) {
+  for (const parity of rotations) {
     const seatsOfA = (color: number) => color % 2 === parity;
     const gameSeed = seed * 100_003 + n;
     const result =

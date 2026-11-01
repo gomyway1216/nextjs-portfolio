@@ -207,6 +207,8 @@ describe('shiritori game', () => {
     const steps = history.drawingChains!.flatMap(chain => chain.steps);
     expect(steps.every(step => step.drawing && step.text && step.kind === 'draw')).toBe(true);
     expect(steps.filter(step => step.link)).toHaveLength(6);
+    expect(history.drawingChains![0].steps.map(step => step.points - step.votes * 100)).toEqual([100, 200, 100]);
+    expect(steps.reduce((sum, step) => sum + step.points, 0)).toBe(total(room));
     expect(historyText(history)).toContain('おえかきしりとり');
     expect(historyText(history)).toContain(`（絵）${steps[0].text}`);
     expect(historyText(history)).toContain('つながった');

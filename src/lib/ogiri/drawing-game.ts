@@ -262,11 +262,12 @@ export function drawingHistory(room: Room): DrawingHistoryChain[] {
     steps: chain.steps.map((step, stage) => {
       const visible = valid(room, step);
       const votes = visible && drawing.scored ? Object.values(drawing.votes).filter(id => id === step?.id).length : 0;
+      const links = [linked(room, chain, stage), linked(room, chain, stage + 1)].filter(Boolean).length;
       return {
         kind: isShiritori(room) || stage % 2 === 0 ? 'draw' : 'guess',
         name: visible ? room.players[step!.author].name : '今回はパス', avatar: visible ? room.players[step!.author].avatar : '',
         drawing: visible ? step?.data ?? null : null, text: visible ? step?.text ?? null : null,
-        votes, points: votes * 100, link: linked(room, chain, stage),
+        votes, points: (votes + links) * 100, link: linked(room, chain, stage),
       };
     }),
   }));

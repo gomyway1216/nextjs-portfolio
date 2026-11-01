@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore as adminFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore as adminFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getFirestore } from '@/lib/firebase-admin';
 import {
   act,
@@ -110,6 +110,7 @@ async function mutate(
       throw new GameError('ルームが見つからないか、有効期限が切れています。', 404);
     const oldRevision = room.revision;
     const oldGame = room.game;
+    const storedFields = Object.keys(room);
     const archives: GameHistory[] = [];
     const archiveFinished = () => {
       if (room.phase !== 'finished' || room.round === 0 || room.archivedGame === room.game) return;
@@ -129,10 +130,13 @@ async function mutate(
     if (room.game !== oldGame) room.historyId = randomBytes(16).toString('hex');
     archiveFinished();
     if (onlyIfDue && room.revision === oldRevision && !archives.length) return room;
+    // update() keeps every field it is not given, so one the game removed needs an explicit delete.
+    const removed = storedFields.filter((field) => !Object.hasOwn(room, field));
+    const changes = { ...saved(room), ...Object.fromEntries(removed.map((field) => [field, FieldValue.delete()])) };
     try {
       if (archives.length) {
         const batch = ref.firestore.batch();
-        batch.update(ref, saved(room), { lastUpdateTime: snapshot.updateTime! });
+        batch.update(ref, changes, { lastUpdateTime: snapshot.updateTime! });
         for (const archive of archives)
           batch.create(collection(HISTORY_COLLECTION).doc(archive.id), {
             payload: JSON.stringify(archive),
@@ -140,7 +144,7 @@ async function mutate(
             deleteAfter: Timestamp.fromMillis(archive.expiresAt),
           });
         await batch.commit();
-      } else await ref.update(saved(room), { lastUpdateTime: snapshot.updateTime! });
+      } else await ref.update(changes, { lastUpdateTime: snapshot.updateTime! });
       return room;
     } catch (error) {
       if (!(archives.length ? [6, 9, 10] : [9, 10]).includes((error as { code: number }).code))

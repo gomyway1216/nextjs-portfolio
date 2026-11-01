@@ -1,0 +1,631 @@
+/* Blokus board + UI styles */
+
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  background: var(--games-route-bg, var(--background));
+  color: var(--games-route-fg, var(--foreground));
+  overflow: auto;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 5.5rem 1rem 2rem;
+
+  --blokus-accent: #0ea5e9;
+  --blokus-muted: var(--games-route-muted, var(--muted-foreground));
+  --blokus-border: var(--games-route-border, var(--border));
+  --blokus-surface: var(--games-route-surface-raised, var(--card));
+  --blokus-board: color-mix(in srgb, var(--blokus-surface) 86%, #64748b);
+  --blokus-grid: color-mix(in srgb, var(--games-route-fg, var(--foreground)) 18%, transparent);
+}
+
+/* One colour per seat. Duo's two seats share the classes in turn order, so Duo is drawn in its own pair below. */
+.color0 {
+  --piece: #2563eb;
+  --piece-edge: #1e40af;
+}
+
+.color1 {
+  --piece: #eab308;
+  --piece-edge: #a16207;
+}
+
+.color2 {
+  --piece: #dc2626;
+  --piece-edge: #991b1b;
+}
+
+.color3 {
+  --piece: #16a34a;
+  --piece-edge: #166534;
+}
+
+.layout[data-mode='duo'] .color0 {
+  --piece: #7c3aed;
+  --piece-edge: #5b21b6;
+}
+
+.layout[data-mode='duo'] .color1 {
+  --piece: #f97316;
+  --piece-edge: #c2410c;
+}
+
+.layout {
+  width: 100%;
+  max-width: 1040px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.boardColumn {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sideColumn {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ---- status ---- */
+.status {
+  min-height: 3.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  text-align: center;
+}
+
+.statusMain {
+  font-size: clamp(1.05rem, 3.6vw, 1.3rem);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusSub {
+  color: var(--blokus-muted);
+  font-size: 0.85rem;
+}
+
+.spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid color-mix(in srgb, var(--blokus-accent) 40%, transparent);
+  border-top-color: var(--blokus-accent);
+  border-radius: 50%;
+  animation: blokusSpin 0.7s linear infinite;
+}
+
+@keyframes blokusSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- board ---- */
+.boardFrame {
+  width: min(100%, calc(100dvh - 11.5rem));
+  min-width: min(100%, 20rem);
+  aspect-ratio: 1 / 1;
+  padding: 0.35rem;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--blokus-surface) 70%, #334155);
+  box-shadow: var(--games-route-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
+}
+
+.board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.3rem;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board:focus-visible {
+  outline: 3px solid var(--blokus-accent);
+  outline-offset: 2px;
+}
+
+.boardBase {
+  fill: var(--blokus-board);
+}
+
+.gridLines {
+  stroke: var(--blokus-grid);
+  stroke-width: 0.03;
+  fill: none;
+}
+
+.square {
+  fill: var(--piece);
+  stroke: var(--piece-edge);
+  stroke-width: 0.06;
+}
+
+.mark {
+  fill: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.startMark {
+  fill: none;
+  stroke: var(--piece);
+  stroke-width: 0.14;
+}
+
+.corner {
+  fill: var(--piece);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.cornerUsable {
+  fill: var(--piece);
+  stroke: #fff;
+  stroke-width: 0.06;
+  pointer-events: none;
+}
+
+.latest rect {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 0.07;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.ghostSquare {
+  fill: var(--piece);
+  fill-opacity: 0.78;
+  stroke-width: 0.14;
+  pointer-events: none;
+}
+
+.ghostLegal .ghostSquare {
+  stroke: #22c55e;
+}
+
+.ghostIllegal .ghostSquare {
+  fill-opacity: 0.35;
+  stroke: #ef4444;
+  stroke-dasharray: 0.22 0.14;
+}
+
+/* ---- players ---- */
+.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.4rem;
+}
+
+.player {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0 0.45rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  border: 2px solid var(--blokus-border);
+  border-radius: 0.6rem;
+  background: var(--blokus-surface);
+}
+
+.player[data-active='true'] {
+  border-color: var(--piece);
+}
+
+.swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 0.2rem;
+  background: var(--piece);
+  box-shadow: inset 0 0 0 1px var(--piece-edge);
+}
+
+.playerName {
+  font-weight: 700;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerLeft {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.playerPieces {
+  grid-column: 2 / -1;
+  color: var(--blokus-muted);
+  font-size: 0.72rem;
+}
+
+/* ---- controls ---- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.turnButtons {
+  display: flex;
+  gap: 0.4rem;
+  flex: 1 1 100%;
+}
+
+.tool,
+.nudgeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--blokus-border);
+  border-radius: 0.6rem;
+  background: var(--blokus-surface);
+  color: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tool {
+  flex: 1;
+}
+
+.nudge {
+  display: grid;
+  grid-template-columns: repeat(4, 2.75rem);
+  gap: 0.25rem;
+}
+
+.tool:disabled,
+.nudgeButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tool:focus-visible,
+.nudgeButton:focus-visible,
+.trayPiece:focus-visible,
+.btn:focus-visible,
+.modeOption:focus-visible {
+  outline: 3px solid var(--blokus-accent);
+  outline-offset: 2px;
+}
+
+.placeButton {
+  flex: 1 1 8rem;
+}
+
+/* ---- tray ---- */
+.tray {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.trayPiece {
+  aspect-ratio: 1 / 1;
+  min-height: 2.75rem;
+  padding: 0.2rem;
+  border: 2px solid var(--blokus-border);
+  border-radius: 0.5rem;
+  background: var(--blokus-surface);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.trayPiece[aria-pressed='true'] {
+  border-color: var(--blokus-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blokus-accent) 40%, transparent);
+}
+
+.trayPiece[data-state='used'] {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
+}
+
+.trayPiece[data-state='stuck'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.miniPiece {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- buttons ---- */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.btn {
+  flex: 1 1 8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.6rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btnPrimary {
+  border: 1px solid #0369a1;
+  background: #0369a1;
+  color: #fff;
+}
+
+.btnSecondary {
+  border: 1px solid var(--blokus-border);
+  background: transparent;
+  color: inherit;
+}
+
+.btnIcon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+}
+
+/* ---- result ---- */
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--blokus-border);
+  border-radius: 0.8rem;
+  background: var(--blokus-surface);
+}
+
+.resultTitle {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.resultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.resultRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.resultRank {
+  width: 2.2rem;
+  font-weight: 700;
+  color: var(--blokus-muted);
+}
+
+.resultName {
+  flex: 1;
+  font-weight: 700;
+}
+
+.resultBonus {
+  font-size: 0.72rem;
+  color: var(--blokus-muted);
+}
+
+.resultScore {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- setup ---- */
+.modePicker {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.modeTitle {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.modeOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.modeOption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--blokus-border);
+  border-radius: 0.7rem;
+  background: var(--blokus-surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modeOption[aria-pressed='true'] {
+  border-color: var(--blokus-accent);
+}
+
+.modeLabel {
+  font-weight: 800;
+}
+
+.modeDescription {
+  font-size: 0.78rem;
+  color: var(--blokus-muted);
+}
+
+/* ---- info ---- */
+.infoGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.infoCard {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--blokus-border);
+  border-radius: 0.7rem;
+}
+
+.infoCardTitle {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.infoCardBody {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.tipList {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 860px) {
+  .root {
+    padding-inline: 0.75rem;
+    padding-top: 6.25rem;
+  }
+
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .status {
+    min-height: 2.5rem;
+  }
+
+  .statusSub {
+    font-size: 0.78rem;
+  }
+
+  .boardFrame {
+    width: 100%;
+    max-width: 34rem;
+  }
+
+  .sideColumn {
+    max-width: 34rem;
+    width: 100%;
+    margin-inline: auto;
+    gap: 0.5rem;
+  }
+
+  /* On a phone the piece, the tools and the board have to fit one screen: the rest goes below them. */
+  .players {
+    order: 3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sideColumn > .actions {
+    order: 4;
+  }
+
+  .controls {
+    flex-wrap: nowrap;
+  }
+
+  .controls[data-touch='true'] {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(0, 1.5fr);
+    gap: 0.25rem;
+  }
+
+  .controls[data-touch='true'] .turnButtons,
+  .controls[data-touch='true'] .nudge {
+    display: contents;
+  }
+
+  .controls[data-touch='true'] .toolLabel {
+    display: none;
+  }
+
+  .controls[data-touch='true'] .nudgeButton,
+  .controls[data-touch='true'] .tool {
+    min-width: 0;
+  }
+
+  .placeButton {
+    padding-inline: 0.25rem;
+    min-width: 0;
+  }
+
+  .tray {
+    display: flex;
+    gap: 0.3rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+
+  .trayPiece {
+    flex: 0 0 3.25rem;
+    min-height: 3.25rem;
+  }
+
+  .trayPiece[data-state='used'] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

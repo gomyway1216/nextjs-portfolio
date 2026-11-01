@@ -33,24 +33,30 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
   const [data, setData] = useState<DrawingData>(emptyDrawing), [base, setBase] = useState('');
   const [text, setText] = useState(assignment.answer);
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
     async function restore() {
       setLoading(true);
+      setError('');
       try {
         const draft = loadDraft(key);
         if (assignment.kind === 'draw') {
-          const saved = assignment.savedDrawingId ? await loadDrawing(view.code, assignment.savedDrawingId) : emptyDrawing();
-          let value = saved;
-          if (draft) { try { value = drawingInput(JSON.parse(draft), true); } catch { /* Use the saved picture. */ } }
-          if (active) { setData(value); setBase(JSON.stringify(saved)); }
+          let local: DrawingData | null = null;
+          if (draft) { try { local = drawingInput(JSON.parse(draft), true); } catch { /* Use the saved picture. */ } }
+          // This device's own draft beats a failed fetch: a bad connection must not blank the canvas.
+          const saved = assignment.savedDrawingId
+            ? await loadDrawing(view.code, assignment.savedDrawingId).catch(error => { if (local) return local; throw error; })
+            : emptyDrawing();
+          const word = shiritori ? loadDraft(`${key}:word`) : null;
+          if (active) { setData(local ?? saved); setBase(JSON.stringify(saved)); setText(word ?? assignment.answer); }
         } else if (active) setText(draft ?? assignment.answer);
-      } catch { if (active) setError('保存した絵を読み込めませんでした。ページを更新して、もう一度お試しください。'); }
+      } catch { if (active) setError('保存した絵を読み込めませんでした。'); }
       finally { if (active) setLoading(false); }
     }
     void restore();
     return () => { active = false; };
-  }, [key, view.code, assignment.kind, assignment.savedDrawingId, assignment.answer]);
+  }, [key, shiritori, reload, view.code, assignment.kind, assignment.savedDrawingId, assignment.answer]);
   const normalized = shiritori ? shiritoriWord(text) : normalizePlayerText(text);
   const problem = shiritori ? shiritoriProblem(normalized, assignment.sound) : null;
   const dirty = assignment.kind === 'draw' ? JSON.stringify(data) !== base || (shiritori && normalized !== assignment.answer) : normalized !== assignment.answer;
@@ -83,7 +89,7 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
       </label>
       <small>{[...normalized].length} / 80文字</small>
     </>}
-    {error && <p role="alert">{error}</p>}
+    {error && <p role="alert">{error} <button type="button" className={common.primary} onClick={() => setReload(reload + 1)}>もう一度読み込む</button></p>}
     <div className={styles.answerButtons}>
       <button type="button" className={common.primary} disabled={locked || offline || invalid || (!dirty && assignment.saved)} onClick={async () => {
         setSaving(true);

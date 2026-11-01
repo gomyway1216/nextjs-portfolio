@@ -279,10 +279,20 @@ export async function recoverRoom(code: string, input: unknown) {
 export async function requestRejoinSeat(code: string, playerId: unknown) {
   if (typeof playerId !== 'string' || !/^[a-f0-9]{24}$/.test(playerId)) throw new GameError('戻る参加者を選んでください。');
   const session = identity(playerId);
+  let refused: GameError | null = null;
   const room = await mutate(code, (room, now) => {
+    // mutate may retry after a concurrent update; never retain a rejected attempt's answer.
+    refused = null;
     countRecoveryAttempt(room, now);
-    requestRejoin(room, playerId, session.hash, now);
+    try { requestRejoin(room, playerId, session.hash, now); }
+    catch (error) {
+      // Throwing here would discard the count above, and a refused request still uses an attempt.
+      if (!(error instanceof GameError)) throw error;
+      refused = error;
+      room.revision++;
+    }
   });
+  if (refused) throw refused;
   return { view: { ...project(room, null, Date.now(), prompts), rejoinPending: true }, token: session.token };
 }
 export async function readRoom(code: string, token?: string, tv = false) {

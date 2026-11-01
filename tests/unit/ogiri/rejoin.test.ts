@@ -139,6 +139,15 @@ it('shares the durable recovery throttle across requests for a seat', async () =
   await expect(requestRejoinSeat(code, id)).rejects.toThrow('多すぎます');
 });
 
+it('counts refused requests against the same durable limit', async () => {
+  const { code, id } = await party();
+  silence(id);
+  await requestRejoinSeat(code, id);
+  for (let i = 0; i < 29; i++) await expect(requestRejoinSeat(code, id)).rejects.toThrow('別の端末');
+  expect(memory.room!.recoveryAttempts!.count).toBe(30);
+  await expect(requestRejoinSeat(code, id)).rejects.toThrow('多すぎます');
+});
+
 it('keeps the first live request, so a second device cannot slip in behind the name on the host screen', async () => {
   const { code, host, id } = await party();
   silence(id);

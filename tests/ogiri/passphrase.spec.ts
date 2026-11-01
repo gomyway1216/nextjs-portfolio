@@ -66,6 +66,8 @@ test('a chosen passphrase restores one resting participant and follows all four 
     await finishGame();
     expect(room.partyGames).toBe(1);
     expect(room.players.find(player => player.id === id)?.partyPoints).toBe(10);
+    // Resting asks for confirmation mid-game, so wait until this page's poll has seen the finish.
+    await expect(oldPage.getByRole('heading', { name: '結果、出ました。', exact: true })).toBeVisible();
     await oldPage.getByRole('button', { name: '休憩する', exact: true }).click();
     await expect(oldPage.getByRole('button', { name: '参加に戻る', exact: true })).toBeVisible();
     await oldPage.close();

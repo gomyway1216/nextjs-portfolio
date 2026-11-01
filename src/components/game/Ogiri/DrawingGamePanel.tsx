@@ -34,6 +34,7 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
   const [text, setText] = useState(assignment.answer);
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState('');
   const [reload, setReload] = useState(0);
+  const [unchecked, setUnchecked] = useState(false), [recheck, setRecheck] = useState(0);
   useEffect(() => {
     let active = true;
     async function restore() {
@@ -45,12 +46,12 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
           let local: DrawingData | null = null;
           if (draft) { try { local = drawingInput(JSON.parse(draft), true); } catch { /* Use the saved picture. */ } }
           // This device's own draft beats a failed fetch: a bad connection must not blank the canvas.
-          // Nothing then proves the draft matches the server, so it stays unsent until it is sent again.
+          // Nothing then proves the draft matches the server, so it counts as unsent until it can be compared.
           const saved = assignment.savedDrawingId
             ? await loadDrawing(view.code, assignment.savedDrawingId).catch(error => { if (local) return null; throw error; })
             : emptyDrawing();
           const word = shiritori ? loadDraft(`${key}:word`) : null;
-          if (active) { setData(local ?? saved ?? emptyDrawing()); setBase(saved ? JSON.stringify(saved) : ''); setText(word ?? assignment.answer); }
+          if (active) { setData(local ?? saved ?? emptyDrawing()); setBase(saved ? JSON.stringify(saved) : ''); setUnchecked(!saved); setRecheck(0); setText(word ?? assignment.answer); }
         } else if (active) setText(draft ?? assignment.answer);
       } catch { if (active) setError('保存した絵を読み込めませんでした。'); }
       finally { if (active) setLoading(false); }
@@ -58,6 +59,17 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
     void restore();
     return () => { active = false; };
   }, [key, shiritori, reload, view.code, assignment.kind, assignment.savedDrawingId, assignment.answer]);
+  useEffect(() => {
+    const id = assignment.savedDrawingId;
+    if (!unchecked || !id) return;
+    let active = true;
+    // Only the comparison retries: `restore` would lock the canvas while the player may be drawing.
+    const wait = setTimeout(() => {
+      loadDrawing(view.code, id).then(saved => { if (active) { setBase(JSON.stringify(saved)); setUnchecked(false); } })
+        .catch(() => { if (active) setRecheck(recheck + 1); });
+    }, Math.min(15000, 1000 * 2 ** recheck));
+    return () => { active = false; clearTimeout(wait); };
+  }, [unchecked, recheck, view.code, assignment.savedDrawingId]);
   const normalized = shiritori ? shiritoriWord(text) : normalizePlayerText(text);
   const problem = shiritori ? shiritoriProblem(normalized, assignment.sound) : null;
   const dirty = assignment.kind === 'draw' ? JSON.stringify(data) !== base || (shiritori && normalized !== assignment.answer) : normalized !== assignment.answer;

@@ -85,7 +85,7 @@ export function WordWolfPanel({ view, tv, busy, connected, reduced, remaining, s
         {myWord}
         <h2 className={party.prompt}>ウルフは、だれだ。</h2>
         <p className={party.voteHelp} role="status">
-          {game.voted ? '投票済み。みんなの投票を待っています。' : game.canVote ? 'ウルフだと思う人を1人選んでね。自分には投票できません。' : '投票は参加者のスマホからどうぞ。'}
+          {game.voted ? '投票済み。みんなの投票を待っています。' : game.canVote ? 'ウルフだと思う人を1人選んでね。自分には投票できません。' : view.resting ? '休憩中なので、今回の投票はお休みです。' : '投票は参加者のスマホからどうぞ。'}
         </p>
         {!tv && game.canVote ? <div className={`${party.options} ${party.peopleOptions}`}>
           {game.options.filter(option => option.id !== view.me).map(option =>

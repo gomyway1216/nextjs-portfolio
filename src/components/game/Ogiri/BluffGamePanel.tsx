@@ -116,7 +116,7 @@ export function BluffGamePanel({ view, tv, busy, connected, reduced, remaining, 
         </div>
       </> : <>
         {view.phase === 'voting' && <p className={party.voteHelp} role="status">
-          {bluff.voted ? '投票済み。みんなが選ぶのを待っています。' : !bluff.canVote ? '本当の答えは、参加者のスマホから選んでね。' : 'この中に本当の答えがひとつだけ。どれだと思う？'}
+          {bluff.voted ? '投票済み。みんなが選ぶのを待っています。' : view.resting ? '休憩中なので、今回の投票はお休みです。' : !bluff.canVote ? '本当の答えは、参加者のスマホから選んでね。' : 'この中に本当の答えがひとつだけ。どれだと思う？'}
         </p>}
         {view.phase === 'reveal' && result && <p className={styles.truthLine} data-testid="bluff-truth">
           本当の答えは <b>{bluff.options.find(option => option.id === result.truth)?.label}</b>

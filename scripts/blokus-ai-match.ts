@@ -5,8 +5,9 @@
  *
  * Classic plays A and B on alternating seats (ABAB, then BABA from the same
  * seed), so seat order cannot favour either. Duo plays each seed twice, once
- * with each arm moving first. A share counts the games an arm wins, with ties
- * split; `--no-time` drops the clock so only the node budget stops a search,
+ * with each arm moving first. `--players 2` plays classic as two sides of two
+ * colours; `--players 3` seats A against two Bs round the shared colour, and an
+ * even split is then 33%. A share counts the games an arm wins, with ties split; `--no-time` drops the clock so only the node budget stops a search,
  * which makes a run reproducible. Every colour's first piece is random, because
  * the upper levels are deterministic and would otherwise replay one game.
  * `--wa`/`--wb` override an arm's evaluation: `--wa reach=0.5,rivals=1`, and
@@ -14,6 +15,7 @@
  */
 import { BEST_WEIGHTS, budgetFor, chooseMove, seededRandom, type SearchBudget, type Weights } from '../src/components/game/Blokus/ai';
 import { PIECES, applyMove, legalMoves, movePiece, newGame, passTurn, scores, type Mode } from '../src/components/game/Blokus/engine';
+import { defaultSeating, seatFor, seatScores, sideOf, viewsOf, type Seating } from '../src/components/game/Blokus/seating';
 import type { Difficulty } from '../src/components/game/common/types';
 
 const args = process.argv.slice(2);
@@ -29,6 +31,7 @@ const games = Number(option('games', '100'));
 const mode = option('mode', 'classic') as Mode;
 const seed = Number(option('seed', '1'));
 const noTime = flag('no-time');
+const players = Number(option('players', '4'));
 
 const parseWeights = (text: string): Weights => {
   const weights = { ...BEST_WEIGHTS };
@@ -91,6 +94,39 @@ const playOne = (seatsOfA: (color: number) => boolean, gameSeed: number): Result
   return { share, gap: mean(ofA) - mean(ofB), maxMs };
 };
 
+/** One game of seats: `isA` says which seat is arm A. */
+const playSeats = (seating: Seating, isA: (seat: number) => boolean, gameSeed: number): Result => {
+  const state = newGame(mode);
+  const random = seededRandom(gameSeed);
+  const views = viewsOf(seating);
+  for (let color = 0; color < state.rules.colors; color++) {
+    const big = legalMoves(state).filter((move) => PIECES[movePiece(move)].size === 5);
+    applyMove(state, big[Math.floor(random() * big.length)]);
+  }
+  let maxMs = 0;
+  while (!state.over) {
+    const moves = legalMoves(state);
+    if (moves.length === 0) {
+      passTurn(state);
+      continue;
+    }
+    const seat = seatFor(seating, state);
+    const level = isA(seat) ? armA : armB;
+    const started = performance.now();
+    const search = budget(level, isA(seat) ? budgetA : budgetB);
+    const move = chooseMove(state, moves, level, { random, budget: search, weights: isA(seat) ? weightsA : weightsB, view: sideOf(seating, seat), views });
+    if (isA(seat)) maxMs = Math.max(maxMs, performance.now() - started);
+    applyMove(state, move);
+  }
+  const all = seatScores(seating, state);
+  const best = Math.max(...all);
+  const top = all.flatMap((score, seat) => (score === best ? [seat] : []));
+  const ofA = all.filter((_, seat) => isA(seat));
+  const ofB = all.filter((_, seat) => !isA(seat));
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  return { share: top.filter(isA).length / top.length, gap: mean(ofA) - mean(ofB), maxMs };
+};
+
 const started = Date.now();
 let share = 0;
 let gap = 0;
@@ -99,7 +135,11 @@ let played = 0;
 for (let n = 0; n < games; n += 2) {
   for (const parity of [0, 1]) {
     const seatsOfA = (color: number) => color % 2 === parity;
-    const result = playOne(seatsOfA, seed * 100_003 + n);
+    const gameSeed = seed * 100_003 + n;
+    const result =
+      players === 4
+        ? playOne(seatsOfA, gameSeed)
+        : playSeats(defaultSeating(mode, players), (seat) => seat === parity, gameSeed);
     share += result.share;
     gap += result.gap;
     maxMs = Math.max(maxMs, result.maxMs);

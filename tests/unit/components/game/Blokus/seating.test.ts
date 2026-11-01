@@ -6,11 +6,14 @@ import {
   chooseColor,
   defaultSeating,
   isValidSeating,
+  nextColorFor,
   ownerOf,
   seatFor,
   seatScores,
   seatWinners,
+  seatsAreOut,
   sideOf,
+  viewsOf,
 } from '@/components/game/Blokus/seating';
 
 const colorsOf = (seating: ReturnType<typeof defaultSeating>) => seating.seats.map((seat) => seat.colors);
@@ -135,5 +138,71 @@ describe('scores', () => {
   it('counts the shared colour on neither side', () => {
     expect(sideOf(defaultSeating('classic', 3), 0)).toEqual({ own: [0], rivals: [1, 2] });
     expect(sideOf(defaultSeating('classic', 2), 1)).toEqual({ own: [1, 3], rivals: [0, 2] });
+  });
+});
+
+describe('the colour a person here plays next', () => {
+  const youAlone = (seat: number) => seat === 0;
+
+  it('is the colour to move when it is theirs', () => {
+    expect(nextColorFor(defaultSeating('classic', 2), newGame('classic'), youAlone)).toBe(0);
+  });
+
+  it('looks ahead to their next colour while another seat moves', () => {
+    const state = newGame('classic');
+    applyMove(state, legalMoves(state)[0]);
+    expect(state.toMove).toBe(1);
+    expect(nextColorFor(defaultSeating('classic', 2), state, youAlone)).toBe(2);
+  });
+
+  it('skips a colour that is finished', () => {
+    const state = newGame('classic');
+    state.out[0] = 1;
+    expect(nextColorFor(defaultSeating('classic', 2), state, youAlone)).toBe(2);
+  });
+
+  it('counts the shared colour on the turns that are theirs', () => {
+    const state = newGame('classic');
+    state.toMove = 3;
+    expect(nextColorFor(defaultSeating('classic', 3), state, youAlone)).toBe(3);
+    expect(nextColorFor(defaultSeating('classic', 3), state, (seat) => seat === 1)).toBe(1);
+  });
+
+  it('still has a colour to show once they are finished', () => {
+    const state = newGame('duo');
+    state.out[0] = 1;
+    expect(nextColorFor(defaultSeating('duo', 2), state, youAlone)).toBe(0);
+  });
+});
+
+describe('being out', () => {
+  const youAlone = (seat: number) => seat === 0;
+
+  it('needs every colour of the seat finished', () => {
+    const state = newGame('classic');
+    state.out[0] = 1;
+    expect(seatsAreOut(defaultSeating('classic', 2), state, youAlone)).toBe(false);
+    state.out[2] = 1;
+    expect(seatsAreOut(defaultSeating('classic', 2), state, youAlone)).toBe(true);
+  });
+
+  it('is not until the shared colour is done too', () => {
+    const state = newGame('classic');
+    state.out[0] = 1;
+    expect(seatsAreOut(defaultSeating('classic', 3), state, youAlone)).toBe(false);
+    state.out[3] = 1;
+    expect(seatsAreOut(defaultSeating('classic', 3), state, youAlone)).toBe(true);
+  });
+});
+
+describe('what each colour plays for', () => {
+  it('puts partners on one side', () => {
+    const views = viewsOf(defaultSeating('classic', 2));
+    expect(views[0]).toEqual({ own: [0, 2], rivals: [1, 3] });
+    expect(views[3]).toEqual({ own: [1, 3], rivals: [0, 2] });
+  });
+
+  it('lets the shared colour make the most of itself in a playout', () => {
+    expect(viewsOf(defaultSeating('classic', 3))[3]).toEqual({ own: [3], rivals: [0, 1, 2] });
   });
 });

@@ -14,6 +14,7 @@
  */
 
 import type { Difficulty } from '../common/types';
+import type { View } from './ai';
 import { FULL_HAND, PIECES, RULES, scoreOf, type GameState, type Mode } from './engine';
 
 export type Controller =
@@ -98,20 +99,44 @@ export const seatFor = (seating: Seating, state: GameState, color: number = stat
   return owner === SHARED ? piecesPlayed(state, color) % seating.seats.length : owner;
 };
 
-export interface Side {
-  /** Colours whose position is this seat's. */
-  own: number[];
-  /** Colours that count against it. The shared colour is in neither: it scores for nobody. */
-  rivals: number[];
-}
-
-export const sideOf = (seating: Seating, seat: number): Side => {
-  const own = seating.seats[seat].colors;
-  return {
-    own,
-    rivals: seating.seats.flatMap((entry, index) => (index === seat ? [] : entry.colors)),
-  };
+/**
+ * The colour a player at this screen plays next, `controls` saying which seats
+ * those are: the colour to move when it is theirs, or else the next that will be.
+ * The tray shows it, so a player can plan while someone else moves.
+ */
+export const nextColorFor = (seating: Seating, state: GameState, controls: (seat: number) => boolean): number => {
+  const { colors } = state.rules;
+  for (let step = 0; step < colors; step++) {
+    const color = (state.toMove + step) % colors;
+    if (!state.out[color] && state.hands[color] !== 0 && controls(seatFor(seating, state, color))) return color;
+  }
+  const seat = seating.seats.findIndex((_, index) => controls(index));
+  return seating.seats[Math.max(seat, 0)].colors[0];
 };
+
+/** Nothing is left for these seats to play, their own colours or their turns with the shared one. */
+export const seatsAreOut = (seating: Seating, state: GameState, controls: (seat: number) => boolean): boolean => {
+  const finished = (color: number) => state.out[color] === 1 || state.hands[color] === 0;
+  const own = seating.seats.every((seat, index) => !controls(index) || seat.colors.every(finished));
+  return own && (seating.shared === null || finished(seating.shared));
+};
+
+/** What a seat plays for. The shared colour is on neither side of it: it scores for nobody. */
+export const sideOf = (seating: Seating, seat: number): View => ({
+  own: seating.seats[seat].colors,
+  rivals: seating.seats.flatMap((entry, index) => (index === seat ? [] : entry.colors)),
+});
+
+/**
+ * What each colour plays for in an AI's playouts. The shared colour has no owner
+ * in a line that has not happened, so there it simply makes the most of itself.
+ */
+export const viewsOf = (seating: Seating): View[] =>
+  Array.from({ length: RULES[seating.mode].colors }, (_, color) => {
+    const owner = ownerOf(seating, color);
+    if (owner !== SHARED) return sideOf(seating, owner);
+    return { own: [color], rivals: seating.seats.flatMap((seat) => seat.colors) };
+  });
 
 /** Each seat's score: its colours added together. */
 export const seatScores = (seating: Seating, state: GameState): number[] =>

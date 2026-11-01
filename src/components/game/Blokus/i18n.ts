@@ -16,6 +16,22 @@ export interface BlokusStrings {
   modes: Record<Mode, { label: string; description: string }>;
   /** Colour names in turn order, per mode. */
   colors: Record<Mode, readonly string[]>;
+  playersTitle: string;
+  playerCount: (count: number) => string;
+  player: (number: number) => string;
+  seatColors: (name: string) => string;
+  seatControl: (name: string) => string;
+  friendHere: string;
+  aiLevel: (level: string) => string;
+  sharedNote: (color: string) => string;
+  twoColorsNote: string;
+  sharedColor: (color: string) => string;
+  withColor: (name: string, color: string) => string;
+  /** How names and colours join: "Yellow and Green". */
+  and: (first: string, second: string) => string;
+  turnOf: (name: string) => string;
+  playingColor: (color: string) => string;
+  winnerIs: (name: string) => string;
   you: string;
   ai: (color: string) => string;
   yourTurn: string;
@@ -79,13 +95,28 @@ const en: BlokusStrings = {
   start: 'Start Game',
   modeTitle: 'Game',
   modes: {
-    classic: { label: 'Classic', description: '20×20, you against 3 AIs' },
-    duo: { label: 'Duo', description: '14×14, you against 1 AI' },
+    classic: { label: 'Classic', description: '20×20, for 2 to 4 players' },
+    duo: { label: 'Duo', description: '14×14, for 2 players' },
   },
   colors: {
     classic: ['Blue', 'Yellow', 'Red', 'Green'],
     duo: ['Violet', 'Orange'],
   },
+  playersTitle: 'Players',
+  playerCount: (count) => `${count} players`,
+  player: (number) => `Player ${number}`,
+  seatColors: (name) => `${name}: colour`,
+  seatControl: (name) => `${name}: who plays`,
+  friendHere: 'A friend on this device',
+  aiLevel: (level) => `AI: ${level}`,
+  sharedNote: (color) => `${color} is shared: you take turns playing it, and it scores for nobody.`,
+  twoColorsNote: 'Each side plays two colours on opposite corners, and their scores are added together.',
+  sharedColor: (color) => `${color} (shared)`,
+  withColor: (name, color) => `${name} (${color})`,
+  and: (first, second) => `${first} and ${second}`,
+  turnOf: (name) => `${name}'s turn`,
+  playingColor: (color) => `Playing ${color}.`,
+  winnerIs: (name) => `${name} wins`,
   you: 'You',
   ai: (color) => `${color} AI`,
   yourTurn: 'Your turn',
@@ -130,13 +161,15 @@ const en: BlokusStrings = {
   changeDifficulty: 'Change Level',
   infoTitle: 'How to Play Blokus',
   objectiveTitle: 'Objective',
-  objectiveBody: 'Place as many of your 21 pieces as you can. The colour with the fewest squares left in hand wins.',
+  objectiveBody: 'Place as many of your 21 pieces as you can. The player with the fewest squares left in hand wins.',
   rulesTitle: 'Rules',
   rules: [
     'Your first piece must cover your start square.',
     'Every later piece must touch one of your own pieces at a corner.',
     'Your own pieces may never touch along an edge. Other colours may.',
     'When no piece fits you are out, and the others play on until nobody can move.',
+    'Two players on the Classic board play two colours each, and add their scores.',
+    'Three players play a colour each and take turns with the fourth, which scores for nobody.',
   ],
   controlsTitle: 'Controls',
   controls: [
@@ -171,13 +204,28 @@ const ja: BlokusStrings = {
   start: 'ゲーム開始',
   modeTitle: 'ゲーム',
   modes: {
-    classic: { label: 'クラシック', description: '20×20、あなた対AI 3人' },
-    duo: { label: 'デュオ', description: '14×14、あなた対AI 1人' },
+    classic: { label: 'クラシック', description: '20×20、2〜4人' },
+    duo: { label: 'デュオ', description: '14×14、2人' },
   },
   colors: {
     classic: ['青', '黄', '赤', '緑'],
     duo: ['紫', 'オレンジ'],
   },
+  playersTitle: '人数',
+  playerCount: (count) => `${count}人`,
+  player: (number) => `プレイヤー${number}`,
+  seatColors: (name) => `${name}の色`,
+  seatControl: (name) => `${name}を操作する人`,
+  friendHere: 'この端末で友達が操作',
+  aiLevel: (level) => `AI：${level}`,
+  sharedNote: (color) => `${color}は共有の色です。順番に置き、誰の得点にもなりません。`,
+  twoColorsNote: '1人2色ずつ、向かい合う角の色を使い、2色の得点を合計します。',
+  sharedColor: (color) => `${color}（共有）`,
+  withColor: (name, color) => `${name}（${color}）`,
+  and: (first, second) => `${first}と${second}`,
+  turnOf: (name) => `${name}の番`,
+  playingColor: (color) => `${color}を置きます。`,
+  winnerIs: (name) => `${name}の勝ち`,
   you: 'あなた',
   ai: (color) => `${color}のAI`,
   yourTurn: 'あなたの番',

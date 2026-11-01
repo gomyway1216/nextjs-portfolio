@@ -11,7 +11,8 @@ export function DrawingCanvas({ value, disabled, onChange }: {
   onChange: (value: DrawingData) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const down = useRef(false);
+  /** The finger drawing this stroke. A second finger must not pull it into a zigzag. */
+  const pointer = useRef<number | null>(null);
   const [color, setColor] = useState(DRAWING_COLORS[0]), [width, setWidth] = useState(7);
   const [notice, setNotice] = useState('');
   const [cleared, setCleared] = useState<DrawingData | null>(null);
@@ -39,9 +40,12 @@ export function DrawingCanvas({ value, disabled, onChange }: {
     return [Math.max(0, Math.min(511, Math.round((event.clientX - rect.left) / rect.width * 512))),
       Math.max(0, Math.min(383, Math.round((event.clientY - rect.top) / rect.height * 384)))];
   };
+  const release = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerId === pointer.current) pointer.current = null;
+  };
   const update = (drawing: DrawingData) => {
     try { onChange(drawingInput(drawing, true)); setNotice(''); }
-    catch { down.current = false; setNotice('絵がいっぱいです。「戻す」か「クリア」で整えてね。'); }
+    catch { pointer.current = null; setNotice('絵がいっぱいです。「戻す」か「クリア」で整えてね。'); }
   };
   return <div className={styles.editor}>
     <div className={styles.palette} aria-label="描く道具">
@@ -63,23 +67,23 @@ export function DrawingCanvas({ value, disabled, onChange }: {
     <canvas ref={canvas} width={DRAWING_WIDTH} height={DRAWING_HEIGHT} className={styles.canvas}
       aria-label="絵を描くキャンバス" aria-disabled={disabled} tabIndex={0}
       onPointerDown={event => {
-        if (disabled || event.button > 0) return;
+        if (disabled || event.button > 0 || pointer.current !== null) return;
         if (value.strokes.length >= DRAWING_MAX_STROKES) { setNotice('線がいっぱいです。「戻す」で線を減らしてね。'); return; }
-        event.currentTarget.setPointerCapture(event.pointerId); down.current = true;
+        event.currentTarget.setPointerCapture(event.pointerId); pointer.current = event.pointerId;
         update({ v: 1, strokes: [...value.strokes, { c: color, w: width, p: point(event) }] });
       }}
       onPointerMove={event => {
-        if (disabled || !down.current || !value.strokes.length) return;
+        if (disabled || event.pointerId !== pointer.current || !value.strokes.length) return;
         const p = point(event), last = value.strokes.at(-1)!;
         if (Math.hypot(p[0] - last.p.at(-2)!, p[1] - last.p.at(-1)!) < 3) return;
         if (value.strokes.reduce((sum, stroke) => sum + stroke.p.length / 2, 0) >= DRAWING_MAX_POINTS) {
-          down.current = false; setNotice('絵がいっぱいです。いったん送るか、線を減らしてね。'); return;
+          pointer.current = null; setNotice('絵がいっぱいです。いったん送るか、線を減らしてね。'); return;
         }
         update({ v: 1, strokes: [...value.strokes.slice(0, -1), { ...last, p: [...last.p, ...p] }] });
       }}
-      onPointerUp={() => { down.current = false; }}
-      onPointerCancel={() => { down.current = false; }}
-      onLostPointerCapture={() => { down.current = false; }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
     />
     <small>指でもマウスでも描けます。絵の途中は、ほかの人には見えません。</small>
     {notice && <p role="status">{notice}</p>}

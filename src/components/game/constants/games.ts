@@ -22,7 +22,7 @@ export const GAME_COVER_SIZE = { width: 960, height: 540 } as const;
 export const games: Game[] = [
   {
     id: 'ogiri', title: 'みんなのパーティー',
-    description: '大喜利・多数決・作者当て・絵の伝言・少数派・温度計・ワードウルフ・うそ回答まぜを同じ部屋で。スマホ参加3〜12人、テレビ対応、20キャラと通算ポイント。',
+    description: '大喜利・多数決・作者当て・絵の伝言・絵しりとり・少数派・温度計・ワードウルフ・うそ回答まぜを同じ部屋で。スマホ参加3〜12人、テレビ対応、20キャラと通算ポイント。',
     thumbnail: '💬', path: '/games/ogiri', difficulty: 'Easy', category: 'Party',
   },
   {
@@ -85,6 +85,15 @@ export const games: Game[] = [
     description: 'Flip discs, claim corners, and outscore the AI by the final board.',
     thumbnail: '⚪',
     path: '/games/othello',
+    difficulty: 'Medium',
+    category: 'Strategy',
+  },
+  {
+    id: 'blokus',
+    title: 'Blokus',
+    description: 'Claim the board corner by corner with 21 pieces, against AI rivals from easy to master. Four-colour classic or two-player Duo.',
+    thumbnail: '🟦',
+    path: '/games/blokus',
     difficulty: 'Medium',
     category: 'Strategy',
   },

@@ -10,6 +10,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ co
     const data = await body(request, 12288);
     if (data.type !== 'drawingSubmit') throw new GameError('絵の提出だけに使える操作です。');
     return response(await command(code, request.cookies.get(cookieName(code))?.value,
-      { type: 'drawingSubmit', drawing: data.drawing }, data.turn));
+      { type: 'drawingSubmit', drawing: data.drawing, word: data.word }, data.turn));
   } catch (error) { return failure(error); }
 }

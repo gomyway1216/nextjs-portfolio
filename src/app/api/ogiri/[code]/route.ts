@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { body, cookieName, failure, guard, guardRecovery, response, roomCode } from '@/lib/ogiri/http';
-import { command, enterRoom, readRoom, recoverRoom, regenerateRecoveryCode, recoverWithPassphrase, setRecoveryPassphrase } from '@/lib/ogiri/store';
+import { command, enterRoom, readRoom, recoverRoom, regenerateRecoveryCode, recoverWithPassphrase, requestRejoinSeat, setRecoveryPassphrase } from '@/lib/ogiri/store';
 import { GameError } from '@/lib/ogiri/engine';
 export const runtime = 'nodejs';
 type Context = { params: Promise<{ code: string }> };
@@ -42,6 +42,11 @@ export async function POST(request: NextRequest, context: Context) {
     if (data.type === 'recoveryCode') {
       guardRecovery(request);
       return response(await regenerateRecoveryCode(code, token));
+    }
+    if (data.type === 'rejoinRequest') {
+      guardRecovery(request);
+      const result = await requestRejoinSeat(code, data.playerId);
+      return response(result.view, code, result.token);
     }
     if (data.type === 'join') {
       const result = await enterRoom(code, token, data.name, data.avatar);

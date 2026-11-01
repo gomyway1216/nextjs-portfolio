@@ -14,7 +14,7 @@ function finishedRoom() {
   return room;
 }
 
-it.each(['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 'wordwolf', 'bluff'] satisfies GameType[])(
+it.each(['ogiri', 'majority', 'identity', 'drawing', 'shiritori', 'minority', 'thermometer', 'wordwolf', 'bluff'] satisfies GameType[])(
   'selects %s in the rematch without replacing participants, secrets, totals or history', gameType => {
     const room = finishedRoom();
     const player = structuredClone(room.players.a);
@@ -22,7 +22,7 @@ it.each(['ogiri', 'majority', 'identity', 'drawing', 'minority', 'thermometer', 
     act(room, 'host', { type: 'rematch', gameType }, 20, prompts);
     expect(room).toMatchObject({ code: 'ABC234', hostId: 'host', phase: 'lobby', game: 2, round: 0 });
     expect(room.settings.gameType).toBe(gameType);
-    expect(room.settings.rounds).toBe(gameType === 'drawing' ? 1 : 3);
+    expect(room.settings.rounds).toBe(3);
     expect(room.players.a).toMatchObject({
       id: player.id, name: player.name, avatar: player.avatar, secretHash: player.secretHash,
       passphraseHash: player.passphraseHash, partyPoints: 10, active: false, score: 0,

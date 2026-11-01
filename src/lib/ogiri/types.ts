@@ -18,16 +18,20 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
-  minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ', bluff: 'うそ回答まぜ',
+  shiritori: 'おえかきしりとり', minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ', bluff: 'うそ回答まぜ',
 };
 /** Everyone answers the same question at once; no written answers and no per-voter choices are public. */
 export type ChoiceGameType = 'majority' | 'minority' | 'thermometer';
 export const isChoiceGame = (type: GameType | undefined): type is ChoiceGameType =>
   type === 'majority' || type === 'minority' || type === 'thermometer';
 export type SideGameType = ChoiceGameType | 'identity';
+/** Ogiri can run as a long evening and the other games stay short. Drawing modes play once and
+ * ignore this, so the host's choice is still there for the next game in the room. */
+export const maxRounds = (type: GameType = 'ogiri') => type === 'ogiri' || type === 'drawing' || type === 'shiritori' ? 20 : 5;
+export const roundsFor = (type: GameType | undefined, rounds: number) => Math.min(rounds, maxRounds(type));
 export interface Settings {
   gameType?: GameType;
   rounds: number;
@@ -107,7 +111,18 @@ export interface Match {
   /** Index of the answer that took every vote (2+ voters, both answers shown). */
   shutout?: number | null;
 }
+export interface RejoinSeat {
+  id: string;
+  name: string;
+  avatar: string;
+}
+/** The host answers one request, named by `requestedAt`, so a later device cannot inherit a yes. */
+export interface RejoinRequest extends RejoinSeat {
+  requestedAt: number;
+}
 export interface Room {
+  /** A device asking for a quiet seat. The hash replaces the old session once the host agrees. */
+  rejoinRequests?: Record<string, { secretHash: string; at: number }>;
   drawing?: DrawingRound;
   /** Private: words and roles. Never spread into RoomView. */
   wordWolf?: WordWolfRound[];
@@ -229,6 +244,11 @@ export interface PublicPlayer {
 }
 export interface RoomView {
   bluffGame?: BluffGameView;
+  /** Quiet seats offered to a visitor without a session, for example after scanning the TV QR. */
+  rejoinSeats?: RejoinSeat[];
+  rejoinRequests?: RejoinRequest[];
+  /** This visitor asked for a seat and is waiting for the host. */
+  rejoinPending?: boolean;
   /** Includes the GM, who is intentionally absent from the player standings. */
   participantName?: string;
   /** Only the authenticated participant's setup status, never a verifier. */
@@ -300,7 +320,7 @@ export interface GameHighlights {
   } | null;
 }
 export type Action =
-  | { type: 'drawingSubmit'; drawing: DrawingData }
+  | { type: 'drawingSubmit'; drawing: DrawingData; word?: string }
   | { type: 'drawingGuess'; text: string }
   | { type: 'drawingVote'; choice: string }
   | { type: 'partyAnswer'; text: string }
@@ -315,6 +335,7 @@ export type Action =
   | { type: 'customPromptAdd'; text: string }
   | { type: 'customPromptApprove' | 'customPromptRemove'; id: string }
   | { type: 'kick'; playerId: string }
+  | { type: 'rejoinAnswer'; playerId: string; requestedAt: number; approve: boolean }
   | { type: 'hide'; matchId: string; choice: number }
   | { type: 'wolfAccept' };
 
@@ -352,12 +373,14 @@ export interface DrawingGameView {
     savedDrawingId: string | null;
     answer: string;
     saved: boolean;
+    /** Shiritori only: the opening sound, set when no picture has to reveal it. */
+    sound: string | null;
   };
   chain: null | {
     index: number;
     total: number;
     prompt: string;
-    steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawingId: string | null; text: string | null }[];
+    steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawingId: string | null; text: string | null; link: boolean | null }[];
   };
   gallery: { id: string; author: string; name: string; avatar: string; votes: number; points: number }[];
   canVote: boolean;
@@ -368,7 +391,7 @@ export interface DrawingGameView {
 }
 export interface DrawingHistoryChain {
   prompt: string;
-  steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number }[];
+  steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number; link?: boolean | null }[];
 }
 export interface WordWolfRound {
   round: number;

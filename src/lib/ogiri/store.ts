@@ -1,16 +1,18 @@
 import 'server-only';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore as adminFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore as adminFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getFirestore } from '@/lib/firebase-admin';
 import {
   act,
   createRoom,
   GameError,
+  isRejoinPending,
   joinRoom,
   newPlayer,
   settingsInput,
   project,
+  requestRejoin,
   rankPlayers,
   ROOM_TTL,
   tick,
@@ -109,6 +111,7 @@ async function mutate(
       throw new GameError('ルームが見つからないか、有効期限が切れています。', 404);
     const oldRevision = room.revision;
     const oldGame = room.game;
+    const storedFields = Object.keys(room);
     const archives: GameHistory[] = [];
     const archiveFinished = () => {
       if (room.phase !== 'finished' || room.round === 0 || room.archivedGame === room.game) return;
@@ -128,10 +131,13 @@ async function mutate(
     if (room.game !== oldGame) room.historyId = randomBytes(16).toString('hex');
     archiveFinished();
     if (onlyIfDue && room.revision === oldRevision && !archives.length) return room;
+    // update() keeps every field it is not given, so one the game removed needs an explicit delete.
+    const removed = storedFields.filter((field) => !Object.hasOwn(room, field));
+    const changes = { ...saved(room), ...Object.fromEntries(removed.map((field) => [field, FieldValue.delete()])) };
     try {
       if (archives.length) {
         const batch = ref.firestore.batch();
-        batch.update(ref, saved(room), { lastUpdateTime: snapshot.updateTime! });
+        batch.update(ref, changes, { lastUpdateTime: snapshot.updateTime! });
         for (const archive of archives)
           batch.create(collection(HISTORY_COLLECTION).doc(archive.id), {
             payload: JSON.stringify(archive),
@@ -139,7 +145,7 @@ async function mutate(
             deleteAfter: Timestamp.fromMillis(archive.expiresAt),
           });
         await batch.commit();
-      } else await ref.update(saved(room), { lastUpdateTime: snapshot.updateTime! });
+      } else await ref.update(changes, { lastUpdateTime: snapshot.updateTime! });
       return room;
     } catch (error) {
       if (!(archives.length ? [6, 9, 10] : [9, 10]).includes((error as { code: number }).code))
@@ -270,6 +276,26 @@ export async function recoverRoom(code: string, input: unknown) {
     token: recovered.token,
   };
 }
+/** The caller keeps the new session in its cookie; it starts working only when the host approves. */
+export async function requestRejoinSeat(code: string, playerId: unknown) {
+  if (typeof playerId !== 'string' || !/^[a-f0-9]{24}$/.test(playerId)) throw new GameError('戻る参加者を選んでください。');
+  const session = identity(playerId);
+  let refused: GameError | null = null;
+  const room = await mutate(code, (room, now) => {
+    // mutate may retry after a concurrent update; never retain a rejected attempt's answer.
+    refused = null;
+    countRecoveryAttempt(room, now);
+    try { requestRejoin(room, playerId, session.hash, now); }
+    catch (error) {
+      // Throwing here would discard the count above, and a refused request still uses an attempt.
+      if (!(error instanceof GameError)) throw error;
+      refused = error;
+      room.revision++;
+    }
+  });
+  if (refused) throw refused;
+  return { view: { ...project(room, null, Date.now(), prompts), rejoinPending: true }, token: session.token };
+}
 export async function readRoom(code: string, token?: string, tv = false) {
   const ref = collection().doc(code);
   let room = (await ref.get()).data() as Room | undefined;
@@ -287,7 +313,9 @@ export async function readRoom(code: string, token?: string, tv = false) {
       true,
     );
   }
-  return project(room, tv ? null : authenticate(room, token), Date.now(), prompts);
+  const [id, secret] = tv ? [] : token?.split('.') ?? [];
+  const pending = Boolean(id && secret && isRejoinPending(room, id, hash(secret), Date.now()));
+  return { ...project(room, tv ? null : authenticate(room, token), Date.now(), prompts), ...(pending ? { rejoinPending: true } : {}) };
 }
 export async function command(
   code: string,

@@ -63,7 +63,7 @@ describe('drawing data allowlist', () => {
 describe('drawing relay', () => {
   it.each([3, 4, 12])('%i players have equal drawing/guess opportunities without repeating a person in a chain', n => {
     const room = setup(n);
-    expect(room.settings.rounds).toBe(1);
+    expect(room.round).toBe(1);
     expect(room.drawing!.stages).toBe(n === 3 ? 3 : 4);
     const mine = project(room, 'p0', 101, prompts).drawingGame!;
     expect(mine.assignment?.prompt).toBeTruthy();

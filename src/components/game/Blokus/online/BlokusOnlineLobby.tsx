@@ -187,7 +187,7 @@ const InviteCard = ({ online, t }: { online: UseBlokusOnlineReturn; t: BlokusOnl
   const { shareUrl, roomId, roomKey } = online;
   const linkRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState('');
-  const canShare = typeof navigator.share === 'function';
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   const copy = async () => {
     try {

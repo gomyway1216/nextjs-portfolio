@@ -350,7 +350,8 @@ export const Board = ({ game, latest, corners, ghost, color, holding, label, onC
         onPointerLeave={(event) => {
           if (event.pointerType === 'mouse') onLeave();
         }}
-        onClick={(event) => onClick(cellOf(event))}
+        // A click from the keyboard or a screen reader has no pointer position: it means wherever the piece already is.
+        onClick={(event) => onClick(event.detail === 0 ? null : cellOf(event))}
         onKeyDown={onKeyDown}
       >
         <PlasticDefs prefix={prefix} colors={palette} />

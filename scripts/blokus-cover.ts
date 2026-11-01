@@ -16,7 +16,7 @@ import { facePath, litPath, markPath, platePath, shadePath, wellLipsPath, wellsP
 
 const option = (name: string, fallback: string) => {
   const at = process.argv.indexOf(`--${name}`);
-  return at >= 0 ? process.argv[at + 1] : fallback;
+  return at >= 0 ? (process.argv[at + 1] ?? fallback) : fallback;
 };
 
 const COLORS = [

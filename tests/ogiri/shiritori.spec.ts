@@ -125,6 +125,10 @@ for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a
     await expect(tv.getByText('切れた…', { exact: true })).toHaveCount(1);
     await expect(tv.getByText(SECRET, { exact: true }).first()).toBeVisible();
     await fitTv('chain');
+    // Holds the TV's pictures so the gallery is measured while they load, not after however many happened to arrive.
+    let showPictures = () => {};
+    const heldPictures = new Promise<void>(resolve => { showPictures = resolve; });
+    await tv.route('**/drawings/**', async route => { await heldPictures; await route.continue(); });
     for (let chain = 0; chain < count; chain++) {
       room = await read(host);
       expect(room.drawingGame!.chain?.index).toBe(chain + 1);
@@ -136,6 +140,15 @@ for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a
     expect(room.phase).toBe('voting');
     expect(room.drawingGame!.gallery).toHaveLength(count * stages);
     await expect(tv.getByRole('heading', { name: '好きな絵、ひとつ選んでね。', exact: true })).toBeVisible();
+    // Only the first chain's pictures, shown before the hold, have arrived.
+    const lastWork = tv.getByRole('button', { name: `絵${count * stages}を大きく見る`, exact: true });
+    await expect(tv.getByText('絵を読み込み中…', { exact: true })).toHaveCount((count - 1) * stages);
+    await fitTv('gallery-loading');
+    const loadingBox = await lastWork.boundingBox();
+    showPictures();
+    await expect(tv.getByText('絵を読み込み中…', { exact: true })).toHaveCount(0);
+    await expect(tv.getByRole('img', { name: /^絵\d+$/ })).toHaveCount(count * stages);
+    expect(await lastWork.boundingBox(), 'a picture takes the place its placeholder kept').toEqual(loadingBox);
     await fitTv('gallery');
     const works = room.drawingGame!.gallery, views = await Promise.all(phones.map(read));
     for (let i = 0; i < count; i++) {

@@ -93,3 +93,29 @@ test('the second answer cannot be tapped into nothing while the first is still s
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
 
+test('a second finger does not bend the stroke being drawn', async ({ browser, baseURL }) => {
+  test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
+  const contexts: BrowserContext[] = [];
+  try {
+    const { phone, room } = await started(browser, baseURL, 'shiritori', contexts, 4);
+    const canvas = phone.getByLabel('絵を描くキャンバス', { exact: true });
+    await expect(canvas).toHaveAttribute('aria-disabled', 'false');
+    await canvas.scrollIntoViewIfNeeded();
+    const box = (await canvas.boundingBox())!;
+    await phone.mouse.move(box.x + 40, box.y + 40);
+    await phone.mouse.down();
+    await phone.mouse.move(box.x + 80, box.y + 40, { steps: 3 });
+    await canvas.evaluate(element => {
+      const at = (type: string) => element.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 77, pointerType: 'touch', clientX: 5, clientY: 5, button: 0 }));
+      at('pointerdown'); at('pointermove'); at('pointerup');
+    });
+    await phone.mouse.move(box.x + 120, box.y + 40, { steps: 3 });
+    await phone.mouse.up();
+    const key = Object.keys(await phone.evaluate(() => ({ ...localStorage }))).find(name => name.startsWith(`ogiri:drawing-draft:${room.code}:`) && !name.endsWith(':word'))!;
+    const draft = JSON.parse((await phone.evaluate(name => localStorage.getItem(name), key))!);
+    expect(draft.strokes).toHaveLength(1);
+    const ys = draft.strokes[0].p.filter((_: number, i: number) => i % 2 === 1);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(2);
+    expect(draft.strokes[0].p.length).toBeGreaterThan(6); // The first finger kept drawing afterwards.
+  } finally { await Promise.all(contexts.map(context => context.close())); }
+});

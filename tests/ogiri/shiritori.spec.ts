@@ -12,7 +12,17 @@ const wordFor = (stage: number, sound: string | null) => stage === 0 ? `${sound}
 for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a private picture shiritori and keep its offline history`, async ({ page: host, browser, baseURL }, info) => {
   test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Multi-player shiritori checks use the local Firestore emulator only.');
   const contexts: BrowserContext[] = [], phones: Page[] = [], errors: string[] = [];
-  const watch = (page: Page) => page.on('pageerror', error => errors.push(error.message));
+  let reloading: Page | null = null;
+  const watch = (page: Page) => page.on('pageerror', error => {
+    // WebKit reports a canceled same-origin poll as an access-control error during reload.
+    const url = new URL(page.url()), code = url.pathname.match(/^\/games\/ogiri\/([A-Z2-9]{6})(?:\/tv)?$/)?.[1];
+    const api = code && new URL(`/api/ogiri/${code}`, url);
+    if (browser.browserType().name() === 'webkit' && reloading === page && api &&
+      error.name === `Fetch API cannot load ${api.protocol.slice(0, -1)}` &&
+      error.message === `/${api.host}${api.pathname} due to access control checks.` &&
+      error.stack?.split('\n')[0] === `Fetch API cannot load ${api.href} due to access control checks.`) return;
+    errors.push(error.message);
+  });
   watch(host);
   try {
     await host.goto('/games/ogiri');
@@ -93,7 +103,8 @@ for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a
         await reading.fill(wordFor(stage, assignment.sound));
         if (stage === 0 && i === 0) {
           // The word draft comes back with the picture draft after a reload.
-          await phone.reload({ waitUntil: 'domcontentloaded' });
+          reloading = phone;
+          try { await phone.reload({ waitUntil: 'domcontentloaded' }); } finally { reloading = null; }
           await expect(phone.getByRole('textbox', { name: '描いた言葉の読み', exact: true })).toHaveValue(wordFor(stage, assignment.sound));
         }
         if (stage === 1 && i === 0) await phone.screenshot({ path: info.outputPath(`phone-${count}.png`), fullPage: true });

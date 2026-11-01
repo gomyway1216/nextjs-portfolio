@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { BLUFF_MAX_LENGTH, GAME_TITLES, type Action, type RoomView } from '@/lib/ogiri/types';
 import { normalizePlayerText } from '@/lib/ogiri/text';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { AnimatedScore } from './AnimatedScore';
 import { Character } from './Character';
 import common from './Ogiri.module.css';
@@ -24,14 +25,14 @@ function BluffAnswer({ view, disabled, send }: {
   const dirty = normalized !== bluff.answer;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore unsent local Japanese input.
-    setText(localStorage.getItem(key) ?? bluff.answer);
+    setText(loadDraft(key) ?? bluff.answer);
   }, [key, bluff.answer]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     if (await send({ type: 'partyAnswer', text })) {
       setText(normalized);
-      localStorage.removeItem(key);
+      clearDraft(key);
     }
     setSaving(false);
   }
@@ -49,7 +50,7 @@ function BluffAnswer({ view, disabled, send }: {
             disabled={disabled || saving || Boolean(mine?.answerReady)}
             onChange={event => {
               setText(event.target.value);
-              localStorage.setItem(key, event.target.value);
+              saveDraft(key, event.target.value);
             }}
           />
         </label>

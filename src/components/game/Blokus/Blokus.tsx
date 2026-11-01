@@ -152,11 +152,13 @@ const Result = ({ game, seating, t, onNewGame, onMenu }: { game: GameState; seat
           const { colors } = seating.seats[seat];
           const placedAll = colors.length === 1 && game.hands[colors[0]] === 0;
           return (
-            <li key={seat} className={styles.resultRow}>
+            <li key={seat} className={`${styles.resultRow} ${styles[`color${colors[0]}`]}`}>
               <span className={styles.resultRank}>{t.rank(1 + all.filter((other) => other > score).length)}</span>
-              {colors.map((color) => (
-                <span key={color} className={`${styles.swatch} ${styles[`color${color}`]}`} aria-hidden="true" />
-              ))}
+              <span className={styles.swatches} aria-hidden="true">
+                {colors.map((color) => (
+                  <span key={color} className={`${styles.swatch} ${styles[`color${color}`]}`} />
+                ))}
+              </span>
               <span className={styles.resultName}>{seatName(t, seating, seat)}</span>
               {placedAll && <span className={styles.resultBonus}>{score > ALL_PLACED_BONUS ? t.bonusSingle : t.bonusAll}</span>}
               <span className={styles.resultScore}>{t.points(score)}</span>

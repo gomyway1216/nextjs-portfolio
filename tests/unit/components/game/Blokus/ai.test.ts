@@ -109,6 +109,34 @@ describe('the search', () => {
     expect(reads).toBeLessThan(15);
   });
 
+  it.each([
+    [12, 6],
+    [12, 12],
+    [3, 12],
+  ])('plays exactly %i playouts with %i candidates, however the rounds divide them', (maxPlayouts, width) => {
+    const state = newGame('classic');
+    let reads = 0;
+    const now = () => {
+      reads += 1;
+      return 0;
+    };
+    chooseMove(state, legalMoves(state), 'master', { random: seededRandom(1), now, budget: { maxPlayouts, width, horizon: 2 } });
+    // One read sets the deadline, then one follows each playout.
+    expect(reads - 1).toBe(maxPlayouts);
+  });
+
+  it('never prefers a candidate it ran out of time to try', () => {
+    const state = newGame('classic');
+    applyMove(state, legalMoves(state)[10]);
+    const moves = legalMoves(state);
+    // Rivals outweigh everything here, so every tried move scores below zero.
+    const weights = { ...BEST_WEIGHTS, rivals: 50 };
+    let reads = 0;
+    const now = () => (reads++ === 0 ? 0 : 1e9);
+    const move = chooseMove(state, moves, 'master', { random: seededRandom(1), now, weights, budget: { timeLimitMs: 100, horizon: 2 } });
+    expect(move).toBe(rankMoves(state, moves, weights)[0].move);
+  });
+
   it('values a finished game by the result', () => {
     const state = midGame();
     expect(state.over).toBe(true);

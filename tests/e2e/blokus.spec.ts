@@ -80,6 +80,26 @@ test('the keyboard can turn, move and place a piece', async ({ page }) => {
   await expect(page.getByTestId('blokus-piece-I4')).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('a screen reader hears where a held piece lands, and can read the board', async ({ page }) => {
+  await start(page, 'Easy');
+  const boardText = page.getByTestId('blokus-board-text');
+  const heldText = page.getByTestId('blokus-held-text');
+  await expect(boardText).toContainText('Your start square: row 1 column 1.');
+  await expect(boardText).toContainText('The board is empty.');
+
+  await page.getByTestId('blokus-piece-I1').click();
+  await board(page).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(heldText).toHaveText('I1, 1 square, 1 wide and 1 tall, covers row 1 column 2. It doesn’t fit here.');
+  await page.keyboard.press('ArrowLeft');
+  await expect(heldText).toHaveText('I1, 1 square, 1 wide and 1 tall, covers row 1 column 1. It fits here.');
+
+  await page.keyboard.press('Enter');
+  await expect(heldText).toHaveText('');
+  await expect(boardText).toContainText('Row 1: You column 1');
+  await expect(boardText).toContainText('Your open corners: row 2 column 2.');
+});
+
 test('the AI thinks in a worker, so the page can still pick up a piece meanwhile', async ({ page }) => {
   await start(page, 'Master');
   await page.getByTestId('blokus-piece-V5').click();

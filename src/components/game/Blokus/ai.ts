@@ -242,24 +242,27 @@ const searchByPlayouts = (state: GameState, moves: readonly number[], budget: Se
     .map(({ move }) => ({ move, total: 0, visits: 0 }));
   const rounds = Math.ceil(Math.log2(alive.length));
   const perRound = Math.floor(budget.maxPlayouts / rounds);
-  const mean = (entry: { total: number; visits: number }) => entry.total / Math.max(entry.visits, 1);
-  let inTime = true;
-  for (let round = 0; round < rounds && inTime; round++) {
+  // A candidate the budget never reached has no value at all, not a value of zero: it ranks below every tried one.
+  const mean = (entry: { total: number; visits: number }) => (entry.visits === 0 ? -Infinity : entry.total / entry.visits);
+  let played = 0;
+  let running = true;
+  for (let round = 0; round < rounds && running; round++) {
     const each = Math.max(1, Math.floor(perRound / alive.length));
-    for (let n = 0; n < each && inTime; n++) {
+    for (let n = 0; n < each && running; n++) {
       for (const candidate of alive) {
         copyState(playout, state);
         applyMove(playout, candidate.move);
         candidate.total += playOut(playout, root, budget, weights, random, scratch);
         candidate.visits += 1;
-        if (now() > deadline) {
-          inTime = false;
+        played += 1;
+        if (now() > deadline || played >= budget.maxPlayouts) {
+          running = false;
           break;
         }
       }
     }
     alive.sort((a, b) => mean(b) - mean(a));
-    if (inTime) alive = alive.slice(0, Math.ceil(alive.length / 2));
+    if (running) alive = alive.slice(0, Math.ceil(alive.length / 2));
   }
   return alive[0].move;
 };

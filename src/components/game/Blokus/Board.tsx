@@ -11,6 +11,7 @@
 import type { KeyboardEvent, PointerEvent } from 'react';
 import { memo, useRef } from 'react';
 import type { GameState, Rules } from './engine';
+import type { BlokusStrings } from './i18n';
 import styles from './Blokus.module.css';
 
 export interface Ghost {
@@ -74,6 +75,40 @@ const Placed = memo(function Placed({ board, rules }: { board: Int8Array; rules:
   return <g>{squares}</g>;
 });
 
+interface BoardTextProps {
+  game: GameState;
+  corners: BoardProps['corners'];
+  /** Display name of each colour. */
+  names: readonly string[];
+  strings: BlokusStrings;
+}
+
+/** The board in words for a screen reader, since the SVG is geometry with no cells to label. */
+export const BoardText = memo(function BoardText({ game, corners, names, strings }: BoardTextProps) {
+  const { size, starts } = game.rules;
+  const rows = [];
+  for (let row = 0; row < size; row++) {
+    const entries = names.map((name, color) => {
+      const cols = [];
+      for (let col = 0; col < size; col++) {
+        if (game.board[row * size + col] === color) cols.push(col + 1);
+      }
+      return { name, cols };
+    });
+    const filled = entries.filter(({ cols }) => cols.length > 0);
+    if (filled.length > 0) rows.push(<li key={row}>{strings.boardRow(row + 1, filled)}</li>);
+  }
+  const [startRow, startCol] = starts[0];
+  return (
+    <div className={styles.visuallyHidden} data-testid="blokus-board-text">
+      <h2>{strings.boardTextTitle}</h2>
+      {game.placed[0] === 0 && <p>{strings.startSquare(strings.cell(startRow + 1, startCol + 1))}</p>}
+      {corners.length > 0 && <p>{strings.openCorners(corners.map(({ row, col }) => strings.cell(row + 1, col + 1)))}</p>}
+      {rows.length > 0 ? <ul>{rows}</ul> : <p>{strings.boardEmpty}</p>}
+    </div>
+  );
+});
+
 export const Board = ({ game, latest, corners, ghost, color, holding, label, onCursor, onLeave, onTouchDone, onClick, onKeyDown }: BoardProps) => {
   const { size, starts } = game.rules;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -81,7 +116,7 @@ export const Board = ({ game, latest, corners, ghost, color, holding, label, onC
 
   const cellOf = (event: PointerEvent<SVGSVGElement>): [number, number] | null => {
     const box = svgRef.current?.getBoundingClientRect();
-    if (!box || box.width === 0) return null;
+    if (!box || box.width === 0 || box.height === 0) return null;
     const col = Math.floor(((event.clientX - box.left) / box.width) * size);
     const row = Math.floor(((event.clientY - box.top) / box.height) * size);
     return [Math.max(0, Math.min(size - 1, row)), Math.max(0, Math.min(size - 1, col))];

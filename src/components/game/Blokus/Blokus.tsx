@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, DifficultySelector, GameStats, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { createBlokusAiClient, type BlokusAiClient } from './blokusAiWorkerClient';
-import { Board, type Ghost } from './Board';
+import { Board, BoardText, type Ghost } from './Board';
 import {
   ALL_PLACED_BONUS,
   ORIENTATIONS,
@@ -140,6 +140,8 @@ const Blokus = () => {
   const [held, setHeld] = useState<Held | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pointer, setPointer] = useState<'mouse' | 'touch'>('mouse');
+  /** True once a piece has moved by key or button: a pointer shows where it is, and reading each step out would flood. */
+  const [speakHeld, setSpeakHeld] = useState(false);
   const clientRef = useRef<BlokusAiClient | null>(null);
   const seedRef = useRef(1);
 
@@ -271,6 +273,7 @@ const Blokus = () => {
   const selectPiece = useCallback(
     (piece: number) => {
       setNotice(null);
+      setSpeakHeld(pointer !== 'mouse');
       setHeld((current) => {
         if (current?.piece === piece) return null;
         const orientation = ORIENTATIONS[PIECES[piece].orientations[0]];
@@ -282,6 +285,7 @@ const Blokus = () => {
 
   const turnHeld = useCallback(
     (turn: (cells: Orientation['cells']) => Array<[number, number]>) => {
+      setSpeakHeld(true);
       setHeld((current) => {
         if (!current) return current;
         const orientation = orientationOf(current.piece, turn(current.orientation.cells));
@@ -299,6 +303,7 @@ const Blokus = () => {
   const nudge = useCallback(
     (rows: number, cols: number) => {
       setNotice(null);
+      setSpeakHeld(true);
       setHeld((current) => {
         if (!current) return current;
         const at = current.at ?? landing(current.orientation, null);
@@ -310,6 +315,7 @@ const Blokus = () => {
 
   const handleCursor = useCallback(
     (row: number, col: number) => {
+      setSpeakHeld(false);
       setHeld((current) => {
         if (!current) return current;
         const { orientation } = current;
@@ -422,6 +428,17 @@ const Blokus = () => {
 
   const canPlace = myTurn && ghost?.legal === true;
   const seats = Array.from({ length: colors }, (_, color) => color);
+  const names = useMemo(() => Array.from({ length: colors }, (_, color) => playerName(t, game.rules.mode, color)), [colors, game.rules.mode, t]);
+  const heldText =
+    speakHeld && held && ghost
+      ? t.heldAt(
+          t.piece(PIECES[held.piece].name, PIECES[held.piece].size),
+          held.orientation.width,
+          held.orientation.height,
+          ghost.cells.map(([row, col]) => t.cell(row + 1, col + 1)),
+          ghost.legal,
+        )
+      : '';
 
   return (
     <div
@@ -496,6 +513,10 @@ const Blokus = () => {
                 onKeyDown={handleBoardKey}
               />
             </div>
+            <div className={styles.visuallyHidden} role="status" aria-live="polite" data-testid="blokus-held-text">
+              {heldText}
+            </div>
+            <BoardText game={game} corners={corners} names={names} strings={t} />
           </div>
 
           <div className={styles.sideColumn}>

@@ -39,6 +39,14 @@ export interface BlokusStrings {
   pieceStuck: string;
   trayLabel: string;
   boardLabel: (size: number) => string;
+  boardTextTitle: string;
+  boardEmpty: string;
+  cell: (row: number, col: number) => string;
+  boardRow: (row: number, entries: ReadonlyArray<{ name: string; cols: readonly number[] }>) => string;
+  startSquare: (cell: string) => string;
+  openCorners: (cells: readonly string[]) => string;
+  /** What a piece in hand covers, read out as it moves without a pointer. */
+  heldAt: (piece: string, width: number, height: number, cells: readonly string[], legal: boolean) => string;
   win: string;
   tie: string;
   lose: string;
@@ -101,6 +109,15 @@ const en: BlokusStrings = {
   pieceStuck: 'no room for it',
   trayLabel: 'Your pieces',
   boardLabel: (size) => `Blokus board, ${size} by ${size}`,
+  boardTextTitle: 'The board in words',
+  boardEmpty: 'The board is empty.',
+  cell: (row, col) => `row ${row} column ${col}`,
+  boardRow: (row, entries) =>
+    `Row ${row}: ${entries.map(({ name, cols }) => `${name} ${cols.length === 1 ? 'column' : 'columns'} ${cols.join(', ')}`).join('; ')}`,
+  startSquare: (cell) => `Your start square: ${cell}.`,
+  openCorners: (cells) => `Your open corners: ${cells.join(', ')}.`,
+  heldAt: (piece, width, height, cells, legal) =>
+    `${piece}, ${width} wide and ${height} tall, covers ${cells.join(', ')}. ${legal ? 'It fits here.' : 'It doesn’t fit here.'}`,
   win: 'You win!',
   tie: 'A tie at the top',
   lose: 'You lost this one',
@@ -184,6 +201,14 @@ const ja: BlokusStrings = {
   pieceStuck: '置ける場所なし',
   trayLabel: '手持ちのピース',
   boardLabel: (size) => `ブロックスの盤面 ${size}×${size}`,
+  boardTextTitle: '盤面の文字による説明',
+  boardEmpty: '盤面にはまだ何もありません。',
+  cell: (row, col) => `${row}行${col}列`,
+  boardRow: (row, entries) => `${row}行目：${entries.map(({ name, cols }) => `${name} ${cols.join('、')}列`).join('／')}`,
+  startSquare: (cell) => `スタートのマス：${cell}。`,
+  openCorners: (cells) => `空いている角：${cells.join('、')}。`,
+  heldAt: (piece, width, height, cells, legal) =>
+    `${piece}、横${width}マス、縦${height}マス。${cells.join('、')}に重なります。${legal ? 'ここに置けます。' : 'ここには置けません。'}`,
   win: 'あなたの勝ち！',
   tie: '同点で1位',
   lose: '今回は負けました',

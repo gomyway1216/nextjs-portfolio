@@ -541,7 +541,6 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const lastSoundView = useRef<RoomView | null>(null);
   const accept = useCallback((next: RoomView) => {
     if (latest.current && next.revision < latest.current.revision) return;
-    if (latest.current && latest.current.turn !== next.turn) setActionError('');
     rememberRecovery(next);
     const receivedAt = Date.now();
     latest.current = next;

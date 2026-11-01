@@ -22,7 +22,7 @@ async function started(browser: Browser, baseURL: string | undefined, gameType: 
   await expect(phone.getByText('このルームの参加者として接続中', { exact: true })).toBeVisible();
   room = await (await host.request.get(path)).json();
   room = await (await host.request.post(path, { data: { type: 'start', turn: room.turn } })).json();
-  return { path, phone, room };
+  return { host, path, phone, room };
 }
 
 test('a rejected answer stays on screen past the next poll until it is read', async ({ browser, baseURL }) => {
@@ -44,6 +44,26 @@ test('a rejected answer stays on screen past the next poll until it is read', as
     await expect(notice).toBeInViewport();
     await phone.getByRole('button', { name: 'お知らせを閉じる', exact: true }).click();
     await expect(notice).toHaveCount(0);
+  } finally { await Promise.all(contexts.map(context => context.close())); }
+});
+
+test('a rejection for a stale turn stays readable when the next poll brings that turn', async ({ browser, baseURL }) => {
+  test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
+  const contexts: BrowserContext[] = [];
+  try {
+    const { host, path, phone, room } = await started(browser, baseURL, 'ogiri', contexts, 5);
+    const answers = phone.getByRole('textbox', { name: '回答', exact: true });
+    await expect(answers).toHaveCount(2);
+    await answers.first().fill('間に合わない回答');
+    await phone.route(`**${path}`, route => route.request().method() === 'POST'
+      ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: '画面が更新されました。もう一度お試しください。' }) })
+      : route.continue());
+    await phone.getByRole('button', { name: 'この回答を送る', exact: true }).first().click();
+    const notice = phone.getByRole('alert').filter({ hasText: '画面が更新されました。' });
+    await expect(notice).toBeVisible();
+    expect((await host.request.post(path, { data: { type: 'next', turn: room.turn } })).ok()).toBe(true);
+    await expect(answers).toHaveCount(0);
+    await expect(notice).toBeVisible();
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
 

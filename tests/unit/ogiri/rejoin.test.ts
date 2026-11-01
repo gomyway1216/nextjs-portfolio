@@ -27,6 +27,7 @@ async function party() {
 function silence(id: string) {
   for (const player of Object.values(memory.room!.players)) player.lastSeen = Date.now() - (player.id === id ? QUIET : 0);
 }
+const requestedAt = (id: string) => memory.room!.rejoinRequests?.[id]?.at ?? 0;
 
 beforeEach(() => { vi.stubEnv('OGIRI_EMULATOR', ''); memory.room = null; });
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
@@ -48,10 +49,10 @@ it('returns a player to the same seat mid-game only after the host approves, sig
   await expect(command(code, asked.token, { type: 'heartbeat' })).rejects.toThrow('参加し直して');
   expect(await readRoom(code, asked.token)).toMatchObject({ me: null, rejoinPending: true });
   expect((await readRoom(code)).rejoinPending).toBeUndefined();
-  expect((await readRoom(code, host.token)).rejoinRequests).toEqual([{ id, name: 'ねこ', avatar: 'pudding' }]);
-  await expect(command(code, members[1].token, { type: 'rejoinAnswer', playerId: id, approve: true })).rejects.toThrow('主催者');
+  expect((await readRoom(code, host.token)).rejoinRequests).toEqual([{ id, name: 'ねこ', avatar: 'pudding', requestedAt: requestedAt(id) }]);
+  await expect(command(code, members[1].token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: true })).rejects.toThrow('主催者');
 
-  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, approve: true });
+  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: true });
   const back = await readRoom(code, asked.token);
   expect(back.me).toBe(id);
   expect(back.rejoinPending).toBeUndefined();
@@ -67,13 +68,13 @@ it('brings a resting player back too, and leaves everything unchanged when the h
   await command(code, members[0].token, { type: 'leave' });
   silence(id);
   const denied = await requestRejoinSeat(code, id);
-  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, approve: false });
+  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: false });
   expect(await readRoom(code, denied.token)).toMatchObject({ me: null });
   expect((await readRoom(code, denied.token)).rejoinPending).toBeUndefined();
   expect(authenticate(memory.room!, members[0].token)).toBe(id);
   expect(memory.room!.players[id].active).toBe(false);
   const again = await requestRejoinSeat(code, id);
-  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, approve: true });
+  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: true });
   expect(memory.room!.players[id].active).toBe(true);
   expect(authenticate(memory.room!, again.token)).toBe(id);
 });
@@ -105,13 +106,13 @@ it('withdraws a request when the old phone comes back or the request goes stale'
   await command(code, members[0].token, { type: 'heartbeat' });
   expect((await readRoom(code, host.token)).rejoinRequests).toEqual([]);
   expect((await readRoom(code, asked.token)).rejoinPending).toBeUndefined();
-  await expect(command(code, host.token, { type: 'rejoinAnswer', playerId: id, approve: true })).rejects.toThrow('終了');
+  await expect(command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: true })).rejects.toThrow('終了');
   expect(authenticate(memory.room!, members[0].token)).toBe(id);
   silence(id);
   const stale = await requestRejoinSeat(code, id);
   memory.room!.rejoinRequests![id].at = Date.now() - REJOIN_TTL;
   expect((await readRoom(code, host.token)).rejoinRequests).toEqual([]);
-  await expect(command(code, host.token, { type: 'rejoinAnswer', playerId: id, approve: true })).rejects.toThrow('終了');
+  await expect(command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: true })).rejects.toThrow('終了');
   expect(authenticate(memory.room!, stale.token)).toBeNull();
 });
 
@@ -123,16 +124,42 @@ it('keeps session material out of every view and works while the game is paused'
   const secret = memory.room!.rejoinRequests![id].secretHash;
   for (const view of [await readRoom(code), await readRoom(code, host.token), await readRoom(code, asked.token), await readRoom(code, undefined, true), asked.view])
     expect(JSON.stringify(view)).not.toMatch(new RegExp(`${secret}|secretHash`));
-  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, approve: true });
+  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: requestedAt(id), approve: true });
   expect(memory.room!.pausedAt).toBeGreaterThan(0);
   expect((await readRoom(code, asked.token)).me).toBe(id);
 });
 
-it('shares the durable recovery throttle and does not let a retried write duplicate a request', async () => {
+it('shares the durable recovery throttle across requests for a seat', async () => {
   const { code, id } = await party();
   silence(id);
-  for (let i = 0; i < 30; i++) await requestRejoinSeat(code, id);
+  for (let i = 0; i < 30; i++) {
+    await requestRejoinSeat(code, id);
+    delete memory.room!.rejoinRequests![id];
+  }
   await expect(requestRejoinSeat(code, id)).rejects.toThrow('多すぎます');
+});
+
+it('keeps the first live request, so a second device cannot slip in behind the name on the host screen', async () => {
+  const { code, host, id } = await party();
+  silence(id);
+  const first = await requestRejoinSeat(code, id);
+  const seen = requestedAt(id);
+  await expect(requestRejoinSeat(code, id)).rejects.toThrow('別の端末');
+  expect(requestedAt(id)).toBe(seen);
+  await command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: seen, approve: true });
+  expect(authenticate(memory.room!, first.token)).toBe(id);
+});
+
+it('applies a host decision only to the request it was made on', async () => {
+  const { code, host, id } = await party();
+  silence(id);
+  await requestRejoinSeat(code, id);
+  memory.room!.rejoinRequests![id].at -= 1000;
+  const seen = requestedAt(id);
+  memory.room!.rejoinRequests![id].at = Date.now() - REJOIN_TTL;
+  const later = await requestRejoinSeat(code, id);
+  await expect(command(code, host.token, { type: 'rejoinAnswer', playerId: id, requestedAt: seen, approve: true })).rejects.toThrow('終了');
+  expect(authenticate(memory.room!, later.token)).toBeNull();
   expect(Object.keys(memory.room!.rejoinRequests!)).toEqual([id]);
 });
 
@@ -140,5 +167,5 @@ it('rejects an engine request for an unknown key without touching the prototype'
   const room = structuredClone({ players: {}, hostId: 'host', revision: 1 }) as unknown as Room;
   expect(() => requestRejoin(room, '__proto__', 'hash', 1000)).toThrow('戻れません');
   expect(() => act({ ...room, players: { host: { id: 'host', kicked: false } } } as unknown as Room, 'host',
-    { type: 'rejoinAnswer', playerId: '__proto__', approve: true }, 1000, prompts)).toThrow('終了');
+    { type: 'rejoinAnswer', playerId: '__proto__', requestedAt: 0, approve: true }, 1000, prompts)).toThrow('終了');
 });

@@ -950,9 +950,9 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                     <Character avatar={seat.avatar} /> <b>{seat.name}</b>さんが入り直しを待っています
                     {tv ? <small>主催者の画面で許可してね</small> : <>
                       <button className={styles.primary} disabled={busy}
-                        onClick={() => void send({ type: 'rejoinAnswer', playerId: seat.id, approve: true })}>入れる</button>
+                        onClick={() => void send({ type: 'rejoinAnswer', playerId: seat.id, requestedAt: seat.requestedAt, approve: true })}>入れる</button>
                       <button className={styles.secondary} disabled={busy}
-                        onClick={() => void send({ type: 'rejoinAnswer', playerId: seat.id, approve: false })}>断る</button>
+                        onClick={() => void send({ type: 'rejoinAnswer', playerId: seat.id, requestedAt: seat.requestedAt, approve: false })}>断る</button>
                     </>}
                   </p>
                 ))}

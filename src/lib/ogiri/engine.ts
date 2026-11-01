@@ -162,6 +162,8 @@ const pendingRejoins = (room: Room, now: number) => rejoinSeats(room, now).filte
 export function requestRejoin(room: Room, playerId: unknown, secretHash: string, now: number) {
   const seat = rejoinSeats(room, now).find((p) => p.id === playerId);
   requireThat(seat, 'この参加者には今は戻れません。接続中か、退出した可能性があります。', 409);
+  // The host sees only a name, so a second device must not slip in behind the request on screen.
+  requireThat(!pendingRejoins(room, now).includes(seat), 'この席には別の端末から依頼が届いています。主催者に声をかけてね。', 409);
   (room.rejoinRequests ??= {})[seat.id] = { secretHash, at: now };
   room.revision++;
 }
@@ -493,7 +495,8 @@ export function act(
     }
   } else if (action.type === 'rejoinAnswer') {
     const seat = pendingRejoins(room, now).find((p) => p.id === action.playerId);
-    requireThat(seat && typeof action.approve === 'boolean', 'この入り直しの依頼は終了しています。', 409);
+    requireThat(seat && typeof action.approve === 'boolean' && room.rejoinRequests![seat.id].at === action.requestedAt,
+      'この入り直しの依頼は終了しています。', 409);
     if (action.approve) {
       seat.secretHash = room.rejoinRequests![seat.id].secretHash;
       seat.active = true;
@@ -592,7 +595,7 @@ export function project(
     sideGame: projectSideGame(room, me),
     drawingGame: projectDrawing(room, me),
     ...(me ? {} : { rejoinSeats: rejoinSeats(room, now).map(publicSeat) }),
-    rejoinRequests: pendingRejoins(room, now).map(publicSeat),
+    rejoinRequests: pendingRejoins(room, now).map((p) => ({ ...publicSeat(p), requestedAt: room.rejoinRequests![p.id].at })),
     turn: turnKey(room),
     history: room.history ?? [],
     partyGames: room.partyGames ?? 0,

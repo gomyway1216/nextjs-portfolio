@@ -125,6 +125,9 @@ for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a
     await expect(tv.getByText('切れた…', { exact: true })).toHaveCount(1);
     await expect(tv.getByText(SECRET, { exact: true }).first()).toBeVisible();
     await fitTv('chain');
+    // Pictures the TV has not fetched yet must hold their size, or the gallery outgrows the screen until they arrive.
+    const drawings = '**/api/ogiri/*/drawings/*';
+    await tv.route(drawings, route => route.abort());
     for (let chain = 0; chain < count; chain++) {
       room = await read(host);
       expect(room.drawingGame!.chain?.index).toBe(chain + 1);
@@ -137,6 +140,7 @@ for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a
     expect(room.drawingGame!.gallery).toHaveLength(count * stages);
     await expect(tv.getByRole('heading', { name: '好きな絵、ひとつ選んでね。', exact: true })).toBeVisible();
     await fitTv('gallery');
+    await tv.unroute(drawings);
     const works = room.drawingGame!.gallery, views = await Promise.all(phones.map(read));
     for (let i = 0; i < count; i++) {
       const chosenAuthor = views[(i + 1) % count].me!, index = works.findIndex(work => work.author === chosenAuthor);

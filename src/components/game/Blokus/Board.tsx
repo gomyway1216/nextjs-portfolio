@@ -37,7 +37,8 @@ interface BoardProps {
   onCursor: (row: number, col: number) => void;
   onLeave: () => void;
   onTouchDone: () => void;
-  onClick: () => void;
+  /** The cell under the click, which a quick click can reach before the last move has rendered. */
+  onClick: (cell: readonly [number, number] | null) => void;
   onKeyDown: (event: KeyboardEvent<SVGSVGElement>) => void;
   drag?: PieceDrag;
 }
@@ -267,7 +268,7 @@ export const Board = ({ game, latest, corners, ghost, color, holding, label, onC
     return () => clearTimeout(timer);
   }, [game.over]);
 
-  const cellOf = (event: PointerEvent<SVGSVGElement>): [number, number] | null => {
+  const cellOf = (event: { clientX: number; clientY: number }): [number, number] | null => {
     const box = svgRef.current?.getBoundingClientRect();
     if (!box || box.width === 0 || box.height === 0) return null;
     const col = Math.floor(((event.clientX - box.left) / box.width) * size);
@@ -349,7 +350,7 @@ export const Board = ({ game, latest, corners, ghost, color, holding, label, onC
         onPointerLeave={(event) => {
           if (event.pointerType === 'mouse') onLeave();
         }}
-        onClick={onClick}
+        onClick={(event) => onClick(cellOf(event))}
         onKeyDown={onKeyDown}
       >
         <PlasticDefs prefix={prefix} colors={palette} />

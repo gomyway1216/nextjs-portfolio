@@ -88,6 +88,10 @@ const clampAt = (orientation: Orientation, size: number, row: number, col: numbe
   col: Math.max(0, Math.min(size - orientation.width, col)),
 });
 
+/** Where a piece sits with its middle over a cell. */
+const aimedAt = (orientation: Orientation, size: number, row: number, col: number) =>
+  clampAt(orientation, size, row - Math.floor(orientation.height / 2), col - Math.floor(orientation.width / 2));
+
 /** The closest legal spot for this orientation, within `reach` cells of (row, col). */
 const nearestLegal = (moves: readonly number[], orientation: Orientation, row: number, col: number, reach: number) => {
   let best: { row: number; col: number } | null = null;
@@ -361,9 +365,9 @@ const Blokus = () => {
     };
   }, [held, legalSet]);
 
-  const placeHeld = useCallback(() => {
-    if (!handIsUp || !held?.at) return;
-    const move = encodeMove(held.orientation.index, held.at.row, held.at.col);
+  const placeAt = useCallback((at: { row: number; col: number } | null) => {
+    if (!handIsUp || !held || !at) return;
+    const move = encodeMove(held.orientation.index, at.row, at.col);
     if (!legalSet.has(move)) {
       setNotice(t.noFit);
       return;
@@ -373,6 +377,8 @@ const Blokus = () => {
     if (inRoom) void online.submitMove(move);
     else play(game, move);
   }, [handIsUp, held, legalSet, t, play, game, inRoom, online]);
+
+  const placeHeld = useCallback(() => placeAt(held?.at ?? null), [placeAt, held]);
 
   // Where a piece goes when it arrives by touch or key, with no pointer over the board to show it.
   const landing = useCallback(
@@ -433,8 +439,7 @@ const Blokus = () => {
       setSpeakHeld(false);
       setHeld((current) => {
         if (!current) return current;
-        const { orientation } = current;
-        const at = clampAt(orientation, size, row - Math.floor(orientation.height / 2), col - Math.floor(orientation.width / 2));
+        const at = aimedAt(current.orientation, size, row, col);
         return current.at?.row === at.row && current.at?.col === at.col ? current : { ...current, at };
       });
     },
@@ -455,9 +460,13 @@ const Blokus = () => {
   }, []);
 
   // A touch is placed with the Place button, so a stray tap never plays a piece.
-  const handleBoardClick = useCallback(() => {
-    if (pointer === 'mouse') placeHeld();
-  }, [placeHeld, pointer]);
+  const handleBoardClick = useCallback(
+    (cell: readonly [number, number] | null) => {
+      if (pointer !== 'mouse' || !held) return;
+      placeAt(cell ? aimedAt(held.orientation, size, cell[0], cell[1]) : held.at);
+    },
+    [held, placeAt, pointer, size],
+  );
 
   const handleKey = useCallback(
     (key: string): boolean => {

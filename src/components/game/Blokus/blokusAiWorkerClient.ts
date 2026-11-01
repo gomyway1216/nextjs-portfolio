@@ -9,6 +9,7 @@
  */
 
 import type { Difficulty } from '../common/types';
+import type { View } from './ai';
 import { handleRequest, type BlokusAiResponse } from './blokus-ai.worker';
 import type { GameState } from './engine';
 
@@ -19,6 +20,8 @@ export interface MoveRequest {
   state: GameState;
   level: Difficulty;
   seed: number;
+  view?: View;
+  views?: readonly View[];
 }
 
 export interface BlokusAiClient {

@@ -97,6 +97,8 @@ export interface UseBlokusOnlineReturn {
   clearError: () => void;
   /** The invite this page was opened with. */
   invite: Invite | null;
+  /** Turn the invite down, for the page behind it. */
+  dismissInvite: () => void;
   /** The link to send friends, once in a room. */
   shareUrl: string | null;
   /** The room's password, for reading out instead of the link. */
@@ -299,6 +301,9 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
     };
   }, [roomId, playerId, turnNumber, turnDeadline, mySeat]);
 
+  // A refusal is about a board that has gone once the next turn is up.
+  useEffect(() => setError(null), [turnNumber]);
+
   const settled = useCallback(async (send: () => Promise<GenericResponse>): Promise<boolean> => {
     let result: GenericResponse;
     try {
@@ -408,6 +413,13 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
 
   const clearError = useCallback(() => setError(null), []);
 
+  const dismissInvite = useCallback(() => {
+    setInvite(null);
+    setError(null);
+    // Or a reload would bring it straight back.
+    if (window.location.search) window.history.replaceState(window.history.state, '', window.location.pathname);
+  }, []);
+
   const lobbyState: LobbyState =
     connecting ??
     (!room
@@ -434,6 +446,7 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
     error,
     clearError,
     invite,
+    dismissInvite,
     shareUrl: session ? inviteUrl(window.location.origin, session.roomId, session.password) : null,
     roomKey: session?.password ?? null,
     savedName,

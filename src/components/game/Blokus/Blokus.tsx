@@ -226,7 +226,8 @@ const Blokus = () => {
   const legalSet = useMemo(() => new Set(humanMoves), [humanMoves]);
   const playable = useMemo(() => new Set(humanMoves.map(movePiece)), [humanMoves]);
   const seatToMove = inRoom ? online.currentSeat : seatFor(seating, game);
-  const myTurn = inRoom ? online.isMyTurn && !online.sending : !showSetup && !showLobby && !game.over && controls(seatToMove);
+  // Still their turn while a move is on its way: the board only changes when the server says so.
+  const myTurn = inRoom ? online.isMyTurn : !showSetup && !showLobby && !game.over && controls(seatToMove);
   // While a colour with no hand waits for its pass, the tray already shows the next one: not a hand that can move yet.
   const handIsUp = myTurn && handColor === game.toMove;
   const humanOut = !game.over && seatsAreOut(seating, game, controls);
@@ -493,14 +494,14 @@ const Blokus = () => {
 
   // R, F and Esc work wherever the focus is, as the piece is held rather than on the board.
   useEffect(() => {
-    if (showSetup || showInfo) return;
+    if (showSetup || showLobby || showInfo) return;
     const listener = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (handleKey(event.key)) event.preventDefault();
     };
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, [handleKey, showSetup, showInfo]);
+  }, [handleKey, showSetup, showLobby, showInfo]);
 
   const corners = useMemo(() => {
     if (showSetup || game.over || game.hands[handColor] === 0 || game.out[handColor]) return [];
@@ -541,7 +542,7 @@ const Blokus = () => {
     return { main: humanOut ? t.youAreOut : t.thinking(name), sub: humanOut ? t.thinking(name) : '' };
   })();
 
-  const canPlace = handIsUp && ghost?.legal === true;
+  const canPlace = handIsUp && !online.sending && ghost?.legal === true;
   const seats = Array.from({ length: colors }, (_, color) => color);
   const names = useMemo(() => Array.from({ length: colors }, (_, color) => colorName(t, seating, color)), [colors, seating, t]);
   const heldText =
@@ -570,7 +571,13 @@ const Blokus = () => {
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
       {showLobby ? (
-        <BlokusOnlineLobby online={online} onBack={() => setWantsOnline(false)} />
+        <BlokusOnlineLobby
+          online={online}
+          onBack={() => {
+            setWantsOnline(false);
+            online.dismissInvite();
+          }}
+        />
       ) : showSetup ? (
         <DifficultySelector
           title={t.title}
@@ -618,9 +625,9 @@ const Blokus = () => {
           }
         />
       ) : (
-        <div className={styles.layout} data-mode={game.rules.mode}>
+        <div className={styles.layout} data-mode={game.rules.mode} data-room={inRoom}>
+          {inRoom && <BlokusOnlineBar online={online} />}
           <div className={styles.boardColumn}>
-            {inRoom && <BlokusOnlineBar online={online} />}
             <div className={styles.status} role="status" aria-live="polite" data-testid="blokus-status">
               <span className={styles.statusMain}>
                 {!myTurn && !game.over && <span className={styles.spinner} aria-hidden="true" />}

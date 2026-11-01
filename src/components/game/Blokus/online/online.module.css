@@ -352,6 +352,37 @@
 }
 
 /* ---- room bar ---- */
+@media (min-width: 861px) {
+  .bar {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* Two across on a phone: four rows would push the tray off the screen under the board. */
+@media (max-width: 640px) {
+  .bar .seats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bar .seat {
+    gap: 0.35rem;
+    padding: 0.25rem 0.35rem;
+  }
+
+  /* In half the width, a name breaks between words, not after every letter. */
+  .bar .name {
+    font-size: 0.9rem;
+    overflow-wrap: break-word;
+    word-break: keep-all;
+  }
+
+  .bar .score {
+    font-size: 0.85rem;
+  }
+}
+
 .barHead {
   display: flex;
   align-items: center;

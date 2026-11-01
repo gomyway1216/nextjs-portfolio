@@ -553,6 +553,23 @@
   line-height: 1.55;
 }
 
+/* The room bar tops the side column, so the board keeps the height of the window beside it. */
+@media (min-width: 861px) {
+  .layout[data-room='true'] {
+    grid-template-rows: auto 1fr;
+  }
+
+  .layout[data-room='true'] > .boardColumn {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .layout[data-room='true'] > .sideColumn {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
 @media (max-width: 860px) {
   .root {
     padding-inline: 0.75rem;

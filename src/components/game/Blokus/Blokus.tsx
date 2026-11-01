@@ -54,6 +54,7 @@ import {
   type Seating,
 } from './seating';
 import { Tray } from './Tray';
+import { usePieceDrag } from './usePieceDrag';
 import styles from './Blokus.module.css';
 
 /** The seat the setup screen calls "you". It is always a person, so a game always has someone to play it. */
@@ -194,6 +195,7 @@ const Blokus = () => {
   const [pointer, setPointer] = useState<'mouse' | 'touch'>('mouse');
   /** True once a piece has moved by key or button: a pointer shows where it is, and reading each step out would flood. */
   const [speakHeld, setSpeakHeld] = useState(false);
+  const drag = usePieceDrag();
   const clientRef = useRef<BlokusAiClient | null>(null);
   const seedRef = useRef(1);
 
@@ -615,6 +617,7 @@ const Blokus = () => {
                 onTouchDone={handleTouchDone}
                 onClick={handleBoardClick}
                 onKeyDown={handleBoardKey}
+                drag={drag}
               />
             </div>
             <div className={styles.visuallyHidden} role="status" aria-live="polite" data-testid="blokus-held-text">
@@ -686,6 +689,7 @@ const Blokus = () => {
                   selectedCells={held?.orientation.cells ?? null}
                   strings={t}
                   onSelect={selectPiece}
+                  drag={drag}
                 />
                 <div className={styles.actions}>
                   <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={startGame}>

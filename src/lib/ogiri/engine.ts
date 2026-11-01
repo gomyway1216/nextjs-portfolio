@@ -15,7 +15,7 @@ import {
 import { gameHighlights, gamePlayerIds } from './party';
 import { normalizePlayerText } from './text';
 import { GameError } from './errors';
-import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
+import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress, voidSideResult } from './side-games';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 
 export { GameError } from './errors';
@@ -371,7 +371,14 @@ function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: ()
     syncSideProgress(room, now, rng);
     return;
   }
-  if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
+  if (room.pausedAt || !room.settings.autoAdvance) return;
+  if (room.phase === 'voting') {
+    // Resting or removing the last undecided voter ends the vote the same way a final vote does.
+    const match = room.matches[room.matchIndex];
+    if (match && eligible(room, match).every((p) => Object.hasOwn(match.votes, p.id))) advance(room, now, prompts, rng);
+    return;
+  }
+  if (room.phase !== 'answering') return;
   const assigned = new Set(room.matches.flatMap((m) => m.players));
   const players = Object.values(room.players).filter((p) => assigned.has(p.id) && p.active && !p.kicked && !p.spectator);
   if (players.length && players.every((p) => p.answerReady)) advance(room, now, prompts, rng);
@@ -480,9 +487,17 @@ export function act(
     room.players[action.playerId].kicked = true;
     room.players[action.playerId].active = false;
     moderateDrawing(room, action.playerId);
-    for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
+    voidSideResult(room, action.playerId);
     const current = room.matches[room.matchIndex];
-    if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
+    const revealing = room.phase === 'reveal' && current?.scored;
+    for (const m of room.matches) {
+      if (m.scored && !(revealing && m === current)) continue;
+      // Votes by this player go, and so do votes for their answer: those voters may vote again.
+      delete m.votes[action.playerId];
+      const answer = m.players.indexOf(action.playerId);
+      for (const [voter, vote] of Object.entries(m.votes)) if (vote === answer) delete m.votes[voter];
+    }
+    if (revealing) rescoreMatch(room, current);
     const side = currentSideRound(room);
     if (side && !side.results.some(result => result.index === room.matchIndex)) {
       const votes = side.ballots[String(room.matchIndex)];

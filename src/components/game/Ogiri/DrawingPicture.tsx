@@ -33,16 +33,17 @@ export function DrawingPicture({ data, label = '伝言の絵' }: { data: Drawing
 }
 function DrawingAsset({ code, id, label }: { code: string; id: string; label?: string }) {
   const [data, setData] = useState<DrawingData | null>(null);
-  const [error, setError] = useState(false), [attempt, setAttempt] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    loadDrawing(code, id).then(value => { if (active) { setData(value); setError(false); } })
-      .catch(() => { if (active) setError(true); });
-    return () => { active = false; };
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // Nobody can press a retry button on the TV, and one slow fetch must not cost the punchline.
+    loadDrawing(code, id).then(value => { if (active) setData(value); })
+      .catch(() => { if (active) retry = setTimeout(() => setAttempt(attempt + 1), Math.min(15000, 1000 * 2 ** attempt)); });
+    return () => { active = false; clearTimeout(retry); };
   }, [code, id, attempt]);
   return data ? <DrawingPicture data={data} label={label} />
-    : error ? <button type="button" onClick={() => setAttempt(attempt + 1)}>絵を再読み込み</button>
-      : <p className={styles.picturePlaceholder}>絵を読み込み中…</p>;
+    : <p className={styles.picturePlaceholder}>絵を読み込み中…</p>;
 }
 export function DrawingImage(props: { code: string; id: string; label?: string }) {
   return <DrawingAsset key={`${props.code}/${props.id}`} {...props} />;

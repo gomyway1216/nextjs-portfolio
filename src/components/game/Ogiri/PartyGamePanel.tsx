@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { GAME_TITLES, type Action, type GameType, type RoomView } from '@/lib/ogiri/types';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { AnimatedScore } from './AnimatedScore';
 import { Character } from './Character';
@@ -14,6 +15,7 @@ export const GAME_RULES: Record<GameType, string> = {
   majority: '全員が同じ選択肢から1つ選びます。最多票の側に入れば100点。同率最多でも得点！',
   identity: '同じお題に1人1回答。匿名のひとことを見て作者を当てます。正解100点、作者は外された票1つにつき50点。',
   drawing: '絵→言葉→絵と、みんなで同時に伝言。最後に答え合わせして、好きな絵に1票100点！',
+  shiritori: '前の人の絵だけを見て、続きの言葉を絵に描きます。つながったら描いた2人に100点ずつ、最後に好きな絵へ1票100点！',
 };
 
 export function PartyGamePicker({ value, onChange }: { value: GameType; onChange: (value: GameType) => void }) {
@@ -28,9 +30,10 @@ export function PartyGamePicker({ value, onChange }: { value: GameType; onChange
   );
 }
 
-function IdentityAnswer({ view, disabled, send }: {
+function IdentityAnswer({ view, disabled, offline, send }: {
   view: RoomView;
   disabled: boolean;
+  offline: boolean;
   send: (action: Action) => Promise<boolean>;
 }) {
   const side = view.sideGame!;
@@ -43,14 +46,14 @@ function IdentityAnswer({ view, disabled, send }: {
   const dirty = normalized !== side.answer;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore unsent local Japanese input.
-    setText(localStorage.getItem(key) ?? side.answer);
+    setText(loadDraft(key) ?? side.answer);
   }, [key, side.answer]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     if (await send({ type: 'partyAnswer', text })) {
       setText(normalized);
-      localStorage.removeItem(key);
+      clearDraft(key);
     }
     setSaving(false);
   }
@@ -68,13 +71,13 @@ function IdentityAnswer({ view, disabled, send }: {
             disabled={disabled || saving || Boolean(mine?.answerReady)}
             onChange={event => {
               setText(event.target.value);
-              localStorage.setItem(key, event.target.value);
+              saveDraft(key, event.target.value);
             }}
           />
         </label>
         <div className={common.row}>
           <small>{count} / 100文字</small>
-          <button className={common.primary} disabled={disabled || saving || Boolean(mine?.answerReady) || count < 1 || count > 100}>
+          <button className={common.primary} disabled={disabled || offline || saving || Boolean(mine?.answerReady) || count < 1 || count > 100}>
             {saving ? '送信中…' : side.answer && !dirty ? '送信済み ✓' : side.answer ? '回答を更新' : 'この回答を送る'}
           </button>
         </div>
@@ -82,9 +85,9 @@ function IdentityAnswer({ view, disabled, send }: {
       </form>
       {dirty && side.answer && <p>未送信の変更があります。先に「回答を更新」を押してね。</p>}
       {mine?.answerReady ? (
-        <button className={common.secondary} disabled={disabled || saving} onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
+        <button className={common.secondary} disabled={disabled || offline || saving} onClick={() => void send({ type: 'answerReady', ready: false })}>回答を直す</button>
       ) : (
-        <button className={common.primary} disabled={disabled || saving || !side.answer || dirty} onClick={() => void send({ type: 'answerReady', ready: true })}>これでOK！</button>
+        <button className={common.primary} disabled={disabled || offline || saving || !side.answer || dirty} onClick={() => void send({ type: 'answerReady', ready: true })}>これでOK！</button>
       )}
     </div>
   );
@@ -101,7 +104,8 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
 }) {
   const side = view.sideGame;
   if (!side || !['answering', 'voting', 'reveal'].includes(view.phase)) return null;
-  const disabled = busy || view.paused || !connected;
+  const held = busy || view.paused;
+  const disabled = held || !connected;
   const answerers = view.players.filter(p => p.answeringThisRound);
   const author = side.result?.correctOption ? view.players.find(p => p.id === side.result?.correctOption) : null;
   const maxVotes = Math.max(0, ...Object.values(side.result?.counts ?? {}));
@@ -112,7 +116,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
       <h2 className={styles.prompt}>{side.prompt}</h2>
       {view.phase === 'answering' ? <>
         {!tv && side.answerRequired ? (
-          <IdentityAnswer key={`${view.game}:${view.round}`} view={view} disabled={disabled} send={send} />
+          <IdentityAnswer key={`${view.game}:${view.round}`} view={view} disabled={held} offline={!connected} send={send} />
         ) : (
           <div className={styles.answerWait}>
             <p>スマホで1つ送ったら「これでOK！」。名前はまだ内緒。</p>
@@ -141,7 +145,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
           </div>
         </div>}
         {view.phase === 'voting' && <p className={styles.voteHelp} role="status">
-          {side.voted ? '投票済み。みんなの予想を待っています。' : side.isAuthor ? 'あなたが書いたひとことです。今回はみんなの予想を待とう。' : !side.canVote ? '投票は参加者のスマホからどうぞ。' : side.type === 'identity' ? 'これを書いたのは？ 名前とキャラから選んでね。' : 'どれにする？ みんなが選びそうな方へ！'}
+          {side.voted ? '投票済み。みんなの予想を待っています。' : side.isAuthor ? 'あなたが書いたひとことです。今回はみんなの予想を待とう。' : view.resting ? '休憩中なので、今回の投票はお休みです。' : !side.canVote ? '投票は参加者のスマホからどうぞ。' : side.type === 'identity' ? 'これを書いたのは？ 名前とキャラから選んでね。' : 'どれにする？ みんなが選びそうな方へ！'}
         </p>}
         {side.type === 'identity' && view.phase === 'reveal' && <p className={styles.identityAccuracy}>
           正解 {side.result?.counts[side.result.correctOption ?? ''] ?? 0} / {side.votesReceived}票

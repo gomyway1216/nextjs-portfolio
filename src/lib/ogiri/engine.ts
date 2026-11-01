@@ -2,6 +2,8 @@ import {
   AVATARS,
   CATEGORIES,
   DEFAULT_SETTINGS,
+  maxRounds,
+  roundsFor,
   type Action,
   type Match,
   type Player,
@@ -13,7 +15,7 @@ import {
 import { gameHighlights, gamePlayerIds } from './party';
 import { normalizePlayerText } from './text';
 import { GameError } from './errors';
-import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress } from './side-games';
+import { advanceSideGame, beginSideRound, currentSideRound, isSideGame, projectSideGame, sideAction, syncSideProgress, voidSideResult } from './side-games';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 
 export { GameError } from './errors';
@@ -25,6 +27,8 @@ const requireThat: (ok: unknown, message: string, status?: number) => asserts ok
   if (!ok) throw new GameError(message, status);
 };
 export const ROOM_TTL = 8 * 60 * 60 * 1000;
+const OFFLINE_MS = 65000;
+export const REJOIN_TTL = 3 * 60 * 1000;
 export function textInput(value: unknown, max: number): string {
   requireThat(typeof value === 'string', '文字で入力してください。');
   const text = normalizePlayerText(value);
@@ -34,10 +38,10 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
-    Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 5,
-    'ラウンド数は1〜5です。',
+    Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= maxRounds(s.gameType),
+    `ラウンド数は1〜${maxRounds(s.gameType)}です。`,
   );
   requireThat(
     Number.isInteger(s.answerSeconds) && s.answerSeconds >= 30 && s.answerSeconds <= 600,
@@ -59,7 +63,7 @@ export function settingsInput(value: unknown): Settings {
   );
   return {
     gameType: s.gameType ?? 'ogiri',
-    rounds: s.gameType === 'drawing' ? 1 : s.rounds,
+    rounds: roundsFor(s.gameType, s.rounds),
     answerSeconds: s.answerSeconds,
     voteSeconds: s.voteSeconds,
     autoAdvance: s.autoAdvance,
@@ -89,12 +93,15 @@ export function newPlayer(
     lastSeen: now,
   };
 }
-function roomSettings(value: unknown, prompts: Prompt[]): Settings {
+const PROMPT_SHORTAGE = 'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。';
+const promptPool = (settings: Settings, prompts: Prompt[]) => prompts.filter(p => p.enabled &&
+  (settings.halloween ? p.category === 'halloween' : !settings.categories.length || settings.categories.includes(p.category)));
+const playing = (room: Room) => Object.values(room.players).filter(p => p.active && !p.kicked && !p.spectator);
+/** People can still join after this, so the start of the game checks the final head count again. */
+function roomSettings(value: unknown, room: Room, prompts: Prompt[]): Settings {
   const settings = settingsInput(value);
-  const pool = prompts.filter(p => p.enabled &&
-    (settings.halloween ? p.category === 'halloween' : !settings.categories.length || settings.categories.includes(p.category)));
-  requireThat(settings.gameType !== 'ogiri' || pool.length >= settings.rounds * 12,
-    'お題が不足するため、ジャンルを追加するかラウンド数を減らしてください。');
+  requireThat(settings.gameType !== 'ogiri' ||
+    promptPool(settings, prompts).length >= settings.rounds * Math.max(3, playing(room).length), PROMPT_SHORTAGE);
   return settings;
 }
 export function createRoom(code: string, host: Player, now: number): Room {
@@ -141,6 +148,26 @@ export function joinRoom(room: Room, player: Player): void {
   room.players[player.id] = player;
   room.revision++;
 }
+/** Seats whose phone has gone quiet. The host's seat holds progress control, so it needs a recovery code. */
+export function rejoinSeats(room: Room, now: number) {
+  return Object.values(room.players).filter(
+    (p) => !p.kicked && !p.spectator && p.id !== room.hostId && now - p.lastSeen >= OFFLINE_MS,
+  );
+}
+const pendingRejoins = (room: Room, now: number) => rejoinSeats(room, now).filter((p) => {
+  const request = room.rejoinRequests?.[p.id];
+  return request && now - request.at < REJOIN_TTL;
+});
+/** A name alone never takes a seat: `secretHash` only becomes valid when the host says yes. */
+export function requestRejoin(room: Room, playerId: unknown, secretHash: string, now: number) {
+  const seat = rejoinSeats(room, now).find((p) => p.id === playerId);
+  requireThat(seat, 'この参加者には今は戻れません。接続中か、退出した可能性があります。', 409);
+  (room.rejoinRequests ??= {})[seat.id] = { secretHash, at: now };
+  room.revision++;
+}
+export function isRejoinPending(room: Room, id: string, secretHash: string, now: number) {
+  return pendingRejoins(room, now).some((p) => p.id === id) && room.rejoinRequests?.[id]?.secretHash === secretHash;
+}
 function shuffled<T>(items: T[], rng: () => number): T[] {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i--) {
@@ -182,18 +209,16 @@ export function rankPlayers(room: Room) {
   }));
 }
 function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => number) {
-  const players = Object.values(room.players).filter((p) => p.active && !p.kicked && !p.spectator);
+  const players = playing(room);
   requireThat(players.length >= 3, '3人以上の参加者が必要です。', 409);
-  const categories = room.settings.halloween ? ['halloween'] : room.settings.categories;
-  const eligiblePrompts = prompts.filter(
-    (p) => p.enabled && (!categories.length || categories.includes(p.category)),
-  );
+  const eligiblePrompts = promptPool(room.settings, prompts);
+  requireThat(room.round > 0 || eligiblePrompts.length >= players.length * room.settings.rounds, PROMPT_SHORTAGE, 409);
   if (
     room.round === 0 &&
     eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id)).length <
       players.length * room.settings.rounds
   )
-    room.usedPrompts = [];
+    room.usedPrompts = room.usedPrompts.filter((id) => id.includes(':')); // The other modes keep theirs.
   let pool = eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id));
   requireThat(
     pool.length >= players.length,
@@ -317,7 +342,9 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
         room.phase = 'finished';
         room.deadline = 0;
       } else if (
-        Object.values(room.players).filter((p) => p.active && !p.kicked && !p.spectator).length < 3
+        playing(room).length < 3 ||
+        // A player back from a rest can outgrow the prompts checked at the start: end here rather than stall.
+        promptPool(room.settings, prompts).filter((p) => !room.usedPrompts.includes(p.id)).length < playing(room).length
       ) {
         room.phase = 'finished';
         room.deadline = 0;
@@ -344,7 +371,14 @@ function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: ()
     syncSideProgress(room, now, rng);
     return;
   }
-  if (room.phase !== 'answering' || room.pausedAt || !room.settings.autoAdvance) return;
+  if (room.pausedAt || !room.settings.autoAdvance) return;
+  if (room.phase === 'voting') {
+    // Resting or removing the last undecided voter ends the vote the same way a final vote does.
+    const match = room.matches[room.matchIndex];
+    if (match && eligible(room, match).every((p) => Object.hasOwn(match.votes, p.id))) advance(room, now, prompts, rng);
+    return;
+  }
+  if (room.phase !== 'answering') return;
   const assigned = new Set(room.matches.flatMap((m) => m.players));
   const players = Object.values(room.players).filter((p) => assigned.has(p.id) && p.active && !p.kicked && !p.spectator);
   if (players.length && players.every((p) => p.answerReady)) advance(room, now, prompts, rng);
@@ -359,6 +393,8 @@ export function act(
 ): void {
   const player = room.players[playerId];
   requireThat(player && !player.kicked, '参加セッションが無効です。', 403);
+  // The owner is back, so someone else's request for this seat is over for good.
+  if (room.rejoinRequests?.[playerId]) delete room.rejoinRequests[playerId];
   const host = room.hostId === playerId;
   if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
@@ -391,7 +427,7 @@ export function act(
       '設定は参加受付中に変更できます。',
       409,
     );
-    room.settings = roomSettings(action.settings, prompts);
+    room.settings = roomSettings(action.settings, room, prompts);
   } else if (action.type === 'extend') {
     requireThat(room.deadline > 0 && !['lobby', 'finished'].includes(room.phase), '今は延長できません。', 409);
     room.deadline = Math.max(room.deadline, room.pausedAt || now) + (room.phase === 'answering' ? 60000 : 30000);
@@ -410,7 +446,7 @@ export function act(
     requireThat(room.phase === 'finished', '終了後に再戦できます。', 409);
     // Select the next mode and reopen this room in the same conditional update.
     if (action.gameType !== undefined)
-      room.settings = roomSettings({ ...room.settings, gameType: action.gameType }, prompts);
+      room.settings = roomSettings({ ...room.settings, gameType: action.gameType, rounds: roundsFor(action.gameType, room.settings.rounds) }, room, prompts);
     room.phase = 'lobby';
     room.round = 0;
     room.matches = [];
@@ -428,19 +464,6 @@ export function act(
       p.partyEarned = 0;
       p.answerReady = false;
     }
-    // Retain recent prompts between games, but never exhaust a selected genre forever.
-    const available = prompts.filter(
-      (p) =>
-        p.enabled &&
-        (room.settings.halloween
-          ? p.category === 'halloween'
-          : !room.settings.categories.length || room.settings.categories.includes(p.category)),
-    );
-    if (
-      available.filter((p) => !room.usedPrompts.includes(p.id)).length <
-      room.settings.rounds * 12
-    )
-      room.usedPrompts = [];
   } else if (action.type === 'kick') {
     requireThat(
       typeof action.playerId === 'string' &&
@@ -451,15 +474,32 @@ export function act(
     room.players[action.playerId].kicked = true;
     room.players[action.playerId].active = false;
     moderateDrawing(room, action.playerId);
-    for (const m of room.matches) if (!m.scored) delete m.votes[action.playerId];
+    voidSideResult(room, action.playerId);
     const current = room.matches[room.matchIndex];
-    if (room.phase === 'reveal' && current?.scored) rescoreMatch(room, current);
+    const revealing = room.phase === 'reveal' && current?.scored;
+    for (const m of room.matches) {
+      if (m.scored && !(revealing && m === current)) continue;
+      // Votes by this player go, and so do votes for their answer: those voters may vote again.
+      delete m.votes[action.playerId];
+      const answer = m.players.indexOf(action.playerId);
+      for (const [voter, vote] of Object.entries(m.votes)) if (vote === answer) delete m.votes[voter];
+    }
+    if (revealing) rescoreMatch(room, current);
     const side = currentSideRound(room);
     if (side && !side.results.some(result => result.index === room.matchIndex)) {
       const votes = side.ballots[String(room.matchIndex)];
       if (votes) for (const [id, choice] of Object.entries(votes))
         if (id === action.playerId || (side.type === 'identity' && choice === action.playerId)) delete votes[id];
     }
+  } else if (action.type === 'rejoinAnswer') {
+    const seat = pendingRejoins(room, now).find((p) => p.id === action.playerId);
+    requireThat(seat && typeof action.approve === 'boolean', 'この入り直しの依頼は終了しています。', 409);
+    if (action.approve) {
+      seat.secretHash = room.rejoinRequests![seat.id].secretHash;
+      seat.active = true;
+      seat.lastSeen = now;
+    }
+    delete room.rejoinRequests![seat.id];
   } else if (action.type === 'hide') {
     const m = room.matches.find((m) => m.id === action.matchId);
     requireThat(
@@ -530,6 +570,7 @@ export function act(
   room.expiresAt = now + ROOM_TTL;
   room.revision++;
 }
+const publicSeat = ({ id, name, avatar }: Player) => ({ id, name, avatar });
 /** Explicit allowlist: never spread the private room or player record into a response. */
 export const turnKey = (room: Room) => `${room.game}:${room.round}:${room.phase}:${room.matchIndex}${isDrawingGame(room) ? `:${room.drawing?.stage ?? 0}` : ''}`;
 export function project(
@@ -550,6 +591,8 @@ export function project(
     gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
     sideGame: projectSideGame(room, me),
     drawingGame: projectDrawing(room, me),
+    ...(me ? {} : { rejoinSeats: rejoinSeats(room, now).map(publicSeat) }),
+    rejoinRequests: pendingRejoins(room, now).map(publicSeat),
     turn: turnKey(room),
     history: room.history ?? [],
     partyGames: room.partyGames ?? 0,
@@ -595,7 +638,7 @@ export function project(
       rank: p.rank,
       previousRank: p.previousRank,
       active: p.active,
-      connected: now - p.lastSeen < 65000,
+      connected: now - p.lastSeen < OFFLINE_MS,
       answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
     })),
     assignments:

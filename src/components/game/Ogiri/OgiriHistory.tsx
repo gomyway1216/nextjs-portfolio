@@ -60,15 +60,15 @@ export function OgiriHistory({ id }: { id?: string }) {
   function download() {
     if (!history) return;
     const url = URL.createObjectURL(
-      new Blob(['\uFEFF', history.gameType === 'drawing' ? drawingHistoryHtml(history) : historyText(history)],
-        { type: history.gameType === 'drawing' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' }),
+      new Blob(['\uFEFF', history.drawingChains ? drawingHistoryHtml(history) : historyText(history)],
+        { type: history.drawingChains ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' }),
     );
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${history.gameType ?? 'ogiri'}-${history.code}-${history.game}.${history.gameType === 'drawing' ? 'html' : 'txt'}`;
+    link.download = `${history.gameType ?? 'ogiri'}-${history.code}-${history.game}.${history.drawingChains ? 'html' : 'txt'}`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice(`${history.gameType === 'drawing' ? '絵を含むHTML' : 'テキスト'}ファイルを保存しました。90日後も手元で読めます。`);
+    setNotice(`${history.drawingChains ? '絵を含むHTML' : 'テキスト'}ファイルを保存しました。90日後も手元で読めます。`);
   }
   return (
     <main className={styles.app} lang="ja">
@@ -190,7 +190,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                 </ol>
               </section>
             )}
-            {history.drawingChains ? <DrawingHistory chains={history.drawingChains} /> : <section className={styles.historySection}>
+            {history.drawingChains ? <DrawingHistory chains={history.drawingChains} shiritori={history.gameType === 'shiritori'} /> : <section className={styles.historySection}>
               <h2>
                 お題と回答 <small>{history.matches.length}対戦</small>
               </h2>

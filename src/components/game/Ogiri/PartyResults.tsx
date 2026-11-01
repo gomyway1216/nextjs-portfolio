@@ -80,13 +80,13 @@ export function PartyResults({ view, reduced = false }: { view: RoomView; reduce
           <b>{climberPlayer?.name ?? 'まだ動かず。'}</b>
           <small>{climber ? `${climber.places}ランクアップ ↑` : '次の回でどうなるか。'}</small>
         </button>
-        <button disabled={!best} onClick={() => setSpotlight('answer')}>
+        {view.gameType === 'ogiri' && <button disabled={!best} onClick={() => setSpotlight('answer')}>
           <span>ウケた一言</span>
           <b>{best?.author ?? 'まだ、票待ち。'}</b>
           <small>
             {best ? `${best.votes}票を集めた回答を見る ↗` : '得票した回答がここに登場'}
           </small>
-        </button>
+        </button>}
       </div>
       <div
         className={styles.rankGrid}

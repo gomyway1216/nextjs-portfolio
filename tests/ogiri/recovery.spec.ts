@@ -81,6 +81,7 @@ test('closed pages and a second device keep one participant, scores, explicit re
     await recovered.goto(`/games/ogiri/${room.code}`);
     await recovered.getByRole('textbox', { name: 'ニックネーム', exact: true }).fill('あ'.repeat(17));
     await recovered.getByRole('button', { name: '同じ参加者で戻る', exact: true }).click();
+    await recovered.getByRole('radio', { name: '復帰コード', exact: true }).check();
     await recovered.getByRole('textbox', { name: '復帰コード', exact: true }).fill('ABCDEFGH');
     await recovered.getByRole('button', { name: '同じ参加者で復帰 →', exact: true }).click();
     await expect(recovered.getByText('復帰コードを確認してください。', { exact: true })).toBeVisible();

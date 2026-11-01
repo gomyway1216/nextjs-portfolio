@@ -89,6 +89,15 @@ export const games: Game[] = [
     category: 'Strategy',
   },
   {
+    id: 'blokus',
+    title: 'Blokus',
+    description: 'Claim the board corner by corner with 21 pieces, against AI rivals from easy to master. Four-colour classic or two-player Duo.',
+    thumbnail: '🟦',
+    path: '/games/blokus',
+    difficulty: 'Medium',
+    category: 'Strategy',
+  },
+  {
     id: 'mini-adventure',
     title: 'Mini Adventure',
     description: 'Explore a compact dungeon, manage torchlight, and survive to face the final boss.',

@@ -158,13 +158,13 @@ export function DrawingGamePanel({ view, tv, busy, connected, reduced, send }: {
   return <section className={`${styles.panel} ${tv ? styles.tv : ''}`} aria-label={GAME_TITLES[shiritori ? 'shiritori' : 'drawing']}>
     {view.phase === 'answering' ? <>
       <p className={styles.eyebrow}>{unit} {game.stage} / {game.stages} · {shiritori ? '絵でつなぐ番' : drawingTurn ? '絵で伝える番' : '言葉で伝える番'}</p>
-      {!tv && game.assignment ? <DrawingAnswer key={game.assignment.key} view={view} disabled={held} offline={!connected} send={send} /> : <>
+      {!tv && game.assignment ? <DrawingAnswer key={game.assignment.key} view={view} disabled={held} offline={!connected} send={send} /> : <div className={tv ? common.wait : undefined}>
         <h2>どんな{unit}になってるかな。</h2>
         <p>スマホで{drawingTurn ? '絵を描いて' : '絵を言葉にして'}、送ったら「これでOK！」。</p>
         <div className={common.playerGrid}>{view.players.filter(player => player.answeringThisRound).map(player =>
           <article className={common.player} key={player.id}><Character avatar={player.avatar} size="large" /><b>{player.name}</b>
             <small>{!player.active ? 'お休み中' : player.answerReady ? 'OK！ ✓' : drawingTurn ? 'おえかき中…' : '考え中…'}</small></article>)}</div>
-      </>}
+      </div>}
       <div className={common.readyBar} aria-label={`${unit}の確定状況`}>
         <p role="status"><b>{game.readyCount} / {game.answererCount}人がOK！</b> 全員の{shiritori ? '絵' : '伝言'}を待っています。</p>
         <small>目安時間を過ぎても描けます。{view.settings.autoAdvance ? '全員OKで次の人へ。' : '全員OKのあと、主催者が進めます。'}</small>

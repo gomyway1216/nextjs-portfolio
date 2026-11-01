@@ -1189,8 +1189,8 @@
   }
 }
 
-/* A tall phone has room for every piece at once, with nothing to slide. */
-@media (max-width: 860px) and (min-height: 760px) {
+/* A tall phone has room for every piece at once, with nothing to slide, if seven 44px pieces fit across. */
+@media (min-width: 360px) and (max-width: 860px) and (min-height: 760px) {
   .root {
     --blokus-below: 18.5rem;
   }
@@ -1293,6 +1293,18 @@
 
   .controls {
     order: 0;
+  }
+}
+
+/* Under 660px wide that leaves about 290px beside the board: six 44px targets across, and Place on a row of its own. */
+@media (max-height: 500px) and (min-width: 560px) and (max-width: 659px) {
+  .tray,
+  .controls[data-touch='true'] {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .controls[data-touch='true'] .placeButton {
+    grid-column: 1 / -1;
   }
 }
 

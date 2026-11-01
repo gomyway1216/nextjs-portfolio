@@ -187,6 +187,8 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
     if (opened && !rejoin) setInvite(opened);
     if (!rejoin) return undefined;
 
+    // A failed rejoin leaves the form filled in, so it can be tried again without a reload.
+    const retry = { roomId: rejoin.roomId, key: rejoin.password };
     setRejoining(true);
     gameActionClient
       .joinRoom({ roomId: rejoin.roomId, playerId: id, playerName: rejoin.name, password: rejoin.password })
@@ -200,12 +202,14 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
           if (opened) setInvite(opened);
         } else {
           setError(result.error ?? 'Network error');
+          setInvite(retry);
         }
       })
       .catch((caught: unknown) => {
         if (cancelled) return;
         setRejoining(false);
         setError(failure(caught).error ?? 'Network error');
+        setInvite(retry);
       });
     return () => {
       cancelled = true;
@@ -317,6 +321,17 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
     return result.success;
   }, []);
 
+  // Moving on while still seated elsewhere: free that seat.
+  const leavePrevious = useCallback(
+    (next: string) => {
+      const previous = readSession();
+      if (previous && previous.roomId !== next) {
+        void gameActionClient.leaveRoom({ roomId: previous.roomId, playerId }).catch(() => undefined);
+      }
+    },
+    [playerId],
+  );
+
   const create = useCallback(
     async (nextMode: Mode, name: string): Promise<boolean> => {
       setConnecting('creating');
@@ -333,10 +348,11 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
         setError(created.error ?? 'Network error');
         return false;
       }
+      leavePrevious(created.roomId);
       openSession({ roomId: created.roomId, password, name });
       return true;
     },
-    [playerId, openSession],
+    [playerId, openSession, leavePrevious],
   );
 
   const join = useCallback(
@@ -355,15 +371,11 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
         setError(joined.error ?? 'Network error');
         return false;
       }
-      // Followed a new invite while still seated elsewhere: free that seat.
-      const previous = readSession();
-      if (previous && previous.roomId !== target) {
-        void gameActionClient.leaveRoom({ roomId: previous.roomId, playerId }).catch(() => undefined);
-      }
+      leavePrevious(target);
       openSession({ roomId: target, password, name });
       return true;
     },
-    [playerId, openSession],
+    [playerId, openSession, leavePrevious],
   );
 
   const pickColor = useCallback(

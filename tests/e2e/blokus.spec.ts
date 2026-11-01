@@ -433,6 +433,9 @@ test('on its side, a phone can still reach the bottom row, with the piece floati
 test.describe('every size of screen', () => {
   const screens = [
     [320, 568],
+    [320, 800],
+    [568, 320],
+    [640, 360],
     [360, 640],
     [390, 664],
     [390, 844],

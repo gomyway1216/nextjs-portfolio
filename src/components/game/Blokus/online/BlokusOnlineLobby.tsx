@@ -175,7 +175,7 @@ const JoinAndCreate = ({ online, t, onBack }: { online: UseBlokusOnlineReturn; t
       </p>
       {invite ? joinForm : createForm}
       {invite ? createForm : joinForm}
-      <button type="button" className={styles.secondary} data-testid="blokus-online-back" onClick={onBack}>
+      <button type="button" className={styles.secondary} data-testid="blokus-online-back" onClick={onBack} disabled={busy}>
         <ArrowLeft className={styles.icon} aria-hidden="true" />
         {t.back}
       </button>

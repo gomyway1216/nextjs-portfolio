@@ -88,7 +88,8 @@ export const usePieceDrag = (): PieceDrag => {
 
   const press = useCallback(
     ({ event, cells, color, selected, slides, onSelect }: TrayPress) => {
-      stop.current?.();
+      // One finger drags at a time: a second must not take the first one's release away from it.
+      if (stop.current) return;
       const { pointerId, clientX: startX, clientY: startY } = event;
       const rows = Math.max(...cells.map(([row]) => row)) + 1;
       let x = startX;

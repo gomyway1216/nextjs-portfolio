@@ -29,7 +29,12 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
     <div className={styles.row}>
       <b>{view.resting ? 'いまは休憩中です' : 'このルームの参加者として接続中'}</b>
       <button className={styles.secondary} disabled={busy || !connected}
-        onClick={() => void send({ type: view.resting ? 'return' : 'leave' })}>
+        onClick={() => {
+          // One stray tap here used to drop a player from every later round without any notice.
+          if (!view.resting && !['lobby', 'finished'].includes(view.phase) &&
+            !window.confirm('休憩すると、次のラウンドからお題が回ってこなくなります。休憩しますか？')) return;
+          void send({ type: view.resting ? 'return' : 'leave' });
+        }}>
         {view.resting ? '参加に戻る' : '休憩する'}
       </button>
     </div>
@@ -66,7 +71,7 @@ export function ParticipantAccess({ view, busy, connected, send, regenerate, sav
       </form>
       {passphraseLength > 64 && <p role="alert">合言葉は64文字以内で設定してください。</p>}
       {passphraseStatus && <p role="status">{passphraseStatus}</p>}
-      <small>このルームの4ゲームで共通です。メール登録は不要。合言葉は他のサイトと使い回さず、本人だけで覚えておいてください。</small>
+      <small>このルームの全ゲームで共通です。メール登録は不要。合言葉は他のサイトと使い回さず、本人だけで覚えておいてください。</small>
     </details>
     <details>
       <summary>別の端末で戻るための復帰コード</summary>

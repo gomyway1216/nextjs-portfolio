@@ -22,7 +22,7 @@ for (const count of [3, 4, 12]) test(`${count} drawing relayers, separate GM and
   watch(host);
   try {
     await host.goto('/games/ogiri');
-    await expect(host.getByLabel('遊べる4つのゲーム').getByRole('button', { name: /おえかき伝言便/ })).toBeVisible();
+    await expect(host.getByLabel('遊べる5つのゲーム').getByRole('button', { name: /おえかき伝言便/ })).toBeVisible();
     await host.getByRole('button', { name: '主催する', exact: true }).click();
     await host.getByLabel('遊ぶゲーム', { exact: true }).selectOption('drawing');
     await host.getByRole('textbox', { name: 'ニックネーム' }).fill('伝言の進行役');
@@ -77,6 +77,8 @@ for (const count of [3, 4, 12]) test(`${count} drawing relayers, separate GM and
       await phone.mouse.move(box.x + box.width * .8, box.y + box.height * .3, { steps: 6 });
       await phone.mouse.up();
     };
+    await expect(tv.getByText(`伝言 1 / ${stages} · 絵で伝える番`, { exact: true })).toBeVisible();
+    expect(await tv.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2)).toBe(true);
     for (let stage = 0; stage < stages; stage++) {
       if (count === 4 && stage === 2) {
         // Reopen the same participant after missing a word turn. The chain rotation is unchanged.

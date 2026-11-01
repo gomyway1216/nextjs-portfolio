@@ -87,6 +87,18 @@ function scoreSideQuestion(room: Room, round: SideGameRound) {
   round.results.push({ index: room.matchIndex, author: validAuthor || null, text: validAuthor ? round.answers[validAuthor] : null, result });
 }
 
+/** A removed author's answer leaves the reveal, so the points for guessing it leave with it. */
+export function voidSideResult(room: Room, author: string) {
+  const entry = room.phase === 'reveal' ? currentSideRound(room)?.results
+    .find(result => result.index === room.matchIndex && result.author === author) : undefined;
+  if (!entry) return;
+  for (const { id, points } of entry.result.awards) {
+    room.players[id].score -= points;
+    room.players[id].roundScore -= points;
+  }
+  entry.result.awards = [];
+}
+
 export function advanceSideGame(room: Room, now: number, rng: () => number) {
   const round = currentSideRound(room);
   if (!round) return;

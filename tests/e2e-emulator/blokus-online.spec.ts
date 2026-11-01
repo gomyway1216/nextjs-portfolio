@@ -1,7 +1,7 @@
 /**
  * Online Blokus played on the real page, by mouse and by touch, by two to four browsers at once.
  *
- * To run: from the backend's functions/ start the emulators as its scripts/blokus-emulator-game.ts says, build here with
+ * To run: from the backend's functions/ start the emulators as its scripts/blokus-emulator-game.ts says, build here with env
  * NEXT_PUBLIC_API_KEY=emulator-key NEXT_PUBLIC_APP_ID=1:1:web:emulator NEXT_PUBLIC_PROJECT_ID=demo-blokus "NEXT_PUBLIC_DATABASE_URL=http://127.0.0.1:9000?ns=demo-blokus" npx next build,
  * then npx playwright test --config tests/e2e-emulator/playwright.config.ts (the build then only suits this: don't deploy it).
  *

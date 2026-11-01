@@ -45,11 +45,12 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
           let local: DrawingData | null = null;
           if (draft) { try { local = drawingInput(JSON.parse(draft), true); } catch { /* Use the saved picture. */ } }
           // This device's own draft beats a failed fetch: a bad connection must not blank the canvas.
+          // Nothing then proves the draft matches the server, so it stays unsent until it is sent again.
           const saved = assignment.savedDrawingId
-            ? await loadDrawing(view.code, assignment.savedDrawingId).catch(error => { if (local) return local; throw error; })
+            ? await loadDrawing(view.code, assignment.savedDrawingId).catch(error => { if (local) return null; throw error; })
             : emptyDrawing();
           const word = shiritori ? loadDraft(`${key}:word`) : null;
-          if (active) { setData(local ?? saved); setBase(JSON.stringify(saved)); setText(word ?? assignment.answer); }
+          if (active) { setData(local ?? saved ?? emptyDrawing()); setBase(saved ? JSON.stringify(saved) : ''); setText(word ?? assignment.answer); }
         } else if (active) setText(draft ?? assignment.answer);
       } catch { if (active) setError('保存した絵を読み込めませんでした。'); }
       finally { if (active) setLoading(false); }

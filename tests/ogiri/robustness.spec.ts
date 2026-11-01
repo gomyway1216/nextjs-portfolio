@@ -47,6 +47,32 @@ test('a rejected answer stays on screen past the next poll until it is read', as
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
 
+test('a picture restored from this device after a failed fetch still has to be sent', async ({ browser, baseURL }) => {
+  test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
+  const contexts: BrowserContext[] = [];
+  try {
+    const { path, phone } = await started(browser, baseURL, 'drawing', contexts, 6);
+    const canvas = phone.getByLabel('絵を描くキャンバス', { exact: true });
+    await expect(canvas).toHaveAttribute('aria-disabled', 'false');
+    await canvas.scrollIntoViewIfNeeded();
+    const stroke = async (y: number) => {
+      const box = (await canvas.boundingBox())!;
+      await phone.mouse.move(box.x + 40, box.y + y);
+      await phone.mouse.down();
+      await phone.mouse.move(box.x + 120, box.y + y, { steps: 3 });
+      await phone.mouse.up();
+    };
+    await stroke(40);
+    await phone.getByRole('button', { name: 'この絵を送る', exact: true }).click();
+    await expect(phone.getByRole('button', { name: '送信済み ✓', exact: true })).toBeVisible();
+    await stroke(80);
+    await phone.route(`**${path}/drawing**`, route => route.request().method() === 'GET' ? route.abort() : route.continue());
+    await phone.reload();
+    await expect(phone.getByRole('button', { name: '伝言を更新', exact: true })).toBeEnabled();
+    await expect(phone.getByRole('button', { name: 'これでOK！', exact: true })).toBeDisabled();
+  } finally { await Promise.all(contexts.map(context => context.close())); }
+});
+
 test('a dropped poll leaves typing and focus alone, and blocks only sending', async ({ browser, baseURL }) => {
   test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
   const contexts: BrowserContext[] = [];

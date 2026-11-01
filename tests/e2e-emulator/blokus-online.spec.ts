@@ -190,7 +190,7 @@ const now = async (code: string): Promise<Now> => {
   const moves = parseMoves(state.movesJson);
   const { game } = replay(state.mode, moves);
   const left = leftSeatsOf(wire);
-  return { room, wire, seating, game, moves, left, seat: game.over ? -1 : seatToPlay(seating, game, left), winners: parseWinners(state.winnersJson) };
+  return { room, wire, seating, game, moves, left, seat: game.over ? -1 : seatToPlay(seating, game, state.sharedTurnSeat), winners: parseWinners(state.winnersJson) };
 };
 
 /** As if the turn had run out: this write is the emulator's admin path. */
@@ -399,6 +399,7 @@ test('Duo: the copy button, an invite link, a colour, a whole game, the winner a
   await expect.poll(async () => (await now(code)).moves.length).toBe(0);
   const again = await now(code);
   expect(again.wire.seats.map(({ colors }) => colors)).toEqual([[1], [0]]);
+  expect(again.room.gameState?.matchId).toBe(2);
   await checkScreens(players, again);
   await expect(ben.page.getByTestId('blokus-piece-I1')).toHaveAttribute('data-state', 'ready');
   await playTurn(players, code);
@@ -495,6 +496,10 @@ test('four players: a refused move, a reload, leavers, and solo play afterwards'
   await noSideways(ann.page);
   await startAll(players);
   await noSideways(ann.page);
+  // Presence is the one write a client still makes to a Blokus room: a refused one would fail silently.
+  for (const seat of [0, 1, 2, 3]) {
+    await expect(ann.page.getByTestId('blokus-online-player').nth(seat).locator('[data-here]')).toHaveAttribute('data-here', 'true');
+  }
 
   let current = await now(code);
   for (let turn = 0; turn < 5; turn += 1) {

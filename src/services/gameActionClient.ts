@@ -195,14 +195,15 @@ export function submitOthelloMove(args: {
 
 /**
  * Blokus — place a piece, as an engine move id. Server validates the seat
- * (including the shared colour's rotation), that `turn` is current and that
- * the move is legal, then auto-passes every colour after it with no move.
+ * (including the shared colour's rotation), that `match` and `turn` are current
+ * and that the move is legal, then auto-passes every colour after it with no move.
  */
 export function submitBlokusMove(args: {
   roomId: string;
   playerId: string;
   move: number;
   turn: number;
+  match: number;
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'place', ...args });
 }
@@ -215,6 +216,7 @@ export function claimBlokusTimeout(args: {
   roomId: string;
   playerId: string;
   turn: number;
+  match: number;
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'timeout', ...args });
 }

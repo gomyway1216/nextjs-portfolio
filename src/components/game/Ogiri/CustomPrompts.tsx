@@ -37,7 +37,7 @@ export function CustomPrompts({ view, busy, send }: {
         <input
           aria-label={view.isHost ? '自作お題を追加' : '主催者にお題を送る'}
           value={text}
-          maxLength={100}
+          maxLength={200}
           placeholder="例：社員旅行で部長が言いがちなこと"
           onChange={(e) => setText(e.target.value)}
         />

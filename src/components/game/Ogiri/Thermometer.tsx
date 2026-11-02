@@ -16,9 +16,10 @@ export function ThermometerVote({ side, disabled, send }: {
     <div className={styles.vote}>
       <output className={styles.reading} htmlFor="thermometer-rating" aria-live="polite">{value}<small>度</small></output>
       <input id="thermometer-rating" className={styles.slider} type="range" min={0} max={100} step={1} value={value}
-        aria-label="温度（0〜100）" aria-valuetext={`${value}度`} disabled={disabled}
+        aria-label="温度（0〜100）" aria-valuetext={`${value}度`} aria-describedby="thermometer-ends" disabled={disabled}
         onChange={event => setValue(Number(event.target.value))} />
-      <div className={styles.ends} aria-hidden="true"><span>0 · {side.scale?.low}</span><span>100 · {side.scale?.high}</span></div>
+      {/* The only place the two ends' meanings appear while choosing, so screen readers get them too. */}
+      <div id="thermometer-ends" className={styles.ends}><span>0 · {side.scale?.low}</span><span>100 · {side.scale?.high}</span></div>
       <div className={styles.nudges}>
         {[-10, -1, 1, 10].map(step => <button key={step} type="button" className={common.secondary} disabled={disabled}
           aria-label={`${step > 0 ? '+' : ''}${step}度`}

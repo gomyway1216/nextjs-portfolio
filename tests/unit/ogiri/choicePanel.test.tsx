@@ -24,6 +24,10 @@ it('thermometer shows a slider to voters, only the scale to the TV, then an anon
   const phone = render(room, 'p0', false);
   expect(phone).toContain('type="range"');
   expect(phone).toContain('50度で送る');
+  // The slider's description is the visible line naming what 0 and 100 mean.
+  expect(phone).toContain('aria-describedby="thermometer-ends"');
+  expect(phone).toMatch(new RegExp(`<div id="thermometer-ends"[^>]*><span>0 · ${room.sideRounds![0].scale!.low}</span>`));
+  expect(phone).not.toContain('aria-hidden="true"><span>0 · ');
   const tv = render(room, null, true);
   expect(tv).not.toContain('type="range"');
   expect(tv).toContain(`100 · ${room.sideRounds![0].scale!.high}`);

@@ -26,7 +26,7 @@ for (const count of [4, 12]) test(`${count} players, separate GM and TV finish a
   watch(host);
   try {
     await host.goto('/games/ogiri');
-    await expect(host.getByLabel('遊べる5つのゲーム').getByRole('button', { name: /おえかきしりとり/ })).toBeVisible();
+    await expect(host.getByLabel(/^遊べる\d+つのゲーム$/).getByRole('button', { name: /おえかきしりとり/ })).toBeVisible();
     if (count === 4) await host.screenshot({ path: info.outputPath('landing.png'), fullPage: true });
     await host.getByRole('button', { name: '主催する', exact: true }).click();
     await host.getByLabel('遊ぶゲーム', { exact: true }).selectOption('shiritori');

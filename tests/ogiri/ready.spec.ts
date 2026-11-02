@@ -47,16 +47,16 @@ for (const automatic of [true, false])
         for (let j = 0; j < 2; j++) {
           const form = phone.getByTestId('answer-form').nth(j);
           await form.getByRole('textbox', { name: '回答', exact: true }).fill(`ボケ${i + 1}の${j + 1}`);
-          await form.getByRole('button').click();
-          await expect(form.getByRole('button')).toHaveText('送信済み ✓');
+          await form.locator('button[type="submit"]').click();
+          await expect(form.locator('button[type="submit"]')).toHaveText('送信済み ✓');
         }
       }));
       expect((await read(host)).phase).toBe('answering');
       const firstForm = phones[0].getByTestId('answer-form').first();
       await firstForm.getByRole('textbox', { name: '回答', exact: true }).fill('まだ送ってない変更');
       await expect(phones[0].getByRole('button', { name: 'これでOK！', exact: true })).toBeDisabled();
-      await firstForm.getByRole('button').click();
-      await expect(firstForm.getByRole('button')).toHaveText('送信済み ✓');
+      await firstForm.locator('button[type="submit"]').click();
+      await expect(firstForm.locator('button[type="submit"]')).toHaveText('送信済み ✓');
       await phones[0].getByRole('button', { name: 'これでOK！', exact: true }).click();
       await expect(firstForm.getByRole('textbox', { name: '回答', exact: true })).toBeDisabled();
       const mine = await read(phones[0]);

@@ -51,3 +51,32 @@ for (const [label, block] of blockers) test(`a phone with ${label} localStorage 
     expect(errors).toEqual([]);
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });
+
+for (const [label, block] of blockers) test(`a phone with ${label} localStorage can write a bluff`, async ({ page: host, browser, baseURL }) => {
+  test.skip(Boolean(process.env.OGIRI_TEST_URL), 'Local Firestore emulator only.');
+  const contexts: BrowserContext[] = [], errors: string[] = [];
+  try {
+    let room: RoomView = await (await host.request.post('/api/ogiri', { data: { name: '進行役', avatar: 'rabbit', hostPlays: false, gameType: 'bluff' } })).json();
+    const path = `/api/ogiri/${room.code}`;
+    await guest(browser, baseURL, path, 'いぬ', contexts);
+    await guest(browser, baseURL, path, 'ぱんだ', contexts);
+    const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, reducedMotion: 'reduce',
+      extraHTTPHeaders: process.env.OGIRI_TEST_URL ? {} : { 'x-real-ip': '198.51.100.239' } });
+    contexts.push(context);
+    await context.addInitScript(block);
+    const phone = await context.newPage();
+    phone.on('pageerror', error => errors.push(error.message));
+    await phone.goto(`/games/ogiri/${room.code}`);
+    await phone.getByRole('textbox', { name: 'ニックネーム' }).fill('ねこ');
+    await phone.getByRole('button', { name: 'ルームに参加 →', exact: true }).click();
+    await expect(phone.getByText('このルームの参加者として接続中', { exact: true })).toBeVisible();
+    room = await (await host.request.get(path)).json();
+    room = await (await host.request.post(path, { data: { type: 'start', turn: room.turn } })).json();
+    const fake = phone.getByRole('textbox', { name: 'うその答え', exact: true });
+    await expect(fake).toBeVisible();
+    await fake.fill('もっともらしいうそ');
+    await phone.getByRole('button', { name: 'このうそを送る', exact: true }).click();
+    await expect(phone.getByRole('button', { name: '送信済み ✓', exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally { await Promise.all(contexts.map(context => context.close())); }
+});

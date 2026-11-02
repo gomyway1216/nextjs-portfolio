@@ -133,7 +133,8 @@ describe('Ogiri party engine', () => {
     expect(room.phase).toBe('reveal');
     expect(project(room, null, now + 6, prompts).match).toMatchObject({ votesReceived: 4, result: { counts: [4, 0] } });
     expect(match.votes[voters[0]]).toBe(0);
-    expect(room.players[match.players[0]].score).toBe(600);
+    // 4 votes + win + shutout, including the resting voter's ballot.
+    expect(room.players[match.players[0]].score).toBe(800);
   });
   it('scores votes and bonuses exactly once, with equal ranks on ties', () => {
     const room = setup(4);
@@ -223,7 +224,7 @@ describe('Ogiri party engine', () => {
               act(room, id, { type: 'vote', matchId: m.id, choice: 0 }, now + 3, prompts),
             );
           expect(room.phase).toBe('reveal');
-          expect(m.points).toEqual([(n - 2) * 100 + 200, 0]);
+          expect(m.points).toEqual([((n - 2) * 100 + 200 + 200) * (round === 3 ? 2 : 1), 0]);
           next(room);
         }
         expect(room.phase).toBe('ranking');
@@ -231,7 +232,7 @@ describe('Ogiri party engine', () => {
       }
       expect(room.phase).toBe('finished');
       expect(rankPlayers(room).reduce((sum, p) => sum + p.score, 0)).toBe(
-        3 * n * ((n - 2) * 100 + 200),
+        (1 + 1 + 2) * n * ((n - 2) * 100 + 400),
       );
       act(room, 'p0', { type: 'rematch' }, now, prompts);
       expect(room.phase).toBe('lobby');

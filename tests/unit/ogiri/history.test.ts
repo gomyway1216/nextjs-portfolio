@@ -96,14 +96,17 @@ describe('durable game history', () => {
     expect(history.matches).toHaveLength(60);
     expect(new Set(history.matches.map((m) => m.round))).toEqual(new Set([1, 2, 3, 4, 5]));
     expect(
-      history.matches.every((m) => m.answers.every((a) => a.votes === 5 && a.points === 500)),
+      history.matches.every((m) => m.answers.every((a) => a.votes === 5 && !a.shutout &&
+        a.points === (m.round === 5 ? 1000 : 500))),
     ).toBe(true);
-    expect(history.rankings.every((p) => p.rank === 1 && p.score === 5000)).toBe(true);
+    expect(history.matches.filter((m) => m.multiplier === 2).map((m) => m.round)).toEqual(Array(12).fill(5));
+    expect(history.rankings.every((p) => p.rank === 1 && p.score === 6000)).toBe(true);
     expect(history.expiresAt - history.finishedAt).toBe(HISTORY_TTL);
     expect(Buffer.byteLength(JSON.stringify(history))).toBeLessThan(100_000);
     const text = historyText(history);
     expect(text).toContain('ROUND 1');
-    expect(text).toContain('ROUND 5');
+    expect(text).toContain('ROUND 5 (得点2倍)');
+    expect(text).not.toContain('ROUND 4 (得点');
     expect(text).toContain('5票');
     expect(JSON.stringify(history)).not.toContain('secret');
     expect(JSON.stringify(history)).not.toContain('p0');

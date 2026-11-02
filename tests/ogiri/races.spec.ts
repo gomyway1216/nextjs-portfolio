@@ -58,7 +58,7 @@ test('racing duplicate votes, stale host commands, foreign rooms and expired roo
     expect(room.match?.votesReceived).toBe(1);
     expect((await voters[1].request.post(path, { data: vote })).ok()).toBe(true);
     room = await (await host.get(path)).json();
-    expect(room.match?.result?.points).toEqual([400, 0]);
+    expect(room.match?.result?.points).toEqual([600, 0]);
     // Scored-answer moderation rolls back only this match, atomically.
     expect(
       (await host.post(path, { data: { type: 'hide', matchId: room.match!.id, choice: 0 } })).ok(),

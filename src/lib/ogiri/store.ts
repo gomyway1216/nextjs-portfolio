@@ -25,6 +25,7 @@ import { snapshotHistory, validHistoryId } from './history';
 import { settlePartyPoints } from './party';
 import { hashPassphrase, verifyPassphrase, type PassphraseHash } from './passphrase';
 import { normalizePlayerText } from './text';
+import { applyReaction, planReaction, REACTION_KINDS } from './reactions';
 
 const dummyPassphraseHash: PassphraseHash = { salt: '0'.repeat(32), hash: '0'.repeat(64) };
 
@@ -327,13 +328,49 @@ export async function command(
     if (!id) throw new GameError('参加し直してください。', 401);
     tick(room, now, prompts);
     if (
-      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type) &&
+      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote', 'wolfAccept', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type) &&
       turn !== turnKey(room)
     )
       throw new GameError('画面が更新されました。もう一度操作してください。', 409);
     act(room, id, action, now, prompts);
   });
   return project(room, authenticate(room, token), Date.now(), prompts);
+}
+
+/** Reactions skip the whole-room write: an authenticated read, then the reaction fields only.
+ * Like mutate() they land only on the version that was read, so two first batches, a turn
+ * change or a second tap inside the cooldown re-read instead of overwriting each other. */
+export async function react(code: string, token: string | undefined, counts: unknown, turn: unknown) {
+  const ref = collection().doc(code);
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const snapshot = await ref.get();
+    const room = snapshot.data() as Room | undefined;
+    const now = Date.now();
+    if (!room || room.expiresAt <= now)
+      throw new GameError('ルームが見つからないか、有効期限が切れています。', 404);
+    const id = authenticate(room, token);
+    if (!id) throw new GameError('参加し直してください。', 401);
+    const current = turnKey(room);
+    const plan = planReaction(room.reactions, { phase: room.phase, turn: current, clientTurn: turn, playerId: id, counts }, now);
+    try {
+      await ref.update(plan.reset
+        ? { reactions: applyReaction(undefined, current, id, plan, now), revision: FieldValue.increment(1) }
+        : {
+            ...Object.fromEntries(REACTION_KINDS.filter((kind) => plan.counts[kind] > 0)
+              .map((kind) => [`reactions.counts.${kind}`, FieldValue.increment(plan.counts[kind])])),
+            [`reactions.last.${id}`]: now,
+            revision: FieldValue.increment(1),
+          }, { lastUpdateTime: snapshot.updateTime! });
+    } catch (error) {
+      if (![9, 10].includes((error as { code: number }).code)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, randomInt(15, 80)));
+      continue;
+    }
+    room.reactions = applyReaction(room.reactions, current, id, plan, now);
+    room.revision++;
+    return project(room, id, Date.now(), prompts);
+  }
+  throw new GameError('同時に多くの操作がありました。もう一度お試しください。', 409);
 }
 
 export async function readDrawing(code: string, id: string, token?: string) {

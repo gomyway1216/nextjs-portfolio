@@ -152,14 +152,14 @@ describe('original party audio', () => {
   });
 });
 
-it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('opens %s with the start stinger before later entrances', gameType => {
+it.each(['ogiri', 'majority', 'identity', 'drawing', 'bluff'] as const)('opens %s with the start stinger before later entrances', gameType => {
   const lobby = { ...view('lobby'), gameType };
   const active = { ...view(gameType === 'majority' ? 'voting' : 'answering'), gameType };
   expect(phaseSound(lobby, active)).toBe('start');
   expect(phaseSound(view('ranking'), view('voting'))).toBe('bounce');
 });
 
-it.each(['ogiri', 'majority', 'identity', 'drawing'] as const)('requires an actual score increase for the %s points voice', gameType => {
+it.each(['ogiri', 'majority', 'identity', 'drawing', 'bluff'] as const)('requires an actual score increase for the %s points voice', gameType => {
   const previous = { ...view('voting'), gameType, players: [{ id: 'a', score: 200 }, { id: 'b', score: 50 }] } as RoomView;
   const answerOnly = { ...previous, phase: 'reveal', turn: 'another-reveal' } as RoomView;
   expect(phaseSound(previous, answerOnly)).toBe('bounce');

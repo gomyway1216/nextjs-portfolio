@@ -18,14 +18,19 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
-  shiritori: 'おえかきしりとり',
+  shiritori: 'おえかきしりとり', minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ', bluff: 'うそ回答まぜ',
 };
-/** Ogiri can run as a long evening and the one-prompt modes stay short. Drawing modes play once and
+/** Everyone answers the same question at once; no written answers and no per-voter choices are public. */
+export type ChoiceGameType = 'majority' | 'minority' | 'thermometer';
+export const isChoiceGame = (type: GameType | undefined): type is ChoiceGameType =>
+  type === 'majority' || type === 'minority' || type === 'thermometer';
+export type SideGameType = ChoiceGameType | 'identity';
+/** Ogiri can run as a long evening and the other games stay short. Drawing modes play once and
  * ignore this, so the host's choice is still there for the next game in the room. */
-export const maxRounds = (type: GameType = 'ogiri') => type === 'majority' || type === 'identity' ? 5 : 20;
+export const maxRounds = (type: GameType = 'ogiri') => type === 'ogiri' || type === 'drawing' || type === 'shiritori' ? 20 : 5;
 export const roundsFor = (type: GameType | undefined, rounds: number) => Math.min(rounds, maxRounds(type));
 export interface Settings {
   gameType?: GameType;
@@ -35,6 +40,12 @@ export interface Settings {
   autoAdvance: boolean;
   categories: Category[];
   halloween: boolean;
+  /** Approved room prompts are mixed in by default; 'only' asks only them (catalog tops up). */
+  customMode?: 'mix' | 'only';
+  /** Participants may submit prompts that wait for the host's approval. */
+  customSubmissions?: boolean;
+  /** ワードウルフ only: 2 applies from 6 players, otherwise 1. */
+  wolves?: 1 | 2;
 }
 export const DEFAULT_SETTINGS: Settings = {
   rounds: 3,
@@ -56,6 +67,14 @@ export interface Prompt {
   license: string;
   enabled: boolean;
   createdAt: string;
+}
+/** Room-scoped prompt written by the host or a participant. Pending ones are host-only. */
+export interface CustomPrompt {
+  id: string;
+  text: string;
+  author: string;
+  approved: boolean;
+  createdAt: number;
 }
 export interface Player {
   /** Private salted scrypt verifier. Never project into room/history responses. */
@@ -87,6 +106,10 @@ export interface Match {
   votes: Record<string, number>;
   scored: boolean;
   points: number[];
+  /** Final-round matches double every point; absent on rooms created before the multiplier. */
+  multiplier?: number;
+  /** Index of the answer that took every vote (2+ voters, both answers shown). */
+  shutout?: number | null;
 }
 export interface RejoinSeat {
   id: string;
@@ -101,6 +124,9 @@ export interface Room {
   /** A device asking for a quiet seat. The hash replaces the old session once the host agrees. */
   rejoinRequests?: Record<string, { secretHash: string; at: number }>;
   drawing?: DrawingRound;
+  /** Private: words and roles. Never spread into RoomView. */
+  wordWolf?: WordWolfRound[];
+  bluffRounds?: BluffRound[];
   /** Durable recovery throttle shared across server instances. */
   recoveryAttempts?: { count: number; resetAt: number };
   /** Snapshot of the game actually started, independent of the next game's settings. */
@@ -125,9 +151,13 @@ export interface Room {
   pairCounts: Record<string, number>;
   game: number;
   pastRounds?: { round: number; matches: Match[] }[];
+  /** Display-only crowd reactions for the current turn. Never archived. */
+  reactions?: import('./reactions').ReactionState;
   historyId?: string;
   archivedGame?: number;
   history?: HistoryRef[];
+  customPrompts?: CustomPrompt[];
+  customPromptSeq?: number;
 }
 export interface HistoryRef {
   gameType?: GameType;
@@ -148,18 +178,24 @@ export interface GameHistory extends HistoryRef {
   matches: {
     round: number;
     text: string;
-    answers: { name: string; avatar: string; text: string | null; votes: number; points: number }[];
+    answers: { name: string; avatar: string; text: string | null; votes: number; points: number; shutout?: boolean }[];
     awards?: { name: string; avatar: string; points: number }[];
     note?: string;
+    multiplier?: number;
+    custom?: boolean;
   }[];
 }
 export interface PartyGameResult {
   correctOption: string | null;
   counts: Record<string, number>;
   awards: { id: string; points: number }[];
+  /** Thermometer only: room average of the valid ratings. */
+  average?: number;
 }
 export interface PartyGameView {
-  type: 'majority' | 'identity';
+  type: SideGameType;
+  /** Thermometer only: what 0 and 100 mean for this prompt. */
+  scale?: { low: string; high: string };
   prompt: string;
   answer: string;
   answerRequired: boolean;
@@ -179,8 +215,9 @@ export interface PartyGameView {
 /** Private round state. Never spread into RoomView. */
 export interface SideGameRound {
   round: number;
-  type: 'majority' | 'identity';
+  type: SideGameType;
   prompt: string;
+  scale?: { low: string; high: string };
   players: string[];
   options: { id: string; label: string }[];
   answers: Record<string, string>;
@@ -206,6 +243,7 @@ export interface PublicPlayer {
   answered: number;
 }
 export interface RoomView {
+  bluffGame?: BluffGameView;
   /** Quiet seats offered to a visitor without a session, for example after scanning the TV QR. */
   rejoinSeats?: RejoinSeat[];
   rejoinRequests?: RejoinRequest[];
@@ -216,6 +254,7 @@ export interface RoomView {
   /** Only the authenticated participant's setup status, never a verifier. */
   hasPassphrase?: boolean;
   drawingGame?: DrawingGameView;
+  wordWolfGame?: WordWolfView;
   /** Transient issuance response only. Never populated by project/poll/history. */
   recoveryCode?: string;
   resting?: boolean;
@@ -230,8 +269,14 @@ export interface RoomView {
   }[];
   partyGames?: number;
   highlights?: GameHighlights | null;
+  /** Anonymous reaction totals for the current turn while voting/reveal, else null. */
+  reactions?: import('./reactions').ReactionCounts | null;
   hostPlays?: boolean;
   history?: HistoryRef[];
+  /** Approved custom prompts in this room; the texts are never public. */
+  customPromptCount?: number;
+  /** Host: every submission. Participant: only their own. TV: never. */
+  customPrompts?: { id: string; text: string; author: string; approved: boolean; mine: boolean }[];
   turn: string;
   code: string;
   revision: number;
@@ -254,10 +299,12 @@ export interface RoomView {
     answers: (string | null)[];
     canVote: boolean;
     isAuthor?: boolean;
+    custom?: boolean;
     voted: boolean;
     votesReceived: number;
     eligible: number;
-    result: null | { counts: number[]; points: number[]; authors: string[] };
+    multiplier: number;
+    result: null | { counts: number[]; points: number[]; authors: string[]; shutout: number | null };
   };
 }
 export interface GameHighlights {
@@ -285,9 +332,12 @@ export type Action =
   | { type: 'settings'; settings: Settings }
   | { type: 'rematch'; gameType?: GameType }
   | { type: 'start' | 'next' | 'extend' | 'pause' | 'resume' | 'finish' | 'leave' | 'return' | 'heartbeat' }
+  | { type: 'customPromptAdd'; text: string }
+  | { type: 'customPromptApprove' | 'customPromptRemove'; id: string }
   | { type: 'kick'; playerId: string }
   | { type: 'rejoinAnswer'; playerId: string; requestedAt: number; approve: boolean }
-  | { type: 'hide'; matchId: string; choice: number };
+  | { type: 'hide'; matchId: string; choice: number }
+  | { type: 'wolfAccept' };
 
 export interface DrawingData {
   v: 1;
@@ -342,4 +392,81 @@ export interface DrawingGameView {
 export interface DrawingHistoryChain {
   prompt: string;
   steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number; link?: boolean | null }[];
+}
+export interface WordWolfRound {
+  round: number;
+  /** Index into WORD_WOLF_PAIRS and which side the wolves received. */
+  pair: number;
+  wolfSide: 0 | 1;
+  players: string[];
+  wolves: string[];
+  ballots: Record<string, string>;
+  accused: string | null;
+  guess: string | null;
+  guessCorrect: boolean;
+  counts: Record<string, number>;
+  awards: { id: string; points: number }[];
+  scored: boolean;
+}
+export interface WordWolfView {
+  /** Only the authenticated assigned player's own word. Roles are never told before the result. */
+  myWord: string | null;
+  wolfCount: number;
+  readyCount: number;
+  playerCount: number;
+  options: { id: string; name: string; avatar: string }[];
+  canVote: boolean;
+  voted: boolean;
+  votesReceived: number;
+  eligible: number;
+  accused: null | { id: string; name: string; avatar: string; votes: number; isWolf: boolean };
+  counts: Record<string, number> | null;
+  canGuess: boolean;
+  guessing: boolean;
+  canAccept: boolean;
+  result: null | {
+    citizenWord: string;
+    wolfWord: string;
+    wolves: { id: string; name: string; avatar: string }[];
+    guess: string | null;
+    guessCorrect: boolean;
+    winner: 'citizens' | 'wolves';
+    awards: { id: string; points: number }[];
+  };
+}
+export const BLUFF_MAX_LENGTH = 40;
+/** Private bluff round: the truth and authors never leave the room before the reveal. */
+export interface BluffRound {
+  round: number;
+  prompt: string;
+  truth: string;
+  also: string[];
+  sourceUrl: string;
+  players: string[];
+  fakes: Record<string, string>;
+  options: { id: string; label: string; truth: boolean; authors: string[] }[];
+  ballots: Record<string, string>;
+  result: null | { truth: string; counts: Record<string, number>; awards: { id: string; points: number }[] };
+}
+export interface BluffGameView {
+  prompt: string;
+  index: number;
+  total: number;
+  answer: string;
+  answerRequired: boolean;
+  readyCount: number;
+  answererCount: number;
+  options: { id: string; label: string }[];
+  mine: string | null;
+  canVote: boolean;
+  voted: boolean;
+  votesReceived: number;
+  eligible: number;
+  result: null | {
+    truth: string;
+    counts: Record<string, number>;
+    authors: Record<string, string[]>;
+    awards: { id: string; points: number }[];
+    sourceUrl: string;
+  };
 }

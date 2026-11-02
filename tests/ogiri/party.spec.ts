@@ -161,9 +161,9 @@ for (const count of [3, 4, 10, 12])
       expect(late.status()).toBe(409);
       const hostForm = host.getByTestId('answer-form').first();
       await hostForm.getByRole('textbox', { name: '回答', exact: true }).fill('あ'.repeat(101));
-      await expect(hostForm.getByRole('button')).toBeDisabled();
+      await expect(hostForm.locator('button[type="submit"]')).toBeDisabled();
       await hostForm.getByRole('textbox', { name: '回答', exact: true }).fill('😀'.repeat(100));
-      await expect(hostForm.getByRole('button')).toBeEnabled();
+      await expect(hostForm.locator('button[type="submit"]')).toBeEnabled();
       await Promise.all(
         pages.map(async (page, i) => {
           for (let j = 0; j < 2; j++) {

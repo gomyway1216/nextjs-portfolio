@@ -148,7 +148,8 @@ test('two rounds survive rematch and room expiry; history is static, shareable a
     expect(history.matches).toHaveLength(6);
     expect(history.matches.map((m) => m.round)).toEqual([1, 1, 1, 2, 2, 2]);
     expect(
-      history.matches.every((m) => m.answers[0].votes === 1 && m.answers[0].points === 300),
+      // One voter per match never earns the shutout bonus; the final round doubles 300 to 600.
+      history.matches.every((m) => m.answers[0].votes === 1 && m.answers[0].points === (m.round === 2 ? 600 : 300)),
     ).toBe(true);
     expect(history.rankings.map((p) => [p.name, p.rank, p.score])).toEqual(
       room.players.map((p) => [p.name, p.rank, p.score]),

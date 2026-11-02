@@ -50,8 +50,8 @@ test('waits past the answer guide, accepts the last player and keeps results rea
       const form = late.getByTestId('answer-form').nth(i);
       await expect(form.getByRole('textbox')).toBeEnabled();
       await form.getByRole('textbox').fill(`待ってくれてありがとう${i + 1}`);
-      await form.getByRole('button').click();
-      await expect(form.getByRole('button')).toHaveText('送信済み ✓');
+      await form.locator('button[type="submit"]').click();
+      await expect(form.locator('button[type="submit"]')).toHaveText('送信済み ✓');
     }
     expect((await read(host.context())).phase).toBe('answering');
     await late.getByRole('button', { name: 'これでOK！', exact: true }).click();

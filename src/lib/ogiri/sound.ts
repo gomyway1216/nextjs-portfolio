@@ -97,10 +97,11 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
     return 'join';
   // Scores, rather than game-specific result fields, distinguish scoring from answer-only reveals.
   // A genuine re-score can also add points without changing the turn; identical polls stay silent.
+  // A shutout swaps the scoring cheer for the bigger group Yay and applause.
   if (next.phase === 'reveal' && next.players.some(player => {
     const before = previous.players.find(candidate => candidate.id === player.id);
     return before && player.score > before.score;
-  })) return 'count';
+  })) return next.match?.result?.shutout != null ? 'cheer' : 'count';
   if (previous.turn === next.turn) return null;
   if (previous.phase === 'lobby' && ['answering', 'voting'].includes(next.phase)) return 'start';
   if (next.phase === 'answering') return 'start';

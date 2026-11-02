@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { GAME_TITLES, type GameHistory, type HistoryRef } from '@/lib/ogiri/types';
+import { GAME_TITLES, isChoiceGame, type GameHistory, type HistoryRef } from '@/lib/ogiri/types';
 import { drawingHistoryHtml, historyText, validHistoryId } from '@/lib/ogiri/history';
 import { readLocalHistory, rememberHistory } from '@/lib/ogiri/history-local';
 import styles from './Ogiri.module.css';
@@ -202,18 +202,19 @@ export function OgiriHistory({ id }: { id?: string }) {
                 {history.matches.map((match, i) => (
                   <article className={styles.historyCard} key={i}>
                     <p className={styles.eyebrow}>
-                      ROUND {match.round} · お題 {i + 1}
+                      ROUND {match.round} · お題 {i + 1}{(match.multiplier ?? 1) > 1 && ` · 得点${match.multiplier}倍`}{match.custom && ' · ✍️ 自作'}
                     </p>
                     <h3>{match.text}</h3>
                     <div className={styles.historyAnswers}>
                       {match.answers.map((answer, j) => (
                         <div key={j}>
                           <p className={styles.historyAnswer}>{answer.text ?? '未回答・非表示'}</p>
-                          {history.gameType !== 'majority' && <small>
+                          {!isChoiceGame(history.gameType) && <small>
                             <Character avatar={answer.avatar} /> {answer.name}
                           </small>}
                           <p>
-                            <strong>{answer.votes}票</strong> · {history.gameType === 'majority' ? '選んだ人の合計 ' : ''}+{answer.points} 点
+                            <strong>{answer.votes}{history.gameType === 'thermometer' ? '人' : '票'}</strong> · {isChoiceGame(history.gameType) ? '選んだ人の合計 ' : ''}+{answer.points} 点
+                            {answer.shutout && <> · <b>全票ボーナス</b></>}
                           </p>
                         </div>
                       ))}

@@ -2,12 +2,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Room } from '@/lib/ogiri/types';
 
-const memory = vi.hoisted(() => ({ room: null as Room | null, writes: [] as Record<string, unknown>[] }));
+const memory = vi.hoisted(() => ({
+  room: null as Room | null, writes: [] as Record<string, unknown>[], preconditions: [] as unknown[],
+  /** Another write that lands between a read and its update, which then fails like Firestore's. */
+  race: null as (() => void) | null,
+}));
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/firebase-admin', () => ({
   getFirestore: () => ({ collection: () => ({ doc: () => ({
     get: async () => ({ data: () => structuredClone(memory.room), updateTime: {} }),
-    update: async (patch: Record<string, unknown>) => { memory.writes.push(patch); },
+    update: async (patch: Record<string, unknown>, precondition?: unknown) => {
+      memory.preconditions.push(precondition);
+      const race = memory.race;
+      memory.race = null;
+      if (race) {
+        race();
+        if (precondition) throw Object.assign(new Error('stale'), { code: 9 });
+      }
+      memory.writes.push(patch);
+    },
   }) }) }),
 }));
 import { act, createRoom, joinRoom, newPlayer, project, turnKey } from '@/lib/ogiri/engine';
@@ -99,8 +112,25 @@ describe('react store command', () => {
     const room = votingRoom(session.id, session.hash, Date.now());
     memory.room = room;
     memory.writes = [];
+    memory.preconditions = [];
+    memory.race = null;
     return { session, room, turn: turnKey(room) };
   }
+  it('re-reads instead of overwriting a reaction written after its read', async () => {
+    const { session, room, turn } = setup();
+    // Another phone's first batch of the turn lands between this request's read and its write.
+    memory.race = () => {
+      memory.room = { ...room, reactions: { turn, counts: { laugh: 2, clap: 0, wow: 0 }, last: { p1: Date.now() } } };
+    };
+    const view = await react(room.code, session.token, { clap: 1 }, turn);
+    expect(view.reactions).toEqual({ laugh: 2, clap: 1, wow: 0 });
+    expect(memory.writes).toHaveLength(1);
+    expect(Object.keys(memory.writes[0])).not.toContain('reactions');
+    expect(memory.preconditions).toEqual([
+      { lastUpdateTime: expect.anything() }, { lastUpdateTime: expect.anything() },
+    ]);
+    vi.unstubAllEnvs();
+  });
   it('writes field increments only, never the whole room', async () => {
     const { session, room, turn } = setup();
     const first = await react(room.code, session.token, { laugh: 3 }, turn);

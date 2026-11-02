@@ -337,29 +337,40 @@ export async function command(
   return project(room, authenticate(room, token), Date.now(), prompts);
 }
 
-/** Reactions skip the optimistic whole-room write: an authenticated read, then field
- * increments only. Concurrent game commands see the new update time and simply retry. */
+/** Reactions skip the whole-room write: an authenticated read, then the reaction fields only.
+ * Like mutate() they land only on the version that was read, so two first batches, a turn
+ * change or a second tap inside the cooldown re-read instead of overwriting each other. */
 export async function react(code: string, token: string | undefined, counts: unknown, turn: unknown) {
   const ref = collection().doc(code);
-  const room = (await ref.get()).data() as Room | undefined;
-  const now = Date.now();
-  if (!room || room.expiresAt <= now)
-    throw new GameError('ルームが見つからないか、有効期限が切れています。', 404);
-  const id = authenticate(room, token);
-  if (!id) throw new GameError('参加し直してください。', 401);
-  const current = turnKey(room);
-  const plan = planReaction(room.reactions, { phase: room.phase, turn: current, clientTurn: turn, playerId: id, counts }, now);
-  await ref.update(plan.reset
-    ? { reactions: applyReaction(undefined, current, id, plan, now), revision: FieldValue.increment(1) }
-    : {
-        ...Object.fromEntries(REACTION_KINDS.filter((kind) => plan.counts[kind] > 0)
-          .map((kind) => [`reactions.counts.${kind}`, FieldValue.increment(plan.counts[kind])])),
-        [`reactions.last.${id}`]: now,
-        revision: FieldValue.increment(1),
-      });
-  room.reactions = applyReaction(room.reactions, current, id, plan, now);
-  room.revision++;
-  return project(room, id, Date.now(), prompts);
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const snapshot = await ref.get();
+    const room = snapshot.data() as Room | undefined;
+    const now = Date.now();
+    if (!room || room.expiresAt <= now)
+      throw new GameError('ルームが見つからないか、有効期限が切れています。', 404);
+    const id = authenticate(room, token);
+    if (!id) throw new GameError('参加し直してください。', 401);
+    const current = turnKey(room);
+    const plan = planReaction(room.reactions, { phase: room.phase, turn: current, clientTurn: turn, playerId: id, counts }, now);
+    try {
+      await ref.update(plan.reset
+        ? { reactions: applyReaction(undefined, current, id, plan, now), revision: FieldValue.increment(1) }
+        : {
+            ...Object.fromEntries(REACTION_KINDS.filter((kind) => plan.counts[kind] > 0)
+              .map((kind) => [`reactions.counts.${kind}`, FieldValue.increment(plan.counts[kind])])),
+            [`reactions.last.${id}`]: now,
+            revision: FieldValue.increment(1),
+          }, { lastUpdateTime: snapshot.updateTime! });
+    } catch (error) {
+      if (![9, 10].includes((error as { code: number }).code)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, randomInt(15, 80)));
+      continue;
+    }
+    room.reactions = applyReaction(room.reactions, current, id, plan, now);
+    room.revision++;
+    return project(room, id, Date.now(), prompts);
+  }
+  throw new GameError('同時に多くの操作がありました。もう一度お試しください。', 409);
 }
 
 export async function readDrawing(code: string, id: string, token?: string) {

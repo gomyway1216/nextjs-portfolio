@@ -1,0 +1,450 @@
+/* Blokus online: the lobby and the room bar. Phone first. */
+
+.panel,
+.bar {
+  --online-fg: var(--games-route-fg, var(--foreground));
+  --online-muted: var(--games-route-muted, var(--muted-foreground));
+  --online-border: var(--games-route-border, var(--border));
+  --online-surface: var(--games-route-surface-raised, var(--card));
+  /* White on this is 5.9:1, where the game's sky accent would be under 3:1. */
+  --online-primary: #0369a1;
+  --online-focus: #0ea5e9;
+
+  width: 100%;
+  color: var(--online-fg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panel {
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.3rem, 5vw, 1.7rem);
+  font-weight: 800;
+}
+
+.title:focus {
+  outline: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid var(--online-border);
+  border-radius: 0.75rem;
+  background: var(--online-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.muted {
+  margin: 0;
+  color: var(--online-muted);
+  font-size: 0.85rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.label {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* 16px stops iOS zooming the page when a field takes focus. */
+.input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  color: var(--online-fg);
+  background: transparent;
+  border: 1px solid var(--online-muted);
+  border-radius: 0.5rem;
+}
+
+.code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.choices,
+.colors {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.choices legend,
+.colors legend {
+  margin-bottom: 0.25rem;
+}
+
+/* On a wrapper, because a legend in a grid fieldset takes up a cell of its own. */
+.choiceList,
+.colorList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.colorList {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--online-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--online-focus);
+}
+
+.choiceLabel {
+  display: block;
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.primary,
+.secondary {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.primary {
+  color: #fff;
+  background: var(--online-primary);
+  border: 1px solid var(--online-primary);
+}
+
+.secondary {
+  color: var(--online-fg);
+  background: transparent;
+  border: 1px solid var(--online-muted);
+}
+
+.primary:disabled {
+  color: var(--online-muted);
+  background: transparent;
+  border-color: var(--online-border);
+  cursor: not-allowed;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.color:focus-visible,
+.input:focus-visible,
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--online-focus);
+  outline-offset: 2px;
+}
+
+.icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+}
+
+.error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-left: 3px solid #dc2626;
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  border-radius: 0.25rem;
+}
+
+.notice {
+  margin: 0;
+  min-height: 1.2em;
+  color: var(--online-muted);
+  font-size: 0.85rem;
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.facts dd {
+  overflow-wrap: anywhere;
+}
+
+/* ---- seats ---- */
+.seats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+}
+
+.seat[data-turn='true'] {
+  border-color: var(--online-focus);
+}
+
+.seat[data-winner='true'] {
+  border-color: #16a34a;
+}
+
+.swatches {
+  display: inline-flex;
+  gap: 0.2rem;
+  flex: none;
+}
+
+/* Mirrors the piece colours in Blokus.module.css. */
+.swatch {
+  --swatch: #2563eb;
+  display: inline-block;
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+  background: var(--swatch);
+  border-radius: 0.2rem;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.swatch[data-color='1'] {
+  --swatch: #eab308;
+}
+
+.swatch[data-color='2'] {
+  --swatch: #dc2626;
+}
+
+.swatch[data-color='3'] {
+  --swatch: #16a34a;
+}
+
+[data-mode='duo'] .swatch[data-color='0'] {
+  --swatch: #7c3aed;
+}
+
+[data-mode='duo'] .swatch[data-color='1'] {
+  --swatch: #f97316;
+}
+
+.seatName {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--online-muted);
+}
+
+.dot[data-here='true'] {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: none;
+  font-size: 0.8rem;
+  color: var(--online-muted);
+}
+
+.badge[data-ready='true'] {
+  color: var(--online-fg);
+  font-weight: 700;
+}
+
+.score {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.sharedLine {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.color {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  color: var(--online-fg);
+  background: transparent;
+  border: 1px solid var(--online-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.color[aria-pressed='true'] {
+  border-color: var(--online-fg);
+  border-width: 2px;
+}
+
+/* ---- room bar ---- */
+@media (min-width: 861px) {
+  .bar {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* Two across on a phone: four rows would push the tray off the screen under the board. */
+@media (max-width: 640px) {
+  .bar .seats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bar .seat {
+    gap: 0.35rem;
+    padding: 0.25rem 0.35rem;
+  }
+
+  /* In half the width, a name breaks between words, not after every letter. */
+  .bar .name {
+    font-size: 0.9rem;
+    overflow-wrap: break-word;
+    word-break: keep-all;
+  }
+
+  .bar .score {
+    font-size: 0.85rem;
+  }
+}
+
+.barHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.headline {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.timer[data-urgent='true'] {
+  padding: 0 0.4rem;
+  color: #fff;
+  background: #b91c1c;
+  border-radius: 0.3rem;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.5rem;
+  border: 2px solid var(--online-border, currentColor);
+  border-top-color: var(--online-focus);
+  border-radius: 50%;
+  animation: onlineSpin 0.7s linear infinite;
+}
+
+@keyframes onlineSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

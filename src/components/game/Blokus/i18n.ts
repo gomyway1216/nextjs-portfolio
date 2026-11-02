@@ -16,6 +16,7 @@ export interface BlokusStrings {
   modes: Record<Mode, { label: string; description: string }>;
   /** Colour names in turn order, per mode. */
   colors: Record<Mode, readonly string[]>;
+  playOnline: string;
   playersTitle: string;
   playerCount: (count: number) => string;
   player: (number: number) => string;
@@ -102,6 +103,7 @@ const en: BlokusStrings = {
     classic: ['Blue', 'Yellow', 'Red', 'Green'],
     duo: ['Violet', 'Orange'],
   },
+  playOnline: 'Play online with friends',
   playersTitle: 'Players',
   playerCount: (count) => `${count} players`,
   player: (number) => `Player ${number}`,
@@ -174,7 +176,7 @@ const en: BlokusStrings = {
   controlsTitle: 'Controls',
   controls: [
     'Mouse: pick a piece, move over the board, and click to place it.',
-    'Touch: pick a piece, tap or drag on the board to position it, then press Place.',
+    'Touch: drag a piece onto the board, or tap it and slide a finger on the board, then press Place.',
     'Keyboard: arrows move it, R rotates, F flips, Enter places, Esc puts it back.',
     'Dots mark your open corners. Brighter ones can take the piece you picked.',
   ],
@@ -211,6 +213,7 @@ const ja: BlokusStrings = {
     classic: ['青', '黄', '赤', '緑'],
     duo: ['紫', 'オレンジ'],
   },
+  playOnline: '友達とオンラインで対戦',
   playersTitle: '人数',
   playerCount: (count) => `${count}人`,
   player: (number) => `プレイヤー${number}`,
@@ -280,7 +283,7 @@ const ja: BlokusStrings = {
   controlsTitle: '操作',
   controls: [
     'マウス：ピースを選び、盤の上で動かしてクリックで置きます。',
-    'タッチ：ピースを選び、盤をタップかドラッグで位置を決めて「置く」を押します。',
+    'タッチ：ピースを盤へドラッグするか、タップして盤の上で指を滑らせ、「置く」を押します。',
     'キーボード：矢印で移動、Rで回転、Fで裏返し、Enterで配置、Escで戻します。',
     '点は自分の空いた角です。明るい点には選んだピースを置けます。',
   ],

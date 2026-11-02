@@ -182,3 +182,16 @@ test.describe('whole games on a phone', () => {
     });
   }
 });
+
+test('a click with no pointer position plays the piece where it already is', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('button', { name: /Easy/ }).click();
+  await begin(page);
+  await page.getByTestId('blokus-piece-I1').click();
+  await board(page).focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByTestId('blokus-ghost')).toHaveAttribute('data-legal', 'true');
+  await board(page).dispatchEvent('click', { detail: 0, clientX: 0, clientY: 0 });
+  await expect(page.getByTestId('blokus-piece-I1')).toHaveAttribute('data-state', 'used');
+});

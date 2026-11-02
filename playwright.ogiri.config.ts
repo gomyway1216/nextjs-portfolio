@@ -18,7 +18,9 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
-    command: 'npm run start -- --port 3100',
+    // Playwright's API client reuses idle sockets without retrying; at Node's default the server closes them after 6s,
+    // and a request sent at that moment fails with ECONNRESET. Outlast the test timeout so no test's pauses can hit it.
+    command: 'npm run start -- --port 3100 --keepAliveTimeout 300000',
     url: 'http://localhost:3100/games/ogiri',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

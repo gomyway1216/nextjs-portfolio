@@ -1,0 +1,143 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.group {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.count {
+  min-height: 44px;
+  border: 2px solid var(--games-route-border, var(--border));
+  border-radius: 0.7rem;
+  background: var(--games-route-surface-raised, var(--card));
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.count[aria-pressed='true'] {
+  border-color: #0ea5e9;
+  background: color-mix(in srgb, #0ea5e9 14%, var(--games-route-surface-raised, var(--card)));
+}
+
+.seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.seat {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 1fr) auto;
+  gap: 0.4rem 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--games-route-border, var(--border));
+  border-radius: 0.7rem;
+  background: var(--games-route-surface-raised, var(--card));
+}
+
+.seatName {
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* The button is the 44px target; the colour is the smaller square drawn inside it. */
+.chip {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.chip::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 6px;
+  background: var(--chip);
+  opacity: 0.55;
+}
+
+.chip[aria-pressed='true']::before {
+  opacity: 1;
+  outline: 3px solid var(--games-route-fg, var(--foreground));
+  outline-offset: 2px;
+}
+
+.chip:focus-visible {
+  outline: 3px solid #0ea5e9;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.chip0 {
+  --chip: #2563eb;
+}
+
+.chip1 {
+  --chip: #eab308;
+}
+
+.chip2 {
+  --chip: #dc2626;
+}
+
+.chip3 {
+  --chip: #16a34a;
+}
+
+.picker[data-mode='duo'] .chip0 {
+  --chip: #7c3aed;
+}
+
+.picker[data-mode='duo'] .chip1 {
+  --chip: #f97316;
+}
+
+.control {
+  grid-column: 1 / -1;
+  min-height: 44px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--games-route-border, var(--border));
+  border-radius: 0.5rem;
+  background: var(--games-route-bg, var(--background));
+  color: inherit;
+  font-size: 1rem;
+}
+
+.note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--games-route-muted, var(--muted-foreground));
+}

@@ -136,25 +136,49 @@ const valueColours = (state: GameState, weights: Weights): void => {
   }
 };
 
-/** The position as `color` sees it: its own value less the average rival's. */
-export const evaluate = (state: GameState, color: number, weights: Weights = BEST_WEIGHTS): number => {
-  valueColours(state, weights);
-  const { colors } = state.rules;
-  let rivals = 0;
-  for (let other = 0; other < colors; other++) {
-    if (other !== color) rivals += colourValue[other];
-  }
-  return colourValue[color] - (weights.rivals * rivals) / (colors - 1);
+/**
+ * Whose position counts for whom. Two colours can be one side, and a shared
+ * colour counts for nobody, so a colour's interest is not always its own.
+ */
+export interface View {
+  own: readonly number[];
+  rivals: readonly number[];
+}
+
+const aloneViews = (colors: number): View[] =>
+  Array.from({ length: colors }, (_, color) => ({
+    own: [color],
+    rivals: Array.from({ length: colors }, (_, other) => other).filter((other) => other !== color),
+  }));
+
+const ALONE: Readonly<Record<number, readonly View[]>> = { 2: aloneViews(2), 4: aloneViews(4) };
+
+/** Each colour playing for itself, the plain game. */
+export const defaultViews = (state: GameState): readonly View[] => ALONE[state.rules.colors];
+
+const total = (values: Float64Array, colors: readonly number[]): number => {
+  let sum = 0;
+  for (let i = 0; i < colors.length; i++) sum += values[colors[i]];
+  return sum;
 };
 
-/** The value of a finished game to `color`: the lead over the best rival, scaled past any estimate. */
-const finalValue = (state: GameState, color: number): number => {
-  const { colors } = state.rules;
-  let best = -Infinity;
-  for (let other = 0; other < colors; other++) {
-    if (other !== color) best = Math.max(best, scoreOf(state, other));
+/** The position as `view` sees it: its own value less the average rival's, scaled to as many colours as it has. */
+export const evaluate = (state: GameState, view: View, weights: Weights = BEST_WEIGHTS): number => {
+  valueColours(state, weights);
+  const { own, rivals } = view;
+  return total(colourValue, own) - (weights.rivals * total(colourValue, rivals) * own.length) / rivals.length;
+};
+
+/** The value of a finished game to `view`: the lead over the best rival, or the other side, scaled past any estimate. */
+const finalValue = (state: GameState, view: View): number => {
+  let mine = 0;
+  for (const color of view.own) mine += scoreOf(state, color);
+  let theirs = view.own.length > 1 ? 0 : -Infinity;
+  for (const color of view.rivals) {
+    const score = scoreOf(state, color);
+    theirs = view.own.length > 1 ? theirs + score : Math.max(theirs, score);
   }
-  return (scoreOf(state, color) - best) * 100;
+  return (mine - theirs) * 100;
 };
 
 export interface Scored {
@@ -170,17 +194,16 @@ const scratchStates = (state: GameState): [GameState, GameState] => {
   return (scratchPools[mode] ??= [cloneState(state), cloneState(state)]);
 };
 
-const moveScore = (state: GameState, move: number, color: number, weights: Weights, scratch: GameState): number => {
+const moveScore = (state: GameState, move: number, view: View, weights: Weights, scratch: GameState): number => {
   copyState(scratch, state);
   applyMove(scratch, move);
-  return evaluate(scratch, color, weights) + weights.shape * shapeBonus[movePiece(move)];
+  return evaluate(scratch, view, weights) + weights.shape * shapeBonus[movePiece(move)];
 };
 
 /** Every move scored by one step of evaluation, best first. */
-export const rankMoves = (state: GameState, moves: readonly number[], weights: Weights = BEST_WEIGHTS): Scored[] => {
-  const color = state.toMove;
+export const rankMoves = (state: GameState, moves: readonly number[], weights: Weights = BEST_WEIGHTS, view: View = defaultViews(state)[state.toMove]): Scored[] => {
   const scratch = scratchStates(state)[0];
-  const scored = moves.map((move) => ({ move, score: moveScore(state, move, color, weights, scratch) }));
+  const scored = moves.map((move) => ({ move, score: moveScore(state, move, view, weights, scratch) }));
   scored.sort((a, b) => b.score - a.score);
   return scored;
 };
@@ -209,7 +232,7 @@ export const budgetFor = (level: Difficulty): SearchBudget | null =>
  * Play `horizon` plies from `state` (which it changes), each colour taking the
  * best of a random sample of its moves, and value the result for `root`.
  */
-const playOut = (state: GameState, root: number, budget: SearchBudget, weights: Weights, random: Random, scratch: GameState): number => {
+const playOut = (state: GameState, root: View, views: readonly View[], budget: SearchBudget, weights: Weights, random: Random, scratch: GameState): number => {
   for (let ply = 0; ply < budget.horizon && !state.over; ply++) {
     const moves = legalMoves(state);
     if (moves.length === 0) {
@@ -221,7 +244,7 @@ const playOut = (state: GameState, root: number, budget: SearchBudget, weights: 
     let bestScore = -Infinity;
     for (let n = 0; n < Math.min(budget.sample, moves.length); n++) {
       const move = moves[Math.floor(random() * moves.length)];
-      const score = moveScore(state, move, color, weights, scratch);
+      const score = moveScore(state, move, views[color], weights, scratch);
       if (score > bestScore) {
         bestScore = score;
         best = move;
@@ -233,11 +256,10 @@ const playOut = (state: GameState, root: number, budget: SearchBudget, weights: 
 };
 
 /** Successive halving: play out the candidates evenly, drop the worse half, repeat until the budget is spent. */
-const searchByPlayouts = (state: GameState, moves: readonly number[], budget: SearchBudget, weights: Weights, now: () => number, random: Random): number => {
-  const root = state.toMove;
+const searchByPlayouts = (state: GameState, moves: readonly number[], root: View, views: readonly View[], budget: SearchBudget, weights: Weights, now: () => number, random: Random): number => {
   const deadline = now() + budget.timeLimitMs;
   const [scratch, playout] = scratchStates(state);
-  let alive = rankMoves(state, moves, weights)
+  let alive = rankMoves(state, moves, weights, root)
     .slice(0, budget.width)
     .map(({ move }) => ({ move, total: 0, visits: 0 }));
   const rounds = Math.ceil(Math.log2(alive.length));
@@ -252,7 +274,7 @@ const searchByPlayouts = (state: GameState, moves: readonly number[], budget: Se
       for (const candidate of alive) {
         copyState(playout, state);
         applyMove(playout, candidate.move);
-        candidate.total += playOut(playout, root, budget, weights, random, scratch);
+        candidate.total += playOut(playout, root, views, budget, weights, random, scratch);
         candidate.visits += 1;
         played += 1;
         if (now() > deadline || played >= budget.maxPlayouts) {
@@ -274,6 +296,10 @@ export interface AiOptions {
   budget?: Partial<SearchBudget>;
   /** Evaluation override for tuning. */
   weights?: Weights;
+  /** Whose position this decision serves, when that is not simply the colour to move. */
+  view?: View;
+  /** Whose position each colour serves in a playout. */
+  views?: readonly View[];
 }
 
 const EASY_NOISE = 2.2;
@@ -300,20 +326,22 @@ const bestWithNoise = <T>(items: readonly T[], score: (item: T) => number, noise
 export const chooseMove = (state: GameState, moves: readonly number[], level: Difficulty, options: AiOptions): number => {
   const { random } = options;
   if (moves.length === 1) return moves[0];
+  const views = options.views ?? defaultViews(state);
+  const view = options.view ?? views[state.toMove];
 
   if (level === 'easy') return bestWithNoise(moves, (move) => PIECES[movePiece(move)].size, EASY_NOISE, random);
 
   if (level === 'medium') {
-    return bestWithNoise(rankMoves(state, moves, MEDIUM_WEIGHTS), ({ score }) => score, MEDIUM_NOISE, random).move;
+    return bestWithNoise(rankMoves(state, moves, MEDIUM_WEIGHTS, view), ({ score }) => score, MEDIUM_NOISE, random).move;
   }
 
   const weights = options.weights ?? BEST_WEIGHTS;
   if (level === 'hard') {
-    const ranked = rankMoves(state, moves, weights);
+    const ranked = rankMoves(state, moves, weights, view);
     const opening = state.placed[state.toMove] < OPENING_SQUARES;
     return ranked[opening ? Math.floor(random() * Math.min(OPENING_CHOICES, ranked.length)) : 0].move;
   }
 
   const budget = { ...budgetFor(level)!, ...options.budget };
-  return searchByPlayouts(state, moves, budget, weights, options.now ?? Date.now, random);
+  return searchByPlayouts(state, moves, view, views, budget, weights, options.now ?? Date.now, random);
 };

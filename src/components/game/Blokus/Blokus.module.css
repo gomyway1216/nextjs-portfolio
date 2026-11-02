@@ -10,46 +10,98 @@
   background: var(--games-route-bg, var(--background));
   color: var(--games-route-fg, var(--foreground));
   overflow: auto;
+  overscroll-behavior-y: contain;
   font-family: system-ui, -apple-system, sans-serif;
-  padding: 5.5rem 1rem 2rem;
+  padding: var(--blokus-top) max(1rem, env(safe-area-inset-right)) calc(2rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 
-  --blokus-accent: #0ea5e9;
+  /* Clear of the site's fixed bar. */
+  --blokus-top: 5.5rem;
+  --blokus-accent: #0369a1;
   --blokus-muted: var(--games-route-muted, var(--muted-foreground));
   --blokus-border: var(--games-route-border, var(--border));
   --blokus-surface: var(--games-route-surface-raised, var(--card));
-  --blokus-board: color-mix(in srgb, var(--blokus-surface) 86%, #64748b);
-  --blokus-grid: color-mix(in srgb, var(--games-route-fg, var(--foreground)) 18%, transparent);
+  --blokus-solid: var(--games-route-surface-solid, var(--card));
+  --blokus-slot: color-mix(in srgb, var(--games-route-fg, var(--foreground)) 6%, var(--blokus-solid));
+
+  /* The moulded board: pale grey plastic with a lighter ridge round each darker well. */
+  --board-rim-top: #dfe2e7;
+  --board-rim-bottom: #aeb4be;
+  --board-ridge: #d3d7dd;
+  --board-well-top: #9ea5b0;
+  --board-well-bottom: #bcc2ca;
+  --board-lip: rgba(255, 255, 255, 0.75);
+  --board-start-ring: #fff;
+}
+
+:global(html.dark) .root {
+  --blokus-accent: #38bdf8;
+  --board-rim-top: #5b616d;
+  --board-rim-bottom: #333842;
+  --board-ridge: #4d535e;
+  --board-well-top: #23272f;
+  --board-well-bottom: #333842;
+  --board-lip: rgba(255, 255, 255, 0.16);
+  --board-start-ring: #dbe1ea;
 }
 
 /* One colour per seat. Duo's two seats share the classes in turn order, so Duo is drawn in its own pair below. */
 .color0 {
+  --piece-high: #7cb4ff;
   --piece: #2563eb;
-  --piece-edge: #1e40af;
+  --piece-low: #1a48b8;
+  --piece-edge: #173e9e;
+  --piece-ink: rgba(255, 255, 255, 0.62);
 }
 
 .color1 {
-  --piece: #eab308;
-  --piece-edge: #a16207;
+  --piece-high: #ffec99;
+  --piece: #f2c20f;
+  --piece-low: #c99606;
+  --piece-edge: #94700a;
+  --piece-ink: rgba(92, 62, 0, 0.62);
 }
 
 .color2 {
+  --piece-high: #ff8f8f;
   --piece: #dc2626;
-  --piece-edge: #991b1b;
+  --piece-low: #ad1a1a;
+  --piece-edge: #8a1616;
+  --piece-ink: rgba(255, 255, 255, 0.62);
 }
 
 .color3 {
+  --piece-high: #6fe39b;
   --piece: #16a34a;
-  --piece-edge: #166534;
+  --piece-low: #107a38;
+  --piece-edge: #0e632e;
+  --piece-ink: rgba(255, 255, 255, 0.62);
 }
 
 .layout[data-mode='duo'] .color0 {
-  --piece: #7c3aed;
-  --piece-edge: #5b21b6;
+  --piece-high: #c9b6ff;
+  --piece: #8b5cf6;
+  --piece-low: #6d3bdc;
+  --piece-edge: #5526b8;
+  --piece-ink: rgba(255, 255, 255, 0.66);
 }
 
 .layout[data-mode='duo'] .color1 {
+  --piece-high: #ffd0a1;
   --piece: #f97316;
-  --piece-edge: #c2410c;
+  --piece-low: #cf5a0b;
+  --piece-edge: #a84508;
+  --piece-ink: rgba(80, 32, 0, 0.66);
+}
+
+/* Duo is a darker board in either theme: a different box from the four-colour game. */
+.layout[data-mode='duo'] {
+  --board-rim-top: #4c4f5e;
+  --board-rim-bottom: #24262f;
+  --board-ridge: #3d404c;
+  --board-well-top: #191b22;
+  --board-well-bottom: #292c35;
+  --board-lip: rgba(255, 255, 255, 0.13);
+  --board-start-ring: #fff;
 }
 
 .layout {
@@ -79,6 +131,7 @@
 /* ---- status ---- */
 .status {
   min-height: 3.1rem;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -103,6 +156,7 @@
 .spinner {
   width: 0.9rem;
   height: 0.9rem;
+  flex: none;
   border: 2px solid color-mix(in srgb, var(--blokus-accent) 40%, transparent);
   border-top-color: var(--blokus-accent);
   border-radius: 50%;
@@ -128,21 +182,57 @@
   border: 0;
 }
 
+/* The raised outer rim. Only this is CSS: the SVG inside is exactly the cells, and pointers are read off its box. */
 .boardFrame {
-  width: min(100%, calc(100dvh - 11.5rem));
-  min-width: min(100%, 20rem);
+  --rim: 0.6rem;
+  position: relative;
+  width: min(100%, calc(100dvh - 12rem));
+  min-width: min(100%, 15rem);
   aspect-ratio: 1 / 1;
-  padding: 0.35rem;
-  border-radius: 0.6rem;
-  background: color-mix(in srgb, var(--blokus-surface) 70%, #334155);
-  box-shadow: var(--games-route-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
+  padding: var(--rim);
+  border-radius: 0.8rem;
+  background: linear-gradient(160deg, var(--board-rim-top), var(--board-rim-bottom));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 2px rgba(0, 0, 0, 0.22),
+    0 3px 0 color-mix(in srgb, var(--board-rim-bottom) 70%, #000),
+    var(--games-route-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
 }
 
+/* The four coloured corners of the four-colour board, each where that colour starts. */
+.layout[data-mode='classic'] .boardFrame {
+  --corner: calc(var(--rim) * 3.4);
+  background:
+    linear-gradient(135deg, #2563eb 50%, transparent 50.5%) top left / var(--corner) var(--corner) no-repeat,
+    linear-gradient(225deg, #f2c20f 50%, transparent 50.5%) top right / var(--corner) var(--corner) no-repeat,
+    linear-gradient(315deg, #dc2626 50%, transparent 50.5%) bottom right / var(--corner) var(--corner) no-repeat,
+    linear-gradient(45deg, #16a34a 50%, transparent 50.5%) bottom left / var(--corner) var(--corner) no-repeat,
+    linear-gradient(160deg, var(--board-rim-top), var(--board-rim-bottom));
+}
+
+/* The step down from the rim onto the field of wells. */
+.boardFrame::after {
+  content: '';
+  position: absolute;
+  inset: var(--rim);
+  border-radius: 0.2rem;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+/* Placed, not flowed: as a child of the frame WebKit sizes it from the frame's outer height, and the frame grows to fit,
+   which leaves the SVG taller than wide and the cells away from where pointers are read. */
 .board {
+  position: absolute;
+  top: var(--rim);
+  left: var(--rim);
   display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 0.3rem;
+  width: calc(100% - 2 * var(--rim));
+  height: calc(100% - 2 * var(--rim));
+  border-radius: 0.2rem;
+  overflow: visible;
   cursor: crosshair;
   user-select: none;
   -webkit-user-select: none;
@@ -154,68 +244,292 @@
 }
 
 .boardBase {
-  fill: var(--blokus-board);
+  fill: var(--board-ridge);
 }
 
-.gridLines {
-  stroke: var(--blokus-grid);
-  stroke-width: 0.03;
+.wellTop {
+  stop-color: var(--board-well-top);
+}
+
+.wellBottom {
+  stop-color: var(--board-well-bottom);
+}
+
+.wellLip {
   fill: none;
-}
-
-.square {
-  fill: var(--piece);
-  stroke: var(--piece-edge);
-  stroke-width: 0.06;
-}
-
-.mark {
-  fill: rgba(255, 255, 255, 0.28);
+  stroke: var(--board-lip);
+  stroke-width: 0.035;
   pointer-events: none;
+}
+
+.startWell {
+  fill: var(--piece);
+  fill-opacity: 0.5;
+  stroke: var(--piece);
+  stroke-width: 0.05;
 }
 
 .startMark {
   fill: none;
-  stroke: var(--piece);
-  stroke-width: 0.14;
+  stroke: var(--board-start-ring);
+  stroke-width: 0.07;
+  stroke-opacity: 0.9;
+}
+
+/* ---- plastic ---- */
+.stopHigh {
+  stop-color: var(--piece-high);
+  stop-opacity: 0.94;
+}
+
+.stopMid {
+  stop-color: var(--piece);
+  stop-opacity: 0.9;
+}
+
+.stopLow {
+  stop-color: var(--piece-low);
+  stop-opacity: 0.92;
+}
+
+/* See-through enough that the ridges under a piece read faintly, as they do through the real plastic. */
+.plate {
+  fill: var(--piece-low);
+  fill-opacity: 0.86;
+}
+
+.bevelLit {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.62;
+  stroke-width: 0.045;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.bevelShade {
+  fill: none;
+  stroke: var(--piece-edge);
+  stroke-opacity: 0.85;
+  stroke-width: 0.05;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.mark {
+  fill: var(--piece-ink);
+  pointer-events: none;
+}
+
+.pieceShadow {
+  fill: #000;
+  fill-opacity: 0.26;
+  transform: translate(0.05px, 0.08px);
+  pointer-events: none;
 }
 
 .corner {
-  fill: var(--piece);
-  opacity: 0.55;
+  fill: var(--piece-high);
+  stroke: var(--piece-edge);
+  stroke-width: 0.03;
   pointer-events: none;
 }
 
 .cornerUsable {
   fill: var(--piece);
   stroke: #fff;
-  stroke-width: 0.06;
-  pointer-events: none;
-}
-
-.latest rect {
-  fill: none;
-  stroke: #fff;
   stroke-width: 0.07;
-  opacity: 0.8;
   pointer-events: none;
 }
 
-.ghostSquare {
-  fill: var(--piece);
-  fill-opacity: 0.78;
-  stroke-width: 0.14;
+/* The latest moves: the newest is ringed hardest, and the others stay readable behind it. */
+.latestHalo,
+.latestLine {
+  fill: none;
+  stroke-linecap: round;
   pointer-events: none;
 }
 
-.ghostLegal .ghostSquare {
-  stroke: #22c55e;
+.latestHalo {
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 0.17;
 }
 
-.ghostIllegal .ghostSquare {
-  fill-opacity: 0.35;
-  stroke: #ef4444;
-  stroke-dasharray: 0.22 0.14;
+.latestLine {
+  stroke: #fff;
+  stroke-width: 0.075;
+}
+
+.latestPiece:not([data-age='0']) .latestHalo,
+.latestPiece:not([data-age='0']) .latestLine {
+  opacity: 0.5;
+}
+
+.drop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blokusDrop 0.3s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+@keyframes blokusDrop {
+  from {
+    opacity: 0;
+    transform: translate(0, -0.6px) scale(1.2);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translate(0, 0.03px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- the piece in hand ---- */
+.ghostShadow {
+  fill: #000;
+  fill-opacity: 0.34;
+  transform: translate(0.1px, 0.16px);
+  pointer-events: none;
+}
+
+.ghostBody {
+  transform: translate(-0.03px, -0.07px);
+  pointer-events: none;
+}
+
+[data-lifted='true'] > .ghostShadow {
+  fill-opacity: 0.28;
+  transform: translate(0.2px, 0.34px);
+}
+
+[data-lifted='true'] > .ghostBody {
+  transform: translate(-0.06px, -0.16px);
+}
+
+.ghostHalo,
+.ghostLine,
+.ghostCross {
+  fill: none;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.ghostHalo {
+  stroke: #fff;
+  stroke-width: 0.2;
+}
+
+.ghostLine {
+  stroke-width: 0.1;
+}
+
+.ghostLegal .ghostLine {
+  stroke: #15803d;
+}
+
+.ghostIllegal .ghostLine {
+  stroke: #b91c1c;
+  stroke-dasharray: 0.3 0.2;
+}
+
+.ghostIllegal .ghostBody > g {
+  opacity: 0.6;
+}
+
+.ghostCross {
+  stroke: var(--piece-ink);
+  stroke-width: 0.12;
+}
+
+.loupe {
+  position: absolute;
+  top: calc(var(--rim) + 0.35rem);
+  z-index: 2;
+  width: clamp(8.5rem, 50%, 13rem);
+  aspect-ratio: 1 / 1;
+  padding: 0.2rem;
+  border-radius: 0.8rem;
+  background: linear-gradient(160deg, var(--board-rim-top), var(--board-rim-bottom));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 8px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: blokusLoupe 0.14s ease-out both;
+}
+
+.loupe[data-side='right'] {
+  right: calc(var(--rim) + 0.35rem);
+}
+
+.loupe[data-side='left'] {
+  left: calc(var(--rim) + 0.35rem);
+}
+
+.loupe svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.6rem;
+}
+
+@keyframes blokusLoupe {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+.float {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  width: calc(var(--float-cols) * var(--float-cell, 20px));
+  height: calc(var(--float-rows) * var(--float-cell, 20px));
+  /* One element with one filter, on its own layer: nothing else is repainted as it moves. */
+  filter: drop-shadow(0 10px 7px rgba(0, 0, 0, 0.42));
+  will-change: transform;
+  pointer-events: none;
+}
+
+.float[data-over='true'] {
+  opacity: 0;
+}
+
+.float svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* A band of light once across the finished board. */
+.finishSweep {
+  fill: #fff;
+  opacity: 0;
+  transform-box: fill-box;
+  pointer-events: none;
+  animation: blokusSweep 1s ease-in-out 0.1s both;
+}
+
+@keyframes blokusSweep {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  35% {
+    opacity: 0.32;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(135%);
+  }
 }
 
 /* ---- players ---- */
@@ -229,6 +543,7 @@
 }
 
 .player {
+  min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0 0.45rem;
@@ -240,18 +555,30 @@
 }
 
 .player[data-active='true'] {
-  border-color: var(--piece);
+  border-color: var(--piece-low);
+  background: color-mix(in srgb, var(--piece) 10%, var(--blokus-surface));
 }
 
+/* A chip of the same plastic. Side by side in `.swatches` for a player with a team of two colours. */
 .swatch {
-  width: 0.85rem;
-  height: 0.85rem;
-  border-radius: 0.2rem;
-  background: var(--piece);
-  box-shadow: inset 0 0 0 1px var(--piece-edge);
+  flex: none;
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 0.22rem;
+  background: linear-gradient(180deg, var(--piece-high), var(--piece) 55%, var(--piece-low));
+  box-shadow:
+    inset 0 0 0 1px var(--piece-edge),
+    inset 1px 1px 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.swatches {
+  display: inline-flex;
+  gap: 0.15rem;
 }
 
 .playerName {
+  min-width: 0;
   font-weight: 700;
   font-size: 0.85rem;
   overflow: hidden;
@@ -262,6 +589,7 @@
 .playerLeft {
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .playerPieces {
@@ -299,6 +627,12 @@
   font-size: 0.9rem;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tool:not(:disabled):active,
+.nudgeButton:not(:disabled):active {
+  background: var(--blokus-slot);
 }
 
 .tool {
@@ -332,42 +666,84 @@
 
 /* ---- tray ---- */
 .tray {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.3rem;
 }
 
+/* Holds the gradients. `display: none` would switch them off in some engines. */
+.defsOnly {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Recessed slots, like the insert of a game box. */
 .trayPiece {
   aspect-ratio: 1 / 1;
+  min-width: 2.75rem;
   min-height: 2.75rem;
-  padding: 0.2rem;
-  border: 2px solid var(--blokus-border);
-  border-radius: 0.5rem;
-  background: var(--blokus-surface);
+  padding: 0.1rem;
+  border: 1px solid var(--blokus-border);
+  border-radius: 0.55rem;
+  background: var(--blokus-slot);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.16);
   cursor: pointer;
-  touch-action: manipulation;
+  /* A finger moving down still scrolls the page; any other way it pulls the piece out. Safari has no pan-up. */
+  touch-action: none;
+  touch-action: pan-up;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .trayPiece[aria-pressed='true'] {
   border-color: var(--blokus-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blokus-accent) 40%, transparent);
+  box-shadow: 0 0 0 2px var(--blokus-accent);
 }
 
 .trayPiece[data-state='used'] {
   border-style: dashed;
   background: transparent;
-  cursor: default;
+  box-shadow: none;
 }
 
+/* Nothing to pull out of these, so a finger on one is the page's. */
+.trayPiece[data-state='used'],
 .trayPiece[data-state='stuck'] {
-  opacity: 0.4;
   cursor: default;
+  touch-action: auto;
+}
+
+.trayPiece[data-state='stuck'] .miniPiece {
+  opacity: 0.38;
 }
 
 .miniPiece {
   display: block;
   width: 100%;
   height: 100%;
+  overflow: visible;
+  transition: transform 0.12s ease-out;
+  pointer-events: none;
+}
+
+.trayPiece[aria-pressed='true'] .miniPiece {
+  transform: translateY(-1px) scale(1.08);
+}
+
+/* The piece has left its slot for the board. */
+.trayPiece[data-out='true'] .miniPiece {
+  opacity: 0.25;
+}
+
+@media (hover: hover) {
+  .trayPiece[data-state='ready']:hover .miniPiece {
+    transform: translateY(-1px) scale(1.06);
+  }
 }
 
 /* ---- buttons ---- */
@@ -424,6 +800,16 @@
   border: 1px solid var(--blokus-border);
   border-radius: 0.8rem;
   background: var(--blokus-surface);
+  box-shadow: var(--games-route-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
+  scroll-margin: 1rem;
+  animation: blokusResult 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) 0.2s both;
+}
+
+@keyframes blokusResult {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
 }
 
 .resultTitle {
@@ -442,11 +828,39 @@
   gap: 0.35rem;
 }
 
+/* The scores come in one at a time, from the top. */
 .resultRow {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.4rem;
   font-size: 0.95rem;
+  animation: blokusRow 0.3s ease-out both;
+}
+
+.resultRow:nth-child(1) {
+  animation-delay: 0.45s;
+  background: color-mix(in srgb, var(--piece) 13%, transparent);
+}
+
+.resultRow:nth-child(2) {
+  animation-delay: 0.6s;
+}
+
+.resultRow:nth-child(3) {
+  animation-delay: 0.75s;
+}
+
+.resultRow:nth-child(4) {
+  animation-delay: 0.9s;
+}
+
+@keyframes blokusRow {
+  from {
+    opacity: 0;
+    transform: translateX(-0.5rem);
+  }
 }
 
 .resultRank {
@@ -457,7 +871,11 @@
 
 .resultName {
   flex: 1;
+  min-width: 0;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .resultBonus {
@@ -471,6 +889,12 @@
 }
 
 /* ---- setup ---- */
+.onlineButton {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 0.75rem;
+}
+
 .modePicker {
   border: none;
   margin: 0;
@@ -547,55 +971,156 @@
   line-height: 1.55;
 }
 
+/* A screen that can be touched keeps room for the touch tools, so a first touch never moves the tray under it. */
+@media (any-pointer: coarse) and (min-width: 861px) {
+  .controls {
+    min-height: 5.9rem;
+    align-content: flex-start;
+  }
+}
+
+/* The room bar tops the side column, so the board keeps the height of the window beside it. */
+@media (min-width: 861px) {
+  .layout[data-room='true'] {
+    grid-template-rows: auto 1fr;
+  }
+
+  .layout[data-room='true'] > .boardColumn {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .layout[data-room='true'] > .sideColumn {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+/* ---- phones and tablets upright: board, tray, then the tools under the thumb ---- */
 @media (max-width: 860px) {
   .root {
-    padding-inline: 0.75rem;
-    padding-top: 6.25rem;
+    --blokus-top: 6rem;
+    /* What the board shares the screen with: status, tray, tools and the gaps between. */
+    --blokus-below: 10.5rem;
+    gap: 0.25rem;
+    padding-inline: max(0.5rem, env(safe-area-inset-left)) max(0.5rem, env(safe-area-inset-right));
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
   }
 
   .layout {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.5rem;
+    gap: 0.35rem;
   }
 
+  .boardColumn {
+    gap: 0.25rem;
+  }
+
+  /* One line, always the same height, so a message never moves the board under a finger. */
   .status {
-    min-height: 2.5rem;
+    height: 1.75rem;
+    min-height: 0;
+    width: 100%;
+    flex-direction: row;
+    gap: 0.5rem;
+    white-space: nowrap;
   }
 
+  .statusMain,
   .statusSub {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .statusMain {
+    font-size: 1rem;
+  }
+
+  /* When the line runs out of room, this gives way first. */
+  .statusSub {
+    flex-shrink: 100;
     font-size: 0.78rem;
   }
 
+  .spinner {
+    display: inline-block;
+    margin-right: 0.4rem;
+    vertical-align: -0.1em;
+  }
+
   .boardFrame {
-    width: 100%;
-    max-width: 34rem;
+    --rim: 0.4rem;
+    width: min(100%, calc(100dvh - var(--blokus-top) - var(--blokus-below)));
+    border-radius: 0.6rem;
   }
 
   .sideColumn {
-    max-width: 34rem;
     width: 100%;
-    margin-inline: auto;
-    gap: 0.5rem;
+    gap: 0.35rem;
   }
 
-  /* On a phone the piece, the tools and the board have to fit one screen: the rest goes below them. */
+  .tray {
+    order: 1;
+  }
+
+  .controls {
+    order: 2;
+    flex-wrap: nowrap;
+  }
+
   .players {
     order: 3;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
   }
 
   .sideColumn > .actions {
     order: 4;
   }
 
-  .controls {
-    flex-wrap: nowrap;
+  /* Up to four players in the room of two lines of two. */
+  .player {
+    padding: 0.15rem 0.45rem;
+    border-width: 1px;
+    border-radius: 0.45rem;
   }
 
+  .player[data-active='true'] {
+    box-shadow: inset 0 0 0 1px var(--piece-low);
+  }
+
+  /* The name has the first line to itself, as names can be long and the half-width is short. */
+  .playerName {
+    grid-column: 2 / -1;
+    font-size: 0.78rem;
+  }
+
+  .playerLeft {
+    grid-row: 2;
+    grid-column: 2;
+    font-size: 0.7rem;
+  }
+
+  .playerPieces {
+    grid-row: 2;
+    grid-column: 3;
+    font-size: 0.68rem;
+  }
+
+  /* The bar of tools stays on the screen wherever the page is scrolled to. */
   .controls[data-touch='true'] {
+    position: sticky;
+    bottom: calc(0.25rem + env(safe-area-inset-bottom));
+    z-index: 1;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(0, 1.5fr);
-    gap: 0.25rem;
+    grid-template-columns: repeat(6, minmax(2.75rem, 1fr)) minmax(3.25rem, 1.5fr);
+    gap: 0.2rem;
+    padding: 0.15rem;
+    border-radius: 0.75rem;
+    background: var(--blokus-solid);
+    box-shadow: 0 0 0 1px var(--blokus-border);
   }
 
   .controls[data-touch='true'] .turnButtons,
@@ -617,18 +1142,25 @@
     min-width: 0;
   }
 
+  /* Short screens: one row of pieces that slides sideways. Sliding stays the browser's; pulled up, a piece comes out. */
   .tray {
     display: flex;
-    gap: 0.3rem;
+    gap: 0.25rem;
     overflow-x: auto;
-    padding-bottom: 0.25rem;
-    scrollbar-width: thin;
+    padding: 0.1rem 0.1rem 0.2rem;
+    scrollbar-width: none;
     overscroll-behavior-x: contain;
   }
 
+  .tray::-webkit-scrollbar {
+    display: none;
+  }
+
   .trayPiece {
-    flex: 0 0 3.25rem;
-    min-height: 3.25rem;
+    flex: 0 0 3rem;
+    min-height: 3rem;
+    touch-action: pan-x;
+    touch-action: pan-x pan-up;
   }
 
   .trayPiece[data-state='used'] {
@@ -636,8 +1168,160 @@
   }
 }
 
+/* Under 350px the seven tools can't all be 44px wide, so Place takes a row of its own. */
+@media (max-width: 349px) {
+  .root {
+    --blokus-below: 13.5rem;
+  }
+
+  .controls[data-touch='true'] {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .controls[data-touch='true'] .placeButton {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 379px) {
+  .placeButton .btnIcon {
+    display: none;
+  }
+}
+
+/* A tall phone has room for every piece at once, with nothing to slide, if seven 44px pieces fit across. */
+@media (min-width: 360px) and (max-width: 860px) and (min-height: 760px) {
+  .root {
+    --blokus-below: 18.5rem;
+  }
+
+  .tray {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    overflow: visible;
+    padding: 0;
+  }
+
+  .trayPiece {
+    min-height: 0;
+    touch-action: none;
+    touch-action: pan-up;
+  }
+
+  .trayPiece[data-state='used'] {
+    display: block;
+  }
+}
+
+/* A tablet upright: every piece in two rows under a big board. */
+@media (min-width: 600px) and (max-width: 860px) and (min-height: 760px) {
+  .root {
+    --blokus-below: 15rem;
+  }
+
+  .tray {
+    grid-template-columns: repeat(11, minmax(0, 1fr));
+  }
+
+  .controls[data-touch='true'] {
+    grid-template-columns: repeat(6, 3.5rem) minmax(0, 1fr);
+  }
+}
+
+/* The site's bar is one line from here. */
+@media (min-width: 768px) and (max-width: 860px) {
+  .root {
+    --blokus-top: 4.75rem;
+  }
+}
+
+/* A phone on its side: the board down the left, as tall as the screen, and everything else beside it. */
+@media (max-height: 500px) and (min-width: 560px) {
+  .root {
+    --blokus-top: 4rem;
+    --blokus-below: 0.75rem;
+  }
+
+  .layout {
+    max-width: none;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.25rem;
+  }
+
+  .boardColumn {
+    display: contents;
+  }
+
+  .boardFrame {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: calc(100dvh - var(--blokus-top) - var(--blokus-below));
+    min-width: 0;
+  }
+
+  .status {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .sideColumn {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .tray {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    overflow: visible;
+    padding: 0;
+    order: 1;
+  }
+
+  .trayPiece {
+    height: 2.75rem;
+    min-height: 2.75rem;
+    aspect-ratio: auto;
+    touch-action: none;
+    touch-action: pan-up;
+  }
+
+  .trayPiece[data-state='used'] {
+    display: block;
+  }
+
+  .controls {
+    order: 0;
+  }
+}
+
+/* Under 660px wide that leaves about 290px beside the board: six 44px targets across, and Place on a row of its own. */
+@media (max-height: 500px) and (min-width: 560px) and (max-width: 659px) {
+  .tray,
+  .controls[data-touch='true'] {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .controls[data-touch='true'] .placeButton {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
+  .spinner,
+  .drop,
+  .loupe,
+  .result,
+  .resultRow {
     animation: none;
+  }
+
+  .finishSweep {
+    display: none;
+  }
+
+  .miniPiece {
+    transition: none;
   }
 }

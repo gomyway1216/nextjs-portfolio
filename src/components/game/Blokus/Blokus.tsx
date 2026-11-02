@@ -1,12 +1,14 @@
 /**
- * Blokus against the AI: classic four-colour on 20×20, or Duo on 14×14.
- * The human is always the first colour.
+ * Blokus: classic four-colour on 20×20 for two to four players, or Duo on 14×14.
+ * On one device any seat but the first can be an AI or a friend sharing the
+ * screen. In an online room the server holds the game, and this page draws it
+ * and sends moves.
  */
 
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, RotateCcw, RotateCw, SlidersHorizontal } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, RotateCcw, RotateCw, SlidersHorizontal, Users } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, DifficultySelector, GameStats, GameTopBar, InfoModal } from '../common';
@@ -32,17 +34,36 @@ import {
   orientationOf,
   passTurn,
   rotateCells,
-  scores,
-  winners,
   type GameState,
   type Mode,
   type Orientation,
 } from './engine';
 import { getBlokusStrings, type BlokusStrings } from './i18n';
+import { BlokusOnlineBar } from './online/BlokusOnlineBar';
+import { BlokusOnlineLobby } from './online/BlokusOnlineLobby';
+import { useBlokusOnline } from './online/useBlokusOnline';
+import { SeatPicker } from './SeatPicker';
+import {
+  SHARED,
+  chooseColor,
+  defaultSeating,
+  nextColorFor,
+  ownerOf,
+  seatFor,
+  seatScores,
+  seatWinners,
+  seatsAreOut,
+  sideOf,
+  viewsOf,
+  type Controller,
+  type Seating,
+} from './seating';
 import { Tray } from './Tray';
+import { usePieceDrag } from './usePieceDrag';
 import styles from './Blokus.module.css';
 
-const HUMAN = 0;
+/** The seat the setup screen calls "you". It is always a person, so a game always has someone to play it. */
+const YOU = 0;
 const DIFFICULTY_VALUES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
 const MODE_VALUES: Mode[] = ['classic', 'duo'];
 /** An AI move shows for at least this long, so a quick level still reads as a turn. */
@@ -54,6 +75,8 @@ const PASS_NOTICE_MS = 1000;
 const SNAP_CELLS = 2;
 
 interface Held {
+  /** The colour it was picked up for: a piece from another hand is no longer in play. */
+  color: number;
   piece: number;
   orientation: Orientation;
   /** Top-left of the ghost, or null until it has been put on the board. */
@@ -64,6 +87,10 @@ const clampAt = (orientation: Orientation, size: number, row: number, col: numbe
   row: Math.max(0, Math.min(size - orientation.height, row)),
   col: Math.max(0, Math.min(size - orientation.width, col)),
 });
+
+/** Where a piece sits with its middle over a cell. */
+const aimedAt = (orientation: Orientation, size: number, row: number, col: number) =>
+  clampAt(orientation, size, row - Math.floor(orientation.height / 2), col - Math.floor(orientation.width / 2));
 
 /** The closest legal spot for this orientation, within `reach` cells of (row, col). */
 const nearestLegal = (moves: readonly number[], orientation: Orientation, row: number, col: number, reach: number) => {
@@ -80,31 +107,68 @@ const nearestLegal = (moves: readonly number[], orientation: Orientation, row: n
   return best;
 };
 
-const playerName = (t: BlokusStrings, mode: Mode, color: number): string =>
-  color === HUMAN ? t.you : t.ai(t.colors[mode][color]);
+const isHuman = (seating: Seating, seat: number): boolean => seating.seats[seat].controller.kind === 'human';
+const humanCount = (seating: Seating): number => seating.seats.filter(({ controller }) => controller.kind === 'human').length;
 
-const statsAfter = (stats: GameStats, game: GameState): GameStats => {
-  const top = winners(game);
-  if (!top.includes(HUMAN)) return { ...stats, losses: stats.losses + 1 };
+const listNames = (t: BlokusStrings, names: readonly string[]): string => names.reduce((first, second) => t.and(first, second));
+
+const seatName = (t: BlokusStrings, seating: Seating, seat: number): string => {
+  const { controller, colors } = seating.seats[seat];
+  if (controller.kind === 'ai') return t.ai(listNames(t, colors.map((color) => t.colors[seating.mode][color])));
+  if (controller.name) return controller.name;
+  return humanCount(seating) === 1 ? t.you : t.player(seat + 1);
+};
+
+/** What a colour's row is called. A person's colours are told apart by name once there is more than one to tell. */
+const colorName = (t: BlokusStrings, seating: Seating, color: number): string => {
+  const name = t.colors[seating.mode][color];
+  const owner = ownerOf(seating, color);
+  if (owner === SHARED) return t.sharedColor(name);
+  const seat = seating.seats[owner];
+  if (seat.controller.kind === 'ai') return t.ai(name);
+  return seat.colors.length > 1 || humanCount(seating) > 1 ? t.withColor(seatName(t, seating, owner), name) : seatName(t, seating, owner);
+};
+
+/** The setup's table: you in the first seat, keeping whoever else was already sitting down, and AIs in the rest. */
+const tableFor = (mode: Mode, count: number, sitting: readonly Controller[], level: Difficulty): Seating =>
+  defaultSeating(
+    mode,
+    count,
+    Array.from({ length: count }, (_, seat): Controller => (seat === YOU ? { kind: 'human' } : (sitting[seat] ?? { kind: 'ai', level }))),
+  );
+
+const statsAfter = (stats: GameStats, seating: Seating, game: GameState): GameStats => {
+  // A game between friends on one screen is not the player's own record.
+  if (humanCount(seating) > 1) return stats;
+  const top = seatWinners(seating, game);
+  if (!top.includes(YOU)) return { ...stats, losses: stats.losses + 1 };
   return top.length === 1 ? { ...stats, wins: stats.wins + 1 } : { ...stats, draws: stats.draws + 1 };
 };
 
-const Result = ({ game, mode, t, onNewGame, onMenu }: { game: GameState; mode: Mode; t: BlokusStrings; onNewGame: () => void; onMenu: () => void }) => {
-  const all = scores(game);
-  const top = winners(game);
-  const order = all.map((score, color) => ({ score, color })).sort((a, b) => b.score - a.score);
-  const headline = !top.includes(HUMAN) ? t.lose : top.length === 1 ? t.win : t.tie;
+const Result = ({ game, seating, t, onNewGame, onMenu }: { game: GameState; seating: Seating; t: BlokusStrings; onNewGame: () => void; onMenu: () => void }) => {
+  const all = seatScores(seating, game);
+  const top = seatWinners(seating, game);
+  const order = all.map((score, seat) => ({ score, seat })).sort((a, b) => b.score - a.score);
+  const headline = (() => {
+    if (humanCount(seating) > 1) return top.length === 1 ? t.winnerIs(seatName(t, seating, top[0])) : t.tie;
+    return !top.includes(YOU) ? t.lose : top.length === 1 ? t.win : t.tie;
+  })();
   return (
     <section className={styles.result} data-testid="blokus-result" aria-label={t.finalScores}>
       <h2 className={styles.resultTitle}>{headline}</h2>
       <ol className={styles.resultList}>
-        {order.map(({ score, color }) => {
-          const placedAll = game.hands[color] === 0;
+        {order.map(({ score, seat }) => {
+          const { colors } = seating.seats[seat];
+          const placedAll = colors.length === 1 && game.hands[colors[0]] === 0;
           return (
-            <li key={color} className={`${styles.resultRow} ${styles[`color${color}`]}`}>
+            <li key={seat} className={`${styles.resultRow} ${styles[`color${colors[0]}`]}`}>
               <span className={styles.resultRank}>{t.rank(1 + all.filter((other) => other > score).length)}</span>
-              <span className={styles.swatch} aria-hidden="true" />
-              <span className={styles.resultName}>{playerName(t, mode, color)}</span>
+              <span className={styles.swatches} aria-hidden="true">
+                {colors.map((color) => (
+                  <span key={color} className={`${styles.swatch} ${styles[`color${color}`]}`} />
+                ))}
+              </span>
+              <span className={styles.resultName}>{seatName(t, seating, seat)}</span>
               {placedAll && <span className={styles.resultBonus}>{score > ALL_PLACED_BONUS ? t.bonusSingle : t.bonusAll}</span>}
               <span className={styles.resultScore}>{t.points(score)}</span>
             </li>
@@ -130,27 +194,51 @@ const Blokus = () => {
   const { language } = useGameLanguage();
   const t = useMemo(() => getBlokusStrings(language), [language]);
 
-  const [mode, setMode] = useState<Mode>('classic');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const [showSetup, setShowSetup] = useState(true);
+  const [soloSeating, setSeating] = useState<Seating>(() => tableFor('classic', 4, [], 'medium'));
+  const [inSetup, setShowSetup] = useState(true);
+  const [wantsOnline, setWantsOnline] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
-  const [game, setGame] = useState<GameState>(() => newGame('classic'));
+  const [soloGame, setGame] = useState<GameState>(() => newGame('classic'));
   const [latest, setLatest] = useState<number[]>([]);
-  const [held, setHeld] = useState<Held | null>(null);
+  const [heldPiece, setHeld] = useState<Held | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pointer, setPointer] = useState<'mouse' | 'touch'>('mouse');
   /** True once a piece has moved by key or button: a pointer shows where it is, and reading each step out would flood. */
   const [speakHeld, setSpeakHeld] = useState(false);
+  const drag = usePieceDrag();
   const clientRef = useRef<BlokusAiClient | null>(null);
   const seedRef = useRef(1);
 
+  const online = useBlokusOnline();
+  const { game: roomGame, seating: roomSeating, mySeat, lobbyState } = online;
+  const room = roomGame && roomSeating && (lobbyState === 'playing' || lobbyState === 'finished') ? { game: roomGame, seating: roomSeating } : null;
+  const inRoom = room !== null;
+  const showLobby = !inRoom && (wantsOnline || online.active || online.invite !== null);
+  const showSetup = !inRoom && !showLobby && inSetup;
+  const game = room?.game ?? soloGame;
+  const seating = room?.seating ?? soloSeating;
+
+  const { mode } = seating;
   const { size, colors } = game.rules;
-  const humanMoves = useMemo(() => (game.over ? [] : legalMoves(game, HUMAN)), [game]);
+  const controls = useCallback((seat: number) => (inRoom ? seat === mySeat : isHuman(seating, seat)), [inRoom, mySeat, seating]);
+  const views = useMemo(() => viewsOf(seating), [seating]);
+  /** The colour the tray shows: the one being played, or the next one a person here gets. */
+  const handColor = useMemo(
+    () => (inRoom && online.isMyTurn ? game.toMove : nextColorFor(seating, game, controls)),
+    [inRoom, online.isMyTurn, seating, game, controls],
+  );
+  const held = heldPiece?.color === handColor ? heldPiece : null;
+  const humanMoves = useMemo(() => (game.over ? [] : legalMoves(game, handColor)), [game, handColor]);
   const legalSet = useMemo(() => new Set(humanMoves), [humanMoves]);
   const playable = useMemo(() => new Set(humanMoves.map(movePiece)), [humanMoves]);
-  const myTurn = !showSetup && !game.over && game.toMove === HUMAN;
-  const humanOut = !game.over && (game.out[HUMAN] === 1 || game.hands[HUMAN] === 0);
+  const seatToMove = inRoom ? online.currentSeat : seatFor(seating, game);
+  // Still their turn while a move is on its way: the board only changes when the server says so.
+  const myTurn = inRoom ? online.isMyTurn : !showSetup && !showLobby && !game.over && controls(seatToMove);
+  // While a colour with no hand waits for its pass, the tray already shows the next one: not a hand that can move yet.
+  const handIsUp = myTurn && handColor === game.toMove;
+  const humanOut = !game.over && seatsAreOut(seating, game, controls);
 
   useEffect(() => {
     const client = createBlokusAiClient();
@@ -162,8 +250,8 @@ const Blokus = () => {
   }, []);
 
   const finish = useCallback((next: GameState) => {
-    if (next.over) setStats((current) => statsAfter(current, next));
-  }, []);
+    if (next.over) setStats((current) => statsAfter(current, seating, next));
+  }, [seating]);
 
   const play = useCallback(
     (from: GameState, move: number) => {
@@ -193,15 +281,15 @@ const Blokus = () => {
 
   // Whoever is to move: the AI thinks, and anyone with nothing to play goes out.
   useEffect(() => {
-    if (showSetup || game.over) return;
-    const color = game.toMove;
-    const moves = color === HUMAN ? humanMoves : legalMoves(game);
+    if (inRoom || showSetup || showLobby || game.over) return;
+    const moves = legalMoves(game);
 
     if (moves.length === 0) {
       const timer = setTimeout(() => pass(game), humanOut ? WATCHING_TURN_MS : PASS_NOTICE_MS);
       return () => clearTimeout(timer);
     }
-    if (color === HUMAN) return;
+    const { controller } = seating.seats[seatToMove];
+    if (controller.kind === 'human') return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -209,7 +297,7 @@ const Blokus = () => {
     seedRef.current += 1;
     const pace = humanOut ? WATCHING_TURN_MS : MIN_AI_TURN_MS;
     clientRef.current
-      ?.requestMove({ state: game, level: difficulty, seed: seedRef.current })
+      ?.requestMove({ state: game, level: controller.level, seed: seedRef.current, view: sideOf(seating, seatToMove), views })
       .then((move) => {
         if (cancelled) return;
         timer = setTimeout(() => play(game, move), Math.max(0, pace - (performance.now() - started)));
@@ -219,7 +307,7 @@ const Blokus = () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [game, showSetup, humanMoves, humanOut, difficulty, pass, play]);
+  }, [game, inRoom, showSetup, showLobby, seating, seatToMove, views, humanOut, pass, play]);
 
   const resetTo = useCallback((nextMode: Mode) => {
     setGame(newGame(nextMode));
@@ -239,6 +327,35 @@ const Blokus = () => {
     setShowSetup(true);
   }, [mode, resetTo]);
 
+  const chooseMode = useCallback(
+    (value: Mode) => {
+      setSeating((current) => (current.mode === value ? current : tableFor(value, value === 'duo' ? 2 : 4, [], difficulty)));
+    },
+    [difficulty],
+  );
+
+  const chooseCount = useCallback(
+    (count: number) => {
+      setSeating((current) => (current.seats.length === count ? current : tableFor(current.mode, count, current.seats.map(({ controller }) => controller), difficulty)));
+    },
+    [difficulty],
+  );
+
+  const chooseController = useCallback((seat: number, controller: Controller) => {
+    setSeating((current) => ({
+      ...current,
+      seats: current.seats.map((entry, index) => (index === seat ? { ...entry, controller } : entry)),
+    }));
+  }, []);
+
+  const chooseDifficulty = useCallback((level: Difficulty) => {
+    setDifficulty(level);
+    setSeating((current) => ({
+      ...current,
+      seats: current.seats.map((seat) => (seat.controller.kind === 'ai' ? { ...seat, controller: { kind: 'ai', level } } : seat)),
+    }));
+  }, []);
+
   const ghost: Ghost | null = useMemo(() => {
     if (!held?.at) return null;
     const { row, col } = held.at;
@@ -248,26 +365,29 @@ const Blokus = () => {
     };
   }, [held, legalSet]);
 
-  const placeHeld = useCallback(() => {
-    if (!myTurn || !held?.at) return;
-    const move = encodeMove(held.orientation.index, held.at.row, held.at.col);
+  const placeAt = useCallback((at: { row: number; col: number } | null) => {
+    if (!handIsUp || !held || !at) return;
+    const move = encodeMove(held.orientation.index, at.row, at.col);
     if (!legalSet.has(move)) {
       setNotice(t.noFit);
       return;
     }
     setNotice(null);
     setHeld(null);
-    play(game, move);
-  }, [myTurn, held, legalSet, t, play, game]);
+    if (inRoom) void online.submitMove(move);
+    else play(game, move);
+  }, [handIsUp, held, legalSet, t, play, game, inRoom, online]);
+
+  const placeHeld = useCallback(() => placeAt(held?.at ?? null), [placeAt, held]);
 
   // Where a piece goes when it arrives by touch or key, with no pointer over the board to show it.
   const landing = useCallback(
     (orientation: Orientation, from: { row: number; col: number } | null) => {
-      const [startRow, startCol] = game.rules.starts[HUMAN];
+      const [startRow, startCol] = game.rules.starts[handColor];
       const origin = from ?? { row: startRow, col: startCol };
       return nearestLegal(humanMoves, orientation, origin.row, origin.col, size * 2) ?? clampAt(orientation, size, origin.row, origin.col);
     },
-    [game, humanMoves, size],
+    [game, handColor, humanMoves, size],
   );
 
   const selectPiece = useCallback(
@@ -275,12 +395,13 @@ const Blokus = () => {
       setNotice(null);
       setSpeakHeld(pointer !== 'mouse');
       setHeld((current) => {
-        if (current?.piece === piece) return null;
+        const same = current?.color === handColor;
+        if (same && current.piece === piece) return null;
         const orientation = ORIENTATIONS[PIECES[piece].orientations[0]];
-        return { piece, orientation, at: pointer === 'mouse' ? null : landing(orientation, current?.at ?? null) };
+        return { color: handColor, piece, orientation, at: pointer === 'mouse' ? null : landing(orientation, same ? current.at : null) };
       });
     },
-    [landing, pointer],
+    [handColor, landing, pointer],
   );
 
   const turnHeld = useCallback(
@@ -318,8 +439,7 @@ const Blokus = () => {
       setSpeakHeld(false);
       setHeld((current) => {
         if (!current) return current;
-        const { orientation } = current;
-        const at = clampAt(orientation, size, row - Math.floor(orientation.height / 2), col - Math.floor(orientation.width / 2));
+        const at = aimedAt(current.orientation, size, row, col);
         return current.at?.row === at.row && current.at?.col === at.col ? current : { ...current, at };
       });
     },
@@ -340,9 +460,13 @@ const Blokus = () => {
   }, []);
 
   // A touch is placed with the Place button, so a stray tap never plays a piece.
-  const handleBoardClick = useCallback(() => {
-    if (pointer === 'mouse') placeHeld();
-  }, [placeHeld, pointer]);
+  const handleBoardClick = useCallback(
+    (cell: readonly [number, number] | null) => {
+      if (pointer !== 'mouse' || !held) return;
+      placeAt(cell ? aimedAt(held.orientation, size, cell[0], cell[1]) : held.at);
+    },
+    [held, placeAt, pointer, size],
+  );
 
   const handleKey = useCallback(
     (key: string): boolean => {
@@ -383,21 +507,21 @@ const Blokus = () => {
 
   // R, F and Esc work wherever the focus is, as the piece is held rather than on the board.
   useEffect(() => {
-    if (showSetup || showInfo) return;
+    if (showSetup || showLobby || showInfo) return;
     const listener = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (handleKey(event.key)) event.preventDefault();
     };
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, [handleKey, showSetup, showInfo]);
+  }, [handleKey, showSetup, showLobby, showInfo]);
 
   const corners = useMemo(() => {
-    if (showSetup || game.over || game.hands[HUMAN] === 0 || game.out[HUMAN]) return [];
+    if (showSetup || game.over || game.hands[handColor] === 0 || game.out[handColor]) return [];
     const heldMoves = held ? humanMoves.filter((move) => movePiece(move) === held.piece) : [];
     const usable = new Set(heldMoves.flatMap((move) => moveCells(move).map(([row, col]) => row * size + col)));
     const open: Array<{ row: number; col: number; usable: boolean }> = [];
-    const base = HUMAN * size;
+    const base = handColor * size;
     for (let row = 0; row < size; row++) {
       let cells = game.corners[base + row] & ~game.blocked[base + row];
       while (cells !== 0) {
@@ -407,9 +531,10 @@ const Blokus = () => {
       }
     }
     return open;
-  }, [game, held, humanMoves, showSetup, size]);
+  }, [game, handColor, held, humanMoves, showSetup, size]);
 
-  const latestCells = useMemo(() => latest.filter((move) => move >= 0).map(moveCells), [latest]);
+  const latestMoves = inRoom ? online.latestMoves : latest;
+  const latestCells = useMemo(() => latestMoves.filter((move) => move >= 0).map(moveCells), [latestMoves]);
 
   const difficultyOptions = useMemo(
     () => DIFFICULTY_VALUES.map((value) => ({ value, label: t.difficulties[value].label, description: t.difficulties[value].description })),
@@ -419,16 +544,20 @@ const Blokus = () => {
   const status = (() => {
     if (game.over) return { main: t.finalScores, sub: '' };
     if (myTurn) {
-      if (humanMoves.length === 0) return { main: t.youPass, sub: '' };
-      return { main: t.yourTurn, sub: notice ?? (held ? '' : t.yourTurnHint) };
+      const manyHere = !inRoom && humanCount(seating) > 1;
+      if (!handIsUp || humanMoves.length === 0) return { main: manyHere ? t.passing(colorName(t, seating, game.toMove)) : t.youPass, sub: '' };
+      const { colors: mine } = seating.seats[seatToMove];
+      const which = mine.length > 1 || !mine.includes(game.toMove) ? t.playingColor(t.colors[mode][game.toMove]) : '';
+      const hint = notice ?? (held ? '' : t.yourTurnHint);
+      return { main: manyHere ? t.turnOf(seatName(t, seating, seatToMove)) : t.yourTurn, sub: [which, hint].filter(Boolean).join(' ') };
     }
-    const name = playerName(t, game.rules.mode, game.toMove);
+    const name = colorName(t, seating, game.toMove);
     return { main: humanOut ? t.youAreOut : t.thinking(name), sub: humanOut ? t.thinking(name) : '' };
   })();
 
-  const canPlace = myTurn && ghost?.legal === true;
+  const canPlace = handIsUp && !online.sending && ghost?.legal === true;
   const seats = Array.from({ length: colors }, (_, color) => color);
-  const names = useMemo(() => Array.from({ length: colors }, (_, color) => playerName(t, game.rules.mode, color)), [colors, game.rules.mode, t]);
+  const names = useMemo(() => Array.from({ length: colors }, (_, color) => colorName(t, seating, color)), [colors, seating, t]);
   const heldText =
     speakHeld && held && ghost
       ? t.heldAt(
@@ -454,41 +583,63 @@ const Blokus = () => {
     >
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-      {showSetup ? (
+      {showLobby ? (
+        <BlokusOnlineLobby
+          online={online}
+          onBack={() => {
+            setWantsOnline(false);
+            online.dismissInvite();
+          }}
+        />
+      ) : showSetup ? (
         <DifficultySelector
           title={t.title}
           subtitle={t.subtitle}
           icon={<span style={{ fontSize: '2.6rem' }}>🟦</span>}
           selectedDifficulty={difficulty}
-          onSelectDifficulty={setDifficulty}
+          onSelectDifficulty={chooseDifficulty}
           options={difficultyOptions}
           onStart={startGame}
           difficultyTitle={t.selectDifficulty}
           startLabel={t.start}
           kickerLabel={t.gameSetup}
           setupContent={
-            <fieldset className={styles.modePicker}>
-              <legend className={styles.modeTitle}>{t.modeTitle}</legend>
-              <div className={styles.modeOptions}>
-                {MODE_VALUES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={styles.modeOption}
-                    data-testid={`blokus-mode-${value}`}
-                    aria-pressed={mode === value}
-                    onClick={() => setMode(value)}
-                  >
-                    <span className={styles.modeLabel}>{t.modes[value].label}</span>
-                    <span className={styles.modeDescription}>{t.modes[value].description}</span>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <>
+              <button type="button" className={`${styles.btn} ${styles.btnSecondary} ${styles.onlineButton}`} data-testid="blokus-online" onClick={() => setWantsOnline(true)}>
+                <Users className={styles.btnIcon} aria-hidden="true" />
+                {t.playOnline}
+              </button>
+              <fieldset className={styles.modePicker}>
+                <legend className={styles.modeTitle}>{t.modeTitle}</legend>
+                <div className={styles.modeOptions}>
+                  {MODE_VALUES.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={styles.modeOption}
+                      data-testid={`blokus-mode-${value}`}
+                      aria-pressed={mode === value}
+                      onClick={() => chooseMode(value)}
+                    >
+                      <span className={styles.modeLabel}>{t.modes[value].label}</span>
+                      <span className={styles.modeDescription}>{t.modes[value].description}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <SeatPicker
+                seating={seating}
+                strings={t}
+                onCount={chooseCount}
+                onColor={(seat, color) => setSeating((current) => chooseColor(current, seat, color))}
+                onController={chooseController}
+              />
+            </>
           }
         />
       ) : (
-        <div className={styles.layout} data-mode={game.rules.mode}>
+        <div className={styles.layout} data-mode={game.rules.mode} data-room={inRoom}>
+          {inRoom && <BlokusOnlineBar online={online} />}
           <div className={styles.boardColumn}>
             <div className={styles.status} role="status" aria-live="polite" data-testid="blokus-status">
               <span className={styles.statusMain}>
@@ -503,7 +654,7 @@ const Blokus = () => {
                 latest={latestCells}
                 corners={corners}
                 ghost={ghost}
-                color={HUMAN}
+                color={handColor}
                 holding={held !== null}
                 label={t.boardLabel(size)}
                 onCursor={handleCursor}
@@ -511,12 +662,13 @@ const Blokus = () => {
                 onTouchDone={handleTouchDone}
                 onClick={handleBoardClick}
                 onKeyDown={handleBoardKey}
+                drag={drag}
               />
             </div>
             <div className={styles.visuallyHidden} role="status" aria-live="polite" data-testid="blokus-held-text">
               {heldText}
             </div>
-            <BoardText game={game} corners={corners} names={names} strings={t} />
+            <BoardText game={game} color={handColor} corners={corners} names={names} strings={t} />
           </div>
 
           <div className={styles.sideColumn}>
@@ -528,7 +680,7 @@ const Blokus = () => {
                 return (
                   <li key={color} className={`${styles.player} ${styles[`color${color}`]}`} data-active={!game.over && game.toMove === color} data-testid={`blokus-player-${color}`}>
                     <span className={styles.swatch} aria-hidden="true" />
-                    <span className={styles.playerName}>{playerName(t, game.rules.mode, color)}</span>
+                    <span className={styles.playerName}>{names[color]}</span>
                     <span className={styles.playerLeft}>{out ? t.outOfMoves : t.squaresLeft(left)}</span>
                     <span className={styles.playerPieces}>{t.piecesLeft(pieces)}</span>
                   </li>
@@ -536,8 +688,8 @@ const Blokus = () => {
               })}
             </ul>
 
-            {game.over ? (
-              <Result game={game} mode={game.rules.mode} t={t} onNewGame={startGame} onMenu={backToMenu} />
+            {inRoom && game.over ? null : game.over ? (
+              <Result game={game} seating={seating} t={t} onNewGame={startGame} onMenu={backToMenu} />
             ) : (
               <>
                 <div className={styles.controls} data-touch={pointer === 'touch'}>
@@ -576,23 +728,26 @@ const Blokus = () => {
                 </div>
                 <Tray
                   game={game}
-                  color={HUMAN}
+                  color={handColor}
                   playable={playable}
                   selected={held?.piece ?? null}
                   selectedCells={held?.orientation.cells ?? null}
                   strings={t}
                   onSelect={selectPiece}
+                  drag={drag}
                 />
-                <div className={styles.actions}>
-                  <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={startGame}>
-                    <RotateCcw className={styles.btnIcon} aria-hidden="true" />
-                    {t.newGame}
-                  </button>
-                  <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={backToMenu}>
-                    <SlidersHorizontal className={styles.btnIcon} aria-hidden="true" />
-                    {t.changeDifficulty}
-                  </button>
-                </div>
+                {!inRoom && (
+                  <div className={styles.actions}>
+                    <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={startGame}>
+                      <RotateCcw className={styles.btnIcon} aria-hidden="true" />
+                      {t.newGame}
+                    </button>
+                    <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={backToMenu}>
+                      <SlidersHorizontal className={styles.btnIcon} aria-hidden="true" />
+                      {t.changeDifficulty}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

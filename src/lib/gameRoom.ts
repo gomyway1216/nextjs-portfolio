@@ -46,6 +46,9 @@ function getPlayerLimits(gameType: string): { minPlayers: number; maxPlayers: nu
   if (gameType === 'kuizu') {
     return { minPlayers: 2, maxPlayers: 8 };
   }
+  if (gameType === 'blokus') {
+    return { minPlayers: 2, maxPlayers: 4 };
+  }
 
   // Default (2P)
   return { minPlayers: 2, maxPlayers: 2 };

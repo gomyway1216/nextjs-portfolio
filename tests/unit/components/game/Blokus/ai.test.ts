@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BEST_WEIGHTS, budgetFor, chooseMove, evaluate, rankMoves, seededRandom, type SearchBudget } from '@/components/game/Blokus/ai';
+import { BEST_WEIGHTS, budgetFor, chooseMove, defaultViews, evaluate, rankMoves, seededRandom, type SearchBudget } from '@/components/game/Blokus/ai';
 import { handleRequest } from '@/components/game/Blokus/blokus-ai.worker';
 import { createBlokusAiClient } from '@/components/game/Blokus/blokusAiWorkerClient';
 import { PIECES, applyMove, cloneState, legalMoves, movePiece, newGame, passTurn, scores, type GameState, type Mode } from '@/components/game/Blokus/engine';
@@ -140,7 +140,7 @@ describe('the search', () => {
   it('values a finished game by the result', () => {
     const state = midGame();
     expect(state.over).toBe(true);
-    expect(Number.isFinite(evaluate(state, 0))).toBe(true);
+    expect(Number.isFinite(evaluate(state, defaultViews(state)[0]))).toBe(true);
   });
 
   it('prefers a five-square piece that opens the board over a single', () => {
@@ -186,5 +186,27 @@ describe('the client', () => {
     state.hands[0] = 0;
     await expect(client.requestMove({ state, level: 'easy', seed: 3 })).rejects.toThrow('no legal move');
     client.terminate();
+  });
+});
+
+describe('sides', () => {
+  it('values a partner like its own colour', () => {
+    const state = newGame('classic');
+    applyMove(state, legalMoves(state)[0]);
+    applyMove(state, legalMoves(state)[0]);
+    const alone = evaluate(state, { own: [2], rivals: [0, 1, 3] });
+    const paired = evaluate(state, { own: [2, 0], rivals: [1, 3] });
+    expect(paired).not.toBe(alone);
+  });
+
+  it('plays a legal move for a side at every level', () => {
+    const state = newGame('classic');
+    const moves = legalMoves(state);
+    const view = { own: [0, 2], rivals: [1, 3] };
+    const views = [view, { own: [1, 3], rivals: [0, 2] }, view, { own: [1, 3], rivals: [0, 2] }];
+    for (const level of ['easy', 'medium', 'hard', 'expert', 'master'] as const) {
+      const move = chooseMove(state, moves, level, { random: seededRandom(1), budget: { maxPlayouts: 30 }, view, views, now: () => 0 });
+      expect(moves).toContain(move);
+    }
   });
 });

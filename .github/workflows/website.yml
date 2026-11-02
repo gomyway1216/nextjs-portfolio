@@ -16,9 +16,13 @@ on:
       - 'scripts/*exact24k*'
       - 'docs/*shogi*'
   workflow_dispatch:
+  # 19:00 UTC = 04:00 JST. PRs that cannot reach the party game skip its browser suites, so main runs them here.
+  schedule:
+    - cron: '0 19 * * *'
 
 concurrency:
-  group: website-${{ github.ref }}
+  # By event as well: the nightly run and a merge's validation of main must not cancel each other.
+  group: website-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -70,8 +74,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - if: needs.changes.outputs.scope == 'party'
-        run: npm test -- tests/unit/ogiri tests/unit/gameCoverAssets.test.ts
-      - if: needs.changes.outputs.scope == 'full'
+        run: npm test -- tests/unit/ogiri tests/unit/gameCoverAssets.test.ts tests/unit/ciWorkflowRouting.test.ts
+      - if: needs.changes.outputs.scope != 'party'
         run: npm test -- --exclude 'tests/unit/ml/**'
       - run: npx tsx scripts/ogiri/catalog.ts --check
 
@@ -103,7 +107,7 @@ jobs:
   e2e:
     name: Website E2E (${{ matrix.shard }}/4)
     needs: [changes, build]
-    if: needs.changes.outputs.scope == 'full'
+    if: needs.changes.outputs.scope == 'full' || needs.changes.outputs.scope == 'non-party'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -134,7 +138,8 @@ jobs:
 
   ogiri:
     name: Ogiri multiplayer (${{ matrix.browser }})
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.scope == 'full' || needs.changes.outputs.scope == 'party'
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -186,9 +191,10 @@ jobs:
       - run: |
           test "${{ needs.changes.result }}" = "success"
           case "${{ needs.changes.outputs.scope }}" in
-            none) website=false; e2e=skipped ;;
-            party) website=true; e2e=skipped ;;
-            full) website=true; e2e=success ;;
+            none) website=false; e2e=skipped; ogiri=skipped ;;
+            party) website=true; e2e=skipped; ogiri=success ;;
+            non-party) website=true; e2e=success; ogiri=skipped ;;
+            full) website=true; e2e=success; ogiri=success ;;
             *) exit 1 ;;
           esac
           test "${{ needs.changes.outputs.website }}" = "$website"
@@ -197,4 +203,4 @@ jobs:
           test "${{ needs.quality.result }}" = "$expected"
           test "${{ needs.build.result }}" = "$expected"
           test "${{ needs.e2e.result }}" = "$e2e"
-          test "${{ needs.ogiri.result }}" = "$expected"
+          test "${{ needs.ogiri.result }}" = "$ogiri"

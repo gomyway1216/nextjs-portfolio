@@ -5,7 +5,7 @@
  */
 
 import type { Difficulty } from '../common/types';
-import { chooseMove, seededRandom } from './ai';
+import { chooseMove, seededRandom, type View } from './ai';
 import { legalMoves, type GameState } from './engine';
 
 export interface BlokusAiRequest {
@@ -13,6 +13,8 @@ export interface BlokusAiRequest {
   state: GameState;
   level: Difficulty;
   seed: number;
+  view?: View;
+  views?: readonly View[];
 }
 
 export interface BlokusAiResponse {
@@ -22,11 +24,11 @@ export interface BlokusAiResponse {
 }
 
 export function handleRequest(request: BlokusAiRequest): BlokusAiResponse {
-  const { requestId, state, level, seed } = request;
+  const { requestId, state, level, seed, view, views } = request;
   try {
     const moves = legalMoves(state);
     if (moves.length === 0) return { requestId, error: 'no legal move' };
-    return { requestId, move: chooseMove(state, moves, level, { random: seededRandom(seed) }) };
+    return { requestId, move: chooseMove(state, moves, level, { random: seededRandom(seed), view, views }) };
   } catch (error) {
     return { requestId, error: error instanceof Error ? error.message : String(error) };
   }

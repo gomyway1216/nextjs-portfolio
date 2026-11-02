@@ -9,7 +9,7 @@ vi.mock('@/lib/firebase-admin', () => ({
     update: async (room: Room) => { memory.room = structuredClone(room); memory.writes++; },
   }) }) }),
 }));
-import { act, createRoom, joinRoom, newPlayer } from '@/lib/ogiri/engine';
+import { act, createRoom, joinRoom, newPlayer, turnKey } from '@/lib/ogiri/engine';
 import { command, identity, makeRoom } from '@/lib/ogiri/store';
 import { prompts } from '@/lib/ogiri/prompts';
 
@@ -47,5 +47,23 @@ it.each(['majority', 'identity'] as const)('requires the current turn on %s comm
   expect(view.gameType).toBe(gameType);
   if (gameType === 'identity') expect(view.sideGame?.answer).toBe('自分だけの回答');
   else expect(view.sideGame?.voted).toBe(true);
+  vi.unstubAllEnvs();
+});
+
+it('requires the current turn before the host accepts a word wolf guess', async () => {
+  vi.stubEnv('OGIRI_EMULATOR', '');
+  const session = identity();
+  const now = Date.now();
+  const room = createRoom('ABC234', newPlayer(session.id, session.hash, 'host', 'rabbit', now), now);
+  room.players[session.id].spectator = true;
+  for (const id of ['b', 'c', 'd']) joinRoom(room, newPlayer(id, id, id, 'pudding', now));
+  room.settings.gameType = 'wordwolf';
+  act(room, session.id, { type: 'start' }, now, prompts);
+  memory.room = room;
+  memory.writes = 0;
+  // A late tap from an earlier round's result must not re-score whichever round is open now.
+  await expect(command(room.code, session.token, { type: 'wolfAccept' }, `${turnKey(room)}:old`))
+    .rejects.toMatchObject({ status: 409, message: expect.stringContaining('画面が更新されました') });
+  expect(memory.writes).toBe(0);
   vi.unstubAllEnvs();
 });

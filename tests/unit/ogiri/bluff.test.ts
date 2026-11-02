@@ -149,6 +149,24 @@ it('drops a kicked author\'s card and the votes on it, and skips a question with
   expect(empty.partyGames ?? 0).toBe(0);
 });
 
+it('takes a lie off the reveal when its author is removed, but keeps the scored votes', () => {
+  const room = setup(4, false);
+  write(room, 'p0', 'うそA');
+  write(room, 'p1', 'うそB');
+  act(room, 'host', { type: 'next' }, now + 2, prompts, () => 0.3);
+  vote(room, 'p2', option(room, 'うそA'));
+  vote(room, 'p3', option(room, 'うそB'));
+  act(room, 'host', { type: 'next' }, now + 3, prompts);
+  expect(room.phase).toBe('reveal');
+  act(room, 'host', { type: 'kick', playerId: 'p0' }, now + 4, prompts);
+  for (const viewer of [null, 'p1', 'p2']) {
+    const view = project(room, viewer, now, prompts).bluffGame!;
+    expect(view.options.map(o => o.label).sort()).toEqual(['うそB', round(room).truth].sort());
+    expect(JSON.stringify(view)).not.toContain('うそA');
+  }
+  expect(room.players.p1.score).toBe(50);
+});
+
 it('skips a question whose last lie\'s author is removed during the vote', () => {
   const room = setup(4, false);
   write(room, 'p0', 'うそA');

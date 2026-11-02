@@ -186,6 +186,9 @@ export function projectBluff(room: Room, me: string | null): BluffGameView | und
   const active = participants(room, round);
   const shown = ['voting', 'reveal'].includes(room.phase);
   const result = room.phase === 'reveal' ? round.result : null;
+  // A lie keeps its score when its authors are removed after the vote, but it leaves every screen.
+  const options = round.options.filter(option =>
+    option.truth || option.authors.some(id => room.players[id] && !room.players[id].kicked));
   return {
     prompt: round.prompt,
     index: round.round,
@@ -195,8 +198,8 @@ export function projectBluff(room: Room, me: string | null): BluffGameView | und
     readyCount: active.filter(id => room.players[id].answerReady).length,
     answererCount: active.length,
     // The deal order is random and ids follow it, so neither reveals which card is true.
-    options: shown ? round.options.map(({ id, label }) => ({ id, label })) : [],
-    mine: me && shown ? round.options.find(option => option.authors.includes(me))?.id ?? null : null,
+    options: shown ? options.map(({ id, label }) => ({ id, label })) : [],
+    mine: me && shown ? options.find(option => option.authors.includes(me))?.id ?? null : null,
     canVote: Boolean(me && room.phase === 'voting' && active.includes(me)),
     voted: Boolean(me && Object.hasOwn(round.ballots, me)),
     votesReceived: room.phase === 'voting' ? active.filter(id => Object.hasOwn(round.ballots, id)).length : validBallots(room, round).length,
@@ -204,7 +207,7 @@ export function projectBluff(room: Room, me: string | null): BluffGameView | und
     result: result ? {
       truth: result.truth,
       counts: { ...result.counts },
-      authors: Object.fromEntries(round.options.map(option => [option.id, option.authors.filter(id => room.players[id] && !room.players[id].kicked)])),
+      authors: Object.fromEntries(options.map(option => [option.id, option.authors.filter(id => room.players[id] && !room.players[id].kicked)])),
       awards: result.awards.filter(award => !room.players[award.id]?.kicked),
       sourceUrl: round.sourceUrl,
     } : null,

@@ -149,6 +149,22 @@ it('drops a kicked author\'s card and the votes on it, and skips a question with
   expect(empty.partyGames ?? 0).toBe(0);
 });
 
+it('skips a question whose last lie\'s author is removed during the vote', () => {
+  const room = setup(4, false);
+  write(room, 'p0', 'うそA');
+  act(room, 'host', { type: 'next' }, now + 2, prompts, () => 0.3);
+  expect(room.phase).toBe('voting');
+  vote(room, 'p1', option(room, round(room).truth));
+  act(room, 'host', { type: 'kick', playerId: 'p0' }, now + 3, prompts);
+  expect(room.phase).toBe('ranking');
+  expect(round(room).result).toBeNull();
+  expect(Object.values(room.players).every(player => player.score === 0)).toBe(true);
+  act(room, 'host', { type: 'next' }, now + 4, prompts);
+  expect(room.phase).toBe('finished');
+  settlePartyPoints(room, rankPlayers(room));
+  expect(room.partyGames ?? 0).toBe(0);
+});
+
 it('archives the truth, lies, votes and source, settles party points and plays later rounds once', () => {
   const room = setup(3, true, 2);
   const used = round(room).prompt;

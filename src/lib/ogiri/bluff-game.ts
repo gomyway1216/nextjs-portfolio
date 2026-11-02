@@ -102,6 +102,10 @@ export function advanceBluff(room: Room, now: number, rng: () => number) {
     dealOptions(room, round, rng);
     room.phase = round.options.length ? 'voting' : 'ranking';
     room.deadline = now + (round.options.length ? room.settings.voteSeconds * 1000 : 20000);
+  } else if (room.phase === 'voting' && !round.options.length) {
+    // Every lie's author was removed mid-vote, so the question is skipped like one with no lies.
+    room.phase = 'ranking';
+    room.deadline = now + 20000;
   } else if (room.phase === 'voting') {
     scoreBluff(room, round);
     room.phase = 'reveal';
@@ -119,7 +123,13 @@ export function advanceBluff(room: Room, now: number, rng: () => number) {
 
 export function syncBluff(room: Room, now: number, rng: () => number) {
   const round = currentBluffRound(room);
-  if (!round || room.pausedAt || !room.settings.autoAdvance) return;
+  if (!round || room.pausedAt) return;
+  // Nothing is left to vote on once the last lie's author is removed.
+  if (room.phase === 'voting' && !round.options.length) {
+    advanceBluff(room, now, rng);
+    return;
+  }
+  if (!room.settings.autoAdvance) return;
   const active = participants(room, round);
   if (!active.length) return;
   if ((room.phase === 'answering' && active.every(id => room.players[id].answerReady)) ||
@@ -163,6 +173,11 @@ export function moderateBluff(room: Room, playerId: string) {
   const orphaned = round.options.filter(option => !option.truth && !option.authors.length).map(option => option.id);
   round.options = round.options.filter(option => !orphaned.includes(option.id));
   for (const [id, choice] of Object.entries(round.ballots)) if (orphaned.includes(choice)) delete round.ballots[id];
+  // The truth on its own is no question, so it must not pay 100 points to whoever picks it.
+  if (!round.options.some(option => !option.truth)) {
+    round.options = [];
+    round.ballots = {};
+  }
 }
 
 export function projectBluff(room: Room, me: string | null): BluffGameView | undefined {

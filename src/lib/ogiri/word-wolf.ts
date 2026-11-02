@@ -219,7 +219,8 @@ export function projectWordWolf(room: Room, me: string | null): WordWolfView | u
     eligible: players.length,
     accused: accused ? { ...person(room, accused), votes: round.counts[accused] ?? 0, isWolf: round.wolves.includes(accused) } : null,
     counts: revealed ? Object.fromEntries(Object.entries(round.counts).filter(([id]) => listed(room, id))) : null,
-    canGuess: Boolean(me && room.phase === 'reveal' && room.matchIndex === 0 && me === accused && round.guess === null),
+    // A resting wolf can still be named, but guesses only after returning, like every other action.
+    canGuess: Boolean(me && room.phase === 'reveal' && room.matchIndex === 0 && me === accused && players.includes(me) && round.guess === null),
     guessing: room.phase === 'reveal' && room.matchIndex === 0,
     canAccept: Boolean(me && me === room.hostId && room.phase === 'reveal' && room.matchIndex === 1 && round.guess !== null && !round.guessCorrect),
     result: final ? {

@@ -11,7 +11,7 @@ const now = 10000;
 const render = (room: Room, me: string | null, tv = false) => renderToStaticMarkup(
   <WordWolfPanel view={project(room, me, now, prompts)} tv={tv} busy={false} connected reduced remaining={30} send={async () => true} />);
 
-it('renders each stage with only what that screen may see', () => {
+function setup() {
   const room = createRoom('ABC234', newPlayer('host', 'h', '進行役', '🐱', now), now);
   room.players.host.spectator = true;
   for (let i = 0; i < 4; i++) joinRoom(room, newPlayer(`p${i}`, 's', `参加者${i}`, 'rabbit', now));
@@ -21,7 +21,11 @@ it('renders each stage with only what that screen may see', () => {
   const [wolf] = round.wolves;
   const citizen = round.players.find(id => id !== wolf)!;
   const pair = WORD_WOLF_PAIRS[round.pair].ja;
-  const wolfWord = pair[round.wolfSide], citizenWord = pair[1 - round.wolfSide];
+  return { room, round, wolf, citizen, wolfWord: pair[round.wolfSide], citizenWord: pair[1 - round.wolfSide] };
+}
+
+it('renders each stage with only what that screen may see', () => {
+  const { room, round, wolf, citizen, wolfWord, citizenWord } = setup();
 
   expect(render(room, citizen)).toContain(citizenWord);
   expect(render(room, citizen)).not.toContain(wolfWord);
@@ -47,4 +51,23 @@ it('renders each stage with only what that screen may see', () => {
   expect(result).toContain(wolfWord);
   expect(result).not.toContain('この推理を正解にする');
   expect(render(room, 'host')).toContain('この推理を正解にする');
+});
+
+it('keeps a resting player\'s word but offers no talk or guess button until they return', () => {
+  const { room, round, wolf, citizen, citizenWord } = setup();
+  act(room, citizen, { type: 'leave' }, now, prompts);
+  const resting = render(room, citizen);
+  expect(resting).toContain(citizenWord);
+  expect(resting).not.toContain('話し合いOK');
+  expect(resting).toContain('今回の話し合いはお休みです');
+  act(room, citizen, { type: 'return' }, now, prompts);
+  for (const id of round.players) act(room, id, { type: 'answerReady', ready: true }, now + 1, prompts);
+  for (const id of round.players) act(room, id, { type: 'partyVote', choice: id === wolf ? citizen : wolf }, now + 2, prompts);
+  act(room, wolf, { type: 'leave' }, now + 3, prompts);
+  expect(project(room, wolf, now + 3, prompts).wordWolfGame?.canGuess).toBe(false);
+  const guessing = render(room, wolf);
+  expect(guessing).not.toContain('wordwolf-guess-form');
+  expect(guessing).toContain('「参加に戻る」を押すと推理できます');
+  act(room, wolf, { type: 'return' }, now + 4, prompts);
+  expect(render(room, wolf)).toContain('wordwolf-guess-form');
 });

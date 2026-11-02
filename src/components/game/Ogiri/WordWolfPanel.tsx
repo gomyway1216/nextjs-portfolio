@@ -62,7 +62,9 @@ export function WordWolfPanel({ view, tv, busy, connected, reduced, remaining, s
         {myWord}
         <h2 className={party.prompt}>{tv || !game.myWord ? 'スマホでお題を見て、話し合おう。' : 'お題の名前は言わずに、話し合おう。'}</h2>
         <p className={styles.hint}>ひとりだけ{game.wolfCount > 1 ? '（今回は2人）' : ''}、少しちがうお題の「ウルフ」がいます。自分がウルフかどうかは、だれにも分かりません。</p>
-        {!tv && game.myWord && (mine?.answerReady ? (
+        {!tv && game.myWord && (view.resting ? (
+          <p className={party.voteHelp} role="status">休憩中なので、今回の話し合いはお休みです。</p>
+        ) : mine?.answerReady ? (
           <button className={common.secondary} disabled={disabled} onClick={() => void send({ type: 'answerReady', ready: false })}>まだ話したい</button>
         ) : (
           <button className={common.primary} disabled={disabled} onClick={() => void send({ type: 'answerReady', ready: true })}>話し合いOK、投票へ</button>
@@ -111,7 +113,9 @@ export function WordWolfPanel({ view, tv, busy, connected, reduced, remaining, s
           <p className={styles.hint}>{game.accused?.votes ?? 0}票で発見。でも最後のチャンス。市民のお題を当てたら逆転です。</p>
         </div>
         {!tv && game.canGuess ? <LastGuess disabled={disabled} send={send} />
-          : <p className={party.voteHelp} role="status">{game.accused?.name ?? 'ウルフ'}が市民のお題を推理中…</p>}
+          : <p className={party.voteHelp} role="status">{!tv && view.resting && view.me === game.accused?.id
+            ? '休憩中は推理できません。「参加に戻る」を押すと推理できます。'
+            : `${game.accused?.name ?? 'ウルフ'}が市民のお題を推理中…`}</p>}
       </>}
       {view.phase === 'reveal' && result && <>
         <h2 className={party.prompt} key="result">{result.winner === 'citizens' ? '市民の勝ち！' : 'ウルフの勝ち！'}</h2>

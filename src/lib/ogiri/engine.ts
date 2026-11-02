@@ -114,7 +114,8 @@ const playing = (room: Room) => Object.values(room.players).filter(p => p.active
 /** People can still join after this, so the start of the game checks the final head count again. */
 function roomSettings(value: unknown, room: Room, prompts: Prompt[]): Settings {
   const settings = settingsInput(value);
-  requireThat(settings.gameType !== 'ogiri' ||
+  // 'only' fills every match from the room's own prompts, and the start checks there are enough.
+  requireThat(settings.gameType !== 'ogiri' || settings.customMode === 'only' ||
     promptPool(settings, prompts).length >= settings.rounds * Math.max(3, playing(room).length), PROMPT_SHORTAGE);
   return settings;
 }
@@ -228,7 +229,8 @@ function beginRound(room: Room, now: number, prompts: Prompt[], rng: () => numbe
   const players = playing(room);
   requireThat(players.length >= 3, '3人以上の参加者が必要です。', 409);
   const eligiblePrompts = promptPool(room.settings, prompts);
-  requireThat(room.round > 0 || eligiblePrompts.length >= players.length * room.settings.rounds, PROMPT_SHORTAGE, 409);
+  requireThat(room.round > 0 || room.settings.customMode === 'only' ||
+    eligiblePrompts.length >= players.length * room.settings.rounds, PROMPT_SHORTAGE, 409);
   if (
     room.round === 0 &&
     eligiblePrompts.filter((p) => !room.usedPrompts.includes(p.id)).length <

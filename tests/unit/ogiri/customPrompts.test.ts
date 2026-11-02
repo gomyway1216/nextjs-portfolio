@@ -139,6 +139,18 @@ describe('custom prompts', () => {
     expect(['一問目', '二問目', '三問目', '四問目']).toContain(assignment?.text);
   });
 
+  it('starts a custom-only game even when the chosen genre could not fill it', () => {
+    const room = setup(5);
+    for (let i = 0; i < 5; i++) add(room, 'p0', `自作のお題${i}`);
+    const short = { ...room.settings, halloween: true, rounds: 20 };
+    expect(prompts.filter((p) => p.enabled && p.category === 'halloween').length).toBeLessThan(5 * 20);
+    expect(() => act(room, 'p0', { type: 'settings', settings: short }, now, prompts)).toThrow('お題が不足');
+    act(room, 'p0', { type: 'settings', settings: { ...short, customMode: 'only' } }, now, prompts);
+    act(room, 'p0', { type: 'start' }, now, prompts);
+    expect(room.phase).toBe('answering');
+    expect(customIds(room)).toHaveLength(room.matches.length);
+  });
+
   it('marks custom prompts on the match, in history and keeps the list across rematches', () => {
     const room = setup(3, { customMode: 'only', rounds: 1 });
     for (const text of ['一問目', '二問目', '三問目']) add(room, 'p0', text);

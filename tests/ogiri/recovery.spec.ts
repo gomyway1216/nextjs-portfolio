@@ -60,6 +60,8 @@ test('closed pages and a second device keep one participant, scores, explicit re
     const points = own.players.find(player => player.id === id)!;
     expect(points.score).toBeGreaterThan(0);
     expect(points.partyPoints).toBeGreaterThan(0);
+    // Resting asks for confirmation mid-game, so wait until this page's poll has seen the finish.
+    await expect(page.getByRole('heading', { name: '結果、出ました。', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '休憩する', exact: true }).click();
     await expect(page.getByRole('button', { name: '参加に戻る', exact: true })).toBeVisible();
     expect((await first.request.post(path, { data: { type: 'heartbeat' } })).ok()).toBe(true);

@@ -710,6 +710,17 @@ a.historyCard:hover {
 }
 .urgent {
   background: #ffa4ba;
+  animation: urgentPulse 1s ease-in-out infinite;
+}
+@keyframes urgentPulse {
+  50% { transform: scale(1.08); box-shadow: 0 0 0 8px #ffa4ba55; }
+}
+.phaseTitle {
+  transform-origin: left center;
+  animation: headlineIn 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes headlineIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.9) rotate(-2deg); }
 }
 .lobby {
   display: grid;

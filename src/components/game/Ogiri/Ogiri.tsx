@@ -1031,7 +1031,8 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {gameType === 'ogiri' ? v.settings.halloween ? '🎃 HALLOWEEN PARTY' : 'ことばであそぼう。' : GAME_TITLES[gameType]}{' '}
                   {v.round > 0 && !hasFixedTurns(gameType) && `ROUND ${v.round} / ${v.settings.rounds}`}
                 </p>
-                <h1>{(gameType === 'ogiri' ? phaseName : partyPhaseName[gameType])[v.phase]}</h1>
+                {/* Keyed by turn so each new phase lands with its own entrance. */}
+                <h1 key={v.turn} className={styles.phaseTitle}>{(gameType === 'ogiri' ? phaseName : partyPhaseName[gameType])[v.phase]}</h1>
               </div>
               {manualResult && !v.paused && (
                 <p className={styles.manualWait} role="status">

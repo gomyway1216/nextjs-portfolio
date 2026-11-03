@@ -18,13 +18,15 @@ const guessers = (room: Room, round: GestureRound) =>
   Object.keys(room.players).filter(id => id !== round.actor && present(room, id));
 const person = (room: Room, id: string) => ({ id, name: room.players[id].name, avatar: room.players[id].avatar });
 
+/** Fresh words first; once the room has seen them all, then once this turn has, any but the one just shown. */
 function nextWord(room: Room, round: GestureRound, rng: () => number) {
-  let pool = GESTURE_WORDS.map((word, i) => ({ word, id: `gesture:${i}` }))
-    .filter(word => !room.usedPrompts.includes(word.id) && !round.words.includes(word.word));
+  const all = GESTURE_WORDS.map((word, i) => ({ word, id: `gesture:${i}` }));
+  let pool = all.filter(word => !room.usedPrompts.includes(word.id) && !round.words.includes(word.word));
   if (!pool.length) {
     room.usedPrompts = room.usedPrompts.filter(id => !id.startsWith('gesture:'));
-    pool = GESTURE_WORDS.map((word, i) => ({ word, id: `gesture:${i}` })).filter(word => !round.words.includes(word.word));
+    pool = all.filter(word => !round.words.includes(word.word));
   }
+  if (!pool.length) pool = all.filter(word => word.word !== round.words.at(-1));
   const word = pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))];
   room.usedPrompts.push(word.id);
   round.words.push(word.word);

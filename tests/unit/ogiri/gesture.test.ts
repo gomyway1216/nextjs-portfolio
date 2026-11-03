@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, createRoom, joinRoom, newPlayer, project, tick } from '@/lib/ogiri/engine';
 import { GESTURE_POINTS, GESTURE_SECONDS } from '@/lib/ogiri/gesture';
+import { GESTURE_WORDS } from '@/lib/ogiri/gesture-words';
 import { snapshotHistory } from '@/lib/ogiri/history';
 import { prompts } from '@/lib/ogiri/prompts';
 import type { Room } from '@/lib/ogiri/types';
@@ -117,4 +118,15 @@ describe('ジェスチャー早当て turn numbers', () => {
     }
     expect(seen).toEqual([1, 2, 3]);
   });
+});
+
+it('keeps dealing words after one turn has used up the whole list', () => {
+  const room = setup(3);
+  const first = actor(room);
+  act(room, first, { type: 'gestureStart' }, 200, prompts);
+  for (let i = 0; i < GESTURE_WORDS.length + 5; i++) act(room, first, { type: 'gesturePass' }, 201, prompts);
+  const words = room.gestures![0].words;
+  expect(words).toHaveLength(GESTURE_WORDS.length + 6);
+  expect(words.every(Boolean)).toBe(true);
+  expect(words.every((word, i) => i === 0 || word !== words[i - 1])).toBe(true);
 });

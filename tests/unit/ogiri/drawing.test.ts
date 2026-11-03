@@ -72,6 +72,8 @@ describe('drawing data allowlist', () => {
     expect(simplifyStroke([0, 0, 50, 0, 100, 0, 100, 50, 100, 100])).toEqual([0, 0, 100, 0, 100, 100]);
     expect(simplifyStroke([5, 5])).toEqual([5, 5]);
     expect(simplifyStroke([5, 5, 9, 9])).toEqual([5, 5, 9, 9]);
+    // A line that doubles back keeps its far end, even though it sits on the line through the ends.
+    expect(simplifyStroke([20, 10, 95, 10, 170, 10, 120, 10, 70, 10])).toEqual([20, 10, 170, 10, 70, 10]);
   });
 
   it('measures how full a picture is by the nearest limit', () => {

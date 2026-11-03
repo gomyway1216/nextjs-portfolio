@@ -27,11 +27,13 @@ export function simplifyStroke(p: number[], tolerance = 1.5): number[] {
   const spans: [number, number][] = [[0, count - 1]];
   while (spans.length) {
     const [a, b] = spans.pop()!;
-    const ax = p[2 * a], ay = p[2 * a + 1], dx = p[2 * b] - ax, dy = p[2 * b + 1] - ay, length = Math.hypot(dx, dy);
+    const ax = p[2 * a], ay = p[2 * a + 1], dx = p[2 * b] - ax, dy = p[2 * b + 1] - ay, squared = dx * dx + dy * dy;
     let worst = 0, index = -1;
     for (let i = a + 1; i < b; i++) {
       const x = p[2 * i] - ax, y = p[2 * i + 1] - ay;
-      const distance = length ? Math.abs(dx * y - dy * x) / length : Math.hypot(x, y);
+      // Distance to the segment, not the endless line: a stroke that doubles back keeps its far end.
+      const t = squared ? Math.max(0, Math.min(1, (x * dx + y * dy) / squared)) : 0;
+      const distance = Math.hypot(x - t * dx, y - t * dy);
       if (distance > worst) { worst = distance; index = i; }
     }
     if (worst > tolerance) { keep[index] = 1; spans.push([a, index], [index, b]); }

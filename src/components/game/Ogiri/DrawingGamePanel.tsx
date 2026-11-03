@@ -40,8 +40,9 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
   const opened = useEffectEvent(() => ({ code: view.code, ...assignment }));
   useEffect(() => {
     let active = true;
+    // Read once, as the effect runs; the async restore below only uses these values.
+    const { code, kind, savedDrawingId, answer } = opened();
     async function restore() {
-      const { code, kind, savedDrawingId, answer } = opened();
       setLoading(true);
       setError('');
       try {

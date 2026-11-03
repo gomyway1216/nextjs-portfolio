@@ -393,6 +393,16 @@ test('Duo: the copy button, an invite link, a colour, a whole game, the winner a
   await checkFinish(players, end);
   await noAiRan(players);
 
+  // Each side keeps the game: the record has every move, and is in the past games for the rest of the visit.
+  await press(ben.page, 'blokus-record-open');
+  await expect(ben.page.getByTestId('blokus-record')).toBeVisible();
+  await expect(ben.page.getByTestId('blokus-record-moves').getByRole('listitem')).toHaveCount(end.moves.length);
+  await expect(ben.page.getByTestId('blokus-record-move')).toContainText(`Move ${end.moves.length} of ${end.moves.length}`);
+  await expect(ben.page.getByTestId('blokus-record')).toContainText('Online');
+  await press(ben.page, 'blokus-record-back');
+  await expect(ben.page.getByTestId('blokus-online-turn')).toBeVisible();
+  expect(await ann.page.evaluate(() => JSON.parse(localStorage.getItem('blokus-records-v1') ?? '[]').map((record: { moves: number[]; me: number }) => [record.moves.length, record.me]))).toEqual([[end.moves.length, 0]]);
+
   await expect(ann.page.getByTestId('blokus-online-rematch')).toBeVisible();
   await expect(ben.page.getByTestId('blokus-online-rematch')).toHaveCount(0);
   await press(ann.page, 'blokus-online-rematch');

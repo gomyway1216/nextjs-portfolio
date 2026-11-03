@@ -289,6 +289,66 @@ const searchByPlayouts = (state: GameState, moves: readonly number[], root: View
   return alive[0].move;
 };
 
+export interface ReviewBudget {
+  /** Moves compared, the best by one-step score, and the one played as well. */
+  candidates: number;
+  /** Games played out to the end from each candidate, at most. */
+  playouts: number;
+  timeLimitMs: number;
+}
+
+// At 160 games a candidate, two reviews of the same move (different seeds) agree on the points given away to within
+// 1.4 points nine times in ten; at 32 that was 2.8. A four-colour game's first moves take up to 1.45 s on a laptop, so
+// the time limit is for a slower phone, which gets fewer games on those moves.
+export const REVIEW_BUDGET: ReviewBudget = { candidates: 8, playouts: 160, timeLimitMs: 1500 };
+
+export interface MoveReview {
+  /** The candidate whose games came out best. */
+  best: number;
+  /** Final points ahead of the best rival (or, for a side of two colours, of the other side), averaged. */
+  bestMargin: number;
+  playedMargin: number;
+  /** Games played out from each candidate. */
+  playouts: number;
+}
+
+/**
+ * How the move played compares with the best of the others, for a review after the game. Every candidate is played to
+ * the end the same number of times, each game from the same random numbers as the others' (so a difference is the
+ * move's, not the dice's), and valued by its final score.
+ */
+export const reviewMove = (
+  state: GameState,
+  played: number,
+  options: { view: View; views: readonly View[]; seed: number; budget?: Partial<ReviewBudget>; now?: () => number },
+): MoveReview => {
+  const budget = { ...REVIEW_BUDGET, ...options.budget };
+  const { view, views } = options;
+  const now = options.now ?? Date.now;
+  const deadline = now() + budget.timeLimitMs;
+  const moves = legalMoves(state);
+  const picked = rankMoves(state, moves, BEST_WEIGHTS, view)
+    .slice(0, budget.candidates)
+    .map(({ move }) => move);
+  if (!picked.includes(played)) picked.push(played);
+  const totals = picked.map(() => 0);
+  const [scratch, playout] = scratchStates(state);
+  const toTheEnd: SearchBudget = { ...MASTER_BUDGET, horizon: Infinity };
+  let games = 0;
+  while (games < budget.playouts && (games === 0 || now() < deadline)) {
+    picked.forEach((move, index) => {
+      copyState(playout, state);
+      applyMove(playout, move);
+      totals[index] += playOut(playout, view, views, toTheEnd, BEST_WEIGHTS, seededRandom(options.seed + games), scratch) / 100;
+    });
+    games += 1;
+  }
+  let best = 0;
+  for (let index = 1; index < picked.length; index++) if (totals[index] > totals[best]) best = index;
+  const playedIndex = picked.indexOf(played);
+  return { best: picked[best], bestMargin: totals[best] / games, playedMargin: totals[playedIndex] / games, playouts: games };
+};
+
 export interface AiOptions {
   random: Random;
   /** Clock override, so a test can run on the playout budget alone. */

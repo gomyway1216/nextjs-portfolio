@@ -134,4 +134,18 @@ describe('おえかきクイズ', () => {
     act(room, b, { type: 'leave' }, 102, prompts);
     expect(room.phase).toBe('reveal');
   });
+
+  it('scores a picture only once its guesses close, so ending the game mid-guess records nothing for it', () => {
+    const room = setup(4, false);
+    drawAll(room);
+    act(room, 'host', { type: 'next' }, 102, prompts);
+    expect(room.phase).toBe('voting');
+    for (const id of room.drawing!.players) if (id !== artist(room)) act(room, id, { type: 'quizGuess', choice: answer(room) }, 103, prompts);
+    act(room, 'host', { type: 'finish' }, 104, prompts);
+    expect(drawingHistory(room)).toEqual([]);
+    expect(Object.values(room.players).every(player => player.score === 0)).toBe(true);
+    // A removal after the end recounts, and must not pay out the unfinished picture either.
+    act(room, 'host', { type: 'kick', playerId: room.drawing!.players.find(id => id !== artist(room))! }, 105, prompts);
+    expect(Object.values(room.players).every(player => player.score === 0)).toBe(true);
+  });
 });

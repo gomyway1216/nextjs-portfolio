@@ -367,7 +367,7 @@ export interface DrawingRound {
   stage: number;
   /** おえかきクイズ chains also carry their choices and who picked which. Firestore cannot store an
    * array inside an array, so these live on each chain rather than in parallel lists. */
-  chains: { prompt: string; steps: (DrawingStep | null)[]; choices?: string[]; guesses?: Record<string, number> }[];
+  chains: { prompt: string; steps: (DrawingStep | null)[]; choices?: string[]; guesses?: Record<string, number>; closed?: boolean }[];
   revealed: number;
   votes: Record<string, string>;
   awards: Record<string, number>;

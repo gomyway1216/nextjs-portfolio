@@ -33,9 +33,8 @@ function givenSound(room: Room, chain: Chain, stage: number) {
   for (let i = stage - 1; i >= 0; i--) if (valid(room, chain.steps[i])) return tailSound(chain.steps[i]!.text!);
   return tailSound(chain.prompt);
 }
-/** A quiz picture's guesses close when the room moves on from it. */
-const quizClosed = (room: Room, index: number) =>
-  ['reveal', 'ranking', 'finished'].includes(room.phase) ? index <= room.matchIndex : room.phase === 'voting' && index < room.matchIndex;
+/** A quiz picture scores only once its guesses have closed, never because the game ended mid-guess. */
+const quizClosed = (room: Room, index: number) => Boolean(room.drawing!.chains[index].closed);
 /** Everyone in the game except the artist, who already knows. */
 const quizGuessers = (room: Room, index: number) => (room.drawing?.players ?? []).filter(id =>
   id !== room.drawing!.chains[index].steps[0]?.author && room.players[id] && !room.players[id].kicked && !room.players[id].spectator);
@@ -154,6 +153,7 @@ function advanceQuiz(room: Room, now: number) {
   if (room.phase === 'answering') open(0);
   else if (room.phase === 'voting' && !valid(room, drawing.chains[room.matchIndex].steps[0])) open(room.matchIndex + 1);
   else if (room.phase === 'voting') {
+    drawing.chains[room.matchIndex].closed = true;
     room.phase = 'reveal';
     room.deadline = now + 12000;
     scoreDrawings(room);

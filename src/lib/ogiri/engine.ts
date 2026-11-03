@@ -21,7 +21,7 @@ import { projectReactions } from './reactions';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 import { customPromptAction, dropPendingCustomPrompts, isCustomPromptAction, isCustomPromptId, pickCustomPrompts, projectCustomPrompts, withCustomPrompts } from './custom-prompts';
 import { advanceWordWolf, beginWordWolf, currentWordWolf, isWordWolf, moderateWordWolf, projectWordWolf, syncWordWolf, wordWolfAction } from './word-wolf';
-import { advanceGesture, beginGesture, currentGesture, gestureAction, isGesture, projectGesture, syncGesture } from './gesture';
+import { advanceGesture, beginGesture, currentGesture, gestureAction, isGesture, moderateGesture, projectGesture, syncGesture } from './gesture';
 import { advanceBluff, beginBluffRound, bluffAction, currentBluffRound, isBluffGame, moderateBluff, projectBluff, syncBluff } from './bluff-game';
 
 export { GameError } from './errors';
@@ -549,6 +549,7 @@ export function act(
     dropPendingCustomPrompts(room, action.playerId);
     moderateWordWolf(room, action.playerId);
     moderateBluff(room, action.playerId);
+    moderateGesture(room, action.playerId);
     voidSideResult(room, action.playerId);
     const current = room.matches[room.matchIndex];
     const revealing = room.phase === 'reveal' && current?.scored;

@@ -69,12 +69,39 @@ function start(room: Room, round: GestureRound, now: number) {
   room.deadline = now + GESTURE_SECONDS * 1000;
 }
 
+/** Only the turn being played moves the round score; earlier turns change the total alone. */
 function award(room: Room, round: GestureRound, id: string, points: number) {
   const entry = round.awards.find(item => item.id === id);
   if (entry) entry.points += points;
   else round.awards.push({ id, points });
   room.players[id].score += points;
-  room.players[id].roundScore += points;
+  if (round === currentGesture(room)) room.players[id].roundScore += points;
+}
+/** Points always follow from the results, so a removal can be applied again cleanly. */
+function rescore(room: Room, round: GestureRound) {
+  for (const { id, points } of round.awards) {
+    room.players[id].score -= points;
+    if (round === currentGesture(room)) room.players[id].roundScore -= points;
+  }
+  round.awards = [];
+  // A removed actor's turn counts for nobody, as a removed artist's quiz picture does.
+  if (!listed(room, round.actor)) return;
+  for (const entry of round.results) if (entry.by) {
+    award(room, round, entry.by, GESTURE_POINTS.guesser);
+    award(room, round, round.actor, GESTURE_POINTS.actor);
+  }
+}
+/** A removed guesser's words become passes. */
+export function moderateGesture(room: Room, kicked: string) {
+  for (const round of room.gestures ?? []) {
+    for (const entry of round.results) if (entry.by === kicked) entry.by = null;
+    rescore(room, round);
+  }
+}
+function nextTurn(room: Room, round: GestureRound, now: number, rng: () => number) {
+  if (beginTurn(room, round.order, rng)) return;
+  room.phase = 'ranking';
+  room.deadline = now + 20000;
 }
 
 export function advanceGesture(room: Room, now: number, rng: () => number) {
@@ -84,29 +111,24 @@ export function advanceGesture(room: Room, now: number, rng: () => number) {
   else if (room.phase === 'answering') {
     room.phase = 'reveal';
     room.deadline = now + 12000;
-  } else if (room.phase === 'reveal') {
-    if (!beginTurn(room, round.order, rng)) {
-      room.phase = 'ranking';
-      room.deadline = now + 20000;
-    }
-  } else if (room.phase === 'ranking') {
+  } else if (room.phase === 'reveal') nextTurn(room, round, now, rng);
+  else if (room.phase === 'ranking') {
     room.phase = 'finished';
     room.deadline = 0;
   }
 }
 
-/** A turn ends early when its actor rests or is removed. One that never started is handed on, and a
- * resting actor who comes back still gets a turn later. */
+/** A turn ends early when its actor rests, and is skipped outright when they are removed. One that
+ * never started is handed on, and a resting actor who comes back still gets a turn later. */
 export function syncGesture(room: Room, now: number, rng: () => number) {
   const round = currentGesture(room);
-  if (!round || room.pausedAt || room.phase !== 'answering' || present(room, round.actor)) return;
+  if (!round || room.pausedAt) return;
+  if (!listed(room, round.actor) && ['answering', 'reveal'].includes(room.phase)) return nextTurn(room, round, now, rng);
+  if (room.phase !== 'answering' || present(room, round.actor)) return;
   if (round.startedAt) return advanceGesture(room, now, rng);
   room.gestures!.pop();
   room.round--;
-  if (!beginTurn(room, round.order, rng)) {
-    room.phase = 'ranking';
-    room.deadline = now + 20000;
-  }
+  nextTurn(room, round, now, rng);
 }
 
 export function gestureAction(room: Room, id: string, action: Action, now: number, rng: () => number) {

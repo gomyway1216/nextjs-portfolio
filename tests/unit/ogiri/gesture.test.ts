@@ -94,13 +94,33 @@ describe('ジェスチャー早当て', () => {
     expect(actor(room)).toBe(order[0]);
   });
 
-  it('ends a started turn at once when its actor is removed', () => {
+  it('voids a removed actor\'s turn and hands the next actor the stage at once', () => {
     const room = setup(4);
-    const first = actor(room);
+    const first = actor(room), [a] = others(room);
     act(room, first, { type: 'gestureStart' }, 200, prompts);
-    act(room, 'host', { type: 'kick', playerId: first }, 201, prompts);
-    expect(room.phase).toBe('reveal');
-    expect(project(room, null, 202, prompts).gestureGame).toBeUndefined();
+    act(room, first, { type: 'gestureCorrect', by: a, word: dealt(room) }, 201, prompts);
+    act(room, 'host', { type: 'kick', playerId: first }, 202, prompts);
+    expect(room.phase).toBe('answering');
+    expect(actor(room)).not.toBe(first);
+    expect(project(room, null, 203, prompts).gestureGame).toMatchObject({ index: 2, started: false });
+    expect(room.players[a].score).toBe(0);
+  });
+
+  it('turns a removed guesser\'s words into passes and takes back the actor\'s share', () => {
+    const room = setup(4);
+    const first = actor(room), [a, b] = others(room);
+    act(room, first, { type: 'gestureStart' }, 200, prompts);
+    act(room, first, { type: 'gestureCorrect', by: a, word: dealt(room) }, 201, prompts);
+    act(room, first, { type: 'gestureCorrect', by: b, word: dealt(room) }, 202, prompts);
+    act(room, 'host', { type: 'kick', playerId: a }, 203, prompts);
+    expect(room.players[first].score).toBe(GESTURE_POINTS.actor);
+    expect(room.players[b].score).toBe(GESTURE_POINTS.guesser);
+    expect(project(room, null, 204, prompts).gestureGame).toMatchObject({ passes: 1, solved: [{ name: room.players[b].name }] });
+    tick(room, room.deadline, prompts);
+    tick(room, room.deadline, prompts);
+    const turn = snapshotHistory(room, 'h', 400, prompts).matches[0];
+    expect(turn.note).toContain('正解1つ・パス1回');
+    expect(turn.answers.map(answer => answer.points)).toEqual([0, GESTURE_POINTS.guesser]);
   });
 });
 

@@ -10,7 +10,7 @@
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, RotateCcw, RotateCw, SlidersHorizontal, Users } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, DifficultySelector, GameStats, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { createBlokusAiClient, type BlokusAiClient } from './blokusAiWorkerClient';
@@ -217,6 +217,12 @@ const Blokus = () => {
   const inRoom = room !== null;
   const showLobby = !inRoom && (wantsOnline || online.active || online.invite !== null);
   const showSetup = !inRoom && !showLobby && inSetup;
+  const screen = showLobby ? 'lobby' : showSetup ? 'setup' : 'game';
+  const rootRef = useRef<HTMLDivElement>(null);
+  // A short window scrolls down to the setup's Start button; the next screen still opens at its top.
+  useLayoutEffect(() => {
+    rootRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [screen]);
   const game = room?.game ?? soloGame;
   const seating = room?.seating ?? soloSeating;
 
@@ -571,6 +577,7 @@ const Blokus = () => {
 
   return (
     <div
+      ref={rootRef}
       className={styles.root}
       // The tools change with the pointer and move the tray, so a mouse is noticed as it moves, never as it presses:
       // a press that moved the tray would come up on another piece.

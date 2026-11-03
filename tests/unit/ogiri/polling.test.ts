@@ -29,6 +29,12 @@ it('backs off idle rooms, while a running game stays responsive', () => {
   expect(pollingDelay({ ...active, paused: true }, IDLE_STOP_MS)).toBeNull();
 });
 
+it('keeps checking quickly while a gesture actor gets ready, since the start can come any second', () => {
+  const ready = { ...lobby, phase: 'answering', deadline: 0, gestureGame: { started: false } } as RoomView;
+  expect([0, 15_000, 60_000].map((t) => pollingDelay(ready, t))).toEqual([1500, 1500, 1500]);
+  expect(pollingDelay(ready, IDLE_STOP_MS)).toBeNull();
+});
+
 it('suspends manual results while keeping timed answers and votes responsive', () => {
   for (const phase of ['reveal', 'ranking'] as const) {
     const manual = { ...active, phase, settings: { autoAdvance: false } } as RoomView;

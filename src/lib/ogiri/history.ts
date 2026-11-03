@@ -1,9 +1,10 @@
 import { rankPlayers } from './engine';
-import { GAME_TITLES, isChoiceGame, type GameHistory, type Prompt, type Room } from './types';
+import { GAME_TITLES, isChoiceGame, isWrittenSideGame, type GameHistory, type Prompt, type Room } from './types';
 import { partyStandings } from '../party/points';
 import { gamePlayerIds } from './party';
 import { drawingHistory, isDrawingGame } from './drawing-game';
 import { gestureHistory } from './gesture';
+import { MATCH_ALL_BONUS, MATCH_POINTS } from './side-games';
 import { wordWolfHistory } from './word-wolf';
 import { bluffHistory } from './bluff-game';
 import { drawingSvg } from './drawing-data';
@@ -25,6 +26,18 @@ function sideHistory(room: Room): GameHistory['matches'] {
         name: '温度', avatar: '', text: `${value}度`, votes, points: pickedBy(value),
       })),
       awards, note: `${entry.result.average === undefined ? '回答2人未満のため得点なし。' : `平均 ${entry.result.average}。`}平均に一番近い人100点、2番目50点、3番目25点。同じ近さは同順位。`,
+    };
+    if (round.type === 'match') return {
+      round: round.round, text: round.prompt,
+      answers: (entry.result.groups ?? []).map(group => {
+        const players = group.ids.filter(id => room.players[id] && !room.players[id].kicked).map(id => room.players[id]);
+        return {
+          name: players.map(player => player.name).join('・') || '退出したプレイヤー', avatar: players[0]?.avatar ?? '',
+          text: group.label, votes: players.length,
+          points: entry.result.awards.find(award => award.id === players[0]?.id)?.points ?? 0,
+        };
+      }),
+      awards, note: `同じ答えの人1人につき${MATCH_POINTS}点。全員一致なら全員に${MATCH_ALL_BONUS}点ボーナス。点はひとりあたり。`,
     };
     if (round.type === 'majority' || round.type === 'minority') return {
       round: round.round, text: round.prompt,
@@ -86,7 +99,7 @@ export function snapshotHistory(
       rank,
       score,
     })),
-    matches: isDrawingGame(room) ? [] : room.gameType === 'wordwolf' ? wordWolfHistory(room) : room.gameType === 'bluff' ? bluffHistory(room) : room.gameType === 'gesture' ? gestureHistory(room) : isChoiceGame(room.gameType) || room.gameType === 'identity' ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
+    matches: isDrawingGame(room) ? [] : room.gameType === 'wordwolf' ? wordWolfHistory(room) : room.gameType === 'bluff' ? bluffHistory(room) : room.gameType === 'gesture' ? gestureHistory(room) : isChoiceGame(room.gameType) || isWrittenSideGame(room.gameType) ? sideHistory(room) : [...(room.pastRounds ?? []), { round: room.round, matches: room.matches }].flatMap(
       ({ round, matches }) =>
         matches
           .filter((m) => m.scored)

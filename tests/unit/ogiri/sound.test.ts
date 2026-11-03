@@ -25,6 +25,18 @@ describe('original party audio', () => {
     ).toBe('join');
     expect(phaseSound(view('lobby'), view('answering'))).toBe('start');
   });
+  it('rings each gesture guess, swishes a pass, and buzzes time up and an unread quiz picture', () => {
+    const gesture = (started: boolean, solved: number, passes: number) => ({ ...view('answering'), turn: 'turn',
+      gestureGame: { started, solved: Array.from({ length: solved }, () => ({ word: 'ゾウ', name: 'a', avatar: '' })), passes } }) as RoomView;
+    expect(phaseSound(gesture(false, 0, 0), gesture(true, 0, 0))).toBe('start');
+    expect(phaseSound(gesture(true, 0, 0), gesture(true, 1, 0))).toBe('correct');
+    expect(phaseSound(gesture(true, 1, 0), gesture(true, 1, 1))).toBe('whoosh');
+    expect(phaseSound(gesture(true, 1, 1), gesture(true, 1, 1))).toBeNull();
+    expect(phaseSound(gesture(true, 1, 1), { ...gesture(true, 1, 1), phase: 'reveal', turn: 'next' } as RoomView)).toBe('buzzer');
+    const quiz = (correct: number) => ({ ...view('reveal'), drawingGame: { quiz: { result: { correct: Array(correct).fill({ name: 'a', avatar: '' }) } } } }) as RoomView;
+    expect(phaseSound(view('voting'), quiz(0))).toBe('buzzer');
+    expect(phaseSound(view('voting'), { ...quiz(1), players: [{ id: 'a', score: 100 }] } as RoomView)).toBe('count');
+  });
   it('keeps existing open tabs able to preload the legacy sound URLs', () => {
     const directory = path.join(process.cwd(), 'public/audio/ogiri');
     expect(statSync(path.join(directory, 'boing.mp3')).size).toBeGreaterThan(0);
@@ -34,12 +46,12 @@ describe('original party audio', () => {
   });
   it('bounds dry percussive cues and gain, with distinct accents and lightweight recorded cheers', () => {
     expect(DEFAULT_PARTY_VOLUME).toBe(0.6);
-    expect(Object.keys(SOUND_CUES)).toHaveLength(13);
-    expect(GAME_SOUND_CUES).toHaveLength(10);
+    expect(Object.keys(SOUND_CUES)).toHaveLength(16);
+    expect(GAME_SOUND_CUES).toHaveLength(13);
     expect(GAME_SOUND_CUES).not.toContain('voting');
     expect(GAME_SOUND_CUES).not.toContain('reveal');
     expect(GAME_SOUND_CUES).not.toContain('champion');
-    expect(new Set(Object.values(SOUND_CUES).map((tones) => JSON.stringify(tones))).size).toBe(13);
+    expect(new Set(Object.values(SOUND_CUES).map((tones) => JSON.stringify(tones))).size).toBe(16);
     for (const tones of Object.values(SOUND_CUES))
       for (const tone of tones) {
         expect(tone.frequency).toBeGreaterThan(60);
@@ -55,6 +67,9 @@ describe('original party audio', () => {
     expect(duration('tick')).toBeLessThan(0.06);
     expect(duration('champion')).toBeLessThan(1.2);
     expect(duration('bounce')).toBeLessThanOrEqual(0.12);
+    expect(duration('correct')).toBeLessThan(0.5);
+    expect(duration('buzzer')).toBeLessThan(0.75);
+    expect(duration('whoosh')).toBeLessThan(0.2);
     for (const tone of SOUND_CUES.bounce as import('@/lib/ogiri/sound').Tone[]) {
       expect(tone.wave ?? 'sine').toBe('sine');
       expect(tone.vibrato).toBeUndefined();

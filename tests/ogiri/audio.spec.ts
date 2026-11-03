@@ -65,7 +65,7 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   await page.getByText('音設定', { exact: true }).click();
   const volume = page.getByRole('slider', { name: '効果音の音量', exact: true });
   await expect(volume).toHaveValue('60');
-  await expect(page.getByLabel('試聴する効果音', { exact: true }).locator('option')).toHaveCount(10);
+  await expect(page.getByLabel('試聴する効果音', { exact: true }).locator('option')).toHaveCount(13);
   await expect(page.getByLabel('試聴する効果音', { exact: true })).toHaveValue('count');
   await page.getByLabel('試聴する効果音', { exact: true }).selectOption('cheer');
   await resetPeak();

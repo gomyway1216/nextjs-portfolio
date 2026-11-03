@@ -16,6 +16,8 @@ export function pollingDelay(view: RoomView | null, unchangedMs: number): number
   if (!view || (!view.paused && !isManualResult(view) && !waitingForAnswers && view.deadline > 0 && !['lobby', 'finished'].includes(view.phase)))
     return 1500;
   if (unchangedMs >= IDLE_STOP_MS) return null;
+  // A gesture turn has no clock until its actor presses start, and then every second of it counts.
+  if (view.phase === 'answering' && view.gestureGame && !view.paused) return 1500;
   if (unchangedMs >= 60_000) return 15_000;
   if (unchangedMs >= 15_000) return 5000;
   return 1500;

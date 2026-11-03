@@ -75,10 +75,22 @@ export const SOUND_CUES = {
     ...[0, 0.16, 0.32, 0.51, 0.68, 0.9].map(at => tap(1600, at, 0.09, 0.25)),
     brass(220, 0.68, 0.3, 0.2), brass(330, 0.68, 0.3, 0.17),
   ],
+  // A quiz-show ding-dong for a word guessed: up a fourth, with a glint on top.
+  correct: [
+    { ...note(988, 0, 0.13, 0.42), wave: 'triangle' },
+    { ...note(1319, 0.13, 0.32, 0.38), wave: 'triangle' }, tap(2800, 0.13, 0.03, 0.12),
+  ],
+  // Two low, buzzy blasts when the clock runs out or nobody got it.
+  buzzer: [
+    { ...note(196, 0, 0.26, 0.3), wave: 'square', formant: 900 },
+    { ...note(185, 0.32, 0.36, 0.3), wave: 'square', formant: 900 },
+  ],
+  // A quick swish for skipping a word.
+  whoosh: [tap(700, 0, 0.16, 0.22), { ...note(520, 0, 0.14, 0.2), wave: 'triangle', endFrequency: 260 }],
 } satisfies Record<string, Tone[]>;
 export type SoundCue = keyof typeof SOUND_CUES;
 /** Cues with roles in the current game UI; older fallback presets remain internal. */
-export const GAME_SOUND_CUES = ['select', 'join', 'start', 'submit', 'vote', 'ranking', 'tick', 'bounce', 'count', 'cheer'] as const satisfies readonly SoundCue[];
+export const GAME_SOUND_CUES = ['select', 'join', 'start', 'submit', 'vote', 'ranking', 'tick', 'bounce', 'count', 'cheer', 'correct', 'buzzer', 'whoosh'] as const satisfies readonly SoundCue[];
 export const SOUND_FILES: Partial<Record<SoundCue, string>> = {
   start: '/audio/ogiri/start-stinger.mp3',
   bounce: '/audio/ogiri/answer-pop.mp3',
@@ -102,10 +114,19 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
     const before = previous.players.find(candidate => candidate.id === player.id);
     return before && player.score > before.score;
   })) return next.match?.result?.shutout != null ? 'cheer' : 'count';
+  // A gesture turn changes inside one phase: each guess, pass and the start get their own cue.
+  const acted = previous.gestureGame, acting = next.gestureGame;
+  if (previous.turn === next.turn && next.phase === 'answering' && acted && acting) {
+    if (acting.solved.length > acted.solved.length) return 'correct';
+    if (acting.passes > acted.passes) return 'whoosh';
+    if (acting.started && !acted.started) return 'start';
+  }
   if (previous.turn === next.turn) return null;
   if (previous.phase === 'lobby' && ['answering', 'voting'].includes(next.phase)) return 'start';
   if (next.phase === 'answering') return 'start';
   if (next.phase === 'voting') return 'bounce';
+  // Time up on a gesture turn, or a quiz picture nobody read.
+  if (next.phase === 'reveal' && (next.gestureGame || next.drawingGame?.quiz?.result?.correct.length === 0)) return 'buzzer';
   if (next.phase === 'reveal') return 'bounce';
   if (next.phase === 'ranking') return 'ranking';
   if (next.phase === 'finished') return 'cheer';

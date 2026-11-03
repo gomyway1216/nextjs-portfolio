@@ -21,6 +21,7 @@ import { projectReactions } from './reactions';
 import { advanceDrawing, beginDrawing, drawingAction, isDrawingGame, moderateDrawing, projectDrawing, syncDrawing } from './drawing-game';
 import { customPromptAction, dropPendingCustomPrompts, isCustomPromptAction, isCustomPromptId, pickCustomPrompts, projectCustomPrompts, withCustomPrompts } from './custom-prompts';
 import { advanceWordWolf, beginWordWolf, currentWordWolf, isWordWolf, moderateWordWolf, projectWordWolf, syncWordWolf, wordWolfAction } from './word-wolf';
+import { advanceGesture, beginGesture, currentGesture, gestureAction, isGesture, moderateGesture, projectGesture, syncGesture } from './gesture';
 import { advanceBluff, beginBluffRound, bluffAction, currentBluffRound, isBluffGame, moderateBluff, projectBluff, syncBluff } from './bluff-game';
 
 export { GameError } from './errors';
@@ -43,7 +44,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori', 'quiz', 'gesture', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= maxRounds(s.gameType),
     `ラウンド数は1〜${maxRounds(s.gameType)}です。`,
@@ -349,6 +350,10 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
       beginBluffRound(room, now, rng);
       return;
     }
+    if (isGesture(room)) {
+      beginGesture(room, now, rng);
+      return;
+    }
   } else if (isDrawingGame(room)) {
     advanceDrawing(room, now);
     return;
@@ -360,6 +365,9 @@ function advance(room: Room, now: number, prompts: Prompt[], rng: () => number) 
     return;
   } else if (isBluffGame(room)) {
     advanceBluff(room, now, rng);
+    return;
+  } else if (isGesture(room)) {
+    advanceGesture(room, now, rng);
     return;
   }
   switch (room.phase) {
@@ -404,7 +412,8 @@ export function tick(room: Room, now: number, prompts: Prompt[], rng = Math.rand
     return false;
   // The answer timer is a guide: only everyone's OK or the host closes submissions.
   // ワードウルフ's talk timer is real, so it moves on to voting by itself when automatic.
-  if (room.phase === 'answering' && !(isWordWolf(room) && room.settings.autoAdvance)) return false;
+  // A gesture turn is a race against its clock, so time up always ends the acting.
+  if (room.phase === 'answering' && !isGesture(room) && !(isWordWolf(room) && room.settings.autoAdvance)) return false;
   if (['reveal', 'ranking'].includes(room.phase) && !room.settings.autoAdvance) return false;
   advance(room, now, prompts, rng);
   room.revision++;
@@ -425,6 +434,10 @@ function advanceReadyAnswers(room: Room, now: number, prompts: Prompt[], rng: ()
   }
   if (isBluffGame(room)) {
     syncBluff(room, now, rng);
+    return;
+  }
+  if (isGesture(room)) {
+    syncGesture(room, now, rng);
     return;
   }
   if (room.pausedAt || !room.settings.autoAdvance) return;
@@ -452,7 +465,7 @@ export function act(
   // The owner is back, so someone else's request for this seat is over for good.
   if (room.rejoinRequests?.[playerId]) delete room.rejoinRequests[playerId];
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat', 'customPromptAdd', 'customPromptRemove'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'quizGuess', 'gestureStart', 'gesturePass', 'gestureCorrect', 'leave', 'return', 'heartbeat', 'customPromptAdd', 'customPromptRemove'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -511,6 +524,7 @@ export function act(
     delete room.drawing;
     delete room.wordWolf;
     delete room.bluffRounds;
+    delete room.gestures;
     room.matchIndex = 0;
     room.pausedAt = 0;
     room.deadline = 0;
@@ -535,6 +549,7 @@ export function act(
     dropPendingCustomPrompts(room, action.playerId);
     moderateWordWolf(room, action.playerId);
     moderateBluff(room, action.playerId);
+    moderateGesture(room, action.playerId);
     voidSideResult(room, action.playerId);
     const current = room.matches[room.matchIndex];
     const revealing = room.phase === 'reveal' && current?.scored;
@@ -593,7 +608,9 @@ export function act(
       sideAction(room, playerId, action, now);
     } else if (isBluffGame(room)) {
       bluffAction(room, playerId, action, now);
-    } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type)) {
+    } else if (isGesture(room)) {
+      gestureAction(room, playerId, action, now, rng);
+    } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'quizGuess', 'gestureStart', 'gesturePass', 'gestureCorrect'].includes(action.type)) {
       throw new GameError('このゲームでは使えない操作です。');
     } else if (action.type === 'answer') {
       requireThat(
@@ -640,7 +657,12 @@ export function act(
 }
 const publicSeat = ({ id, name, avatar }: Player) => ({ id, name, avatar });
 /** Explicit allowlist: never spread the private room or player record into a response. */
-export const turnKey = (room: Room) => `${room.game}:${room.round}:${room.phase}:${room.matchIndex}${isDrawingGame(room) ? `:${room.drawing?.stage ?? 0}` : ''}`;
+/** A gesture turn's start is its own step: a host 次へ meant for the wait must not end the acting. */
+const gestureStep = (room: Room) => {
+  const round = isGesture(room) ? currentGesture(room) : undefined;
+  return round ? `:${round.actor}:${round.startedAt ? 'acting' : 'ready'}` : '';
+};
+export const turnKey = (room: Room) => `${room.game}:${room.round}:${room.phase}:${room.matchIndex}${isDrawingGame(room) ? `:${room.drawing?.stage ?? 0}` : ''}${gestureStep(room)}`;
 export function project(
   room: Room,
   playerId: string | null,
@@ -656,13 +678,14 @@ export function project(
   const participants = gamePlayerIds(room);
   const side = isSideGame(room) ? currentSideRound(room) : undefined;
   const bluff = isBluffGame(room) ? currentBluffRound(room) : undefined;
-  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? (isWordWolf(room) ? currentWordWolf(room)?.players : undefined) ?? bluff?.players ?? room.matches.flatMap((m) => m.players));
+  const roundParticipants = new Set(room.drawing?.players ?? side?.players ?? (isWordWolf(room) ? currentWordWolf(room)?.players : undefined) ?? bluff?.players ?? (isGesture(room) ? currentGesture(room)?.order : undefined) ?? room.matches.flatMap((m) => m.players));
   return {
     gameType: room.phase === 'lobby' ? room.settings.gameType ?? 'ogiri' : room.gameType ?? 'ogiri',
     sideGame: projectSideGame(room, me),
     drawingGame: projectDrawing(room, me),
     wordWolfGame: projectWordWolf(room, me),
     bluffGame: projectBluff(room, me),
+    gestureGame: projectGesture(room, me),
     ...(me ? {} : { rejoinSeats: rejoinSeats(room, now).map(publicSeat) }),
     rejoinRequests: pendingRejoins(room, now).map((p) => ({ ...publicSeat(p), requestedAt: room.rejoinRequests![p.id].at })),
     turn: turnKey(room),

@@ -81,7 +81,7 @@
   },
   {
     "id": "animals-006",
-    "text": "キリンのマフラーを編む人が途中で発見したことは？",
+    "text": "キリンが首の長さで損をした瞬間とは？",
     "category": "animals",
     "format": "situation",
     "difficulty": "easy",
@@ -241,7 +241,7 @@
   },
   {
     "id": "animals-016",
-    "text": "ウサギが耳を短く見せたい日の工夫は？",
+    "text": "ウサギが長い耳で聞いてしまった、内緒話とは？",
     "category": "animals",
     "format": "situation",
     "difficulty": "easy",
@@ -289,13 +289,13 @@
   },
   {
     "id": "animals-019",
-    "text": "オウムが覚えた言葉を整理した結果、最初に消した言葉は？",
+    "text": "オウムが覚えてしまった、家族の口ぐせとは？",
     "category": "animals",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "animals",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -369,7 +369,7 @@
   },
   {
     "id": "animals-024",
-    "text": "クジャクが羽を広げるために必要になった許可は？",
+    "text": "クジャクが羽を広げたら怒られた。どこで？",
     "category": "animals",
     "format": "situation",
     "difficulty": "easy",
@@ -481,7 +481,7 @@
   },
   {
     "id": "animals-031",
-    "text": "シマウマが縞模様を一本だけ交換。誰と？",
+    "text": "シマウマの縞模様、実は何だった？",
     "category": "animals",
     "format": "situation",
     "difficulty": "easy",
@@ -625,13 +625,13 @@
   },
   {
     "id": "animals-040",
-    "text": "ネコ科の家族会議で、一匹だけ納得していない。議題は？",
+    "text": "ネコがライオンに言い返した一言とは？",
     "category": "animals",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "animals",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -881,13 +881,13 @@
   },
   {
     "id": "animals-056",
-    "text": "エビが後ろ向きにしか進まないことへの、前向きな説明は？",
+    "text": "エビが後ろに進む本当の理由は？",
     "category": "animals",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "animals",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -897,7 +897,7 @@
   },
   {
     "id": "animals-057",
-    "text": "トラが「今日は柄物を避けたい」と言った。どうする？",
+    "text": "トラが服屋さんで店員に言われた一言は？",
     "category": "animals",
     "format": "dialogue",
     "difficulty": "easy",
@@ -913,13 +913,13 @@
   },
   {
     "id": "animals-058",
-    "text": "アルパカの毛刈り後に起きた、ちょっとした勘違いは？",
+    "text": "毛を刈られたアルパカ。最初の一言は？",
     "category": "animals",
-    "format": "twist",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "animals",
-      "twist"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -1153,7 +1153,7 @@
   },
   {
     "id": "animals-073",
-    "text": "カピバラの無表情を解説する実況とは？",
+    "text": "いつも無表情なカピバラ。実は何を考えている？",
     "category": "animals",
     "format": "situation",
     "difficulty": "easy",
@@ -1361,13 +1361,13 @@
   },
   {
     "id": "classic-002",
-    "text": "世界一小さな冒険の、壮大すぎるタイトルは？",
+    "text": "運動会で、お父さんが本気を出しすぎた。何をした？",
     "category": "classic",
-    "format": "naming",
+    "format": "twist",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "naming"
+      "twist"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -1441,7 +1441,7 @@
   },
   {
     "id": "classic-007",
-    "text": "実況するほどでもない行動を、熱く実況してください。",
+    "text": "靴ひもを結ぶだけの人を、熱く実況してください。",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -1457,13 +1457,13 @@
   },
   {
     "id": "classic-008",
-    "text": "地味な特技に格好いい名前をつけるなら？",
+    "text": "地味すぎる特技を、全力で自慢してください。",
     "category": "classic",
-    "format": "naming",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "naming"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -1521,7 +1521,7 @@
   },
   {
     "id": "classic-012",
-    "text": "「世界初」を付けたら大げさになった、普通の商品は？",
+    "text": "「世界初！」と書かれた、普通すぎる新商品は？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -1585,7 +1585,7 @@
   },
   {
     "id": "classic-016",
-    "text": "新しいじゃんけんの手「ぬん」。何に勝つ？",
+    "text": "じゃんけんに四つ目の手が追加。どんな手？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -1665,13 +1665,13 @@
   },
   {
     "id": "classic-021",
-    "text": "「伝説の」を付けると面白くなる、身近な物とは？",
+    "text": "近所のおじさんが「伝説」と呼ばれる理由は？",
     "category": "classic",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -1713,7 +1713,7 @@
   },
   {
     "id": "classic-024",
-    "text": "「絶対に押すな」のボタンを押して起きた、優しい出来事は？",
+    "text": "「絶対に押すな」のボタンを押した。何が起きた？",
     "category": "classic",
     "format": "twist",
     "difficulty": "easy",
@@ -1729,13 +1729,13 @@
   },
   {
     "id": "classic-025",
-    "text": "王様の椅子が一日だけ普通の椅子に。どう振る舞った？",
+    "text": "王様がパイプ椅子に座らされた。何と言った？",
     "category": "classic",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -1809,13 +1809,13 @@
   },
   {
     "id": "classic-030",
-    "text": "一番弱い必殺技の名前と効果を教えてください。",
+    "text": "こんな必殺技は弱すぎる。どんな技？",
     "category": "classic",
-    "format": "naming",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "naming"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -1825,7 +1825,7 @@
   },
   {
     "id": "classic-031",
-    "text": "100年後に発見されたあなたのメモ。どう解釈された？",
+    "text": "冷蔵庫に貼られていた、家族からの謎のメモは？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -1857,13 +1857,13 @@
   },
   {
     "id": "classic-033",
-    "text": "「ここからが本番です」と言ったのが、意外な場面。どこ？",
+    "text": "校長先生の話が長すぎる。何の話をしている？",
     "category": "classic",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2097,13 +2097,13 @@
   },
   {
     "id": "classic-048",
-    "text": "「さすがプロ」と思った、買い物かごの使い方は？",
+    "text": "この店員さん、プロすぎる。何をした？",
     "category": "classic",
-    "format": "situation",
+    "format": "twist",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "twist"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2113,13 +2113,13 @@
   },
   {
     "id": "classic-049",
-    "text": "こんな握手会は手が足りない。どんな仕組み？",
+    "text": "握手会で、アイドルが思わず言った一言は？",
     "category": "classic",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2129,13 +2129,13 @@
   },
   {
     "id": "classic-050",
-    "text": "未来の教科書に載る、今の地味な日常とは？",
+    "text": "先生が授業中にうっかり言った一言とは？",
     "category": "classic",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2145,7 +2145,7 @@
   },
   {
     "id": "classic-051",
-    "text": "「この中に一人だけ違う人がいます」。見分け方は？",
+    "text": "この中に一人だけ宇宙人がいる。どうやって見分ける？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -2177,7 +2177,7 @@
   },
   {
     "id": "classic-053",
-    "text": "勇者の装備欄に一つだけ「借り物」。何？",
+    "text": "勇者が旅に出る前、お母さんに持たされたものは？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -2193,13 +2193,13 @@
   },
   {
     "id": "classic-054",
-    "text": "こんなサプライズは予告が長い。どんな予告？",
+    "text": "サプライズが下手すぎる人。何をした？",
     "category": "classic",
-    "format": "situation",
+    "format": "twist",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "twist"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2209,13 +2209,13 @@
   },
   {
     "id": "classic-055",
-    "text": "「大丈夫」の意味が人と違う人。どんな場面で使う？",
+    "text": "「大丈夫！」と言った人の後ろで起きていたことは？",
     "category": "classic",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2369,7 +2369,7 @@
   },
   {
     "id": "classic-065",
-    "text": "人生に一回だけ使える「一旦保留」。どこで使う？",
+    "text": "人生で一回だけ使える「やり直し」。どこで使う？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -2417,13 +2417,13 @@
   },
   {
     "id": "classic-068",
-    "text": "こんな優勝インタビューは質問しづらい。最初の返答は？",
+    "text": "優勝した人が、インタビューで言ったまさかの一言は？",
     "category": "classic",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "classic",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2433,7 +2433,7 @@
   },
   {
     "id": "classic-069",
-    "text": "すごく簡単な作業に、格好いい作戦名をつけてください。",
+    "text": "「ゴミ出し」に格好いい作戦名をつけてください。",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -2481,7 +2481,7 @@
   },
   {
     "id": "classic-072",
-    "text": "「ご自由にどうぞ」に一つだけ書かれた妙な例外は？",
+    "text": "「ご自由にお取りください」に置かれていた意外なものは？",
     "category": "classic",
     "format": "situation",
     "difficulty": "easy",
@@ -2609,7 +2609,7 @@
   },
   {
     "id": "classic-080",
-    "text": "こんな伝言ゲームは正確すぎる。どんなルール？",
+    "text": "「今日の晩ごはん」が伝言ゲームで変わった。最後は何？",
     "category": "classic",
     "format": "dialogue",
     "difficulty": "easy",
@@ -2753,13 +2753,13 @@
   },
   {
     "id": "daily-005",
-    "text": "休日の予定を立てるための休日。結局何をした？",
+    "text": "休日に一歩も外に出なかった人の、苦しい言い訳は？",
     "category": "daily",
-    "format": "twist",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "twist"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2833,13 +2833,13 @@
   },
   {
     "id": "daily-010",
-    "text": "ゴミ出しの日だけ町内で使える魔法。その効果は？",
+    "text": "ゴミ出しに行ったら、カラスに言われた一言は？",
     "category": "daily",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -2865,7 +2865,7 @@
   },
   {
     "id": "daily-012",
-    "text": "浴室の鏡が曇ったときだけ映る、どうでもいい情報は？",
+    "text": "お風呂から一時間出てこない家族。中で何をしている？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -2945,13 +2945,13 @@
   },
   {
     "id": "daily-017",
-    "text": "洗剤の詰め替えに失敗した人を励ます賞の名前は？",
+    "text": "洗剤の詰め替えを盛大にこぼした。そのときの第一声は？",
     "category": "daily",
-    "format": "naming",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "naming"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -3073,7 +3073,7 @@
   },
   {
     "id": "daily-025",
-    "text": "落とし物センターに届いた「やる気」。持ち主をどう探す？",
+    "text": "交番に届けられた、とても気まずい落とし物とは？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -3185,13 +3185,13 @@
   },
   {
     "id": "daily-032",
-    "text": "一人暮らしの部屋で突然始まった町内会。議題は？",
+    "text": "一人暮らしの部屋に来た母が、まず言った一言は？",
     "category": "daily",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -3201,13 +3201,13 @@
   },
   {
     "id": "daily-033",
-    "text": "コンセントの空きが一つしかない家で起きた交渉とは？",
+    "text": "最後のコンセントを奪い合う家族。勝った人の決め台詞は？",
     "category": "daily",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -3217,13 +3217,13 @@
   },
   {
     "id": "daily-034",
-    "text": "蚊取り線香が一本だけ直線だった。何が不満だった？",
+    "text": "蚊取り線香が全然効かない。蚊の言い分は？",
     "category": "daily",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -3345,7 +3345,7 @@
   },
   {
     "id": "daily-042",
-    "text": "スマホを置いた場所を思い出すための新しい体操。その動きは？",
+    "text": "なくしたスマホが見つかった、ありえない場所は？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -3681,7 +3681,7 @@
   },
   {
     "id": "daily-063",
-    "text": "小銭を数える作業に映画の予告編をつけるなら？",
+    "text": "貯金箱を割ったら、お金以外に何が出てきた？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -3809,13 +3809,13 @@
   },
   {
     "id": "daily-071",
-    "text": "新品のスリッパを使う前の入団テストとは？",
+    "text": "来客用スリッパが誰にも履かれない。その理由は？",
     "category": "daily",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -3873,7 +3873,7 @@
   },
   {
     "id": "daily-075",
-    "text": "散歩に目的を求めすぎる人。その散歩計画とは？",
+    "text": "近所を散歩していたら、とんでもない看板が。何と書いてあった？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -3905,13 +3905,13 @@
   },
   {
     "id": "daily-077",
-    "text": "「あと5分だけ」を商品化。パッケージに書かれた注意は？",
+    "text": "お母さんの起こし方が独特すぎる。何と言って起こす？",
     "category": "daily",
-    "format": "rule",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "daily",
-      "rule"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -3937,7 +3937,7 @@
   },
   {
     "id": "daily-079",
-    "text": "消臭スプレーに追いかけられる夢。逃げ切る方法は？",
+    "text": "玄関の消臭スプレーが一瞬でなくなった。何に使った？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -3953,7 +3953,7 @@
   },
   {
     "id": "daily-080",
-    "text": "家の中の段差がバリアフリー化を聞いて始めたことは？",
+    "text": "夜中にトイレへ行く途中、踏んでしまったものは？",
     "category": "daily",
     "format": "situation",
     "difficulty": "easy",
@@ -4065,13 +4065,13 @@
   },
   {
     "id": "food-003",
-    "text": "ラーメンの湯切りに芸術点。満点になった動きは？",
+    "text": "ラーメン屋の頑固な店主が決めた、変な店のルールは？",
     "category": "food",
-    "format": "situation",
+    "format": "rule",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "rule"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -4129,13 +4129,13 @@
   },
   {
     "id": "food-007",
-    "text": "お弁当の仕切りが国境になった。入国の条件は？",
+    "text": "お弁当を開けたら、お母さんからの手紙。何と書いてある？",
     "category": "food",
-    "format": "rule",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "food",
-      "rule"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -4145,7 +4145,7 @@
   },
   {
     "id": "food-008",
-    "text": "「シェフの気まぐれ」が今日は慎重。どんな料理？",
+    "text": "シェフの気まぐれが過ぎた料理。何が出てきた？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -4177,7 +4177,7 @@
   },
   {
     "id": "food-010",
-    "text": "プリンのカラメル部分が独立宣言。国の名前は？",
+    "text": "楽しみにしていたプリンを食べた犯人。その言い訳は？",
     "category": "food",
     "format": "dialogue",
     "difficulty": "easy",
@@ -4225,13 +4225,13 @@
   },
   {
     "id": "food-013",
-    "text": "炊飯器が炊き上がりに俳句を詠んだ。どんな一句？",
+    "text": "炊飯器が「炊けました」の代わりに言った一言は？",
     "category": "food",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -4321,7 +4321,7 @@
   },
   {
     "id": "food-019",
-    "text": "メニューの写真と同じポーズを取ると割引。どんな料理？",
+    "text": "メニューに書かれた、注文するのに勇気がいる料理名は？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -4337,7 +4337,7 @@
   },
   {
     "id": "food-020",
-    "text": "チョコレートの銀紙に書かれた、小さな作戦とは？",
+    "text": "義理チョコに添えられていた、正直すぎるメッセージは？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -4353,7 +4353,7 @@
   },
   {
     "id": "food-021",
-    "text": "コーヒーの苦みを言葉にしたら、どんな愚痴？",
+    "text": "ブラックコーヒーを初めて飲んだ子どもの一言は？",
     "category": "food",
     "format": "dialogue",
     "difficulty": "easy",
@@ -4449,7 +4449,7 @@
   },
   {
     "id": "food-027",
-    "text": "定食屋の「いつもの」が日替わりになった。常連の反応は？",
+    "text": "定食屋で「いつもの」と頼んだら、出てきたのは？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -4497,13 +4497,13 @@
   },
   {
     "id": "food-030",
-    "text": "賞味期限を過ぎた冗談。パッケージの注意書きは？",
+    "text": "冷蔵庫の奥から出てきた、いつのものか分からない食べ物は？",
     "category": "food",
-    "format": "rule",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "food",
-      "rule"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -4657,13 +4657,13 @@
   },
   {
     "id": "food-040",
-    "text": "スープの冷めない距離を測る、新しい道具は？",
+    "text": "熱々のスープ。猫舌の人が考えた冷まし方は？",
     "category": "food",
-    "format": "invention",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "food",
-      "invention"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -4769,13 +4769,13 @@
   },
   {
     "id": "food-047",
-    "text": "お茶漬けに求められた、驚きの資格とは？",
+    "text": "高級料亭のお茶漬け。値段が高すぎる理由は？",
     "category": "food",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -4801,13 +4801,13 @@
   },
   {
     "id": "food-049",
-    "text": "レストランの予約名が「空腹の使者」。どう案内された？",
+    "text": "店員が読み上げるのをためらった、予約の名前は？",
     "category": "food",
-    "format": "situation",
+    "format": "naming",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "naming"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5041,7 +5041,7 @@
   },
   {
     "id": "food-064",
-    "text": "安いのに高級感が出すぎる料理の盛りつけとは？",
+    "text": "安いお弁当に付いていた、高級すぎるおまけは？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -5057,7 +5057,7 @@
   },
   {
     "id": "food-065",
-    "text": "新しい食器「たぶん皿」。どこが曖昧？",
+    "text": "洗い物をサボるために考えた、新しい食器は？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -5089,7 +5089,7 @@
   },
   {
     "id": "food-067",
-    "text": "料理名に「おそらく」が付くレストラン。人気メニューは？",
+    "text": "ドリンクバーで、つい作ってしまう謎のドリンクは？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -5105,7 +5105,7 @@
   },
   {
     "id": "food-068",
-    "text": "一口サイズのはずが、店員に応援された。どんな料理？",
+    "text": "大食いチャレンジに成功した人がもらえる、うれしくない賞品は？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -5153,13 +5153,13 @@
   },
   {
     "id": "food-071",
-    "text": "食パンの耳だけが聴き取れる音とは？",
+    "text": "食パンの耳を、子どもが絶対に食べない理由は？",
     "category": "food",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5169,13 +5169,13 @@
   },
   {
     "id": "food-072",
-    "text": "しょうが焼き定食に付く「反省会」。何を反省する？",
+    "text": "学食のおばちゃんが、ご飯を大盛りにしてくれる条件は？",
     "category": "food",
-    "format": "situation",
+    "format": "rule",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "rule"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5265,7 +5265,7 @@
   },
   {
     "id": "food-078",
-    "text": "フルーツ盛り合わせに、一個だけ場違いな肩書き。誰？",
+    "text": "フルーツ盛り合わせに、一つだけ場違いなもの。何？",
     "category": "food",
     "format": "situation",
     "difficulty": "easy",
@@ -5361,13 +5361,13 @@
   },
   {
     "id": "food-084",
-    "text": "「ごちそうさま」の後に始まった、食器たちの反省とは？",
+    "text": "「ごちそうさま」の直後に言われたら、イヤな一言は？",
     "category": "food",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "food",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5393,7 +5393,7 @@
   },
   {
     "id": "halloween-002",
-    "text": "お化け屋敷の幽霊に客がアンコール。何をした？",
+    "text": "お化け屋敷で客がまさかのアンコール。幽霊は何をした？",
     "category": "halloween",
     "format": "twist",
     "difficulty": "easy",
@@ -5489,13 +5489,13 @@
   },
   {
     "id": "halloween-008",
-    "text": "お化けの新入社員が研修で学ぶ、怖くない業務は？",
+    "text": "お化けの新入社員が、研修で怒られた理由は？",
     "category": "halloween",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "halloween",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5505,13 +5505,13 @@
   },
   {
     "id": "halloween-009",
-    "text": "コウモリの仮装をした本物のコウモリ。違いは？",
+    "text": "コウモリが逆さまにぶら下がるのをやめた。なぜ？",
     "category": "halloween",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "halloween",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5585,13 +5585,13 @@
   },
   {
     "id": "halloween-014",
-    "text": "お化け屋敷の受付に置かれた、意外な同意書は？",
+    "text": "お化け屋敷の受付で言われた、不安になる一言は？",
     "category": "halloween",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "halloween",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -5729,7 +5729,7 @@
   },
   {
     "id": "halloween-023",
-    "text": "お化け屋敷の壁に貼られた、働く幽霊へのお知らせは？",
+    "text": "お化け屋敷の幽霊が、休憩中にしていることは？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -5745,7 +5745,7 @@
   },
   {
     "id": "halloween-024",
-    "text": "魔女の使い魔が黒猫から別の動物へ。困ったことは？",
+    "text": "魔女の黒猫がストライキ。要求は何？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -5921,13 +5921,13 @@
   },
   {
     "id": "halloween-035",
-    "text": "魔女の宅配便に付いた、独特の追跡情報は？",
+    "text": "魔女のほうき便が荷物を届け損ねた。言い訳は？",
     "category": "halloween",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "halloween",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -6193,7 +6193,7 @@
   },
   {
     "id": "halloween-052",
-    "text": "ハロウィンの招待状に「怖さ持参」。何を持っていく？",
+    "text": "ハロウィンパーティーで一番引かれた手土産は？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -6289,7 +6289,7 @@
   },
   {
     "id": "halloween-058",
-    "text": "かぼちゃランタンの顔を左右逆に彫った。評判は？",
+    "text": "下手すぎるかぼちゃランタン。どんな顔？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -6353,7 +6353,7 @@
   },
   {
     "id": "halloween-062",
-    "text": "幽霊が透明になるのをやめた日。どんな事情？",
+    "text": "幽霊が急に透けなくなった。困ったことは？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -6401,7 +6401,7 @@
   },
   {
     "id": "halloween-065",
-    "text": "怪物の保育園で歌われる、優しい子守歌の一節は？",
+    "text": "怪物の保育園。お昼寝の時間に困ることは？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -6481,13 +6481,13 @@
   },
   {
     "id": "halloween-070",
-    "text": "呪いの人形がお願いしてきた、生活上の不満は？",
+    "text": "呪いの人形が持ち主に言った、地味な文句は？",
     "category": "halloween",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "halloween",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -6513,7 +6513,7 @@
   },
   {
     "id": "halloween-072",
-    "text": "カボチャ頭が雨の日に出かけない、怖くない理由は？",
+    "text": "カボチャ頭が雨の日に出かけない理由は？",
     "category": "halloween",
     "format": "reason",
     "difficulty": "easy",
@@ -6641,13 +6641,13 @@
   },
   {
     "id": "halloween-080",
-    "text": "ゾンビの落とし物センター。受け取りに必要な確認は？",
+    "text": "ゾンビのお母さんが、毎朝言う小言は？",
     "category": "halloween",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "halloween",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -6657,7 +6657,7 @@
   },
   {
     "id": "halloween-081",
-    "text": "お化け屋敷に「お化け持ち込み可」の看板。持ち込むと？",
+    "text": "お化け屋敷の求人広告。どんな人を募集？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -6673,7 +6673,7 @@
   },
   {
     "id": "halloween-082",
-    "text": "お菓子をもらいすぎた子どもが始めた、平和な事業は？",
+    "text": "お菓子をもらいすぎた子ども。何を始めた？",
     "category": "halloween",
     "format": "situation",
     "difficulty": "easy",
@@ -6785,7 +6785,7 @@
   },
   {
     "id": "japan-005",
-    "text": "駅前の銅像がお祭りの日だけ参加する役割は？",
+    "text": "夏祭りの屋台で、全然売れていないお店。何屋さん？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -6801,7 +6801,7 @@
   },
   {
     "id": "japan-006",
-    "text": "おせちに新しく加わった一品。その縁起の説明は？",
+    "text": "おせちの重箱に入っていた、お正月らしくない料理は？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -6881,7 +6881,7 @@
   },
   {
     "id": "japan-011",
-    "text": "神社の狛犬が場所を交換した。参拝客の反応は？",
+    "text": "神社の狛犬が、夜中にこっそり話していることは？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -6913,7 +6913,7 @@
   },
   {
     "id": "japan-013",
-    "text": "畳職人が編んだ、畳以外の意外な作品は？",
+    "text": "おばあちゃん家の和室で、やってはいけないことは？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -6993,13 +6993,13 @@
   },
   {
     "id": "japan-018",
-    "text": "回転する座布団が大流行。どんな使い方？",
+    "text": "座布団が、正座する人に言いたいことは？",
     "category": "japan",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7105,7 +7105,7 @@
   },
   {
     "id": "japan-025",
-    "text": "落語家が話し始めた、現代版の枕とは？",
+    "text": "回転寿司のレーンに、寿司以外のものが流れてきた。何？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -7121,13 +7121,13 @@
   },
   {
     "id": "japan-026",
-    "text": "温泉の湯もみをロボットに任せた。余計な機能は？",
+    "text": "温泉の入口に貼られていた、謎の注意書きは？",
     "category": "japan",
-    "format": "invention",
+    "format": "rule",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "invention"
+      "rule"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7137,13 +7137,13 @@
   },
   {
     "id": "japan-027",
-    "text": "ひな人形の並び順を自由にしたら、どうなった？",
+    "text": "ひな祭りの日、お内裏様がお雛様に言った一言は？",
     "category": "japan",
-    "format": "twist",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "twist"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7169,13 +7169,13 @@
   },
   {
     "id": "japan-029",
-    "text": "将棋の駒が一個だけ休暇届。誰で、理由は？",
+    "text": "将棋で負けそうな人が、最後に使う作戦は？",
     "category": "japan",
-    "format": "reason",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "reason"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7201,7 +7201,7 @@
   },
   {
     "id": "japan-031",
-    "text": "商店街の福引きで特賞「町内の顔」。どんな特典？",
+    "text": "商店街の福引きで当たった、いらない特賞は？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -7233,13 +7233,13 @@
   },
   {
     "id": "japan-033",
-    "text": "けん玉の新しい技「遠慮」。どんな技？",
+    "text": "けん玉が全然できない人の、言い訳は？",
     "category": "japan",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7265,7 +7265,7 @@
   },
   {
     "id": "japan-035",
-    "text": "花火師が昼間だけ作る作品とは？",
+    "text": "花火大会で一発だけ混ざっていた、変な花火とは？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -7281,13 +7281,13 @@
   },
   {
     "id": "japan-036",
-    "text": "俳句の季語に「充電切れ」が追加。どの季節で、なぜ？",
+    "text": "俳句の季語に新しく加わった、今どきの言葉は？",
     "category": "japan",
-    "format": "reason",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "reason"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7313,13 +7313,13 @@
   },
   {
     "id": "japan-038",
-    "text": "昔話の語り手が使い始めた、現代の枕詞は？",
+    "text": "桃太郎のおばあさんが、桃を見て言った一言は？",
     "category": "japan",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7329,13 +7329,13 @@
   },
   {
     "id": "japan-039",
-    "text": "餅つきの掛け声が意外な業界用語。何と叫ぶ？",
+    "text": "餅つきの掛け声がやる気ない。何と言っている？",
     "category": "japan",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7425,7 +7425,7 @@
   },
   {
     "id": "japan-045",
-    "text": "大名行列がコンビニに寄った。誰が何を買う？",
+    "text": "大名行列がコンビニに寄った。何を買った？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -7441,13 +7441,13 @@
   },
   {
     "id": "japan-046",
-    "text": "焼き物の名人が失敗作に付けた、説得力のある名前は？",
+    "text": "陶芸の名人が、失敗作を高く売るときの一言は？",
     "category": "japan",
-    "format": "naming",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "naming"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -7761,7 +7761,7 @@
   },
   {
     "id": "japan-066",
-    "text": "縁側で日向ぼっこする達人の、こだわりは？",
+    "text": "おじいちゃんが縁側で話しかけている相手は？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -7825,7 +7825,7 @@
   },
   {
     "id": "japan-070",
-    "text": "行灯をスマート家電にした。どんな機能？",
+    "text": "最新式の湯たんぽ。どんな機能がついている？",
     "category": "japan",
     "format": "invention",
     "difficulty": "easy",
@@ -7841,7 +7841,7 @@
   },
   {
     "id": "japan-071",
-    "text": "日本庭園の砂紋に、一か所だけ現代的な模様。何？",
+    "text": "日本庭園の池にいる鯉。何を考えている？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -7969,13 +7969,13 @@
   },
   {
     "id": "japan-079",
-    "text": "昔ながらの駄菓子屋にできた会員ランク。最高ランクの名前は？",
+    "text": "駄菓子屋のおばあちゃんが、子どもに怒った理由は？",
     "category": "japan",
-    "format": "naming",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "japan",
-      "naming"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8017,7 +8017,7 @@
   },
   {
     "id": "japan-082",
-    "text": "お祭りの山車が迷子になった。どう探す？",
+    "text": "お祭りの迷子のお知らせ。ちょっと変な特徴は？",
     "category": "japan",
     "format": "situation",
     "difficulty": "easy",
@@ -8161,13 +8161,13 @@
   },
   {
     "id": "random-007",
-    "text": "花屋の花が値札を自分でつけた。理由欄には何と？",
+    "text": "花屋で一本だけ売れ残った花。その言い訳は？",
     "category": "random",
-    "format": "reason",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "random",
-      "reason"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8209,13 +8209,13 @@
   },
   {
     "id": "random-010",
-    "text": "試着室の鏡が採点を始めた。服以外の評価項目は？",
+    "text": "試着室の鏡がしゃべり出した。何と言った？",
     "category": "random",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8225,7 +8225,7 @@
   },
   {
     "id": "random-011",
-    "text": "砂場で発掘された、未来からの遺物とは？",
+    "text": "公園の砂場を掘ったら、何が出てきた？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -8257,7 +8257,7 @@
   },
   {
     "id": "random-013",
-    "text": "本屋のレシートに読書の宿題が印刷されていた。どんな宿題？",
+    "text": "本屋の店員さんが、レジでおすすめしてきた本は？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -8273,13 +8273,13 @@
   },
   {
     "id": "random-014",
-    "text": "風船が空へ飛ぶのをやめた。地上での目的は？",
+    "text": "風船が空に飛んでいかない理由は？",
     "category": "random",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8289,13 +8289,13 @@
   },
   {
     "id": "random-015",
-    "text": "カラオケのマイクが歌手を選び始めた。選考方法は？",
+    "text": "カラオケのマイクが、歌い終わった人に言った一言は？",
     "category": "random",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8337,7 +8337,7 @@
   },
   {
     "id": "random-018",
-    "text": "鉛筆削りの中にある、小さな町の名物は？",
+    "text": "授業中に使ったら怒られる文房具とは？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -8497,13 +8497,13 @@
   },
   {
     "id": "random-028",
-    "text": "写真館の「自然な笑顔で」に代わる、不思議な指示は？",
+    "text": "写真館のカメラマンが、笑わせるために言った一言は？",
     "category": "random",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8641,7 +8641,7 @@
   },
   {
     "id": "random-037",
-    "text": "図書館の静けさを持ち帰れるサービス。使い道は？",
+    "text": "図書館で大声を出してもいい、唯一の場面は？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -8657,13 +8657,13 @@
   },
   {
     "id": "random-038",
-    "text": "文房具店の消しゴムが売れ残りを前向きに考えた。一言は？",
+    "text": "消しゴムが、使われるたびに思っていることは？",
     "category": "random",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "random",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -8721,7 +8721,7 @@
   },
   {
     "id": "random-042",
-    "text": "手帳の空白を埋める専門家。最初に書く予定は？",
+    "text": "暇すぎる人の手帳。どんな予定が書いてある？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -8945,7 +8945,7 @@
   },
   {
     "id": "random-056",
-    "text": "写真のピントが合った瞬間にだけ見えたものは？",
+    "text": "家族写真に一人だけ知らない人。誰だった？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -8961,13 +8961,13 @@
   },
   {
     "id": "random-057",
-    "text": "ビリヤードの玉が一個だけ自己主張。どんな動き？",
+    "text": "ビリヤードの玉が、穴に落ちたくない理由は？",
     "category": "random",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -9137,13 +9137,13 @@
   },
   {
     "id": "random-068",
-    "text": "公園の時計が毎日一分だけ見せる、隠し画面は？",
+    "text": "公園の時計がいつも5分遅れている。その理由は？",
     "category": "random",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -9217,7 +9217,7 @@
   },
   {
     "id": "random-073",
-    "text": "写真集「何もない場所」に一枚だけ何かが写っていた。何？",
+    "text": "旅行の写真を見返したら、全部に写っていたものは？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -9233,13 +9233,13 @@
   },
   {
     "id": "random-074",
-    "text": "スポーツ用品店で売られていた「気合い」。包装は？",
+    "text": "熱血すぎるスポーツ用品店の店員。何と言った？",
     "category": "random",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -9329,13 +9329,13 @@
   },
   {
     "id": "random-080",
-    "text": "音楽教室の新しい楽器「ためらい」。どんな音？",
+    "text": "音楽室のベートーベンの肖像画が、生徒に言った一言は？",
     "category": "random",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "random",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -9377,7 +9377,7 @@
   },
   {
     "id": "random-083",
-    "text": "世界一地味な祭典の、最後を飾る催しは？",
+    "text": "世界一地味なお祭り。何をする？",
     "category": "random",
     "format": "situation",
     "difficulty": "easy",
@@ -9425,7 +9425,7 @@
   },
   {
     "id": "relationships-002",
-    "text": "親友からの相談が、途中から天気予報になった。どんな相談？",
+    "text": "深夜2時に親友から電話。用件は何だった？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -9441,7 +9441,7 @@
   },
   {
     "id": "relationships-003",
-    "text": "結婚式の招待状に「持ち物：余裕」。何が起こる？",
+    "text": "結婚式の招待状に書かれた、変な持ち物とは？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -9505,7 +9505,7 @@
   },
   {
     "id": "relationships-007",
-    "text": "「気が合うね」の判断材料が細かすぎる。何が一致した？",
+    "text": "初デートで「この人とは合わない」と確信した瞬間は？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -9617,13 +9617,13 @@
   },
   {
     "id": "relationships-014",
-    "text": "夫婦げんかの仲裁に入った観葉植物。その方法は？",
+    "text": "夫婦げんかを一瞬で止めた、子どもの一言とは？",
     "category": "relationships",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -9633,7 +9633,7 @@
   },
   {
     "id": "relationships-015",
-    "text": "「また今度」を本当に予定表へ入れる人。日時は？",
+    "text": "「今度ごはん行こう」の「今度」はいつ？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -9825,13 +9825,13 @@
   },
   {
     "id": "relationships-027",
-    "text": "好きな人の好きなものを調べたら、調査が大規模に。なぜ？",
+    "text": "好きな人を調べすぎた人が、うっかり言った一言は？",
     "category": "relationships",
-    "format": "reason",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "reason"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -9857,7 +9857,7 @@
   },
   {
     "id": "relationships-029",
-    "text": "恋愛相談の回答を辞書風にすると、どんな説明？",
+    "text": "恋愛相談に乗るのが下手な人。最悪のアドバイスは？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -9969,7 +9969,7 @@
   },
   {
     "id": "relationships-036",
-    "text": "結婚記念日の呼び方に追加された「充電婚式」。何年目で何をする？",
+    "text": "結婚記念日に新しい「〇〇婚式」ができた。何婚式？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -9985,7 +9985,7 @@
   },
   {
     "id": "relationships-037",
-    "text": "友達とのあだ名が長くなりすぎた。省略したら何になった？",
+    "text": "友達につけられた、絶対に呼ばれたくないあだ名は？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -10033,13 +10033,13 @@
   },
   {
     "id": "relationships-040",
-    "text": "「あなたらしいね」と言われた傘の選び方とは？",
+    "text": "恋人の家に初めて行ったら、玄関に何があった？",
     "category": "relationships",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10081,7 +10081,7 @@
   },
   {
     "id": "relationships-043",
-    "text": "家族が全員同じ日に始めた、別々の趣味。その共通点は？",
+    "text": "お母さんが急に始めた、家族が困る趣味とは？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -10257,13 +10257,13 @@
   },
   {
     "id": "relationships-054",
-    "text": "家族の中で一番偉いのがクッション。何の功績？",
+    "text": "おばあちゃんが家族で一番強い理由は？",
     "category": "relationships",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10289,13 +10289,13 @@
   },
   {
     "id": "relationships-056",
-    "text": "「似てるね」と言われて全員首をかしげた組み合わせは？",
+    "text": "親戚のおばさんに「誰に似たの？」。何と答えた？",
     "category": "relationships",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10369,13 +10369,13 @@
   },
   {
     "id": "relationships-061",
-    "text": "親友の結婚式で一番張り切っていた自販機。何をした？",
+    "text": "親友の結婚式で、新郎の父がやらかしたことは？",
     "category": "relationships",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10385,7 +10385,7 @@
   },
   {
     "id": "relationships-062",
-    "text": "恋のライバル同士が協力し始めた。共通の問題は？",
+    "text": "好きな人がかぶった親友。どう決着をつけた？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -10401,13 +10401,13 @@
   },
   {
     "id": "relationships-063",
-    "text": "人の名前を覚えるのが得意な人が、初めて困った理由は？",
+    "text": "名前を忘れた相手と30分話した。どうごまかした？",
     "category": "relationships",
-    "format": "reason",
+    "format": "naming",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "reason"
+      "naming"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10545,13 +10545,13 @@
   },
   {
     "id": "relationships-072",
-    "text": "誕生日を一日間違えた人が考えた、新しい記念日の名前は？",
+    "text": "恋人の誕生日を忘れた。とっさの言い訳は？",
     "category": "relationships",
-    "format": "naming",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "naming"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10561,13 +10561,13 @@
   },
   {
     "id": "relationships-073",
-    "text": "好きな人の前だけ方言が出るロボット。その口癖は？",
+    "text": "好きな人の前でだけ出てしまう、変なクセとは？",
     "category": "relationships",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10577,13 +10577,13 @@
   },
   {
     "id": "relationships-074",
-    "text": "相談相手が占い師ではなく改札だった。どんな助言？",
+    "text": "占い師に恋愛運を聞いたら、まさかの答え。何と？",
     "category": "relationships",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "relationships",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10625,7 +10625,7 @@
   },
   {
     "id": "relationships-077",
-    "text": "誰とでも仲良くなる人が、冷蔵庫と仲直りした方法は？",
+    "text": "誰とでもすぐ仲良くなる人。初対面の第一声は？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -10657,7 +10657,7 @@
   },
   {
     "id": "relationships-079",
-    "text": "ずっと既読にならない手紙。どう確認する？",
+    "text": "好きな人からの返信が3日来ない。何をしていた？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -10737,7 +10737,7 @@
   },
   {
     "id": "relationships-084",
-    "text": "「いつもありがとう」が大げさに翻訳された。何になった？",
+    "text": "母の日に、息子が照れながら渡したものは？",
     "category": "relationships",
     "format": "situation",
     "difficulty": "easy",
@@ -10785,7 +10785,7 @@
   },
   {
     "id": "surreal-003",
-    "text": "空から降ってきた巨大な句読点。町はどう変わった？",
+    "text": "空から巨大なプリンが降ってきた。町の人の第一声は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -10817,13 +10817,13 @@
   },
   {
     "id": "surreal-005",
-    "text": "時間が一分だけ固体になった。どう保管する？",
+    "text": "朝起きたら自分が二人いた。もう一人に何を任せる？",
     "category": "surreal",
-    "format": "situation",
+    "format": "twist",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "situation"
+      "twist"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10849,7 +10849,7 @@
   },
   {
     "id": "surreal-007",
-    "text": "木曜日が水曜日の家へ押しかけた。何の用？",
+    "text": "月曜日に顔があったら、どんな顔？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -10929,13 +10929,13 @@
   },
   {
     "id": "surreal-012",
-    "text": "人類の名前に全員「仮」が付いた。何が起きる？",
+    "text": "朝起きたら、家族全員がペンギンに。最初に困ることは？",
     "category": "surreal",
-    "format": "naming",
+    "format": "twist",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "naming"
+      "twist"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -10961,7 +10961,7 @@
   },
   {
     "id": "surreal-014",
-    "text": "忘れたことだけ売っている市場。一番高い商品は？",
+    "text": "なくした物が全部見つかる店。一番多い落とし物は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11025,13 +11025,13 @@
   },
   {
     "id": "surreal-018",
-    "text": "階段が一段だけ横向きになった。本音は？",
+    "text": "階段が「今日はもう無理」と言った。何があった？",
     "category": "surreal",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -11041,7 +11041,7 @@
   },
   {
     "id": "surreal-019",
-    "text": "音が見える眼鏡で朝の台所を見たら？",
+    "text": "音が目に見えるようになった。一番うるさく見えるのは？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11169,13 +11169,13 @@
   },
   {
     "id": "surreal-027",
-    "text": "拍手を冷凍保存すると、解凍時に何が起きる？",
+    "text": "冷凍庫を開けたら、中に小さなおじさん。何と言った？",
     "category": "surreal",
-    "format": "twist",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "twist"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -11217,7 +11217,7 @@
   },
   {
     "id": "surreal-030",
-    "text": "無音の国で一番騒がしい職業は？",
+    "text": "声を出すと罰金の国。一番困る職業は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11313,7 +11313,7 @@
   },
   {
     "id": "surreal-036",
-    "text": "「あとで」が国になった。首都の特徴は？",
+    "text": "一日が30時間になった。増えた6時間に何をする？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11361,7 +11361,7 @@
   },
   {
     "id": "surreal-039",
-    "text": "世界中のドアが一斉に内向的になった。どう開ける？",
+    "text": "玄関のドアが急に人見知りに。どうやって開ける？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11393,7 +11393,7 @@
   },
   {
     "id": "surreal-041",
-    "text": "ため息の長さで払う駐車場。料金表は？",
+    "text": "笑うたびにお金が減る世界。一番お金持ちなのは誰？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11409,7 +11409,7 @@
   },
   {
     "id": "surreal-042",
-    "text": "前世の自分から届いた、返品のお願い。何を返す？",
+    "text": "100年前の自分から手紙。何と書いてある？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11425,7 +11425,7 @@
   },
   {
     "id": "surreal-043",
-    "text": "地平線が少し近づきすぎた。誰が困る？",
+    "text": "地球が少しだけ四角くなった。誰が一番困る？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11473,7 +11473,7 @@
   },
   {
     "id": "surreal-046",
-    "text": "物語の悪役が字幕にだけ優しい。その一言は？",
+    "text": "昔話の鬼が、桃太郎に言いたかった一言は？",
     "category": "surreal",
     "format": "dialogue",
     "difficulty": "easy",
@@ -11585,13 +11585,13 @@
   },
   {
     "id": "surreal-053",
-    "text": "空の色を決める会議で、却下された色の理由は？",
+    "text": "空がチェック柄になった。町の人の反応は？",
     "category": "surreal",
-    "format": "reason",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "reason"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -11601,7 +11601,7 @@
   },
   {
     "id": "surreal-054",
-    "text": "気配だけでできた料理。食レポは？",
+    "text": "雲を食べてみた人の食レポは？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11617,7 +11617,7 @@
   },
   {
     "id": "surreal-055",
-    "text": "夢の中で現実の自分を見学。その解説は？",
+    "text": "夢の中で必ず出てくる謎の人。正体は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11633,7 +11633,7 @@
   },
   {
     "id": "surreal-056",
-    "text": "句読点たちの同窓会で一番話が長かったのは？",
+    "text": "靴の片方が家出した。置き手紙の内容は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11665,7 +11665,7 @@
   },
   {
     "id": "surreal-058",
-    "text": "夕焼けが延長料金を請求。何分延長した？",
+    "text": "夕焼けがなかなか沈まない。何をごねている？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11681,7 +11681,7 @@
   },
   {
     "id": "surreal-059",
-    "text": "空気を売る商人が試供品を配る。どう渡す？",
+    "text": "空気が有料になった。一番高い空気はどこの空気？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11697,7 +11697,7 @@
   },
   {
     "id": "surreal-060",
-    "text": "世界が一枚の紙だったと判明。折り目はどこ？",
+    "text": "ある日、空にファスナーが見つかった。開けたら何が？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11713,7 +11713,7 @@
   },
   {
     "id": "surreal-061",
-    "text": "記憶の棚卸しで余っていた、謎の思い出は？",
+    "text": "おなかの虫が鳴りやまない。何を要求している？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11745,7 +11745,7 @@
   },
   {
     "id": "surreal-063",
-    "text": "全員の心の声がハミングになった。最も困る場面は？",
+    "text": "心の声が全員に聞こえる日。一番気まずい場所は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11777,7 +11777,7 @@
   },
   {
     "id": "surreal-065",
-    "text": "宇宙人に「普通」を売る店。商品の説明は？",
+    "text": "宇宙人の家に招待された。出てきた料理は？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11809,7 +11809,7 @@
   },
   {
     "id": "surreal-067",
-    "text": "三角形が丸くなった理由を語る。その一言は？",
+    "text": "消しゴムが鉛筆に言った、最後の一言は？",
     "category": "surreal",
     "format": "dialogue",
     "difficulty": "easy",
@@ -11841,13 +11841,13 @@
   },
   {
     "id": "surreal-069",
-    "text": "時間の流れに立てられた、交通標識とは？",
+    "text": "タイムマシンで江戸時代へ。最初に言われた一言は？",
     "category": "surreal",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -11873,7 +11873,7 @@
   },
   {
     "id": "surreal-071",
-    "text": "鏡が自分自身を見たくなった。どうする？",
+    "text": "鏡の中の自分が、先に笑った。何がおかしい？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11921,7 +11921,7 @@
   },
   {
     "id": "surreal-074",
-    "text": "感情が洗濯できるようになった。色落ちしたのは？",
+    "text": "洗濯機の中が別の世界につながった。何が出てきた？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -11937,13 +11937,13 @@
   },
   {
     "id": "surreal-075",
-    "text": "未来の自分との交換日記に、返事が遅れた理由は？",
+    "text": "ぬいぐるみが夜中に動いていた。何をしていた？",
     "category": "surreal",
-    "format": "reason",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "surreal",
-      "reason"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12033,7 +12033,7 @@
   },
   {
     "id": "surreal-081",
-    "text": "運を小分けで買う自販機。お釣りは何？",
+    "text": "何でも出てくる自販機。押しちゃダメなボタンは？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -12049,7 +12049,7 @@
   },
   {
     "id": "surreal-082",
-    "text": "大人になる階段に踊り場を作った。何が置いてある？",
+    "text": "サンタが一年だけ休んだ。代わりに来たのは？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -12081,7 +12081,7 @@
   },
   {
     "id": "surreal-084",
-    "text": "空白に住む妖精が不動産屋へ出した希望は？",
+    "text": "ポケットの中に住む小人。家賃の代わりに何をくれる？",
     "category": "surreal",
     "format": "situation",
     "difficulty": "easy",
@@ -12129,13 +12129,13 @@
   },
   {
     "id": "tech-003",
-    "text": "パスワードを俳句にしたら、ログイン時に何を注意された？",
+    "text": "お父さんが決めた、すぐバレるパスワードは？",
     "category": "tech",
-    "format": "rule",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "rule"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12209,7 +12209,7 @@
   },
   {
     "id": "tech-008",
-    "text": "未来のメールには件名以外に「温度」欄。何を入力する？",
+    "text": "スマホを買ったばかりの母。初めてのメッセージは？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -12289,13 +12289,13 @@
   },
   {
     "id": "tech-013",
-    "text": "バグに名前をつけて飼うプログラマー。その飼育方法は？",
+    "text": "パソコンが急に固まった。パソコンの言い分は？",
     "category": "tech",
-    "format": "naming",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "naming"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12321,7 +12321,7 @@
   },
   {
     "id": "tech-015",
-    "text": "データを雲に保存するつもりが本物の雲へ。雨で何が降った？",
+    "text": "スマホの写真が全部消えた。最後に残った1枚は？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -12449,7 +12449,7 @@
   },
   {
     "id": "tech-023",
-    "text": "通信量ゼロで伝わるメッセージ。どう送る？",
+    "text": "スマホを家に忘れた日。どうやって連絡した？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -12481,13 +12481,13 @@
   },
   {
     "id": "tech-025",
-    "text": "仮想現実の温泉にだけある、変わった入浴マナーは？",
+    "text": "VRゴーグルをつけたおじいちゃん。何と叫んだ？",
     "category": "tech",
-    "format": "rule",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "rule"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12545,13 +12545,13 @@
   },
   {
     "id": "tech-029",
-    "text": "パソコンの更新画面に、進捗率以外の数字。何を示す？",
+    "text": "パソコンの更新が終わらない。画面に出た一言は？",
     "category": "tech",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12593,13 +12593,13 @@
   },
   {
     "id": "tech-032",
-    "text": "電子書籍のページが物理的に折れた。なぜ？",
+    "text": "家電量販店の店員が、最新テレビをすすめる一言は？",
     "category": "tech",
-    "format": "reason",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "reason"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12609,13 +12609,13 @@
   },
   {
     "id": "tech-033",
-    "text": "笑い声で動くエレベーター。停電時の案内は？",
+    "text": "しゃべるエレベーター。言われたくない一言は？",
     "category": "tech",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12641,13 +12641,13 @@
   },
   {
     "id": "tech-035",
-    "text": "AI占い師が未来を見ずに答えた理由は？",
+    "text": "AI占い師の占いが当たりすぎる。何を当てた？",
     "category": "tech",
-    "format": "reason",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "reason"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12673,7 +12673,7 @@
   },
   {
     "id": "tech-037",
-    "text": "未来の信号機に新色「気まずい」が追加。どう動く？",
+    "text": "信号機に新しい色が追加。何の合図？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -12737,13 +12737,13 @@
   },
   {
     "id": "tech-041",
-    "text": "何でも検索できる眼鏡が、祖母の質問だけ断った。何を聞かれた？",
+    "text": "おばあちゃんがスマホに話しかけた。何と言った？",
     "category": "tech",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12753,7 +12753,7 @@
   },
   {
     "id": "tech-042",
-    "text": "未来のSNSに「ほどほどにいいね」ボタン。どんな効果？",
+    "text": "SNSに新しくできた「いいね」以外のボタンは？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -12897,13 +12897,13 @@
   },
   {
     "id": "tech-051",
-    "text": "デジタル遺言に付いていた、謎の添付ファイルとは？",
+    "text": "メールに付いていた、謎の添付ファイルの名前は？",
     "category": "tech",
-    "format": "dialogue",
+    "format": "naming",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "dialogue"
+      "naming"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -12945,7 +12945,7 @@
   },
   {
     "id": "tech-054",
-    "text": "新しい検索エンジン「たぶん」。検索結果の出し方は？",
+    "text": "いいかげんな検索サイト。「明日の天気」の結果は？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13009,13 +13009,13 @@
   },
   {
     "id": "tech-058",
-    "text": "電源を切っても礼儀だけ残る家電。その動作は？",
+    "text": "礼儀正しすぎる炊飯器。ご飯が炊けたときの一言は？",
     "category": "tech",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13025,13 +13025,13 @@
   },
   {
     "id": "tech-059",
-    "text": "オンライン会議のミュート機能が感情を持った。何を主張する？",
+    "text": "オンライン会議で、ミュートを忘れて聞こえた音は？",
     "category": "tech",
-    "format": "invention",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "invention"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13041,13 +13041,13 @@
   },
   {
     "id": "tech-060",
-    "text": "未来の時計には「だいたい」針がある。何を指す？",
+    "text": "体重計がしゃべるようになった。何と言われた？",
     "category": "tech",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13073,7 +13073,7 @@
   },
   {
     "id": "tech-062",
-    "text": "自動翻訳された猫の鳴き声に、毎回付く注釈は？",
+    "text": "猫語翻訳アプリで、うちの猫の本音が判明。何と？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13089,13 +13089,13 @@
   },
   {
     "id": "tech-063",
-    "text": "仮想空間で買った家具が、現実の部屋に文句を言った。何と？",
+    "text": "ネット通販で届いた家具、写真と違いすぎた。何が？",
     "category": "tech",
-    "format": "dialogue",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "dialogue"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13121,7 +13121,7 @@
   },
   {
     "id": "tech-065",
-    "text": "USBを差す向きを必ず当てる人。その弱点は？",
+    "text": "USBが一発で挿さった。その日の運勢は？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13153,13 +13153,13 @@
   },
   {
     "id": "tech-067",
-    "text": "未来の券売機が切符と一緒に発行する資格は？",
+    "text": "セルフレジでいつも怒られる人。何を言われた？",
     "category": "tech",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13201,13 +13201,13 @@
   },
   {
     "id": "tech-070",
-    "text": "データの圧縮を頼んだら、文章の態度が変わった。どうなった？",
+    "text": "AIに書いてもらったラブレター。最初の一行は？",
     "category": "tech",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13233,7 +13233,7 @@
   },
   {
     "id": "tech-072",
-    "text": "未来のバーチャル花火大会で起きた、現実的なトラブルは？",
+    "text": "花火大会でみんなスマホを掲げた。何が起きた？",
     "category": "tech",
     "format": "twist",
     "difficulty": "easy",
@@ -13265,13 +13265,13 @@
   },
   {
     "id": "tech-074",
-    "text": "思い出を外付け保存する装置。初期不良は？",
+    "text": "スマホのアルバムに、なぜか1万枚ある写真は何？",
     "category": "tech",
-    "format": "invention",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "invention"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13281,7 +13281,7 @@
   },
   {
     "id": "tech-075",
-    "text": "パソコンのゴミ箱から届いた、自治会のお知らせとは？",
+    "text": "パソコンのゴミ箱から出てきた、意外なものは？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13297,7 +13297,7 @@
   },
   {
     "id": "tech-076",
-    "text": "未来のリモート旅行で唯一持参するものは？",
+    "text": "カーナビが道を間違えた。どこに着いた？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13345,7 +13345,7 @@
   },
   {
     "id": "tech-079",
-    "text": "電子マネーに「おこづかい感」が追加。何が変わる？",
+    "text": "キャッシュレス派のお父さん。お年玉をどう渡す？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13361,13 +13361,13 @@
   },
   {
     "id": "tech-080",
-    "text": "天才発明家が、ボタンを減らすために増やしたものは？",
+    "text": "ボタンが多すぎるリモコン。一番使わないボタンは？",
     "category": "tech",
-    "format": "invention",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "tech",
-      "invention"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13409,7 +13409,7 @@
   },
   {
     "id": "tech-083",
-    "text": "未来の目覚ましは起こさずに解決。何をする？",
+    "text": "絶対に二度寝させない目覚まし時計。どうやって起こす？",
     "category": "tech",
     "format": "situation",
     "difficulty": "easy",
@@ -13553,7 +13553,7 @@
   },
   {
     "id": "travel-008",
-    "text": "旅館の女将がチェックイン前に出した心理テストは？",
+    "text": "旅館の女将が、お客さんに必ず聞く変な質問は？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -13729,7 +13729,7 @@
   },
   {
     "id": "travel-019",
-    "text": "無人駅の駅長が透明人間だった。存在をどう確認する？",
+    "text": "無人駅の手書きの張り紙。何と書いてある？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -13761,7 +13761,7 @@
   },
   {
     "id": "travel-021",
-    "text": "観光バスに「たぶん到着」と表示。どんな場所？",
+    "text": "観光バスのガイドさんが、つい漏らした本音は？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -13777,13 +13777,13 @@
   },
   {
     "id": "travel-022",
-    "text": "砂浜の足跡が途中からやけに礼儀正しい。どうなった？",
+    "text": "海の家で売っていた、絶対に海で食べたくないものは？",
     "category": "travel",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -13937,7 +13937,7 @@
   },
   {
     "id": "travel-032",
-    "text": "民宿の宿泊プラン「全部おまかせすぎ」。何を任される？",
+    "text": "民宿のおばあちゃんが、泊まり客に毎晩することは？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14065,13 +14065,13 @@
   },
   {
     "id": "travel-040",
-    "text": "切符の裏に印刷されていた、小さな冒険の始まりは？",
+    "text": "切符の裏に小さく書かれていた、余計な一言は？",
     "category": "travel",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14081,13 +14081,13 @@
   },
   {
     "id": "travel-041",
-    "text": "徒歩旅行専門の旅行会社。その早割特典は？",
+    "text": "格安すぎるツアー。安さの理由は？",
     "category": "travel",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14241,13 +14241,13 @@
   },
   {
     "id": "travel-051",
-    "text": "タクシーの運転手が「その道は思春期だから」と迂回。何がある？",
+    "text": "タクシーの運転手が、やけに遠回りする理由は？",
     "category": "travel",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14257,13 +14257,13 @@
   },
   {
     "id": "travel-052",
-    "text": "目的地に着いた瞬間だけ鳴る、間抜けなファンファーレは？",
+    "text": "カーナビが「目的地に到着しました」の後に言った一言は？",
     "category": "travel",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14289,7 +14289,7 @@
   },
   {
     "id": "travel-054",
-    "text": "観光パンフレットの写真が全部接写。何の観光地？",
+    "text": "観光パンフレットと実物が全然違う。どこが違った？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14321,7 +14321,7 @@
   },
   {
     "id": "travel-056",
-    "text": "新しい交通標識「ほどほど」。どう運転する？",
+    "text": "こんな旅館の朝ごはんはイヤだ。どんな朝ごはん？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14353,7 +14353,7 @@
   },
   {
     "id": "travel-058",
-    "text": "初めての一人旅で「一人前になった」と感じた小さな瞬間は？",
+    "text": "一人旅で寂しくなった人が、話しかけた相手は？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14417,7 +14417,7 @@
   },
   {
     "id": "travel-062",
-    "text": "駅の発車メロディーが途中でためらう。どんな曲？",
+    "text": "満員電車で、自分だけ快適に過ごす方法は？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14433,7 +14433,7 @@
   },
   {
     "id": "travel-063",
-    "text": "宿の部屋名が全部反省文。泊まった部屋の名前は？",
+    "text": "旅館の部屋の名前が変すぎる。どんな名前？",
     "category": "travel",
     "format": "naming",
     "difficulty": "easy",
@@ -14465,7 +14465,7 @@
   },
   {
     "id": "travel-065",
-    "text": "登山口で貸してもらえる「気持ち」。どんな気持ち？",
+    "text": "山小屋で売っていた、意外すぎるものは？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14497,7 +14497,7 @@
   },
   {
     "id": "travel-067",
-    "text": "列車の指定席に「おしゃべり上級者向け」。何が待っている？",
+    "text": "新幹線で隣の席の人が、ずっとしていることは？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14529,13 +14529,13 @@
   },
   {
     "id": "travel-069",
-    "text": "地図アプリが迷子になった。何を頼まれた？",
+    "text": "地図アプリの言う通りに歩いたら、着いた場所は？",
     "category": "travel",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14609,13 +14609,13 @@
   },
   {
     "id": "travel-074",
-    "text": "旅行先をサイコロで決めたら、出たことのない目が。どこへ？",
+    "text": "家族旅行の行き先が、毎年同じ場所。その理由は？",
     "category": "travel",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "travel",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14641,7 +14641,7 @@
   },
   {
     "id": "travel-076",
-    "text": "飛行機の機内食に隠された、旅先への伏線とは？",
+    "text": "機内食で「チキンかフィッシュか」の次に聞かれたことは？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14705,7 +14705,7 @@
   },
   {
     "id": "travel-080",
-    "text": "帰りの荷物が軽くなったのに、増えたものとは？",
+    "text": "お土産選びに失敗した。何を買ってきた？",
     "category": "travel",
     "format": "situation",
     "difficulty": "easy",
@@ -14849,7 +14849,7 @@
   },
   {
     "id": "work-005",
-    "text": "欠席届の理由欄に「世界観の都合」とある。何があった？",
+    "text": "欠席届の理由欄が正直すぎる。何と書いてある？",
     "category": "work",
     "format": "reason",
     "difficulty": "easy",
@@ -14865,13 +14865,13 @@
   },
   {
     "id": "work-006",
-    "text": "名刺に小さく書かれた、意外な有効期限の条件とは？",
+    "text": "もらった名刺に書いてあった、すごすぎる肩書きは？",
     "category": "work",
-    "format": "rule",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "work",
-      "rule"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -14961,13 +14961,13 @@
   },
   {
     "id": "work-012",
-    "text": "席替えをドラフト会議方式にしたら、何が起きた？",
+    "text": "窓際の一番後ろの席の生徒。授業中に何をしている？",
     "category": "work",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "work",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15041,13 +15041,13 @@
   },
   {
     "id": "work-017",
-    "text": "コピー機の前で開かれる朝礼。誰に向けた朝礼？",
+    "text": "コピー機が紙詰まりを起こした。コピー機の言い分は？",
     "category": "work",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "work",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15057,7 +15057,7 @@
   },
   {
     "id": "work-018",
-    "text": "夏休みの宿題に「来年の準備」が追加。何をする？",
+    "text": "夏休みの宿題を一日で終わらせる、ずるい方法は？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15137,13 +15137,13 @@
   },
   {
     "id": "work-023",
-    "text": "オンライン面接の背景で起きた、小さな奇跡は？",
+    "text": "オンライン会議で、後ろに映り込んだまずいものは？",
     "category": "work",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "work",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15153,7 +15153,7 @@
   },
   {
     "id": "work-024",
-    "text": "校庭の隅にできた「大人の事情ゾーン」。何がある？",
+    "text": "校庭の隅で、先生がこっそりしていることは？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15345,7 +15345,7 @@
   },
   {
     "id": "work-036",
-    "text": "通知表に「謎」の欄が新設。何を書かれた？",
+    "text": "通知表の先生のコメントが辛口すぎる。何と書かれた？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15361,13 +15361,13 @@
   },
   {
     "id": "work-037",
-    "text": "仕事の効率を下げるショートカットキー。何が起きる？",
+    "text": "大事な会議中に鳴ったスマホ。着信音は何だった？",
     "category": "work",
-    "format": "twist",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "work",
-      "twist"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15393,13 +15393,13 @@
   },
   {
     "id": "work-039",
-    "text": "会社のスローガンを冷蔵庫のメモと取り違えた。何になった？",
+    "text": "社長が朝礼で言った、やる気が下がる一言は？",
     "category": "work",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "work",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15441,7 +15441,7 @@
   },
   {
     "id": "work-042",
-    "text": "学級目標がやけに小声。何と書いてある？",
+    "text": "やる気のないクラスが決めた学級目標は？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15457,7 +15457,7 @@
   },
   {
     "id": "work-043",
-    "text": "社長への質問箱から、初めて社長への返事が出た。何と？",
+    "text": "社内の目安箱に入っていた、どうでもいい要望は？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15553,7 +15553,7 @@
   },
   {
     "id": "work-049",
-    "text": "一番地味な仕事を派手に表現した職務経歴とは？",
+    "text": "履歴書の特技欄に書いた、盛りすぎた特技は？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15569,13 +15569,13 @@
   },
   {
     "id": "work-050",
-    "text": "遠足の持ち物欄に「自信は少なめ」。どんな遠足？",
+    "text": "遠足のしおりの持ち物欄に、なぜか書かれていたものは？",
     "category": "work",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "work",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15633,7 +15633,7 @@
   },
   {
     "id": "work-054",
-    "text": "朝の会を深夜ラジオ風にした先生。最初の投稿は？",
+    "text": "朝の会の健康観察で、元気すぎる返事とは？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15713,7 +15713,7 @@
   },
   {
     "id": "work-059",
-    "text": "新しい役職「空気係」。最初の業務は？",
+    "text": "新入社員に任された、意味のわからない最初の仕事は？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15777,7 +15777,7 @@
   },
   {
     "id": "work-063",
-    "text": "上司の口癖を全部つないだら、何が完成した？",
+    "text": "上司の口癖が独特すぎる。どんな口癖？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15825,7 +15825,7 @@
   },
   {
     "id": "work-066",
-    "text": "転校生の自己紹介が映画予告風。最後の決め文句は？",
+    "text": "転校生の自己紹介で、クラスがざわついた一言は？",
     "category": "work",
     "format": "dialogue",
     "difficulty": "easy",
@@ -15841,13 +15841,13 @@
   },
   {
     "id": "work-067",
-    "text": "社内の匿名アンケートで、名前より本人が分かる回答とは？",
+    "text": "社員の要望で、会社に新しくできたものは？",
     "category": "work",
-    "format": "naming",
+    "format": "situation",
     "difficulty": "easy",
     "tags": [
       "work",
-      "naming"
+      "situation"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -15937,7 +15937,7 @@
   },
   {
     "id": "work-073",
-    "text": "上司の冗談を翻訳するイヤホン。その警告音は？",
+    "text": "上司のつまらない冗談。部下が返した完璧な相づちは？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -15969,13 +15969,13 @@
   },
   {
     "id": "work-075",
-    "text": "有給休暇の申請を俳句にする会社。どんな一句？",
+    "text": "有給休暇を一週間とったら、会社で何が起きていた？",
     "category": "work",
-    "format": "situation",
+    "format": "twist",
     "difficulty": "easy",
     "tags": [
       "work",
-      "situation"
+      "twist"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -16001,13 +16001,13 @@
   },
   {
     "id": "work-077",
-    "text": "会議資料のページ番号が感情を表している。最終ページは？",
+    "text": "長すぎる会議を終わらせる、魔法の一言は？",
     "category": "work",
-    "format": "situation",
+    "format": "dialogue",
     "difficulty": "easy",
     "tags": [
       "work",
-      "situation"
+      "dialogue"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -16017,7 +16017,7 @@
   },
   {
     "id": "work-078",
-    "text": "掃除当番のほうきを抜いたら勇者に。最初の使命は？",
+    "text": "掃除の時間、ほうきでつい始めてしまう遊びは？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",
@@ -16049,13 +16049,13 @@
   },
   {
     "id": "work-080",
-    "text": "職場の置き菓子が突然予約制に。予約時の質問は？",
+    "text": "職場のお菓子箱から、いつも同じお菓子だけ減る。なぜ？",
     "category": "work",
-    "format": "situation",
+    "format": "reason",
     "difficulty": "easy",
     "tags": [
       "work",
-      "situation"
+      "reason"
     ],
     "origin": "original",
     "sourceUrl": null,
@@ -16113,7 +16113,7 @@
   },
   {
     "id": "work-084",
-    "text": "「やりがい」を現物支給する会社。何を渡す？",
+    "text": "ボーナスの代わりに渡された、がっかりなものは？",
     "category": "work",
     "format": "situation",
     "difficulty": "easy",

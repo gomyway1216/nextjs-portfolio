@@ -13,6 +13,10 @@
 .palette button[aria-pressed='true'] { outline: 3px solid #19162f; outline-offset: 2px; }
 .palette label { display: flex; align-items: center; gap: 6px; margin: 0; }
 .palette select { background: white; border: 2px solid #19162f; border-radius: 8px; color: #19162f; min-height: 38px; font: inherit; }
+.ink { flex: 1 1 96px; min-width: 72px; height: 14px; border: 2px solid #19162f; border-radius: 999px; background: #fff; overflow: hidden; }
+.ink > span { display: block; height: 100%; background: #17a67a; transition: width .2s ease-out; }
+.inkLow > span { background: #f14d74; }
+.full { margin: 0; padding: 8px 12px; background: #ffbd36; color: #19162f; font-weight: 900; border: 3px solid #19162f; border-top: 0; }
 .canvas { display: block; width: 100%; height: auto; background: white; border: 3px solid #19162f; border-top: 0; border-radius: 0 0 12px 12px; touch-action: none; cursor: crosshair; }
 .canvas[aria-disabled='true'] { cursor: default; opacity: .8; }
 .picture { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; background: white; border-radius: 10px; border: 2px solid #19162f; }
@@ -42,7 +46,44 @@
 .zoom > button:first-child { display: block; margin: 0 0 12px auto; color: #19162f; border-color: #19162f; }
 .zoom > .picture { max-height: 60dvh; }
 .zoom > p { margin: 12px 0; }
+.quiz { max-width: 1100px; margin: 0 auto; }
+.quizBoard { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: center; }
+.quizPicture { margin: 0; }
+.quizPicture .picture { max-height: 56vh; }
+.quizPicture figcaption { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-weight: 800; }
+.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.choice { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; min-height: 76px; padding: 12px 14px; border: 3px solid #19162f; border-radius: 16px; background: #fff8de; color: #19162f; box-shadow: 4px 4px 0 #19162f; font: inherit; font-size: clamp(18px, 2vw, 30px); font-weight: 900; text-align: left; overflow-wrap: anywhere; }
+button.choice { cursor: pointer; }
+button.choice:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #19162f; }
+.choice > b { display: grid; place-items: center; width: 1.7em; height: 1.7em; border-radius: 50%; color: #fff; font-size: .8em; }
+.choice:nth-child(1) > b { background: #f14d74; }
+.choice:nth-child(2) > b { background: #007bbb; }
+.choice:nth-child(3) > b { background: #17a67a; }
+.choice:nth-child(4) > b { background: #c77a00; }
+/* Beats the app-wide pale small text, which would vanish on these light cards. */
+.choices .choice small { grid-column: 2; color: #19162f; font-size: .62em; font-weight: 900; }
+.choice em { position: absolute; top: -13px; right: 10px; padding: 2px 9px; border-radius: 999px; background: #19162f; color: #fff8de; font-size: 13px; font-style: normal; }
+.picked { background: #ffe08a; }
+.right { background: #c4f7c9; outline: 4px solid #17a67a; outline-offset: 2px; }
+.wrong { background: #e4e0f2; box-shadow: none; opacity: .72; }
+.quizResult { text-align: center; font-size: 20px; }
+.quizResult b { color: #ffe08a; }
+.quizResult ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin: 8px 0 0; padding: 0; list-style: none; font-weight: 800; }
+.quizMotion .choice:not(.right):not(.wrong) { animation: choiceIn .35s ease-out both; animation-delay: calc(var(--i) * 90ms); }
+.quizMotion .right { animation: rightPop .6s cubic-bezier(.2, 1.6, .4, 1) .25s both; }
+.quizMotion .right::after { content: '✨'; position: absolute; top: -16px; left: -12px; font-size: 26px; animation: sparkle 1s ease-out .45s both; pointer-events: none; }
+@keyframes sparkle { from { opacity: 0; transform: scale(.3) rotate(-30deg); } 40% { opacity: 1; transform: scale(1.25); } to { opacity: 0; transform: translateY(-10px) scale(.9); } }
+.quizMotion .quizAnswer { animation: answerIn .5s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes choiceIn { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+@keyframes rightPop { 45% { transform: scale(1.08) rotate(-1deg); } to { transform: scale(1.03); } }
+@keyframes answerIn { from { opacity: 0; transform: scale(.8); } }
 .panel.tv { margin-top: 1vh; }
+.tv .quiz { max-width: none; }
+.tv .quizBoard { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 2vw; }
+.tv .quizPicture .picture { max-height: 52vh; }
+.tv .choices { gap: 1.2vw; }
+.tv .choice { min-height: 14vh; padding: 1vw 1.2vw; font-size: clamp(22px, 2vw, 46px); }
+.tv .quizResult { font-size: clamp(20px, 1.4vw, 32px); }
 .tv .chainGrid { gap: 1vw; margin: 2vh 0; }
 .tv .chainStep { padding: .8vw; font-size: 1.1vw; }
 .tv .guess { min-height: 22vh; }
@@ -57,6 +98,9 @@
 .tv .gallery.crowded { grid-template-columns: repeat(9, minmax(0, 1fr)); }
 .tv .voteStatus { margin: .5vh 0; font-size: 1.2vw; }
 @media (max-width: 720px) {
+  .quizBoard { grid-template-columns: 1fr; gap: 14px; }
+  .quizPicture .picture { max-height: 40vh; }
+  .choice { min-height: 62px; font-size: 20px; }
   .chainGrid { grid-template-columns: 1fr; }
   .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .zoom { max-width: calc(100vw - 24px); padding: 12px; }

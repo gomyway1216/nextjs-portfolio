@@ -7,14 +7,16 @@ export function gamePlayerIds(room: Room): Set<string> {
     [...(room.pastRounds ?? []).flatMap((r) => r.matches), ...room.matches]
       .flatMap((match) => match.players).concat((room.sideRounds ?? []).flatMap(round => round.players), room.drawing?.players ?? [],
         (room.wordWolf ?? []).flatMap(round => round.players),
-        (room.bluffRounds ?? []).flatMap(round => round.players)),
+        (room.bluffRounds ?? []).flatMap(round => round.players),
+        // Anyone can shout a charades answer, including a player who was resting when the game began.
+        (room.gestures ?? []).flatMap(round => [...round.order, ...round.results.flatMap(entry => entry.by ? [entry.by] : [])])),
   );
 }
 
 /** Called inside the same conditional commit as the game result and immutable archive. */
 export function settlePartyPoints(room: Room, standings: { id: string; rank: number }[]) {
   if (room.phase !== 'finished' || room.partyAwardedGame === room.game) return;
-  const played = room.drawing?.scored || Object.keys(room.drawing?.awards ?? {}).length > 0 || (room.wordWolf ?? []).some(round => round.scored) || (room.bluffRounds ?? []).some(round => round.result) || (room.sideRounds ?? []).some(round => round.results.length > 0) || [...(room.pastRounds ?? []).flatMap((r) => r.matches), ...room.matches].some(
+  const played = room.drawing?.scored || Object.keys(room.drawing?.awards ?? {}).length > 0 || (room.wordWolf ?? []).some(round => round.scored) || (room.bluffRounds ?? []).some(round => round.result) || room.drawing?.chains.some(chain => chain.closed) || (room.gestures ?? []).some(round => round.ended) || (room.sideRounds ?? []).some(round => round.results.length > 0) || [...(room.pastRounds ?? []).flatMap((r) => r.matches), ...room.matches].some(
     (m) => m.scored,
   );
   room.partyAwardedGame = room.game;

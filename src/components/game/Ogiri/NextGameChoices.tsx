@@ -13,6 +13,7 @@ export const PARTY_GAME_CHOICES = [
   { type: 'drawing', avatar: 'alien', description: 'その絵、そう伝わる？' },
   { type: 'shiritori', avatar: 'capybara', description: 'その絵、何て読む？' },
   { type: 'quiz', avatar: 'axolotl', description: 'この絵、なーんだ？' },
+  { type: 'gesture', avatar: 'sloth', description: 'しゃべったら、負け。' },
   { type: 'minority', avatar: 'hedgehog', description: 'あえて、そっち？' },
   { type: 'thermometer', avatar: 'redpanda', description: 'みんなは、何度？' },
   { type: 'wordwolf', avatar: '🦊', description: 'ひとりだけ、話がずれてる。' },

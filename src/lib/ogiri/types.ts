@@ -18,10 +18,10 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori' | 'quiz' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori' | 'quiz' | 'gesture' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
 export const GAME_TITLES: Record<GameType, string> = {
   ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
-  shiritori: 'おえかきしりとり', quiz: 'おえかきクイズ', minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ', bluff: 'うそ回答まぜ',
+  shiritori: 'おえかきしりとり', quiz: 'おえかきクイズ', gesture: 'ジェスチャー早当て', minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ', bluff: 'うそ回答まぜ',
 };
 /** Everyone answers the same question at once; no written answers and no per-voter choices are public. */
 export type ChoiceGameType = 'majority' | 'minority' | 'thermometer';
@@ -31,7 +31,9 @@ export type SideGameType = ChoiceGameType | 'identity';
 /** Ogiri can run as a long evening and the other games stay short. Drawing modes play once and
  * ignore this, so the host's choice is still there for the next game in the room. */
 export const isDrawingType = (type: GameType | undefined) => type === 'drawing' || type === 'shiritori' || type === 'quiz';
-export const maxRounds = (type: GameType = 'ogiri') => type === 'ogiri' || isDrawingType(type) ? 20 : 5;
+/** Games where everyone takes exactly one turn, so the round setting does not apply. */
+export const hasFixedTurns = (type: GameType | undefined) => isDrawingType(type) || type === 'gesture';
+export const maxRounds = (type: GameType = 'ogiri') => type === 'ogiri' || hasFixedTurns(type) ? 20 : 5;
 export const roundsFor = (type: GameType | undefined, rounds: number) => Math.min(rounds, maxRounds(type));
 export interface Settings {
   gameType?: GameType;
@@ -128,6 +130,8 @@ export interface Room {
   /** Private: words and roles. Never spread into RoomView. */
   wordWolf?: WordWolfRound[];
   bluffRounds?: BluffRound[];
+  /** Private: the word being acted. Never spread into RoomView. */
+  gestures?: GestureRound[];
   /** Durable recovery throttle shared across server instances. */
   recoveryAttempts?: { count: number; resetAt: number };
   /** Snapshot of the game actually started, independent of the next game's settings. */
@@ -256,6 +260,7 @@ export interface RoomView {
   hasPassphrase?: boolean;
   drawingGame?: DrawingGameView;
   wordWolfGame?: WordWolfView;
+  gestureGame?: GestureView;
   /** Transient issuance response only. Never populated by project/poll/history. */
   recoveryCode?: string;
   resting?: boolean;
@@ -339,7 +344,9 @@ export type Action =
   | { type: 'kick'; playerId: string }
   | { type: 'rejoinAnswer'; playerId: string; requestedAt: number; approve: boolean }
   | { type: 'hide'; matchId: string; choice: number }
-  | { type: 'wolfAccept' };
+  | { type: 'wolfAccept' }
+  | { type: 'gestureStart' | 'gesturePass' }
+  | { type: 'gestureCorrect'; by: string };
 
 export interface DrawingData {
   v: 1;
@@ -411,6 +418,37 @@ export interface DrawingGameView {
 export interface DrawingHistoryChain {
   prompt: string;
   steps: { kind: 'draw' | 'guess'; name: string; avatar: string; drawing: string | null; text: string | null; votes: number; points: number; link?: boolean | null }[];
+}
+/** One player's turn acting words out. The first round fixes everyone's turn order. */
+export interface GestureRound {
+  round: number;
+  actor: string;
+  order: string[];
+  /** Words dealt this turn, the last one is on the actor's phone now. */
+  words: string[];
+  results: { word: string; by: string | null }[];
+  awards: { id: string; points: number }[];
+  /** 0 until the actor presses start, so the clock waits for them to reach the TV. */
+  startedAt: number;
+}
+export interface GestureView {
+  index: number;
+  total: number;
+  actor: { id: string; name: string; avatar: string };
+  mine: boolean;
+  started: boolean;
+  canStart: boolean;
+  /** Only the actor sees the word, and only while acting. */
+  word: string | null;
+  solved: { word: string; name: string; avatar: string }[];
+  passes: number;
+  guessers: { id: string; name: string; avatar: string }[];
+  result: null | {
+    words: { word: string; name: string | null; avatar: string }[];
+    /** The word on screen when time ran out. */
+    last: string | null;
+    awards: { id: string; points: number }[];
+  };
 }
 export interface WordWolfRound {
   round: number;

@@ -89,3 +89,29 @@ it('refuses a host 次へ from before a gesture turn started, so it cannot end t
   expect(memory.writes).toBe(0);
   vi.unstubAllEnvs();
 });
+
+it.each(['gesturePass', 'gestureCorrect'] as const)('refuses a delayed %s from an earlier turn even when its word count matches', async type => {
+  vi.stubEnv('OGIRI_EMULATOR', '');
+  const now = Date.now();
+  const host = identity(), actor = identity();
+  const room = createRoom('ABC234', newPlayer(host.id, host.hash, 'host', 'rabbit', now), now);
+  room.players[host.id].spectator = true;
+  joinRoom(room, newPlayer(actor.id, actor.hash, 'actor', 'pudding', now));
+  for (const id of ['c', 'd']) joinRoom(room, newPlayer(id, id, id, 'pudding', now));
+  room.settings.gameType = 'gesture';
+  act(room, host.id, { type: 'start' }, now, prompts);
+  // Hand the turn to this actor so the tap below is theirs.
+  const round = room.gestures!.at(-1)!;
+  round.actor = actor.id;
+  act(room, actor.id, { type: 'gestureStart' }, now, prompts);
+  memory.room = room;
+  memory.writes = 0;
+  const word = round.words.length;
+  const action = type === 'gesturePass' ? { type, word } : { type, word, by: 'c' };
+  await expect(command(room.code, actor.token, action, `${turnKey(room)}:old`))
+    .rejects.toMatchObject({ status: 409, message: expect.stringContaining('画面が更新されました') });
+  expect(memory.writes).toBe(0);
+  await command(room.code, actor.token, action, turnKey(room));
+  expect(memory.writes).toBe(1);
+  vi.unstubAllEnvs();
+});

@@ -328,7 +328,7 @@ export async function command(
     if (!id) throw new GameError('参加し直してください。', 401);
     tick(room, now, prompts);
     if (
-      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote', 'wolfAccept', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'quizGuess', 'gestureStart'].includes(action.type) &&
+      ['next', 'extend', 'start', 'rematch', 'answerReady', 'partyAnswer', 'partyVote', 'wolfAccept', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'quizGuess', 'gestureStart', 'gesturePass', 'gestureCorrect'].includes(action.type) &&
       turn !== turnKey(room)
     )
       throw new GameError('画面が更新されました。もう一度操作してください。', 409);

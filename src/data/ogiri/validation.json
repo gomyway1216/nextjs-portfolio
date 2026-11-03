@@ -17,13 +17,13 @@
     "random": 84
   },
   "formats": {
-    "situation": 747,
-    "reason": 50,
-    "dialogue": 95,
-    "rule": 36,
-    "twist": 37,
-    "naming": 23,
-    "invention": 20
+    "situation": 716,
+    "reason": 59,
+    "dialogue": 137,
+    "rule": 33,
+    "twist": 32,
+    "naming": 16,
+    "invention": 15
   },
   "normalizedDuplicates": 0,
   "nearPairs": [],

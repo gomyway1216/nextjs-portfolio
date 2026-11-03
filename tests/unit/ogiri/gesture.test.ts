@@ -100,3 +100,21 @@ describe('ジェスチャー早当て', () => {
     expect(project(room, null, 202, prompts).gestureGame).toBeUndefined();
   });
 });
+
+describe('ジェスチャー早当て turn numbers', () => {
+  it('counts turns forward even when a resting actor acts later', () => {
+    const room = setup(3);
+    const order = [...room.gestures![0].order];
+    act(room, order[0], { type: 'leave' }, 101, prompts);
+    expect(project(room, null, 101, prompts).gestureGame!.index).toBe(1);
+    act(room, order[0], { type: 'return' }, 102, prompts);
+    const seen = [];
+    for (let turn = 0; turn < 3; turn++) {
+      seen.push(project(room, null, 103, prompts).gestureGame!.index);
+      act(room, actor(room), { type: 'gestureStart' }, 103, prompts);
+      tick(room, room.deadline, prompts);
+      tick(room, room.deadline, prompts);
+    }
+    expect(seen).toEqual([1, 2, 3]);
+  });
+});

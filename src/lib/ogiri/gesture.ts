@@ -136,7 +136,8 @@ export function projectGesture(room: Room, me: string | null): GestureView | und
     ? { word: entry.word, name: room.players[entry.by].name, avatar: room.players[entry.by].avatar }
     : { word: entry.word, name: null, avatar: '' };
   return {
-    index: round.order.indexOf(round.actor) + 1, total: round.order.length,
+    // Turns taken so far: an actor who rested acts later, and the count still only goes up.
+    index: room.gestures!.length, total: round.order.length,
     actor: person(room, round.actor), mine: me === round.actor,
     started: Boolean(round.startedAt),
     canStart: Boolean(me === round.actor && room.phase === 'answering' && !round.startedAt && present(room, me)),

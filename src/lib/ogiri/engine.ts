@@ -656,7 +656,12 @@ export function act(
 }
 const publicSeat = ({ id, name, avatar }: Player) => ({ id, name, avatar });
 /** Explicit allowlist: never spread the private room or player record into a response. */
-export const turnKey = (room: Room) => `${room.game}:${room.round}:${room.phase}:${room.matchIndex}${isDrawingGame(room) ? `:${room.drawing?.stage ?? 0}` : ''}`;
+/** A gesture turn's start is its own step: a host 次へ meant for the wait must not end the acting. */
+const gestureStep = (room: Room) => {
+  const round = isGesture(room) ? currentGesture(room) : undefined;
+  return round ? `:${round.actor}:${round.startedAt ? 'acting' : 'ready'}` : '';
+};
+export const turnKey = (room: Room) => `${room.game}:${room.round}:${room.phase}:${room.matchIndex}${isDrawingGame(room) ? `:${room.drawing?.stage ?? 0}` : ''}${gestureStep(room)}`;
 export function project(
   room: Room,
   playerId: string | null,

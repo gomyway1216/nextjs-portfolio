@@ -67,3 +67,25 @@ it('requires the current turn before the host accepts a word wolf guess', async 
   expect(memory.writes).toBe(0);
   vi.unstubAllEnvs();
 });
+
+it('refuses a host 次へ from before a gesture turn started, so it cannot end the turn just begun', async () => {
+  vi.stubEnv('OGIRI_EMULATOR', '');
+  const session = identity();
+  const now = Date.now();
+  const room = createRoom('ABC234', newPlayer(session.id, session.hash, 'host', 'rabbit', now), now);
+  room.players[session.id].spectator = true;
+  for (const id of ['b', 'c', 'd']) joinRoom(room, newPlayer(id, id, id, 'pudding', now));
+  room.settings.gameType = 'gesture';
+  act(room, session.id, { type: 'start' }, now, prompts);
+  const before = turnKey(room);
+  const actor = room.gestures!.at(-1)!.actor;
+  act(room, actor, { type: 'gestureStart' }, now, prompts);
+  expect(turnKey(room)).not.toBe(before);
+  memory.room = room;
+  memory.writes = 0;
+  // The host meant "start for them"; after the actor's own start that press would end the turn.
+  await expect(command(room.code, session.token, { type: 'next' }, before))
+    .rejects.toMatchObject({ status: 409, message: expect.stringContaining('画面が更新されました') });
+  expect(memory.writes).toBe(0);
+  vi.unstubAllEnvs();
+});

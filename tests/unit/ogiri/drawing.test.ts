@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, createRoom, joinRoom, newPlayer, project, rankPlayers, tick, turnKey } from '@/lib/ogiri/engine';
 import { drawingAsset, drawingHistory } from '@/lib/ogiri/drawing-game';
+import { DRAWING_PROMPTS } from '@/lib/ogiri/drawing-prompts';
 import { drawingInput, drawingSvg, drawingUsage, emptyDrawing, simplifyStroke, DRAWING_ROOM_BUDGET } from '@/lib/ogiri/drawing-data';
 import { drawingHistoryHtml, snapshotHistory } from '@/lib/ogiri/history';
 import { settlePartyPoints } from '@/lib/ogiri/party';
@@ -83,6 +84,13 @@ describe('drawing data allowlist', () => {
 });
 
 describe('drawing relay', () => {
+  it('opens with short prompts that one picture can show', () => {
+    expect(new Set(DRAWING_PROMPTS).size).toBe(DRAWING_PROMPTS.length);
+    // 12 players need 12 different first prompts.
+    expect(DRAWING_PROMPTS.length).toBeGreaterThanOrEqual(24);
+    for (const prompt of DRAWING_PROMPTS) expect([...prompt].length).toBeLessThanOrEqual(10);
+  });
+
   it.each([3, 4, 12])('%i players have equal drawing/guess opportunities without repeating a person in a chain', n => {
     const room = setup(n);
     expect(room.round).toBe(1);

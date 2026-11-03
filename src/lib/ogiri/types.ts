@@ -432,6 +432,8 @@ export interface GestureRound {
   awards: { id: string; points: number }[];
   /** 0 until the actor presses start, so the clock waits for them to reach the TV. */
   startedAt: number;
+  /** The turn reached its result, so the game counts as played even if every word was passed. */
+  ended?: boolean;
 }
 export interface GestureView {
   index: number;

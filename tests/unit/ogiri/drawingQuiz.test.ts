@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { act, createRoom, joinRoom, newPlayer, project } from '@/lib/ogiri/engine';
+import { act, createRoom, joinRoom, newPlayer, project, rankPlayers } from '@/lib/ogiri/engine';
+import { settlePartyPoints } from '@/lib/ogiri/party';
 import { drawingAsset, drawingHistory } from '@/lib/ogiri/drawing-game';
 import { QUIZ_WORDS } from '@/lib/ogiri/quiz-words';
 import { prompts } from '@/lib/ogiri/prompts';
@@ -147,5 +148,20 @@ describe('おえかきクイズ', () => {
     // A removal after the end recounts, and must not pay out the unfinished picture either.
     act(room, 'host', { type: 'kick', playerId: room.drawing!.players.find(id => id !== artist(room))! }, 105, prompts);
     expect(Object.values(room.players).every(player => player.score === 0)).toBe(true);
+  });
+
+  it('counts a quiz where nobody guessed right as played', () => {
+    const room = setup(3, false);
+    drawAll(room);
+    act(room, 'host', { type: 'next' }, 102, prompts);
+    while (room.phase === 'voting') {
+      for (const id of room.drawing!.players) if (id !== artist(room)) act(room, id, { type: 'quizGuess', choice: (answer(room) + 1) % 4 }, 103, prompts);
+      act(room, 'host', { type: 'next' }, 104, prompts);
+      act(room, 'host', { type: 'next' }, 105, prompts);
+    }
+    act(room, 'host', { type: 'next' }, 106, prompts);
+    expect(room.phase).toBe('finished');
+    settlePartyPoints(room, rankPlayers(room));
+    expect(room.partyGames).toBe(1);
   });
 });

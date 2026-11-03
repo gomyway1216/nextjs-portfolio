@@ -109,6 +109,7 @@ export function advanceGesture(room: Room, now: number, rng: () => number) {
   if (!round) return;
   if (room.phase === 'answering' && !round.startedAt && present(room, round.actor)) start(room, round, now);
   else if (room.phase === 'answering') {
+    round.ended = true;
     room.phase = 'reveal';
     room.deadline = now + 12000;
   } else if (room.phase === 'reveal') nextTurn(room, round, now, rng);

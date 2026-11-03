@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { act, createRoom, joinRoom, newPlayer, project, tick } from '@/lib/ogiri/engine';
+import { act, createRoom, joinRoom, newPlayer, project, rankPlayers, tick } from '@/lib/ogiri/engine';
+import { gamePlayerIds, settlePartyPoints } from '@/lib/ogiri/party';
 import { GESTURE_POINTS, GESTURE_SECONDS } from '@/lib/ogiri/gesture';
 import { GESTURE_WORDS } from '@/lib/ogiri/gesture-words';
 import { snapshotHistory } from '@/lib/ogiri/history';
@@ -165,4 +166,42 @@ it('credits a repeated tap to the word it was for, never to the next one the act
   expect(room.gestures![0].results).toHaveLength(1);
   expect(() => act(room, first, { type: 'gesturePass', word: 1 }, 203, prompts)).toThrow('次のお題');
   expect(project(room, first, 203, prompts).gestureGame!.dealt).toBe(2);
+});
+
+describe('ジェスチャー早当て party points', () => {
+  function playThrough(room: Room, turn: (room: Room, now: number) => void) {
+    let now = 1000;
+    while (room.phase === 'answering') {
+      act(room, actor(room), { type: 'gestureStart' }, now, prompts);
+      turn(room, now + 1);
+      now = room.deadline;
+      tick(room, now, prompts);
+      now += 12000;
+      tick(room, now, prompts);
+    }
+    tick(room, now + 20000, prompts);
+    expect(room.phase).toBe('finished');
+  }
+
+  it('ranks a player who was resting at the start but came back and guessed', () => {
+    const room = createRoom('ABC234', newPlayer('host', 'secret', '進行だけ', '🐱', 100), 100);
+    room.players.host.spectator = true;
+    for (let i = 0; i < 4; i++) joinRoom(room, newPlayer(`p${i}`, 's', `参加者${i}`, 'rabbit', 100));
+    act(room, 'host', { type: 'settings', settings: { ...room.settings, gameType: 'gesture' } }, 100, prompts);
+    act(room, 'p3', { type: 'leave' }, 100, prompts);
+    act(room, 'host', { type: 'start' }, 100, prompts);
+    expect(room.gestures![0].order).not.toContain('p3');
+    act(room, 'p3', { type: 'return' }, 101, prompts);
+    playThrough(room, (room, now) => act(room, actor(room), { type: 'gestureCorrect', by: 'p3', word: dealt(room) }, now, prompts));
+    expect(gamePlayerIds(room).has('p3')).toBe(true);
+    settlePartyPoints(room, rankPlayers(room));
+    expect(room.players.p3.partyEarned).toBeGreaterThan(0);
+  });
+
+  it('counts a game where every word was passed as played', () => {
+    const room = setup(3);
+    playThrough(room, (room, now) => act(room, actor(room), { type: 'gesturePass', word: dealt(room) }, now, prompts));
+    settlePartyPoints(room, rankPlayers(room));
+    expect(room.partyGames).toBe(1);
+  });
 });

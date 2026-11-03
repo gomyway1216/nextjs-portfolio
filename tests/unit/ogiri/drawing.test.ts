@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, createRoom, joinRoom, newPlayer, project, rankPlayers, tick, turnKey } from '@/lib/ogiri/engine';
 import { drawingAsset, drawingHistory } from '@/lib/ogiri/drawing-game';
-import { drawingInput, drawingSvg, DRAWING_ROOM_BUDGET } from '@/lib/ogiri/drawing-data';
+import { drawingInput, drawingSvg, drawingUsage, emptyDrawing, simplifyStroke, DRAWING_ROOM_BUDGET } from '@/lib/ogiri/drawing-data';
 import { drawingHistoryHtml, snapshotHistory } from '@/lib/ogiri/history';
 import { settlePartyPoints } from '@/lib/ogiri/party';
 import { partyPointsForRank } from '@/lib/party/points';
@@ -54,9 +54,31 @@ describe('drawing data allowlist', () => {
       { v: 1, strokes: [{ c: '#201a32', w: 7, p: [1, 1, 2] }] },
       ...[-1, 512, NaN, Infinity, 0.5].map(n => ({ v: 1, strokes: [{ c: '#201a32', w: 7, p: [n, 1] }] })),
       { v: 1, strokes: [{ c: '#201a32', w: 7, p: [1, 384] }] },
-      { v: 1, strokes: Array.from({ length: 65 }, () => picture().strokes[0]) },
-      { v: 1, strokes: [{ c: '#201a32', w: 7, p: Array(1442).fill(1) }] },
+      { v: 1, strokes: Array.from({ length: 201 }, () => picture().strokes[0]) },
+      { v: 1, strokes: [{ c: '#201a32', w: 7, p: Array(2002).fill(1) }] },
+      { v: 1, strokes: [{ c: '#201a32', w: 7, p: Array.from({ length: 1990 }, (_, i) => i % 2 ? 383 : 511) }] },
     ]) expect(() => drawingInput(data)).toThrow();
+  });
+
+  it('keeps the bends of a finished line and drops the points between them', () => {
+    const circle = Array.from({ length: 61 }, (_, i) => [256 + Math.round(40 * Math.cos(i / 30 * Math.PI)),
+      192 + Math.round(40 * Math.sin(i / 30 * Math.PI))]).flat();
+    const simple = simplifyStroke(circle);
+    expect(simple.length / 2).toBeLessThan(20);
+    expect(simple.slice(0, 2)).toEqual(circle.slice(0, 2));
+    expect(simple.slice(-2)).toEqual(circle.slice(-2));
+    // A corner stays a corner, and a dot or a two-point line is left alone.
+    expect(simplifyStroke([0, 0, 50, 0, 100, 0, 100, 50, 100, 100])).toEqual([0, 0, 100, 0, 100, 100]);
+    expect(simplifyStroke([5, 5])).toEqual([5, 5]);
+    expect(simplifyStroke([5, 5, 9, 9])).toEqual([5, 5, 9, 9]);
+  });
+
+  it('measures how full a picture is by the nearest limit', () => {
+    expect(drawingUsage(emptyDrawing())).toBeLessThan(.01);
+    const line = (points: number): DrawingData => ({ v: 1, strokes: [{ c: '#201a32', w: 7, p: Array.from({ length: points * 2 }, (_, i) => i % 2 ? 383 : 511) }] });
+    expect(drawingUsage(line(400))).toBeGreaterThan(.35);
+    expect(drawingUsage(line(400))).toBeLessThan(.45);
+    expect(drawingUsage(line(1000))).toBe(1);
   });
 });
 

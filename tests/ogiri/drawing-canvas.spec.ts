@@ -30,6 +30,28 @@ const draft = (page: Page) => page.evaluate(() => {
   return key ? JSON.parse(localStorage.getItem(key)!) as DrawingData : null;
 });
 
+test('a picture with many round lines keeps taking new lines', async ({ page, baseURL }) => {
+  const room = await drawingRoom(page, baseURL!, 1);
+  try {
+    const box = (await room.canvas.boundingBox())!;
+    // Twenty smooth circles: about 1,200 sampled points, well past what used to fill a picture.
+    for (let i = 0; i < 20; i++) {
+      const cx = box.x + box.width * (.15 + .7 * (i % 5) / 4), cy = box.y + box.height * (.2 + .6 * Math.floor(i / 5) / 3);
+      const r = box.width * .07;
+      await page.mouse.move(cx + r, cy);
+      await page.mouse.down();
+      for (let step = 1; step <= 60; step++) {
+        const angle = step / 60 * 2 * Math.PI;
+        await page.mouse.move(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+      }
+      await page.mouse.up();
+    }
+    await expect(page.getByText(/いっぱいです/)).toHaveCount(0);
+    expect((await draft(page))?.strokes).toHaveLength(20);
+    await expect(page.getByRole('meter', { name: '残りのインク' })).toBeVisible();
+  } finally { await room.dispose(); }
+});
+
 test('the canvas stays open while a sent picture is checked on a slow connection', async ({ page, baseURL }) => {
   const room = await drawingRoom(page, baseURL!, 2);
   try {

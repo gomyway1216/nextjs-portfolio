@@ -119,6 +119,8 @@ export function gestureAction(room: Room, id: string, action: Action, now: numbe
     return;
   }
   requireThat(round.startedAt && now < room.deadline, '時間切れです。', 409);
+  requireThat(action.type !== 'gestureCorrect' && action.type !== 'gesturePass' || action.word === round.words.length,
+    'もう次のお題に進んでいます。画面のお題を確認してね。', 409);
   const word = round.words.at(-1)!;
   if (action.type === 'gestureCorrect') {
     requireThat(typeof action.by === 'string' && guessers(room, round).includes(action.by), '当てた人を選んでください。');
@@ -143,6 +145,7 @@ export function projectGesture(room: Room, me: string | null): GestureView | und
     actor: person(room, round.actor), mine: me === round.actor,
     started: Boolean(round.startedAt),
     canStart: Boolean(me === round.actor && room.phase === 'answering' && !round.startedAt && present(room, me)),
+    dealt: round.words.length,
     word: me === round.actor && acting ? round.words.at(-1)! : null,
     solved: round.results.filter(entry => entry.by && listed(room, entry.by)).map(entry => named(entry) as GestureView['solved'][number]),
     passes: round.results.filter(entry => !entry.by).length,

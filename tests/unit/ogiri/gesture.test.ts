@@ -16,6 +16,8 @@ function setup(n = 4) {
 }
 const actor = (room: Room) => room.gestures!.at(-1)!.actor;
 const others = (room: Room) => room.gestures!.at(-1)!.order.filter(id => id !== actor(room));
+/** Which dealt word an actor's tap is about: the count of words dealt so far. */
+const dealt = (room: Room) => room.gestures!.at(-1)!.words.length;
 
 describe('ジェスチャー早当て', () => {
   it('waits for the actor to start, and shows the word to the actor alone', () => {
@@ -42,15 +44,15 @@ describe('ジェスチャー早当て', () => {
     const first = actor(room), [a, b] = others(room);
     act(room, first, { type: 'gestureStart' }, 200, prompts);
     const one = room.gestures![0].words[0];
-    expect(() => act(room, first, { type: 'gestureCorrect', by: first }, 201, prompts)).toThrow('当てた人');
-    expect(() => act(room, first, { type: 'gestureCorrect', by: 'host' }, 201, prompts)).toThrow('当てた人');
-    expect(() => act(room, a, { type: 'gestureCorrect', by: b }, 201, prompts)).toThrow('演じている人だけ');
-    act(room, first, { type: 'gestureCorrect', by: a }, 201, prompts);
+    expect(() => act(room, first, { type: 'gestureCorrect', by: first, word: dealt(room) }, 201, prompts)).toThrow('当てた人');
+    expect(() => act(room, first, { type: 'gestureCorrect', by: 'host', word: dealt(room) }, 201, prompts)).toThrow('当てた人');
+    expect(() => act(room, a, { type: 'gestureCorrect', by: b, word: dealt(room) }, 201, prompts)).toThrow('演じている人だけ');
+    act(room, first, { type: 'gestureCorrect', by: a, word: dealt(room) }, 201, prompts);
     expect(room.players[a].score).toBe(GESTURE_POINTS.guesser);
     expect(room.players[first].score).toBe(GESTURE_POINTS.actor);
     const two = room.gestures![0].words[1];
     expect(two).not.toBe(one);
-    act(room, first, { type: 'gesturePass' }, 202, prompts);
+    act(room, first, { type: 'gesturePass', word: dealt(room) }, 202, prompts);
     expect(room.gestures![0].words).toHaveLength(3);
     expect(project(room, b, 203, prompts).gestureGame).toMatchObject({ solved: [{ word: one, name: room.players[a].name }], passes: 1 });
   });
@@ -62,7 +64,7 @@ describe('ジェスチャー早当て', () => {
     for (let turn = 0; turn < 3; turn++) {
       expect(actor(room)).toBe(order[turn]);
       act(room, actor(room), { type: 'gestureStart' }, now, prompts);
-      act(room, actor(room), { type: 'gestureCorrect', by: others(room)[0] }, now + 1, prompts);
+      act(room, actor(room), { type: 'gestureCorrect', by: others(room)[0], word: dealt(room) }, now + 1, prompts);
       now = room.deadline;
       expect(tick(room, now, prompts)).toBe(true);
       expect(room.phase).toBe('reveal');
@@ -124,9 +126,23 @@ it('keeps dealing words after one turn has used up the whole list', () => {
   const room = setup(3);
   const first = actor(room);
   act(room, first, { type: 'gestureStart' }, 200, prompts);
-  for (let i = 0; i < GESTURE_WORDS.length + 5; i++) act(room, first, { type: 'gesturePass' }, 201, prompts);
+  for (let i = 0; i < GESTURE_WORDS.length + 5; i++) act(room, first, { type: 'gesturePass', word: dealt(room) }, 201, prompts);
   const words = room.gestures![0].words;
   expect(words).toHaveLength(GESTURE_WORDS.length + 6);
   expect(words.every(Boolean)).toBe(true);
   expect(words.every((word, i) => i === 0 || word !== words[i - 1])).toBe(true);
+});
+
+it('credits a repeated tap to the word it was for, never to the next one the actor has not seen', () => {
+  const room = setup(3);
+  const first = actor(room), [a] = others(room);
+  act(room, first, { type: 'gestureStart' }, 200, prompts);
+  const tap = { type: 'gestureCorrect' as const, by: a, word: dealt(room) };
+  act(room, first, tap, 201, prompts);
+  // The response was lost, so the phone sends the same tap again.
+  expect(() => act(room, first, tap, 202, prompts)).toThrow('次のお題');
+  expect(room.players[a].score).toBe(GESTURE_POINTS.guesser);
+  expect(room.gestures![0].results).toHaveLength(1);
+  expect(() => act(room, first, { type: 'gesturePass', word: 1 }, 203, prompts)).toThrow('次のお題');
+  expect(project(room, first, 203, prompts).gestureGame!.dealt).toBe(2);
 });

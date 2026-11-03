@@ -16,7 +16,7 @@ function Acting({ game, disabled, send }: { game: GestureView; disabled: boolean
     <h2>だれが当てた？</h2>
     <div className={styles.guessers}>
       {game.guessers.map(player => <button type="button" key={player.id} className={styles.guesser} disabled={disabled} aria-label={`${player.name}が当てた`}
-        onClick={async () => { if (await send({ type: 'gestureCorrect', by: player.id })) setPicking(false); }}>
+        onClick={async () => { if (await send({ type: 'gestureCorrect', by: player.id, word: game.dealt })) setPicking(false); }}>
         <Character avatar={player.avatar} size="large" /><b>{player.name}</b>
       </button>)}
     </div>
@@ -31,7 +31,7 @@ function Acting({ game, disabled, send }: { game: GestureView; disabled: boolean
       <button type="button" className={`${common.primary} ${styles.correct}`} disabled={disabled || !game.guessers.length}
         onClick={() => setPicking(true)}>当たった！</button>
       <button type="button" className={`${common.secondary} ${styles.pass}`} disabled={disabled}
-        onClick={() => void send({ type: 'gesturePass' })}>パス</button>
+        onClick={() => void send({ type: 'gesturePass', word: game.dealt })}>パス</button>
     </div>
   </div>;
 }
@@ -77,7 +77,8 @@ export function GesturePanel({ view, tv, busy, connected, reduced, send }: {
           onClick={() => void send({ type: 'gestureStart' })}>スタート！（{GESTURE_SECONDS}秒）</button>
       </> : <p>{actor.name}さんがスマホのスタートを押すと、{GESTURE_SECONDS}秒の早当てが始まります。</p>}
     </div> : game.mine && !tv ? <>
-      <Acting game={game} disabled={disabled} send={send} />
+      {/* A new word closes an open picker, even when the tap that dealt it got no reply. */}
+      <Acting key={game.dealt} game={game} disabled={disabled} send={send} />
       <p className={styles.score}><b>正解 {game.solved.length}</b> · パス {game.passes}</p>
     </> : <>
       <div className={styles.stage}>

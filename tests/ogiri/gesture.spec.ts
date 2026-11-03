@@ -55,7 +55,8 @@ test('each player acts once: only the actor sees the word, and the TV lists what
         await expect(page.getByRole('heading', { name: `${game.actor.name}さんのジェスチャー、なーんだ？`, exact: true })).toBeVisible();
         await expect(page.getByTestId('gesture-word')).toHaveCount(0);
         const me: RoomView = await (await page.request.get(path)).json();
-        await post(actor, { type: 'gestureCorrect', by: me.me });
+        const acting: RoomView = await (await actor.get(path)).json();
+        await post(actor, { type: 'gestureCorrect', by: me.me, word: acting.gestureGame!.dealt });
         await expect(tv.getByRole('list', { name: '当たったお題' }).locator('li')).toHaveCount(1);
       }
       await post(host, { type: 'next' });

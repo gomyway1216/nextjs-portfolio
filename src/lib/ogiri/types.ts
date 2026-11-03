@@ -345,8 +345,10 @@ export type Action =
   | { type: 'rejoinAnswer'; playerId: string; requestedAt: number; approve: boolean }
   | { type: 'hide'; matchId: string; choice: number }
   | { type: 'wolfAccept' }
-  | { type: 'gestureStart' | 'gesturePass' }
-  | { type: 'gestureCorrect'; by: string };
+  | { type: 'gestureStart' }
+  /** `word` is how many words had been dealt when the actor tapped, so a resent tap cannot reach the next one. */
+  | { type: 'gesturePass'; word: number }
+  | { type: 'gestureCorrect'; by: string; word: number };
 
 export interface DrawingData {
   v: 1;
@@ -438,6 +440,8 @@ export interface GestureView {
   mine: boolean;
   started: boolean;
   canStart: boolean;
+  /** Words dealt so far this turn; the actor's taps name it. */
+  dealt: number;
   /** Only the actor sees the word, and only while acting. */
   word: string | null;
   solved: { word: string; name: string; avatar: string }[];

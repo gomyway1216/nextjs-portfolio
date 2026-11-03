@@ -188,6 +188,9 @@ test('a second finger does not bend the stroke being drawn', async ({ browser, b
     expect(draft.strokes).toHaveLength(1);
     const ys = draft.strokes[0].p.filter((_: number, i: number) => i % 2 === 1);
     expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(2);
-    expect(draft.strokes[0].p.length).toBeGreaterThan(6); // The first finger kept drawing afterwards.
+    // The first finger kept drawing afterwards. A finished straight line keeps only its ends, so
+    // measure how far it reached rather than how many points it has.
+    const xs = draft.strokes[0].p.filter((_: number, i: number) => i % 2 === 0);
+    expect(Math.max(...xs)).toBeGreaterThan(Math.round(100 / box.width * 512));
   } finally { await Promise.all(contexts.map(context => context.close())); }
 });

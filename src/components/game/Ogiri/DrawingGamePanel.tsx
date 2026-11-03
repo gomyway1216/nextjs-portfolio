@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type CSSProperties } from 'react';
 import { drawingInput, emptyDrawing } from '@/lib/ogiri/drawing-data';
 import { loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { SHIRITORI_WORD_MAX, shiritoriProblem, shiritoriWord } from '@/lib/ogiri/shiritori';
@@ -35,30 +35,34 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [unchecked, setUnchecked] = useState(false), [recheck, setRecheck] = useState(0);
+  // Only opening the turn or "もう一度読み込む" restores. A send already knows what the server holds,
+  // and fetching it back would lock the canvas while the player keeps drawing.
+  const opened = useEffectEvent(() => ({ code: view.code, ...assignment }));
   useEffect(() => {
     let active = true;
     async function restore() {
+      const { code, kind, savedDrawingId, answer } = opened();
       setLoading(true);
       setError('');
       try {
         const draft = loadDraft(key);
-        if (assignment.kind === 'draw') {
+        if (kind === 'draw') {
           let local: DrawingData | null = null;
           if (draft) { try { local = drawingInput(JSON.parse(draft), true); } catch { /* Use the saved picture. */ } }
           // This device's own draft beats a failed fetch: a bad connection must not blank the canvas.
           // Nothing then proves the draft matches the server, so it counts as unsent until it can be compared.
-          const saved = assignment.savedDrawingId
-            ? await loadDrawing(view.code, assignment.savedDrawingId).catch(error => { if (local) return null; throw error; })
+          const saved = savedDrawingId
+            ? await loadDrawing(code, savedDrawingId).catch(error => { if (local) return null; throw error; })
             : emptyDrawing();
           const word = shiritori ? loadDraft(`${key}:word`) : null;
-          if (active) { setData(local ?? saved ?? emptyDrawing()); setBase(saved ? JSON.stringify(saved) : ''); setUnchecked(!saved); setRecheck(0); setText(word ?? assignment.answer); }
-        } else if (active) setText(draft ?? assignment.answer);
+          if (active) { setData(local ?? saved ?? emptyDrawing()); setBase(saved ? JSON.stringify(saved) : ''); setUnchecked(!saved); setRecheck(0); setText(word ?? answer); }
+        } else if (active) setText(draft ?? answer);
       } catch { if (active) setError('保存した絵を読み込めませんでした。'); }
       finally { if (active) setLoading(false); }
     }
     void restore();
     return () => { active = false; };
-  }, [key, shiritori, reload, view.code, assignment.kind, assignment.savedDrawingId, assignment.answer]);
+  }, [key, shiritori, reload]);
   useEffect(() => {
     const id = assignment.savedDrawingId;
     if (!unchecked || !id) return;
@@ -107,7 +111,7 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
       <button type="button" className={common.primary} disabled={locked || offline || invalid || (!dirty && assignment.saved)} onClick={async () => {
         setSaving(true);
         const ok = await send(assignment.kind === 'draw' ? { type: 'drawingSubmit', drawing: data, ...(shiritori ? { word: text } : {}) } : { type: 'drawingGuess', text });
-        if (ok && assignment.kind === 'draw') setBase(JSON.stringify(data));
+        if (ok && assignment.kind === 'draw') { setBase(JSON.stringify(data)); setUnchecked(false); }
         setSaving(false);
       }}>{saving ? '送信中…' : assignment.saved && !dirty ? '送信済み ✓' : assignment.saved ? updateLabel : assignment.kind === 'draw' ? 'この絵を送る' : 'この言葉を送る'}</button>
       {ready ? <button type="button" className={common.secondary} disabled={disabled || offline || saving || loading}

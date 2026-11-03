@@ -111,10 +111,14 @@ export function snapshotHistory(
   };
 }
 
+const drawingUnit = (history: GameHistory) => history.gameType === 'shiritori' ? 'しりとり' : history.gameType === 'quiz' ? 'クイズ' : '伝言';
+/** A quiz picture earns points from right guesses, not votes. */
+const stepScore = (history: GameHistory, step: { votes: number; points: number }) =>
+  history.gameType === 'quiz' ? `+${step.points}点` : `${step.votes}票 / ${step.points}点`;
 const linkLabel = (link?: boolean | null) => link == null ? '' : link ? 'つながった' : '切れた';
 /** A plain text file remains readable offline and never executes player-supplied HTML. */
 export function historyText(history: GameHistory): string {
-  const unit = history.gameType === 'shiritori' ? 'しりとり' : '伝言';
+  const unit = drawingUnit(history);
   return [
     `${GAME_TITLES[history.gameType ?? 'ogiri']} · ${history.code} · 第${history.game}ゲーム`,
     `終了日時: ${new Date(history.finishedAt).toISOString()}`,
@@ -134,7 +138,7 @@ export function historyText(history: GameHistory): string {
     '【お題と回答】',
     ...(history.drawingChains ?? []).flatMap((chain, i) => [
       '', `${unit}${i + 1}: ${chain.prompt}`,
-      ...chain.steps.map((step, j) => `${j + 1}. ${step.name}: ${step.kind === 'draw' ? step.drawing ? `（絵）${step.text ?? ''}` : '今回はパス' : step.text ?? '今回はパス'} (${step.votes}票 / ${step.points}点) ${linkLabel(step.link)}`.trimEnd()),
+      ...chain.steps.map((step, j) => `${j + 1}. ${step.name}: ${step.kind === 'draw' ? step.drawing ? `（絵）${step.text ?? ''}` : '今回はパス' : step.text ?? '今回はパス'} (${stepScore(history, step)}) ${linkLabel(step.link)}`.trimEnd()),
     ]),
     ...history.matches.flatMap((m, i) => [
       '',
@@ -153,8 +157,8 @@ const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g,
 /** Self-contained drawing archive: numeric SVG only, escaped text, no scripts or network. */
 export function drawingHistoryHtml(history: GameHistory): string {
   const title = `${GAME_TITLES[history.gameType ?? 'drawing']} · ゲームの記録`;
-  const unit = history.gameType === 'shiritori' ? 'しりとり' : '伝言';
+  const unit = drawingUnit(history);
   const chains = (history.drawingChains ?? []).map((chain, i) => `<section><h2>${unit}${i + 1} · ${escapeHtml(chain.prompt)}</h2><div class="steps">${chain.steps.map((step, j) =>
-    `<article><h3>${j + 1}. ${step.kind === 'draw' ? '絵' : '言葉'} · ${escapeHtml(step.name)}</h3>${step.drawing ? `${drawingSvg(JSON.parse(step.drawing))}${step.text ? `<p>${escapeHtml(step.text)}</p>` : ''}` : `<p>${escapeHtml(step.text ?? '今回はパス！')}</p>`}${step.kind === 'draw' ? `<p>${step.votes}票 · +${step.points}点 ${linkLabel(step.link)}</p>` : ''}</article>`).join('')}</div></section>`).join('');
+    `<article><h3>${j + 1}. ${step.kind === 'draw' ? '絵' : '言葉'} · ${escapeHtml(step.name)}</h3>${step.drawing ? `${drawingSvg(JSON.parse(step.drawing))}${step.text ? `<p>${escapeHtml(step.text)}</p>` : ''}` : `<p>${escapeHtml(step.text ?? '今回はパス！')}</p>`}${step.kind === 'draw' ? `<p>${history.gameType === 'quiz' ? '' : `${step.votes}票 · `}+${step.points}点 ${linkLabel(step.link)}</p>` : ''}</article>`).join('')}</div></section>`).join('');
   return `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>${title}</title><style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:auto;padding:24px;background:#fff8de;color:#19162f}h1,h2{line-height:1.4}.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}article{padding:16px;background:white;border:2px solid;border-radius:12px;overflow-wrap:anywhere}svg{width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>${title}</h1><pre>${escapeHtml(historyText(history))}</pre>${chains}</html>`;
 }

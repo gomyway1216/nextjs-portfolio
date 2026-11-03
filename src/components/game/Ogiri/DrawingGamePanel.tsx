@@ -27,7 +27,7 @@ function ShiritoriPrompt({ code, assignment }: { code: string; assignment: NonNu
 
 function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disabled: boolean; offline: boolean; send: (action: Action) => Promise<boolean> }) {
   const assignment = view.drawingGame!.assignment!;
-  const shiritori = view.gameType === 'shiritori';
+  const shiritori = view.gameType === 'shiritori', quiz = view.gameType === 'quiz';
   const ready = Boolean(view.players.find(player => player.id === view.me)?.answerReady);
   const key = `ogiri:drawing-draft:${view.code}:${assignment.key}`;
   const [data, setData] = useState<DrawingData>(emptyDrawing), [base, setBase] = useState('');
@@ -78,12 +78,15 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
   const problem = shiritori ? shiritoriProblem(normalized, assignment.sound) : null;
   const dirty = assignment.kind === 'draw' ? JSON.stringify(data) !== base || (shiritori && normalized !== assignment.answer) : normalized !== assignment.answer;
   const invalid = assignment.kind === 'draw' ? !data.strokes.length || Boolean(problem) : !normalized || [...normalized].length > 80;
-  const updateLabel = shiritori ? '絵を更新' : '伝言を更新';
+  const updateLabel = shiritori || quiz ? '絵を更新' : '伝言を更新';
   const locked = disabled || saving || loading || ready;
   const persist = (value: string, target = key) => saveDraft(target, value);
   return <div className={styles.answer}>
     {assignment.kind === 'draw' ? <>
-      {shiritori ? <ShiritoriPrompt code={view.code} assignment={assignment} /> : <>
+      {shiritori ? <ShiritoriPrompt code={view.code} assignment={assignment} /> : quiz ? <>
+        <h2>お題「{assignment.prompt}」</h2>
+        <p>この言葉を、絵だけで伝えてね。あとでみんなが4つの中から当てます。文字を書くのはお休み。</p>
+      </> : <>
         <h2>{assignment.prompt ?? '前の伝言はパス！ 想像でつないでみよう。'}</h2>
         <p>この言葉を、絵だけで伝えてね。文字を書くのはお休み。</p>
       </>}
@@ -115,12 +118,52 @@ function DrawingAnswer({ view, disabled, offline, send }: { view: RoomView; disa
         setSaving(false);
       }}>{saving ? '送信中…' : assignment.saved && !dirty ? '送信済み ✓' : assignment.saved ? updateLabel : assignment.kind === 'draw' ? 'この絵を送る' : 'この言葉を送る'}</button>
       {ready ? <button type="button" className={common.secondary} disabled={disabled || offline || saving || loading}
-        onClick={() => void send({ type: 'answerReady', ready: false })}>{shiritori ? '絵を直す' : '伝言を直す'}</button>
+        onClick={() => void send({ type: 'answerReady', ready: false })}>{shiritori || quiz ? '絵を直す' : '伝言を直す'}</button>
         : <button type="button" className={common.primary} disabled={disabled || offline || saving || loading || !assignment.saved || dirty}
           onClick={() => void send({ type: 'answerReady', ready: true })}>これでOK！</button>}
     </div>
     <small>送ったあとも「これでOK！」までは直せます。下書きはこの端末に保存します。</small>
     {dirty && assignment.saved && <p>未送信の変更があります。先に「{updateLabel}」を押してね。</p>}
+  </div>;
+}
+
+const LETTERS = ['A', 'B', 'C', 'D'];
+/** One picture, four answers. The TV and the artist only watch; the others tap a guess. */
+function QuizStage({ view, tv, disabled, reduced, send }: {
+  view: RoomView; tv: boolean; disabled: boolean; reduced: boolean; send: (action: Action) => Promise<boolean>;
+}) {
+  const quiz = view.drawingGame!.quiz!, result = quiz.result;
+  const heading = result ? `正解は「${quiz.choices[result.answer]}」！`
+    : quiz.mine ? 'あなたの絵です！ みんなの予想を待ってね。' : 'この絵、なーんだ？';
+  return <div className={`${styles.quiz} ${reduced ? '' : styles.quizMotion}`}>
+    <p className={styles.eyebrow}>おえかきクイズ · {quiz.index} / {quiz.total}</p>
+    <h2 className={result ? styles.quizAnswer : undefined}>{heading}</h2>
+    <div className={styles.quizBoard}>
+      <figure className={styles.quizPicture}>
+        <DrawingImage code={view.code} id={quiz.drawingId} label={`${quiz.name}の絵`} />
+        <figcaption><Character avatar={quiz.avatar} /> {quiz.name}{quiz.mine && '（あなた）'}の絵</figcaption>
+      </figure>
+      <div className={styles.choices} role="group" aria-label="答えの候補">
+        {quiz.choices.map((choice, i) => {
+          const state = result ? i === result.answer ? styles.right : styles.wrong : quiz.guess === i ? styles.picked : '';
+          const inner = <>
+            <b aria-hidden="true">{LETTERS[i]}</b><span>{choice}</span>
+            {result && <small>{result.counts[i]}人</small>}
+            {quiz.guess === i && <em>{result ? i === result.answer ? 'あなた：正解！' : 'あなた' : 'あなたの予想'}</em>}
+          </>;
+          return !tv && quiz.canGuess
+            ? <button type="button" key={choice} className={styles.choice} style={{ '--i': i } as CSSProperties} disabled={disabled}
+              onClick={() => void send({ type: 'quizGuess', choice: i })}>{inner}</button>
+            : <div key={choice} className={`${styles.choice} ${state}`} style={{ '--i': i } as CSSProperties}>{inner}</div>;
+        })}
+      </div>
+    </div>
+    {result ? <div className={styles.quizResult}>
+      <p role="status"><b>{result.correct.length ? `${result.correct.length}人が正解！` : 'だれも当てられず…'}</b>{' '}
+        当てた人に+100点、描いた{quiz.name}さんに+<AnimatedScore value={result.drawerPoints} animate={!reduced} />点</p>
+      {result.correct.length > 0 && <ul aria-label="正解した人">{result.correct.map(player =>
+        <li key={player.name}><Character avatar={player.avatar} /> {player.name}</li>)}</ul>}
+    </div> : <p className={styles.voteStatus} role="status">{quiz.guessed} / {quiz.eligible} 人が予想済み</p>}
   </div>;
 }
 
@@ -169,26 +212,28 @@ export function DrawingGamePanel({ view, tv, busy, connected, reduced, send }: {
   if (!game || !['answering', 'voting', 'reveal'].includes(view.phase)) return null;
   const held = busy || view.paused;
   const disabled = held || !connected;
-  const shiritori = view.gameType === 'shiritori';
-  const unit = shiritori ? 'しりとり' : '伝言';
-  const drawingTurn = shiritori || game.stage % 2 === 1;
-  return <section className={`${styles.panel} ${tv ? styles.tv : ''}`} aria-label={GAME_TITLES[shiritori ? 'shiritori' : 'drawing']}>
+  const shiritori = view.gameType === 'shiritori', quiz = view.gameType === 'quiz';
+  const unit = shiritori ? 'しりとり' : quiz ? 'クイズ' : '伝言';
+  const drawingTurn = shiritori || quiz || game.stage % 2 === 1;
+  return <section className={`${styles.panel} ${tv ? styles.tv : ''}`} aria-label={GAME_TITLES[view.gameType === 'shiritori' || view.gameType === 'quiz' ? view.gameType : 'drawing']}>
     {view.phase === 'answering' ? <>
-      <p className={styles.eyebrow}>{unit} {game.stage} / {game.stages} · {shiritori ? '絵でつなぐ番' : drawingTurn ? '絵で伝える番' : '言葉で伝える番'}</p>
+      <p className={styles.eyebrow}>{quiz ? 'おえかきクイズ · 出題の絵を描く番' : `${unit} ${game.stage} / ${game.stages} · ${shiritori ? '絵でつなぐ番' : drawingTurn ? '絵で伝える番' : '言葉で伝える番'}`}</p>
       {!tv && game.assignment ? <DrawingAnswer key={game.assignment.key} view={view} disabled={held} offline={!connected} send={send} /> : <div className={tv ? common.wait : undefined}>
-        <h2>どんな{unit}になってるかな。</h2>
+        <h2>{quiz ? 'みんな、こっそりお題を描いています。' : `どんな${unit}になってるかな。`}</h2>
         <p>スマホで{drawingTurn ? '絵を描いて' : '絵を言葉にして'}、送ったら「これでOK！」。</p>
         <div className={common.playerGrid}>{view.players.filter(player => player.answeringThisRound).map(player =>
           <article className={common.player} key={player.id}><Character avatar={player.avatar} size="large" /><b>{player.name}</b>
             <small>{!player.active ? 'お休み中' : player.answerReady ? 'OK！ ✓' : drawingTurn ? 'おえかき中…' : '考え中…'}</small></article>)}</div>
       </div>}
       <div className={common.readyBar} aria-label={`${unit}の確定状況`}>
-        <p role="status"><b>{game.readyCount} / {game.answererCount}人がOK！</b> 全員の{shiritori ? '絵' : '伝言'}を待っています。</p>
-        <small>目安時間を過ぎても描けます。{view.settings.autoAdvance ? '全員OKで次の人へ。' : '全員OKのあと、主催者が進めます。'}</small>
+        <p role="status"><b>{game.readyCount} / {game.answererCount}人がOK！</b> 全員の{shiritori || quiz ? '絵' : '伝言'}を待っています。</p>
+        <small>目安時間を過ぎても描けます。{view.settings.autoAdvance ? quiz ? '全員OKで当てっこへ。' : '全員OKで次の人へ。' : '全員OKのあと、主催者が進めます。'}</small>
         {!tv && view.isHost && !view.settings.autoAdvance && game.readyCount === game.answererCount &&
-          <button type="button" className={common.primary} disabled={disabled} onClick={() => void send({ type: 'next' })}>次の{shiritori ? '手' : '伝言'}へ →</button>}
+          <button type="button" className={common.primary} disabled={disabled} onClick={() => void send({ type: 'next' })}>{quiz ? '当てっこへ' : `次の${shiritori ? '手' : '伝言'}へ`} →</button>}
       </div>
-    </> : game.chain ? <>
+    </> : game.quiz ? <QuizStage key={view.turn} view={view} tv={tv} disabled={disabled} reduced={reduced} send={send} />
+    : quiz ? <div className={common.wait}><h2>この絵はお休みです。</h2><p>次の絵へ進みます。</p></div>
+    : game.chain ? <>
       <p className={styles.eyebrow}>{unit}の答え合わせ · {game.chain.index} / {game.chain.total}</p>
       <h2>{shiritori ? 'はじまりの言葉' : '最初のお題'}「{game.chain.prompt}」</h2>
       <div className={`${styles.chainGrid} ${game.chain.steps.length === 3 ? styles.threeSteps : ''} ${shiritori && !reduced ? styles.sequence : ''}`}>{game.chain.steps.map((step, i) => <article className={styles.chainStep}

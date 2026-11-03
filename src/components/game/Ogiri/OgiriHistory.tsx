@@ -190,7 +190,7 @@ export function OgiriHistory({ id }: { id?: string }) {
                 </ol>
               </section>
             )}
-            {history.drawingChains ? <DrawingHistory chains={history.drawingChains} shiritori={history.gameType === 'shiritori'} /> : <section className={styles.historySection}>
+            {history.drawingChains ? <DrawingHistory chains={history.drawingChains} type={history.gameType} /> : <section className={styles.historySection}>
               <h2>
                 お題と回答 <small>{history.matches.length}対戦</small>
               </h2>

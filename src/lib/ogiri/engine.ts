@@ -43,7 +43,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori', 'quiz', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= maxRounds(s.gameType),
     `ラウンド数は1〜${maxRounds(s.gameType)}です。`,
@@ -452,7 +452,7 @@ export function act(
   // The owner is back, so someone else's request for this seat is over for good.
   if (room.rejoinRequests?.[playerId]) delete room.rejoinRequests[playerId];
   const host = room.hostId === playerId;
-  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'leave', 'return', 'heartbeat', 'customPromptAdd', 'customPromptRemove'].includes(action.type))
+  if (!['answer', 'answerReady', 'vote', 'partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'quizGuess', 'leave', 'return', 'heartbeat', 'customPromptAdd', 'customPromptRemove'].includes(action.type))
     requireThat(host, '主催者だけが操作できます。', 403);
   if (action.type === 'heartbeat') {
     player.lastSeen = now;
@@ -593,7 +593,7 @@ export function act(
       sideAction(room, playerId, action, now);
     } else if (isBluffGame(room)) {
       bluffAction(room, playerId, action, now);
-    } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote'].includes(action.type)) {
+    } else if (['partyAnswer', 'partyVote', 'drawingSubmit', 'drawingGuess', 'drawingVote', 'quizGuess'].includes(action.type)) {
       throw new GameError('このゲームでは使えない操作です。');
     } else if (action.type === 'answer') {
       requireThat(

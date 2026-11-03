@@ -1,6 +1,7 @@
 import { GameError } from './errors';
 import { drawingInput, DRAWING_ROOM_BUDGET } from './drawing-data';
 import { DRAWING_PROMPTS, SHIRITORI_WORDS } from './drawing-prompts';
+import { QUIZ_CHOICES, QUIZ_WORDS } from './quiz-words';
 import { shiritoriLinks, shiritoriProblem, shiritoriStages, shiritoriWord, tailSound } from './shiritori';
 import { normalizePlayerText } from './text';
 import type { Action, DrawingGameView, DrawingHistoryChain, DrawingRound, DrawingStep, Room } from './types';
@@ -9,7 +10,8 @@ const requireThat: (ok: unknown, message: string, status?: number) => asserts ok
   if (!ok) throw new GameError(message, status);
 };
 const isShiritori = (room: Room) => room.gameType === 'shiritori';
-export const isDrawingGame = (room: Room) => room.gameType === 'drawing' || isShiritori(room);
+const isQuiz = (room: Room) => room.gameType === 'quiz';
+export const isDrawingGame = (room: Room) => room.gameType === 'drawing' || isShiritori(room) || isQuiz(room);
 const participants = (room: Room) => (room.drawing?.players ?? []).filter(id =>
   room.players[id]?.active && !room.players[id].kicked && !room.players[id].spectator);
 const valid = (room: Room, step: DrawingStep | null | undefined) => Boolean(step && room.players[step.author] && !room.players[step.author].kicked);
@@ -31,10 +33,48 @@ function givenSound(room: Room, chain: Chain, stage: number) {
   for (let i = stage - 1; i >= 0; i--) if (valid(room, chain.steps[i])) return tailSound(chain.steps[i]!.text!);
   return tailSound(chain.prompt);
 }
+/** A quiz picture's guesses close when the room moves on from it. */
+const quizClosed = (room: Room, index: number) =>
+  ['reveal', 'ranking', 'finished'].includes(room.phase) ? index <= room.matchIndex : room.phase === 'voting' && index < room.matchIndex;
+/** Everyone in the game except the artist, who already knows. */
+const quizGuessers = (room: Room, index: number) => (room.drawing?.players ?? []).filter(id =>
+  id !== room.drawing!.chains[index].steps[0]?.author && room.players[id] && !room.players[id].kicked && !room.players[id].spectator);
+const quizAnswer = (room: Room, index: number) => room.drawing!.chains[index].choices!.indexOf(room.drawing!.chains[index].prompt);
+const quizCorrect = (room: Room, index: number) => quizGuessers(room, index)
+  .filter(id => room.drawing!.chains[index].guesses![id] === quizAnswer(room, index));
+const QUIZ_POINTS = 100, QUIZ_ARTIST_POINTS = 50;
+function quizRound(players: number, used: string[], rng: () => number) {
+  const all = Object.entries(QUIZ_WORDS).flatMap(([group, words]) => words.map((word, i) => ({ word, group, id: `quiz:${group}:${i}` })));
+  let pool = all.filter(word => !used.includes(word.id));
+  const reset = pool.length < players;
+  if (reset) pool = all;
+  const pick = <T,>(items: T[]) => items.splice(Math.floor(rng() * items.length), 1)[0];
+  const selected = Array.from({ length: players }, () => pick(pool));
+  // The other choices share the answer's group, so the picture has to tell a cat from a dog.
+  const choices = selected.map(({ word, group }) => {
+    const others = QUIZ_WORDS[group].filter(other => other !== word);
+    const options = [word, ...Array.from({ length: QUIZ_CHOICES - 1 }, () => pick(others))];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    return options;
+  });
+  return { reset, selected, choices };
+}
 
-export function beginDrawing(room: Room, now: number, rng: () => number) {
-  const players = Object.values(room.players).filter(p => p.active && !p.kicked && !p.spectator);
-  requireThat(players.length >= 3 && players.length <= 12, '3〜12人の参加者が必要です。', 409);
+/** Every player draws one word, then the room guesses each picture from four choices. */
+function beginQuiz(room: Room, players: string[], rng: () => number) {
+  const { reset, selected, choices } = quizRound(players.length, room.usedPrompts, rng);
+  if (reset) room.usedPrompts = room.usedPrompts.filter(id => !id.startsWith('quiz:'));
+  room.drawing = {
+    players, stages: 1, stage: 0,
+    chains: selected.map((word, i) => ({ prompt: word.word, steps: [null], choices: choices[i], guesses: {} })),
+    revealed: 0, votes: {}, awards: {}, scored: false,
+  };
+  room.usedPrompts.push(...selected.map(word => word.id));
+}
+function beginChains(room: Room, players: string[], rng: () => number) {
   const type = isShiritori(room) ? 'shiritori' : 'drawing';
   const all = (type === 'shiritori' ? SHIRITORI_WORDS : DRAWING_PROMPTS).map((prompt, i) => ({ prompt, id: `${type}:${i}` }));
   let pool = all.filter(prompt => !room.usedPrompts.includes(prompt.id));
@@ -46,11 +86,17 @@ export function beginDrawing(room: Room, now: number, rng: () => number) {
   while (selected.length < players.length) selected.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
   const stages = type === 'shiritori' ? shiritoriStages(players.length) : players.length === 3 ? 3 : 4;
   room.drawing = {
-    players: players.map(player => player.id), stages, stage: 0,
+    players, stages, stage: 0,
     chains: selected.map(prompt => ({ prompt: prompt.prompt, steps: Array(stages).fill(null) })),
     revealed: 0, votes: {}, awards: {}, scored: false,
   };
   room.usedPrompts.push(...selected.map(prompt => prompt.id));
+}
+
+export function beginDrawing(room: Room, now: number, rng: () => number) {
+  const players = Object.values(room.players).filter(p => p.active && !p.kicked && !p.spectator);
+  requireThat(players.length >= 3 && players.length <= 12, '3〜12人の参加者が必要です。', 409);
+  (isQuiz(room) ? beginQuiz : beginChains)(room, players.map(player => player.id), rng);
   for (const player of Object.values(room.players)) {
     player.answerReady = false;
     player.roundScore = 0;
@@ -71,8 +117,12 @@ function scoreDrawings(room: Room) {
   }
   const works = drawings(room);
   drawing.awards = {};
-  const award = (id: string) => { drawing.awards[id] = (drawing.awards[id] ?? 0) + 100; };
-  for (const chain of drawing.chains.slice(0, drawing.revealed)) chain.steps.forEach((step, stage) => {
+  const award = (id: string, points = 100) => { drawing.awards[id] = (drawing.awards[id] ?? 0) + points; };
+  if (isQuiz(room)) drawing.chains.forEach((chain, index) => {
+    if (!quizClosed(room, index) || !valid(room, chain.steps[0])) return;
+    for (const id of quizCorrect(room, index)) { award(id, QUIZ_POINTS); award(chain.steps[0]!.author, QUIZ_ARTIST_POINTS); }
+  });
+  else for (const chain of drawing.chains.slice(0, drawing.revealed)) chain.steps.forEach((step, stage) => {
     if (linked(room, chain, stage)) { award(chain.steps[stage - 1]!.author); award(step!.author); }
   });
   if (drawing.scored) for (const [id, choice] of Object.entries(drawing.votes)) {
@@ -86,9 +136,38 @@ function scoreDrawings(room: Room) {
   }
 }
 
+/** One picture at a time: guess from the choices, then see the answer. Pictures nobody sent are skipped. */
+function advanceQuiz(room: Room, now: number) {
+  const drawing = room.drawing!;
+  const open = (from: number) => {
+    const index = drawing.chains.findIndex((chain, i) => i >= from && valid(room, chain.steps[0]));
+    if (index < 0) {
+      room.phase = 'ranking';
+      room.deadline = now + 20000;
+      return;
+    }
+    room.phase = 'voting';
+    room.matchIndex = index;
+    drawing.revealed = index + 1;
+    room.deadline = now + room.settings.voteSeconds * 1000;
+  };
+  if (room.phase === 'answering') open(0);
+  else if (room.phase === 'voting' && !valid(room, drawing.chains[room.matchIndex].steps[0])) open(room.matchIndex + 1);
+  else if (room.phase === 'voting') {
+    room.phase = 'reveal';
+    room.deadline = now + 12000;
+    scoreDrawings(room);
+  } else if (room.phase === 'reveal') open(room.matchIndex + 1);
+  else if (room.phase === 'ranking') {
+    room.phase = 'finished';
+    room.deadline = 0;
+  }
+}
+
 export function advanceDrawing(room: Room, now: number) {
   const drawing = room.drawing;
   if (!drawing) return;
+  if (isQuiz(room)) return advanceQuiz(room, now);
   if (room.phase === 'answering') {
     if (drawing.stage + 1 < drawing.stages) {
       drawing.stage++;
@@ -130,14 +209,31 @@ export function syncDrawing(room: Room, now: number) {
   const players = participants(room);
   if (room.phase === 'answering' && players.length && players.every(id => room.players[id].answerReady))
     advanceDrawing(room, now);
-  else if (room.phase === 'voting' && players.length && players.every(id => Object.hasOwn(room.drawing!.votes, id)))
+  else if (isQuiz(room)) {
+    // Resting or removing the last undecided guesser, or the artist, ends the guesses like a final guess.
+    const index = room.matchIndex, guesses = room.drawing.chains[index].guesses!;
+    if (room.phase === 'voting' && (!valid(room, room.drawing.chains[index].steps[0]) ||
+      quizGuessers(room, index).filter(id => players.includes(id)).every(id => Object.hasOwn(guesses, id))))
+      advanceDrawing(room, now);
+  } else if (room.phase === 'voting' && players.length && players.every(id => Object.hasOwn(room.drawing!.votes, id)))
     advanceDrawing(room, now);
 }
 
 export function drawingAction(room: Room, id: string, action: Action, now: number) {
   const drawing = room.drawing;
   requireThat(drawing && participants(room).includes(id), 'この伝言には参加できません。', 403);
+  if (action.type === 'quizGuess') {
+    requireThat(isQuiz(room) && room.phase === 'voting' && now < room.deadline, '予想の受付は終了しました。', 409);
+    const index = room.matchIndex;
+    const chain = drawing.chains[index];
+    requireThat(Number.isInteger(action.choice) && action.choice >= 0 && action.choice < chain.choices!.length, '選んだ答えが見つかりません。');
+    requireThat(chain.steps[0]?.author !== id, '自分の絵には答えられません。', 403);
+    requireThat(!Object.hasOwn(chain.guesses!, id), '予想済みです。', 409);
+    chain.guesses![id] = action.choice;
+    return;
+  }
   if (action.type === 'drawingVote') {
+    requireThat(!isQuiz(room), 'このゲームでは使えない操作です。');
     requireThat(room.phase === 'voting' && now < room.deadline, '投票の受付は終了しました。', 409);
     const work = drawings(room).find(work => work.id === action.choice);
     requireThat(work, '投票先が見つかりません。', 404);
@@ -180,6 +276,7 @@ export function drawingAction(room: Room, id: string, action: Action, now: numbe
 export function moderateDrawing(room: Room, id: string) {
   const drawing = room.drawing;
   if (!drawing) return;
+  for (const chain of drawing.chains) if (chain.guesses) delete chain.guesses[id];
   for (const [voter, choice] of Object.entries(drawing.votes)) {
     const work = drawing.chains.flatMap(chain => chain.steps).find(step => step?.id === choice);
     if (voter === id || work?.author === id) delete drawing.votes[voter];
@@ -204,6 +301,33 @@ export function drawingAsset(room: Room, id: string, me: string | null) {
   return { data: drawingInput(JSON.parse(step.data)), published };
 }
 
+/** The answer stays on the server until this picture's guesses close. */
+function projectQuiz(room: Room, me: string | null): DrawingGameView['quiz'] {
+  const drawing = room.drawing!, index = room.matchIndex;
+  if (!isQuiz(room) || !['voting', 'reveal'].includes(room.phase)) return null;
+  const step = drawing.chains[index].steps[0];
+  if (!valid(room, step)) return null;
+  const guesses = drawing.chains[index].guesses!, guessers = quizGuessers(room, index);
+  const answer = quizAnswer(room, index), correct = quizCorrect(room, index);
+  const closed = room.phase === 'reveal';
+  return {
+    index: drawing.chains.slice(0, index + 1).filter(chain => valid(room, chain.steps[0])).length,
+    total: drawings(room).length,
+    drawingId: step!.id!, name: room.players[step!.author].name, avatar: room.players[step!.author].avatar,
+    mine: me === step!.author, choices: drawing.chains[index].choices!,
+    guess: me && Object.hasOwn(guesses, me) ? guesses[me] : null,
+    canGuess: Boolean(me && !closed && guessers.includes(me) && participants(room).includes(me) && !Object.hasOwn(guesses, me)),
+    guessed: guessers.filter(id => Object.hasOwn(guesses, id)).length,
+    eligible: guessers.filter(id => participants(room).includes(id) || Object.hasOwn(guesses, id)).length,
+    result: closed ? {
+      answer,
+      counts: drawing.chains[index].choices!.map((_, choice) => guessers.filter(id => guesses[id] === choice).length),
+      correct: correct.map(id => ({ name: room.players[id].name, avatar: room.players[id].avatar })),
+      drawerPoints: correct.length * QUIZ_ARTIST_POINTS,
+    } : null,
+  };
+}
+
 export function projectDrawing(room: Room, me: string | null): DrawingGameView | undefined {
   const drawing = room.drawing;
   if (!isDrawingGame(room) || !drawing) return;
@@ -214,7 +338,7 @@ export function projectDrawing(room: Room, me: string | null): DrawingGameView |
   const chainIndex = assigned ? chainFor(room, me!) : -1;
   const mine = assigned ? drawing.chains[chainIndex].steps[drawing.stage] : null;
   const previous = assigned ? drawing.chains[chainIndex].steps[drawing.stage - 1] : null;
-  const showChain = room.phase === 'reveal' && room.matchIndex < drawing.chains.length;
+  const showChain = !isQuiz(room) && room.phase === 'reveal' && room.matchIndex < drawing.chains.length;
   const chain = showChain ? drawing.chains[room.matchIndex] : null;
   const results = drawing.scored && ['reveal', 'ranking', 'finished'].includes(room.phase);
   return {
@@ -241,22 +365,34 @@ export function projectDrawing(room: Room, me: string | null): DrawingGameView |
         link: linked(room, chain, stage),
       })),
     } : null,
-    gallery: ['voting', 'reveal', 'ranking', 'finished'].includes(room.phase) && drawing.revealed === drawing.chains.length
+    gallery: !isQuiz(room) && ['voting', 'reveal', 'ranking', 'finished'].includes(room.phase) && drawing.revealed === drawing.chains.length
       ? drawings(room).map(step => ({ id: step.id!, author: step.author,
         name: room.players[step.author].name, avatar: room.players[step.author].avatar,
         votes: results ? Object.values(drawing.votes).filter(id => id === step.id).length : 0,
         points: results ? Object.values(drawing.votes).filter(id => id === step.id).length * 100 : 0,
       })) : [],
-    canVote: Boolean(me && room.phase === 'voting' && players.includes(me)),
+    canVote: Boolean(!isQuiz(room) && me && room.phase === 'voting' && players.includes(me)),
     voted: Boolean(me && Object.hasOwn(drawing.votes, me)),
     votesReceived: room.phase === 'voting' ? players.filter(id => Object.hasOwn(drawing.votes, id)).length : Object.keys(drawing.votes).length,
     eligible: players.length, results,
+    quiz: projectQuiz(room, me),
   };
 }
 
 export function drawingHistory(room: Room): DrawingHistoryChain[] {
   const drawing = room.drawing;
   if (!drawing) return [];
+  if (isQuiz(room)) return drawing.chains.flatMap((chain, index) => {
+    const step = chain.steps[0];
+    if (!quizClosed(room, index) || !valid(room, step)) return [];
+    const correct = quizCorrect(room, index).length;
+    const guessers = quizGuessers(room, index).filter(id => Object.hasOwn(chain.guesses!, id)).length;
+    return [{ prompt: chain.prompt, steps: [
+      { kind: 'draw', name: room.players[step!.author].name, avatar: room.players[step!.author].avatar,
+        drawing: step!.data ?? null, text: null, votes: correct, points: correct * QUIZ_ARTIST_POINTS },
+      { kind: 'guess', name: 'みんなの予想', avatar: '', drawing: null, text: `${guessers}人中${correct}人が正解`, votes: 0, points: correct * QUIZ_POINTS },
+    ] }];
+  });
   return drawing.chains.slice(0, drawing.revealed).map(chain => ({
     prompt: chain.prompt,
     steps: chain.steps.map((step, stage) => {

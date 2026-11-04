@@ -8,6 +8,9 @@
   box-shadow: 0 22px 60px color-mix(in srgb, #0f8dbf 16%, transparent);
   color: var(--games-route-fg, var(--card-foreground));
   display: grid;
+  /* Most games put this card in a full-window flex column; with overflow hidden it would otherwise shrink to the window
+     and cut off its own Start button, leaving nothing to scroll. */
+  flex-shrink: 0;
   gap: 1.25rem;
   overflow: hidden;
   padding: clamp(1rem, 4vw, 1.75rem);

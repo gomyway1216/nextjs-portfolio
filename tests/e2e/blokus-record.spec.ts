@@ -154,6 +154,8 @@ test.describe('on a phone', () => {
 
     await result.getByTestId('blokus-record-open').tap();
     await expect(record(page)).toBeVisible();
+    // The scores are further down on a phone; the record still opens at its top, board first.
+    await expect.poll(() => record(page).evaluate((element) => element.closest('[class*="root"]')!.scrollTop)).toBe(0);
     const moves = page.getByTestId('blokus-record-moves').getByRole('listitem');
     const total = await moves.count();
     expect(total).toBeGreaterThan(placed);

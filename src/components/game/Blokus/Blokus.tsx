@@ -10,7 +10,7 @@
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, History, RotateCcw, RotateCw, ScrollText, SlidersHorizontal, Users } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, DifficultySelector, GameStats, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { createBlokusAiClient, type BlokusAiClient, type ReviewRequest } from './blokusAiWorkerClient';
@@ -216,6 +216,13 @@ const Blokus = () => {
   const showLobby = !inRoom && (wantsOnline || online.active || online.invite !== null);
   const showSetup = !inRoom && !showLobby && inSetup;
   const showRecords = viewing !== null || listOpen;
+  // The record and the list of them are screens too: each opens at its top, and a review saving onto it changes no id.
+  const screen = viewing ? `record-${viewing.id}` : listOpen ? 'records' : showLobby ? 'lobby' : showSetup ? 'setup' : 'game';
+  const rootRef = useRef<HTMLDivElement>(null);
+  // A short window scrolls down to the setup's Start button; the next screen still opens at its top.
+  useLayoutEffect(() => {
+    rootRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [screen]);
   const game = room?.game ?? soloGame;
   const seating = room?.seating ?? soloSeating;
 
@@ -620,6 +627,7 @@ const Blokus = () => {
 
   return (
     <div
+      ref={rootRef}
       className={styles.root}
       // The tools change with the pointer and move the tray, so a mouse is noticed as it moves, never as it presses:
       // a press that moved the tray would come up on another piece.

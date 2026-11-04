@@ -3,6 +3,7 @@
  */
 
 import { Play } from 'lucide-react';
+import { useRef } from 'react';
 import type { CSSProperties,FC,ReactNode } from 'react';
 import { Difficulty,DifficultyOption } from './types';
 import { getDifficultyColor } from './utils';
@@ -41,8 +42,19 @@ export const DifficultySelector: FC<DifficultySelectorProps> = ({
   summaryContent,
   extraContent
 }) => {
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // A short window has to scroll down to reach Start; the game that replaces this card still opens at its top.
+  // Instant, not the page's smooth scrolling: the game mounting part way through would stop a glide short of the top.
+  const start = () => {
+    for (let box = sectionRef.current?.parentElement; box; box = box.parentElement) {
+      if (box.scrollTop > 0) box.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    onStart();
+  };
+
   return (
-    <section className={styles.selector} aria-label={setupAriaLabel ?? `${title} — ${kickerLabel}`}>
+    <section ref={sectionRef} className={styles.selector} aria-label={setupAriaLabel ?? `${title} — ${kickerLabel}`}>
       <div className={styles.header}>
         {icon && <div className={styles.iconSlot}>{icon}</div>}
         <div>
@@ -96,7 +108,7 @@ export const DifficultySelector: FC<DifficultySelectorProps> = ({
 
       <button
         type="button"
-        onClick={onStart}
+        onClick={start}
         className={styles.startButton}
       >
         <Play className={styles.startIcon} />

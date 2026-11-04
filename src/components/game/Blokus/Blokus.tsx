@@ -354,7 +354,8 @@ const Blokus = () => {
     setViewing(record);
     setLastRecord((current) => (current?.id === record.id ? record : current));
     setRecordsSaved(saveRecord(record));
-    setRecords(loadRecords());
+    // Only this record's review changed: no need to read the rest back on every reviewed move.
+    setRecords((current) => current.map((entry) => (entry.id === record.id ? record : entry)));
   }, []);
 
   const requestReview = useCallback((request: ReviewRequest) => {

@@ -104,8 +104,9 @@ export const RecordView = ({ record, t, language, requestReview, saved, onChange
   // The arrows step through the game wherever the focus is: a button that steps to the end disables itself and drops it.
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      // The target can be the document itself, which has no `closest`.
+      const { target } = event;
+      if (event.altKey || event.ctrlKey || event.metaKey || (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]'))) return;
       const by = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
       const to = by !== undefined ? step + by : event.key === 'Home' ? 0 : event.key === 'End' ? total : undefined;
       if (to === undefined) return;

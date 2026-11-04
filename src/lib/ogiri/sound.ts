@@ -125,8 +125,9 @@ export function phaseSound(previous: RoomView | null, next: RoomView): SoundCue 
   if (previous.phase === 'lobby' && ['answering', 'voting'].includes(next.phase)) return 'start';
   if (next.phase === 'answering') return 'start';
   if (next.phase === 'voting') return 'bounce';
-  // Time up on a gesture turn, or a quiz picture nobody read.
-  if (next.phase === 'reveal' && (next.gestureGame || next.drawingGame?.quiz?.result?.correct.length === 0)) return 'buzzer';
+  // Time up on a gesture turn, a quiz picture nobody read, or a せーので round where nobody matched.
+  if (next.phase === 'reveal' && (next.gestureGame || next.drawingGame?.quiz?.result?.correct.length === 0 ||
+    (next.sideGame?.type === 'match' && next.sideGame.result?.awards.length === 0))) return 'buzzer';
   if (next.phase === 'reveal') return 'bounce';
   if (next.phase === 'ranking') return 'ranking';
   if (next.phase === 'finished') return 'cheer';

@@ -10,6 +10,7 @@ export const PARTY_GAME_CHOICES = [
   { type: 'ogiri', avatar: '🐱', description: '二人のボケに一票。' },
   { type: 'majority', avatar: '🐸', description: 'みんな、そっち派？' },
   { type: 'identity', avatar: '', description: 'これ書いたの、お前か。' },
+  { type: 'match', avatar: '🐧', description: 'せーので、ハモれ！' },
   { type: 'drawing', avatar: 'alien', description: 'その絵、そう伝わる？' },
   { type: 'shiritori', avatar: 'capybara', description: 'その絵、何て読む？' },
   { type: 'quiz', avatar: 'axolotl', description: 'この絵、なーんだ？' },

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
-import { GAME_TITLES, type Action, type GameType, type RoomView } from '@/lib/ogiri/types';
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { GAME_TITLES, MATCH_MAX_LENGTH, type Action, type GameType, type RoomView } from '@/lib/ogiri/types';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/ogiri/drafts';
 import { normalizePlayerText } from '@/lib/ogiri/text';
 import { AnimatedScore } from './AnimatedScore';
@@ -15,6 +15,7 @@ export const GAME_RULES: Record<GameType, string> = {
   ogiri: '2つのお題にボケて、作者以外が投票。1票100点、勝ったら追加で200点。',
   majority: '全員が同じ選択肢から1つ選びます。最多票の側に入れば100点。同率最多でも得点！',
   identity: '同じお題に1人1回答。匿名のひとことを見て作者を当てます。正解100点、作者は外された票1つにつき50点。',
+  match: 'お題に全員がせーので答えを1つ。同じ答えの人が1人いるごとに100点、全員一致なら全員にボーナス100点！',
   drawing: '絵→言葉→絵と、みんなで同時に伝言。最後に答え合わせして、好きな絵に1票100点！',
   shiritori: '前の人の絵だけを見て、続きの言葉を絵に描きます。つながったら描いた2人に100点ずつ、最後に好きな絵へ1票100点！',
   quiz: 'みんなが同時にお題を絵に描き、1枚ずつ4択で当てっこ。当てたら100点、描いた人は1人当たるごとに50点！',
@@ -30,6 +31,7 @@ const VOTE_HELP: Partial<Record<GameType, string>> = {
   thermometer: 'みんなの平均は何度？ 平均に近づけて送ってね。',
 };
 const AWARD_HEADING: Partial<Record<GameType, string>> = {
+  match: 'ハモった人、得点です。',
   majority: '多数派のみなさん、得点です。',
   minority: '少数派のみなさん、得点です。',
   thermometer: '平均に近かった人、得点です。',
@@ -54,6 +56,8 @@ function IdentityAnswer({ view, disabled, offline, send }: {
   send: (action: Action) => Promise<boolean>;
 }) {
   const side = view.sideGame!;
+  const match = side.type === 'match';
+  const max = match ? MATCH_MAX_LENGTH : 100;
   const mine = view.players.find(p => p.id === view.me);
   const key = `ogiri:party-draft:${view.code}:${view.game}:${view.round}`;
   const [text, setText] = useState(side.answer);
@@ -78,12 +82,12 @@ function IdentityAnswer({ view, disabled, offline, send }: {
     <div className={styles.singleAnswer}>
       <form className={common.answerForm} onSubmit={submit} data-testid="party-answer-form">
         <label>
-          あなたのひとこと
+          {match ? 'あなたの答え' : 'あなたのひとこと'}
           <textarea
-            aria-label="あなたのひとこと"
-            rows={3}
-            maxLength={200}
-            placeholder="名前は書かずに、ひとことどうぞ。"
+            aria-label={match ? 'あなたの答え' : 'あなたのひとこと'}
+            rows={match ? 1 : 3}
+            maxLength={max * 2}
+            placeholder={match ? 'ひらがなで書くとハモりやすいよ。' : '名前は書かずに、ひとことどうぞ。'}
             value={text}
             disabled={disabled || saving || Boolean(mine?.answerReady)}
             onChange={event => {
@@ -93,8 +97,8 @@ function IdentityAnswer({ view, disabled, offline, send }: {
           />
         </label>
         <div className={common.row}>
-          <small>{count} / 100文字</small>
-          <button className={common.primary} disabled={disabled || offline || saving || Boolean(mine?.answerReady) || count < 1 || count > 100}>
+          <small>{count} / {max}文字</small>
+          <button className={common.primary} disabled={disabled || offline || saving || Boolean(mine?.answerReady) || count < 1 || count > max}>
             {saving ? '送信中…' : side.answer && !dirty ? '送信済み ✓' : side.answer ? '回答を更新' : 'この回答を送る'}
           </button>
         </div>
@@ -142,7 +146,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
           <IdentityAnswer key={`${view.game}:${view.round}`} view={view} disabled={held} offline={!connected} send={send} />
         ) : (
           <div className={styles.answerWait}>
-            <p>スマホで1つ送ったら「これでOK！」。名前はまだ内緒。</p>
+            <p>{side.type === 'match' ? 'スマホで答えを送ったら「これでOK！」。みんなとハモるかな？' : 'スマホで1つ送ったら「これでOK！」。名前はまだ内緒。'}</p>
             <div className={common.playerGrid}>
               {answerers.map(player => <article className={common.player} key={player.id}>
                 <Character avatar={player.avatar} size="large" />
@@ -154,9 +158,9 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
         )}
         <div className={common.readyBar} aria-label="回答の確定状況">
           <p role="status"><b>{side.readyCount} / {side.answererCount}人がOK！</b> 全員の回答確定を待っています。</p>
-          <small>目安時間を過ぎても回答できます。{view.settings.autoAdvance ? '全員OKで作者当てへ。' : '全員OKのあと、主催者が進めます。'}</small>
+          <small>目安時間を過ぎても回答できます。{view.settings.autoAdvance ? side.type === 'match' ? '全員OKで答え合わせへ。' : '全員OKで作者当てへ。' : '全員OKのあと、主催者が進めます。'}</small>
           {!tv && view.isHost && side.answererCount > 0 && side.readyCount === side.answererCount && !view.settings.autoAdvance && (
-            <button className={common.primary} disabled={disabled} onClick={() => void send({ type: 'next' })}>作者当てへ進む →</button>
+            <button className={common.primary} disabled={disabled} onClick={() => void send({ type: 'next' })}>{side.type === 'match' ? '答え合わせへ →' : '作者当てへ進む →'}</button>
           )}
         </div>
       </> : <>
@@ -173,7 +177,18 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
         {side.type === 'identity' && view.phase === 'reveal' && <p className={styles.identityAccuracy}>
           正解 {side.result?.counts[side.result.correctOption ?? ''] ?? 0} / {side.votesReceived}票
         </p>}
-        {side.type !== 'thermometer' && (view.phase === 'voting' || side.type !== 'identity') && <div className={`${styles.options} ${side.type === 'identity' ? styles.peopleOptions : ''}`}>
+        {side.type === 'match' && view.phase === 'reveal' && <div className={styles.matchGroups} aria-label="みんなの答え">
+          {(side.result?.groups ?? []).filter(group => group.ids.length).map((group, i) => <article key={`${i}:${group.label}`}
+            className={`${styles.matchGroup} ${group.ids.length > 1 ? styles.matched : ''}`} style={{ '--i': i } as CSSProperties}>
+            <b>{group.label}</b>
+            <span>{group.ids.length > 1 ? `${group.ids.length}人がハモった！` : 'ひとりだけ'}</span>
+            <ul>{group.ids.map(id => {
+              const player = view.players.find(p => p.id === id);
+              return player && <li key={id}><Character avatar={player.avatar} /> {player.name}</li>;
+            })}</ul>
+          </article>)}
+        </div>}
+        {side.type !== 'thermometer' && side.type !== 'match' && (view.phase === 'voting' || side.type !== 'identity') && <div className={`${styles.options} ${side.type === 'identity' ? styles.peopleOptions : ''}`}>
           {side.options.map((option, index) => {
             const count = side.result?.counts[option.id] ?? 0;
             const winner = Boolean(side.result) && (side.type === 'majority' ? maxVotes > 0 && count === maxVotes
@@ -200,7 +215,7 @@ export function PartyGamePanel({ view, tv, busy, connected, reduced, remaining, 
                 <b>{player?.name ?? '退出したプレイヤー'}</b>
                 <strong>+<AnimatedScore value={award.points} animate={!reduced} /> 点</strong>
               </article>;
-            }) : <p>{side.type === 'minority' && side.result && picked.length ? '全部同じ人数で、少数派なし！ 次のお題でどうぞ。' : '今回は得点なし。次のお題でどうぞ。'}</p>}
+            }) : <p>{side.type === 'minority' && side.result && picked.length ? '全部同じ人数で、少数派なし！ 次のお題でどうぞ。' : side.type === 'match' ? 'だれともハモらず…。次のお題でどうぞ。' : '今回は得点なし。次のお題でどうぞ。'}</p>}
           </div>
         </> : <p className={styles.voteStatus} aria-live="polite">{side.votesReceived} / {side.eligible} 人が投票済み</p>}
       </>}

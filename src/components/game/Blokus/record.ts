@@ -8,7 +8,7 @@
  */
 
 import type { MoveReview } from './ai';
-import { PASS, PIECES, RULES, applyMove, cloneState, legalMoves, moveCells, movePiece, newGame, passTurn, type GameState, type Mode } from './engine';
+import { PASS, PIECES, RULES, applyMove, cloneState, legalMoves, moveCells, moveOrientation, movePiece, newGame, passTurn, type GameState, type Mode } from './engine';
 import { SHARED, isValidSeating, ownerOf, seatScores, type Seating } from './seating';
 
 export const RECORD_VERSION = 1;
@@ -33,22 +33,56 @@ export interface GameRecord {
   review?: (StoredReview | null)[];
 }
 
-const isMode = (value: unknown): value is Mode => typeof value === 'string' && value in RULES;
+const isMode = (value: unknown): value is Mode => typeof value === 'string' && Object.hasOwn(RULES, value);
+
+const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object';
+
+const isLevel = (value: unknown) => typeof value === 'string' && ['easy', 'medium', 'hard', 'expert', 'master'].includes(value);
+
+const isController = (value: unknown) =>
+  isObject(value) &&
+  ((value.kind === 'ai' && isLevel(value.level)) ||
+    (value.kind === 'human' && (value.id === undefined || typeof value.id === 'string') && (value.name === undefined || typeof value.name === 'string')));
+
+/** Checked to the leaf before `isValidSeating`, which assumes the shape. */
+const isSeating = (value: unknown): value is Seating =>
+  isObject(value) &&
+  isMode(value.mode) &&
+  (value.shared === null || Number.isInteger(value.shared)) &&
+  Array.isArray(value.seats) &&
+  value.seats.every((seat) => isObject(seat) && Array.isArray(seat.colors) && seat.colors.every(Number.isInteger) && isController(seat.controller)) &&
+  isValidSeating(value as unknown as Seating);
+
+/** A move number the engine can decode: a pass, or a real orientation at some cell. */
+const isMoveNumber = (value: unknown): value is number =>
+  value === PASS || (Number.isSafeInteger(value) && (value as number) >= 0 && moveOrientation(value as number) !== undefined);
+
+const isReview = (value: unknown) =>
+  value === null || (isObject(value) && isMoveNumber(value.best) && Number.isFinite(value.bestMargin) && Number.isFinite(value.playedMargin));
 
 const isRecord = (value: unknown): value is GameRecord => {
-  if (!value || typeof value !== 'object') return false;
+  if (!isObject(value)) return false;
   const record = value as Partial<GameRecord>;
   return (
     record.v === RECORD_VERSION &&
     typeof record.id === 'string' &&
-    typeof record.playedAt === 'number' &&
-    !!record.seating &&
-    isMode(record.seating.mode) &&
-    isValidSeating(record.seating) &&
+    Number.isFinite(record.playedAt) &&
+    typeof record.online === 'boolean' &&
+    isSeating(record.seating) &&
     (record.me === null || (Number.isInteger(record.me) && record.me! >= 0 && record.me! < record.seating.seats.length)) &&
     Array.isArray(record.moves) &&
-    record.moves.every((move) => Number.isSafeInteger(move))
+    record.moves.every(isMoveNumber) &&
+    (record.review === undefined || (Array.isArray(record.review) && record.review.length <= record.moves.length && record.review.every(isReview)))
   );
+};
+
+/** One bad entry is dropped on its own: the rest of the games stay readable. */
+const isReadable = (value: unknown): value is GameRecord => {
+  try {
+    return isRecord(value);
+  } catch {
+    return false;
+  }
 };
 
 /** The position before each move and after the last: one more than there are moves, fewer if a move is not legal. */
@@ -107,7 +141,7 @@ const readAll = (): unknown[] => {
 };
 
 /** What is kept on this device, newest first. Empty where storage is off. */
-export const loadRecords = (): GameRecord[] => readAll().filter(isRecord);
+export const loadRecords = (): GameRecord[] => readAll().filter(isReadable);
 
 const writeAll = (records: readonly GameRecord[]): boolean => {
   try {

@@ -401,7 +401,14 @@ test('Duo: the copy button, an invite link, a colour, a whole game, the winner a
   await expect(ben.page.getByTestId('blokus-record')).toContainText('Online');
   await press(ben.page, 'blokus-record-back');
   await expect(ben.page.getByTestId('blokus-online-turn')).toBeVisible();
-  expect(await ann.page.evaluate(() => JSON.parse(localStorage.getItem('blokus-records-v1') ?? '[]').map((record: { moves: number[]; me: number }) => [record.moves.length, record.me]))).toEqual([[end.moves.length, 0]]);
+  const kept = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('blokus-records-v1') ?? '[]').map((record: { id: string; moves: number[]; me: number }) => [record.id, record.moves.length, record.me]));
+  expect(await kept(ann.page)).toEqual([[`room-${code}-1`, end.moves.length, 0]]);
+  // Back in the finished room after a reload, the game is the record already kept, not a second one.
+  const before = await kept(ben.page);
+  await ben.page.reload();
+  await expect(ben.page.getByTestId('blokus-online-turn')).toBeVisible();
+  await expect(ben.page.getByTestId('blokus-record-open')).toBeVisible();
+  expect(await kept(ben.page)).toEqual(before);
 
   await expect(ann.page.getByTestId('blokus-online-rematch')).toBeVisible();
   await expect(ben.page.getByTestId('blokus-online-rematch')).toHaveCount(0);

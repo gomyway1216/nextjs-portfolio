@@ -342,12 +342,18 @@ const Blokus = () => {
   useEffect(() => {
     if (!game.over || showSetup || showLobby || recordedRef.current === recordKey) return;
     recordedRef.current = recordKey;
+    // An online game is named after its room and match, so coming back to a finished room after a reload finds the
+    // record already kept (with any review) instead of saving it again.
+    const kept = inRoom ? loadRecords().find(({ id }) => id === recordKey) : undefined;
     const playedAt = Date.now();
     const me = inRoom ? (mySeat >= 0 ? mySeat : null) : humanCount(seating) === 1 ? YOU : null;
-    const record: GameRecord = { v: RECORD_VERSION, id: newRecordId(playedAt), playedAt, online: inRoom, seating, me, moves: [...moves] };
+    const record: GameRecord = kept ?? { v: RECORD_VERSION, id: inRoom ? recordKey : newRecordId(playedAt), playedAt, online: inRoom, seating, me, moves: [...moves] };
+    if (!kept) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the game ending is what this effect records
+      setRecordsSaved(saveRecord(record));
+      setRecords(loadRecords());
+    }
     setLastRecord(record);
-    setRecordsSaved(saveRecord(record));
-    setRecords(loadRecords());
   }, [game.over, showSetup, showLobby, recordKey, inRoom, mySeat, seating, moves]);
 
   const updateRecord = useCallback((record: GameRecord) => {

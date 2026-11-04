@@ -166,6 +166,24 @@ describe('keeping records on the device', () => {
     expect(loadRecords()).toEqual([]);
   });
 
+  it('drops a damaged entry on its own, whatever shape it is, and keeps the rest', () => {
+    const good = recordOf({ id: 'ok' });
+    store.set(
+      RECORDS_KEY,
+      JSON.stringify([
+        { ...good, id: 'no-seats', seating: { mode: 'duo' } },
+        { ...good, id: 'bad-seat', seating: { mode: 'duo', seats: [null, null], shared: null } },
+        { ...good, id: 'bad-controller', seating: { ...good.seating, seats: [{ colors: [0], controller: { kind: 'robot' } }, good.seating.seats[1]] } },
+        { ...good, id: 'mode-toString', seating: { ...good.seating, mode: 'toString' } },
+        { ...good, id: 'empty-review', review: [{}] },
+        { ...good, id: 'bad-best', review: [{ best: 10 ** 9, bestMargin: 1, playedMargin: 0 }] },
+        { ...good, id: 'long-review', review: good.moves.map(() => null).concat([null]) },
+        good,
+      ]),
+    );
+    expect(loadRecords().map(({ id }) => id)).toEqual(['ok']);
+  });
+
   it('says so when storage refuses a write', () => {
     vi.stubGlobal('window', {
       localStorage: {

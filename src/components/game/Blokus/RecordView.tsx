@@ -8,7 +8,7 @@ import { ArrowLeft, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Clipbo
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MoveReview } from './ai';
 import type { ReviewRequest } from './blokusAiWorkerClient';
-import { Board } from './Board';
+import { Board, BoardText } from './Board';
 import { PASS, PIECES, applyMove, cloneState, moveCells, movePiece } from './engine';
 import type { BlokusStrings } from './i18n';
 import { colorName, seatName } from './names';
@@ -127,6 +127,10 @@ export const RecordView = ({ record, t, language, requestReview, saved, onChange
     try {
       for (const at of reviewable) {
         if (working[at]) continue;
+        // Without the worker a review is worked out here and comes back already settled: a task in between lets the
+        // page paint the progress and take a press of Back before the next move.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (stopped.current) return;
         const seat = reviewedSeatOf(record, states[at], moves[at]);
         const { best, bestMargin, playedMargin } = await requestReview({
           state: states[at],
@@ -212,6 +216,7 @@ export const RecordView = ({ record, t, language, requestReview, saved, onChange
             onKeyDown={noop}
           />
         </div>
+        <BoardText game={shown} color={before?.toMove ?? 0} corners={[]} names={names} strings={t} />
         <div className={styles.recordNav}>
           <button type="button" className={styles.tool} aria-label={t.record.first} onClick={() => goTo(0)} disabled={step === 0}>
             <ChevronFirst className={styles.btnIcon} aria-hidden="true" />

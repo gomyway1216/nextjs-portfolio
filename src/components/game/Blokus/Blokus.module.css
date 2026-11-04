@@ -1325,3 +1325,353 @@
     transition: none;
   }
 }
+
+/* ---- game record ---- */
+/* After the layouts above: the record keeps its controls with the board on every screen, so it overrides them. */
+.layout[data-record='true'] .boardFrame {
+  width: min(100%, calc(100dvh - 15rem));
+}
+
+.recordHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.recordBack {
+  flex: none;
+}
+
+.recordHeading {
+  min-width: 0;
+}
+
+.recordTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.recordMeta {
+  margin: 0;
+  color: var(--blokus-muted);
+  font-size: 0.82rem;
+}
+
+.recordNav {
+  width: min(100%, 32rem);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.recordNav .tool {
+  flex: none;
+  width: 2.75rem;
+}
+
+.recordSlider {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  accent-color: var(--blokus-accent);
+}
+
+.recordMove {
+  width: min(100%, 32rem);
+  min-height: 4.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.recordStep {
+  color: var(--blokus-muted);
+  font-size: 0.82rem;
+}
+
+.recordMoveLine,
+.recordVerdictLine,
+.recordBetter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.recordMoveLine {
+  font-weight: 700;
+}
+
+.recordToggle {
+  flex: 0 0 auto;
+}
+
+.verdict {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+  --verdict: #15803d;
+  color: var(--verdict);
+  background: color-mix(in srgb, var(--verdict) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--verdict) 45%, transparent);
+}
+
+.verdict[data-verdict='good'] {
+  --verdict: #0f766e;
+}
+
+.verdict[data-verdict='inaccuracy'] {
+  --verdict: #a16207;
+}
+
+.verdict[data-verdict='mistake'] {
+  --verdict: #c2410c;
+}
+
+.verdict[data-verdict='blunder'] {
+  --verdict: #b91c1c;
+}
+
+:global(html.dark) .verdict {
+  --verdict: #4ade80;
+}
+
+:global(html.dark) .verdict[data-verdict='good'] {
+  --verdict: #2dd4bf;
+}
+
+:global(html.dark) .verdict[data-verdict='inaccuracy'] {
+  --verdict: #facc15;
+}
+
+:global(html.dark) .verdict[data-verdict='mistake'] {
+  --verdict: #fb923c;
+}
+
+:global(html.dark) .verdict[data-verdict='blunder'] {
+  --verdict: #f87171;
+}
+
+.recordPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px solid var(--blokus-border);
+  border-radius: 0.8rem;
+  background: var(--blokus-surface);
+}
+
+.recordPanel .resultRow {
+  animation: none;
+}
+
+.recordSubtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.recordNote {
+  margin: 0;
+  color: var(--blokus-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.recordProgress {
+  width: 100%;
+  accent-color: var(--blokus-accent);
+}
+
+.recordGraph {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.graphZero {
+  stroke: var(--blokus-border);
+  stroke-width: 1;
+}
+
+.graphNow {
+  stroke: var(--blokus-accent);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.graphLine {
+  fill: none;
+  stroke: var(--piece);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.graphPoint {
+  --verdict: #15803d;
+  fill: var(--verdict);
+  stroke: var(--blokus-solid);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.graphPoint[data-verdict='good'] {
+  --verdict: #0f766e;
+}
+
+.graphPoint[data-verdict='inaccuracy'] {
+  --verdict: #ca8a04;
+}
+
+.graphPoint[data-verdict='mistake'] {
+  --verdict: #ea580c;
+}
+
+.graphPoint[data-verdict='blunder'] {
+  --verdict: #dc2626;
+}
+
+.recordWorst,
+.recordMoves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.recordMoves {
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.recordJump,
+.recordEntry {
+  width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.recordJump[aria-current='step'] {
+  border-color: var(--blokus-accent);
+  background: color-mix(in srgb, var(--blokus-accent) 10%, transparent);
+}
+
+.recordJump:focus-visible,
+.recordEntry:focus-visible {
+  outline: 3px solid var(--blokus-accent);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .recordJump:hover,
+  .recordEntry:hover {
+    background: var(--blokus-slot);
+  }
+}
+
+.recordNumber {
+  min-width: 1.75rem;
+  color: var(--blokus-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.recordPiece {
+  flex: 1;
+  font-weight: 700;
+}
+
+.recordLost {
+  margin-left: auto;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.recordText {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.recordList {
+  width: min(100%, 36rem);
+}
+
+.recordList .recordMoves {
+  max-height: none;
+}
+
+.recordEntry {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  border-color: var(--blokus-border);
+}
+
+.recordEntryTitle {
+  font-weight: 800;
+}
+
+@media (max-width: 860px) {
+  .layout[data-record='true'] .boardFrame {
+    width: min(100%, calc(100dvh - 17rem));
+  }
+
+  .recordMove {
+    min-height: 4.25rem;
+    font-size: 0.86rem;
+  }
+}
+
+/* A phone on its side: the board on the left at the full height, held there while everything beside it scrolls. */
+@media (max-height: 500px) and (min-width: 560px) {
+  /* Four rows beside the board, and a last one that takes up any height the board has over them. */
+  .layout[data-record='true'] {
+    grid-template-rows: auto auto auto auto 1fr;
+    align-items: start;
+  }
+
+  .layout[data-record='true'] .boardColumn {
+    display: contents;
+  }
+
+  .layout[data-record='true'] .boardFrame {
+    grid-column: 1;
+    grid-row: 1 / 6;
+    width: calc(100dvh - var(--blokus-top) - var(--blokus-below));
+    position: sticky;
+    top: 0;
+  }
+
+  .layout[data-record='true'] .recordHeader,
+  .layout[data-record='true'] .recordNav,
+  .layout[data-record='true'] .recordMove,
+  .layout[data-record='true'] .sideColumn {
+    grid-column: 2;
+    width: 100%;
+  }
+
+  .layout[data-record='true'] .sideColumn {
+    grid-row: auto;
+  }
+}

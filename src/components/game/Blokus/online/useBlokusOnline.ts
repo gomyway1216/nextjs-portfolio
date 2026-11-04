@@ -116,6 +116,10 @@ export interface UseBlokusOnlineReturn {
   game: GameState | null;
   /** Each colour's last move, -1 before its first, for the board's highlight. */
   latestMoves: number[];
+  /** Every move so far, a pass as PASS: the game record. */
+  moves: number[];
+  /** Which of the room's games this is: a rematch is a new one. */
+  matchId: number | null;
   /** The winning seats, once over. More than one is a tie. */
   winners: number[];
   isMyTurn: boolean;
@@ -273,7 +277,8 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
   const wire = useMemo(() => parseSeats(seatsJson), [seatsJson]);
   const seating = useMemo(() => (mode && wire ? toSeating(mode, wire) : null), [mode, wire]);
   const leftSeats = useMemo(() => (wire ? leftSeatsOf(wire) : []), [wire]);
-  const replayed = useMemo(() => (mode && movesJson !== undefined ? replay(mode, parseMoves(movesJson)) : null), [mode, movesJson]);
+  const moves = useMemo(() => parseMoves(movesJson), [movesJson]);
+  const replayed = useMemo(() => (mode && movesJson !== undefined ? replay(mode, moves) : null), [mode, movesJson, moves]);
   const winners = useMemo(() => parseWinners(winnersJson), [winnersJson]);
 
   const game = replayed?.game ?? null;
@@ -470,6 +475,8 @@ export function useBlokusOnline(): UseBlokusOnlineReturn {
     currentSeat,
     game,
     latestMoves: replayed?.latest ?? [],
+    moves,
+    matchId: match,
     winners,
     isMyTurn,
     turnDeadline,

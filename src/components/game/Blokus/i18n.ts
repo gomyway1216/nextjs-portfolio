@@ -5,6 +5,49 @@
 import type { Difficulty } from '../common/types';
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { Mode } from './engine';
+import type { Verdict } from './record';
+
+export interface RecordStrings {
+  open: string;
+  history: (count: number) => string;
+  historyTitle: string;
+  historyEmpty: string;
+  title: string;
+  online: string;
+  players: (count: number) => string;
+  position: (move: number, total: number) => string;
+  startPosition: string;
+  first: string;
+  previous: string;
+  next: string;
+  last: string;
+  slider: string;
+  moveLine: (number: number, name: string, move: string) => string;
+  pass: string;
+  review: string;
+  reviewNote: string;
+  reviewing: (done: number, total: number) => string;
+  reviewFailed: string;
+  verdicts: Record<Verdict, string>;
+  lost: (points: string) => string;
+  showBest: string;
+  showPlayed: string;
+  bestWas: (move: string) => string;
+  showingBest: string;
+  graphTitle: string;
+  graphNote: string;
+  graphPoint: (number: number, margin: string, verdict: string) => string;
+  worstTitle: string;
+  noSlips: string;
+  movesTitle: string;
+  copy: string;
+  copied: string;
+  copyFailed: string;
+  remove: string;
+  removeConfirm: string;
+  back: string;
+  notSaved: string;
+}
 
 export interface BlokusStrings {
   title: string;
@@ -74,6 +117,7 @@ export interface BlokusStrings {
   bonusSingle: string;
   newGame: string;
   changeDifficulty: string;
+  record: RecordStrings;
   infoTitle: string;
   objectiveTitle: string;
   objectiveBody: string;
@@ -161,6 +205,47 @@ const en: BlokusStrings = {
   bonusSingle: 'single last',
   newGame: 'New Game',
   changeDifficulty: 'Change Level',
+  record: {
+    open: 'Game record',
+    history: (count) => `Past games (${count})`,
+    historyTitle: 'Past games',
+    historyEmpty: 'No games yet. Finished games are kept on this device.',
+    title: 'Game record',
+    online: 'Online',
+    players: (count) => `${count} players`,
+    position: (move, total) => `Move ${move} of ${total}`,
+    startPosition: 'Before the first move',
+    first: 'First move',
+    previous: 'Previous move',
+    next: 'Next move',
+    last: 'Last move',
+    slider: 'Move',
+    moveLine: (number, name, move) => `${number}. ${name}: ${move}`,
+    pass: 'passed',
+    review: 'Review with AI',
+    reviewNote: 'For each of your moves the strongest AI plays every good alternative to the end many times, and shows how many points your move gave away.',
+    reviewing: (done, total) => `Reviewing… ${done} of ${total}`,
+    reviewFailed: 'The review stopped. Try again.',
+    verdicts: { best: 'Best', good: 'Good', inaccuracy: 'Inaccuracy', mistake: 'Mistake', blunder: 'Blunder' },
+    lost: (points) => `about ${points} points given away`,
+    showBest: 'Show the better move',
+    showPlayed: 'Back to the move played',
+    bestWas: (move) => `Better: ${move}`,
+    showingBest: 'Showing the better move',
+    graphTitle: 'How it went',
+    graphNote: 'Your expected final lead after each of your moves. Above 0 you were on course to win; a sudden drop is the move that cost you.',
+    graphPoint: (number, margin, verdict) => `Move ${number}: ${margin} points, ${verdict}`,
+    worstTitle: 'Your costliest moves',
+    noSlips: 'No move gave away more than a point and a half.',
+    movesTitle: 'All moves',
+    copy: 'Copy as text',
+    copied: 'Copied.',
+    copyFailed: 'Could not copy. Select the text below instead.',
+    remove: 'Delete this record',
+    removeConfirm: 'Delete this game record?',
+    back: 'Back',
+    notSaved: 'This device would not keep the record (storage is off), so it lasts only until you leave the page.',
+  },
   infoTitle: 'How to Play Blokus',
   objectiveTitle: 'Objective',
   objectiveBody: 'Place as many of your 21 pieces as you can. The player with the fewest squares left in hand wins.',
@@ -188,6 +273,7 @@ const en: BlokusStrings = {
     'Head for the centre first: it opens the most corners.',
     'Keep several open corners, so one block can’t shut you out.',
     'Sit in a rival’s gap and its corners close for good.',
+    'Every finished game is kept on this device: open its record from the scores or Past games, and let the AI show which moves cost you.',
   ],
   difficulties: {
     easy: { label: 'Easy', description: 'Big pieces, not much of a plan' },
@@ -270,6 +356,47 @@ const ja: BlokusStrings = {
   bonusSingle: '最後が1マス',
   newGame: '新しいゲーム',
   changeDifficulty: 'レベルを変更',
+  record: {
+    open: '棋譜を見る',
+    history: (count) => `過去の対局（${count}）`,
+    historyTitle: '過去の対局',
+    historyEmpty: 'まだ対局がありません。終わった対局はこの端末に残ります。',
+    title: '棋譜',
+    online: 'オンライン',
+    players: (count) => `${count}人`,
+    position: (move, total) => `${move} / ${total}手`,
+    startPosition: '初手の前',
+    first: '最初へ',
+    previous: '1手戻る',
+    next: '1手進む',
+    last: '最後へ',
+    slider: '手数',
+    moveLine: (number, name, move) => `${number}手目 ${name}：${move}`,
+    pass: 'パス',
+    review: 'AIで振り返る',
+    reviewNote: 'あなたの手ごとに、最強のAIが有力な候補手をそれぞれ最後まで何度も打ち比べて、その手で何点損したかを出します。',
+    reviewing: (done, total) => `振り返り中… ${done} / ${total}`,
+    reviewFailed: '振り返りが止まりました。もう一度お試しください。',
+    verdicts: { best: '最善', good: '好手', inaccuracy: '疑問手', mistake: '悪手', blunder: '大悪手' },
+    lost: (points) => `約${points}点の損`,
+    showBest: 'よりよい手を見る',
+    showPlayed: '実際の手に戻す',
+    bestWas: (move) => `よりよい手：${move}`,
+    showingBest: 'よりよい手を表示中',
+    graphTitle: '形勢の流れ',
+    graphNote: 'あなたの手ごとの、最終的な点差の見込みです。0より上なら勝ちの見込み。急に下がったところが痛かった手です。',
+    graphPoint: (number, margin, verdict) => `${number}手目：${margin}点、${verdict}`,
+    worstTitle: '損の大きかった手',
+    noSlips: '1.5点以上損した手はありませんでした。',
+    movesTitle: 'すべての手',
+    copy: 'テキストでコピー',
+    copied: 'コピーしました。',
+    copyFailed: 'コピーできませんでした。下のテキストを選んでコピーしてください。',
+    remove: 'この棋譜を消す',
+    removeConfirm: 'この棋譜を消しますか？',
+    back: '戻る',
+    notSaved: 'この端末に保存できませんでした（ストレージがオフ）。このページを離れるまでの間だけ残ります。',
+  },
   infoTitle: 'ブロックスの遊び方',
   objectiveTitle: '目的',
   objectiveBody: '21個のピースをできるだけ多く置きましょう。手元に残ったマスが最も少ない色の勝ちです。',
@@ -295,6 +422,7 @@ const ja: BlokusStrings = {
     'まず中央を目指すと、多くの角が開けます。',
     '空いた角を複数持っておけば、1か所ふさがれても続けられます。',
     '相手の隙間に入り込めば、その角は二度と使えなくなります。',
+    '終わった対局はこの端末に棋譜として残ります。結果画面か「過去の対局」から開いて、AIにどの手で損をしたか振り返ってもらえます。',
   ],
   difficulties: {
     easy: { label: '初級', description: '大きなピースを気ままに置く' },

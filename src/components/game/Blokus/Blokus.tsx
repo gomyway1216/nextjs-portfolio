@@ -8,16 +8,17 @@
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, RotateCcw, RotateCw, SlidersHorizontal, Users } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FlipHorizontal2, History, RotateCcw, RotateCw, ScrollText, SlidersHorizontal, Users } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, DifficultySelector, GameStats, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { createBlokusAiClient, type BlokusAiClient } from './blokusAiWorkerClient';
+import { createBlokusAiClient, type BlokusAiClient, type ReviewRequest } from './blokusAiWorkerClient';
 import { Board, BoardText, type Ghost } from './Board';
 import {
   ALL_PLACED_BONUS,
   ORIENTATIONS,
+  PASS,
   PIECES,
   TOTAL_SQUARES,
   applyMove,
@@ -39,16 +40,17 @@ import {
   type Orientation,
 } from './engine';
 import { getBlokusStrings, type BlokusStrings } from './i18n';
+import { colorName, humanCount, seatName } from './names';
 import { BlokusOnlineBar } from './online/BlokusOnlineBar';
 import { BlokusOnlineLobby } from './online/BlokusOnlineLobby';
 import { useBlokusOnline } from './online/useBlokusOnline';
+import { RECORD_VERSION, deleteRecord, loadRecords, newRecordId, saveRecord, type GameRecord } from './record';
+import { RecordList, RecordView } from './RecordView';
 import { SeatPicker } from './SeatPicker';
 import {
-  SHARED,
   chooseColor,
   defaultSeating,
   nextColorFor,
-  ownerOf,
   seatFor,
   seatScores,
   seatWinners,
@@ -108,27 +110,6 @@ const nearestLegal = (moves: readonly number[], orientation: Orientation, row: n
 };
 
 const isHuman = (seating: Seating, seat: number): boolean => seating.seats[seat].controller.kind === 'human';
-const humanCount = (seating: Seating): number => seating.seats.filter(({ controller }) => controller.kind === 'human').length;
-
-const listNames = (t: BlokusStrings, names: readonly string[]): string => names.reduce((first, second) => t.and(first, second));
-
-const seatName = (t: BlokusStrings, seating: Seating, seat: number): string => {
-  const { controller, colors } = seating.seats[seat];
-  if (controller.kind === 'ai') return t.ai(listNames(t, colors.map((color) => t.colors[seating.mode][color])));
-  if (controller.name) return controller.name;
-  return humanCount(seating) === 1 ? t.you : t.player(seat + 1);
-};
-
-/** What a colour's row is called. A person's colours are told apart by name once there is more than one to tell. */
-const colorName = (t: BlokusStrings, seating: Seating, color: number): string => {
-  const name = t.colors[seating.mode][color];
-  const owner = ownerOf(seating, color);
-  if (owner === SHARED) return t.sharedColor(name);
-  const seat = seating.seats[owner];
-  if (seat.controller.kind === 'ai') return t.ai(name);
-  return seat.colors.length > 1 || humanCount(seating) > 1 ? t.withColor(seatName(t, seating, owner), name) : seatName(t, seating, owner);
-};
-
 /** The setup's table: you in the first seat, keeping whoever else was already sitting down, and AIs in the rest. */
 const tableFor = (mode: Mode, count: number, sitting: readonly Controller[], level: Difficulty): Seating =>
   defaultSeating(
@@ -145,7 +126,7 @@ const statsAfter = (stats: GameStats, seating: Seating, game: GameState): GameSt
   return top.length === 1 ? { ...stats, wins: stats.wins + 1 } : { ...stats, draws: stats.draws + 1 };
 };
 
-const Result = ({ game, seating, t, onNewGame, onMenu }: { game: GameState; seating: Seating; t: BlokusStrings; onNewGame: () => void; onMenu: () => void }) => {
+const Result = ({ game, seating, t, onNewGame, onMenu, onRecord }: { game: GameState; seating: Seating; t: BlokusStrings; onNewGame: () => void; onMenu: () => void; onRecord?: () => void }) => {
   const all = seatScores(seating, game);
   const top = seatWinners(seating, game);
   const order = all.map((score, seat) => ({ score, seat })).sort((a, b) => b.score - a.score);
@@ -184,6 +165,12 @@ const Result = ({ game, seating, t, onNewGame, onMenu }: { game: GameState; seat
           <SlidersHorizontal className={styles.btnIcon} aria-hidden="true" />
           {t.changeDifficulty}
         </button>
+        {onRecord && (
+          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onRecord} data-testid="blokus-record-open">
+            <ScrollText className={styles.btnIcon} aria-hidden="true" />
+            {t.record.open}
+          </button>
+        )}
       </div>
     </section>
   );
@@ -210,6 +197,17 @@ const Blokus = () => {
   const drag = usePieceDrag();
   const clientRef = useRef<BlokusAiClient | null>(null);
   const seedRef = useRef(1);
+  const [soloMoves, setMoves] = useState<number[]>([]);
+  /** Counts the games played here, so each is recorded once. */
+  const [soloGameId, setSoloGameId] = useState(0);
+  /** The finished games kept on this device, newest first. Read once in the browser. */
+  const [records, setRecords] = useState<GameRecord[]>([]);
+  const [recordsSaved, setRecordsSaved] = useState(true);
+  const [lastRecord, setLastRecord] = useState<GameRecord | null>(null);
+  /** The record on screen, over whatever else would be. */
+  const [viewing, setViewing] = useState<GameRecord | null>(null);
+  const [listOpen, setListOpen] = useState(false);
+  const recordedRef = useRef<string | null>(null);
 
   const online = useBlokusOnline();
   const { game: roomGame, seating: roomSeating, mySeat, lobbyState } = online;
@@ -217,7 +215,9 @@ const Blokus = () => {
   const inRoom = room !== null;
   const showLobby = !inRoom && (wantsOnline || online.active || online.invite !== null);
   const showSetup = !inRoom && !showLobby && inSetup;
-  const screen = showLobby ? 'lobby' : showSetup ? 'setup' : 'game';
+  const showRecords = viewing !== null || listOpen;
+  // The record and the list of them are screens too: each opens at its top, and a review saving onto it changes no id.
+  const screen = viewing ? `record-${viewing.id}` : listOpen ? 'records' : showLobby ? 'lobby' : showSetup ? 'setup' : 'game';
   const rootRef = useRef<HTMLDivElement>(null);
   // A short window scrolls down to the setup's Start button; the next screen still opens at its top.
   useLayoutEffect(() => {
@@ -265,6 +265,7 @@ const Blokus = () => {
       const color = from.toMove;
       applyMove(next, move);
       setGame(next);
+      setMoves((current) => [...current, move]);
       setLatest((current) => {
         const updated = current.length === from.rules.colors ? [...current] : Array.from({ length: from.rules.colors }, () => -1);
         updated[color] = move;
@@ -280,6 +281,7 @@ const Blokus = () => {
       const next = cloneState(from);
       passTurn(next);
       setGame(next);
+      setMoves((current) => [...current, PASS]);
       finish(next);
     },
     [finish],
@@ -317,6 +319,8 @@ const Blokus = () => {
 
   const resetTo = useCallback((nextMode: Mode) => {
     setGame(newGame(nextMode));
+    setMoves([]);
+    setSoloGameId((id) => id + 1);
     setLatest([]);
     setHeld(null);
     setNotice(null);
@@ -332,6 +336,52 @@ const Blokus = () => {
     resetTo(mode);
     setShowSetup(true);
   }, [mode, resetTo]);
+
+  // localStorage is only there in the browser: the page renders without the records, then reads them.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read once, after the page has hydrated
+    setRecords(loadRecords());
+  }, []);
+
+  // Every finished game is kept, once: a rematch online and a new game here are new records.
+  const moves = inRoom ? online.moves : soloMoves;
+  const recordKey = inRoom ? `room-${online.roomId}-${online.matchId}` : `solo-${soloGameId}`;
+  useEffect(() => {
+    if (!game.over || showSetup || showLobby || recordedRef.current === recordKey) return;
+    recordedRef.current = recordKey;
+    // An online game is named after its room and match, so coming back to a finished room after a reload finds the
+    // record already kept (with any review) instead of saving it again.
+    const kept = inRoom ? loadRecords().find(({ id }) => id === recordKey) : undefined;
+    const playedAt = Date.now();
+    const me = inRoom ? (mySeat >= 0 ? mySeat : null) : humanCount(seating) === 1 ? YOU : null;
+    const record: GameRecord = kept ?? { v: RECORD_VERSION, id: inRoom ? recordKey : newRecordId(playedAt), playedAt, online: inRoom, seating, me, moves: [...moves] };
+    if (!kept) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the game ending is what this effect records
+      setRecordsSaved(saveRecord(record));
+      setRecords(loadRecords());
+    }
+    setLastRecord(record);
+  }, [game.over, showSetup, showLobby, recordKey, inRoom, mySeat, seating, moves]);
+
+  const updateRecord = useCallback((record: GameRecord) => {
+    setViewing(record);
+    setLastRecord((current) => (current?.id === record.id ? record : current));
+    setRecordsSaved(saveRecord(record));
+    // Only this record's review changed: no need to read the rest back on every reviewed move.
+    setRecords((current) => current.map((entry) => (entry.id === record.id ? record : entry)));
+  }, []);
+
+  const requestReview = useCallback((request: ReviewRequest) => {
+    const client = clientRef.current;
+    return client ? client.requestReview(request) : Promise.reject(new Error('Blokus AI is not running'));
+  }, []);
+
+  const removeRecord = useCallback((record: GameRecord) => {
+    deleteRecord(record.id);
+    setRecords(loadRecords());
+    setLastRecord((current) => (current?.id === record.id ? null : current));
+    setViewing(null);
+  }, []);
 
   const chooseMode = useCallback(
     (value: Mode) => {
@@ -513,14 +563,14 @@ const Blokus = () => {
 
   // R, F and Esc work wherever the focus is, as the piece is held rather than on the board.
   useEffect(() => {
-    if (showSetup || showLobby || showInfo) return;
+    if (showSetup || showLobby || showInfo || showRecords) return;
     const listener = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (handleKey(event.key)) event.preventDefault();
     };
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, [handleKey, showSetup, showLobby, showInfo]);
+  }, [handleKey, showSetup, showLobby, showInfo, showRecords]);
 
   const corners = useMemo(() => {
     if (showSetup || game.over || game.hands[handColor] === 0 || game.out[handColor]) return [];
@@ -590,7 +640,21 @@ const Blokus = () => {
     >
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-      {showLobby ? (
+      {viewing ? (
+        <RecordView
+          key={viewing.id}
+          record={viewing}
+          t={t}
+          language={language}
+          requestReview={requestReview}
+          saved={recordsSaved}
+          onChange={updateRecord}
+          onDelete={() => removeRecord(viewing)}
+          onBack={() => setViewing(null)}
+        />
+      ) : listOpen ? (
+        <RecordList records={records} t={t} language={language} onOpen={setViewing} onBack={() => setListOpen(false)} />
+      ) : showLobby ? (
         <BlokusOnlineLobby
           online={online}
           onBack={() => {
@@ -616,6 +680,12 @@ const Blokus = () => {
                 <Users className={styles.btnIcon} aria-hidden="true" />
                 {t.playOnline}
               </button>
+              {records.length > 0 && (
+                <button type="button" className={`${styles.btn} ${styles.btnSecondary} ${styles.onlineButton}`} data-testid="blokus-records" onClick={() => setListOpen(true)}>
+                  <History className={styles.btnIcon} aria-hidden="true" />
+                  {t.record.history(records.length)}
+                </button>
+              )}
               <fieldset className={styles.modePicker}>
                 <legend className={styles.modeTitle}>{t.modeTitle}</legend>
                 <div className={styles.modeOptions}>
@@ -646,7 +716,7 @@ const Blokus = () => {
         />
       ) : (
         <div className={styles.layout} data-mode={game.rules.mode} data-room={inRoom}>
-          {inRoom && <BlokusOnlineBar online={online} />}
+          {inRoom && <BlokusOnlineBar online={online} onRecord={lastRecord ? () => setViewing(lastRecord) : undefined} />}
           <div className={styles.boardColumn}>
             <div className={styles.status} role="status" aria-live="polite" data-testid="blokus-status">
               <span className={styles.statusMain}>
@@ -696,7 +766,7 @@ const Blokus = () => {
             </ul>
 
             {inRoom && game.over ? null : game.over ? (
-              <Result game={game} seating={seating} t={t} onNewGame={startGame} onMenu={backToMenu} />
+              <Result game={game} seating={seating} t={t} onNewGame={startGame} onMenu={backToMenu} onRecord={lastRecord ? () => setViewing(lastRecord) : undefined} />
             ) : (
               <>
                 <div className={styles.controls} data-touch={pointer === 'touch'}>

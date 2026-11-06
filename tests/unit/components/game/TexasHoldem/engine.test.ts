@@ -8,6 +8,7 @@ import {
   createGame,
   evaluateBest,
   evaluateFive,
+  evaluateMadeHand,
   settleShowdown,
   type Card,
   type PlayerState,
@@ -54,6 +55,12 @@ describe('Texas Hold’em engine', () => {
     const best = evaluateBest(cards('As Ah Kd Kc Ks 2d 3c'));
     expect(best.name).toBe('full-house');
     expect(best.tiebreak).toEqual([13, 14]);
+  });
+
+  it('reports a made hand once the flop is available', () => {
+    expect(evaluateMadeHand(cards('Ah 7c'), cards('Ad 9s 2h'))?.name).toBe('one-pair');
+    expect(evaluateMadeHand(cards('Ah 7c'), cards('Ad 7s 2h 3c'))?.name).toBe('two-pair');
+    expect(evaluateMadeHand(cards('Ah 7c'), cards('Ad 9s'))).toBeNull();
   });
 
   it('splits main and side pots by contribution level', () => {

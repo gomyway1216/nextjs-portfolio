@@ -17,6 +17,8 @@ import { LAMPS, SEGMENTS_OF, SPOTS, WHEEL, drawSpin, hashText, resultOf, seeded,
 import { getStrings } from './i18n';
 import { BET_STEPS, BIG_WHEEL_GAME, SPOT_MAX, betsOf, createTable, spinId, tapAmount, type PlacedBet, type SpinRecord, type Staked, type Table } from './medalTable';
 import { angleFor, segmentAt, showOf, type Phase, type Show } from './physics';
+import { NumberTally, SpinLog, type LoggedSpin } from './VisitLog';
+import { emptyTally, tallyWith, type VisitTally } from './visitTally';
 import { Wheel, lookOf, type WheelRun } from './Wheel';
 import styles from './BigWheel.module.css';
 
@@ -62,22 +64,28 @@ const subscribeToMotion = (listener: () => void): (() => void) => {
 type InFlight = Staked & { show: Show };
 
 /** What the machine shows of a spin that has ended. */
-interface Outcome {
-  id: string;
-  spot: Spot;
-  multiplier: 1 | Multiplier;
-  bonus: boolean;
+interface Outcome extends LoggedSpin {
   /** The segment the wheel ended on. */
   segment: number;
-  won: number;
-  wagered: number;
   /** The last spin from before this page opened. */
   earlier: boolean;
 }
 
-const outcomeOf = (record: SpinRecord, earlier: boolean): Outcome => {
+/** A spin that has ended, with its place among this visit's spins: none for the last spin from before this page opened. */
+const outcomeOf = (record: SpinRecord, no: number | null): Outcome => {
   const result = resultOf(record.spin);
-  return { id: record.id, spot: result.spot, multiplier: result.multiplier, bonus: result.bonus, segment: result.bonus ? record.spin.second! : record.spin.stop, won: record.won, wagered: record.wagered, earlier };
+  return {
+    id: record.id,
+    no,
+    spot: result.spot,
+    multiplier: result.multiplier,
+    bonus: result.bonus,
+    segment: result.bonus ? record.spin.second! : record.spin.stop,
+    bets: record.bets.map(({ spot, amount }) => ({ spot, amount })),
+    won: record.won,
+    wagered: record.wagered,
+    earlier: no === null,
+  };
 };
 
 interface SessionStats {
@@ -144,6 +152,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [history, setHistory] = useState<Outcome[]>([]);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
+  // This visit number by number, and the spin of the last ones picked to look at (the newest while none is).
+  const [tally, setTally] = useState<VisitTally>(emptyTally);
+  const tallyRef = useRef<VisitTally>(tally);
+  const [pickedSpin, setPickedSpin] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [lastBets, setLastBets] = useState<PlacedBet[]>([]);
@@ -343,8 +355,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setHiddenWin(0);
       if (!flight.paid) table.current?.settle(flight);
       if (record.won > 0) play(record.won >= BIG_WIN || result.multiplier === 10 ? 'big' : 'win', 0.05);
-      const shown = outcomeOf(record, false);
+      const counted = tallyWith(tallyRef.current, { spot: result.spot, multiplier: result.multiplier, bets: record.bets });
+      tallyRef.current = counted;
+      setTally(counted);
+      const shown = outcomeOf(record, counted.spins);
       setOutcome(shown);
+      setPickedSpin(null);
       setHistory((before) => [shown, ...before].slice(0, HISTORY_LIMIT));
       setStats((s) => ({
         spins: s.spins + 1,
@@ -372,6 +388,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setOutcome(null);
       setHistory([]);
       setStats(EMPTY_STATS);
+      tallyRef.current = emptyTally();
+      setTally(tallyRef.current);
+      setPickedSpin(null);
       setMessage('');
       rememberBets([]);
       clearBoard();
@@ -430,7 +449,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           if (last && shownLast.current !== last.id) {
             shownLast.current = last.id;
             rememberBets(last.bets);
-            const shown = outcomeOf(last, true);
+            const shown = outcomeOf(last, null);
             // The wheel stands where that spin stopped, its lamp lit if it had one.
             const angle = angleFor(shown.segment);
             restRef.current = angle;
@@ -756,33 +775,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
-        <section className={styles.panel} aria-labelledby="bw-history-title">
-          <h2 id="bw-history-title" className={styles.panelTitle}>
-            {t.historyTitle}
-          </h2>
-          {history.length === 0 ? (
-            <p className={styles.muted}>{t.historyEmpty}</p>
-          ) : (
-            <ol className={styles.historyList} data-testid="bw-history">
-              {history.map((entry) => {
-                const look = lookOf(entry.spot);
-                return (
-                  <li
-                    key={entry.id}
-                    className={styles.historyChip}
-                    style={{ '--fill': look.fill, '--ink': look.ink } as CSSProperties}
-                    data-bonus={entry.bonus ? 'true' : 'false'}
-                    data-won={entry.won > 0 ? 'true' : 'false'}
-                    title={entry.bonus ? t.historyBonus(entry.multiplier) : undefined}
-                  >
-                    {entry.bonus && <span className={styles.historyStar}>★×{entry.multiplier}</span>}
-                    <span>{entry.spot}</span>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </section>
+        <SpinLog t={t} fmt={fmt} history={history} selectedId={pickedSpin} onSelect={setPickedSpin} />
 
         <section className={styles.panel} aria-labelledby="bw-session-title">
           <h2 id="bw-session-title" className={styles.panelTitle}>
@@ -826,6 +819,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             </div>
           </dl>
         </section>
+
+        <NumberTally t={t} locale={locale} tally={tally} />
       </div>
 
       <p className={styles.srOnly} aria-live="polite" data-testid="bw-announcement">

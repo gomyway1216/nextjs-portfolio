@@ -3,7 +3,8 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
 import { WAITING as BANK_WAITING, type BankState } from '@/components/game/MedalCenter/bank';
-import { CENTER, createHistory, record, type History, type Observation } from '@/components/game/MedalCenter/history';
+import { CENTER, FLOOR_JACKPOT, HISTORY_LIMITS, createHistory, record, type History, type Observation } from '@/components/game/MedalCenter/history';
+import { EVERYTHING, chosenOf, listedIn, tallyOf } from '@/components/game/MedalCenter/historyFilter';
 import { HISTORY_WAITING, type HistoryState } from '@/components/game/MedalCenter/historyStore';
 import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MyPage, MyPageView, PAGE_SIZE } from '@/components/game/MedalCenter/MyPage';
@@ -217,5 +218,125 @@ describe('a floor jackpot on the my page', () => {
     expect(html).toMatch(/data-testid="mypage-total-won">357</);
     // Nobody who has not won one is shown the card.
     expect(view('en', 'test-player-1')).not.toContain('mypage-floor-jackpot');
+  });
+});
+
+describe('the history of one machine at a time', () => {
+  const listing = (machine: string, history = historyOf(), lang: 'en' | 'ja' = 'en') =>
+    wrap(<MyPageView bank={bankState(100)} history={historyState(history)} book={BOOK_WAITING} listing={machine} />, lang);
+  const said = (html: string) => textOf(html.match(/data-testid="mypage-filter-said"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '').trim();
+  const options = (html: string) => [...(html.match(/<select[\s\S]*?<\/select>/)?.[0] ?? '').matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)].map((match) => `${match[1]}=${match[2]}`);
+
+  it('offers everything and each thing the list holds entries of, with how many, the latest first', () => {
+    const html = view();
+    expect(options(html)).toEqual([`${EVERYTHING}=Everything`, `${CENTER}=Medal Game Center (2)`, 'medal-pusher=Medal Pusher (2)', 'slot-machine=Slot Machine (1)', 'roulette=Roulette &amp; Martingale (1)']);
+    expect(html).toMatch(/data-testid="mypage-history" data-loaded="true" data-entries="6" data-listing=""/);
+    expect(said(html)).toBe('The history holds 6 entries.');
+    expect(html).not.toContain('mypage-filter-tally');
+    expect(html).toMatch(/<label for="([^"]+)"[^>]*>Show<\/label><select id="\1"/);
+  });
+
+  it('lists only the chosen machine’s entries, and says how many they are and what its rounds add up to', () => {
+    const html = listing('roulette');
+    const kinds = [...html.matchAll(/data-kind="([a-z]+)" data-game="([a-z-]+)" data-testid="mypage-entry"/g)].map((match) => `${match[1]}:${match[2]}`);
+    expect(kinds).toEqual(['round:roulette']);
+    expect(html).toMatch(/<option value="roulette" selected="">/);
+    expect(html).toContain('data-listing="roulette"');
+    expect(said(html)).toBe('Roulette & Martingale: 1 of the history’s 6 entries. Bet 5 · won 35 +30 30 medals up');
+    // A machine that lost says so.
+    expect(said(listing('slot-machine'))).toBe('Slot Machine: 1 of the history’s 6 entries. Bet 3 · won 0 −3 3 medals down');
+  });
+
+  it('adds up a pusher’s visits as medals fed, its jackpot (the visit’s own medals) once', () => {
+    const html = listing('medal-pusher');
+    expect(html.match(/data-testid="mypage-entry"/g)).toHaveLength(2);
+    expect(said(html)).toBe('Medal Pusher: 2 of the history’s 6 entries. Fed 40 · won 322 +282 282 medals up');
+  });
+
+  it('adds nothing up where nothing was played: the medal center’s own entries, and the floor jackpot’s', () => {
+    const center = listing(CENTER);
+    expect(center.match(/data-testid="mypage-entry"/g)).toHaveLength(2);
+    expect(said(center)).toBe('Medal Game Center: 2 of the history’s 6 entries.');
+    const won = record(historyOf(), { type: 'floor', id: '20261017-a1b2c3d4', medals: 2_431, at: T0 + 300_000, day: DAY, left: 2_531 } as Observation);
+    expect(said(listing(FLOOR_JACKPOT, won))).toBe('Medal floor: 1 of the history’s 7 entries.');
+  });
+
+  it('pages through the chosen machine’s entries, not the whole history’s', () => {
+    let history = createHistory('phone00001', T0);
+    for (let i = 0; i < PAGE_SIZE + 5; i++) {
+      history = record(history, { type: 'move', game: i % 2 ? 'roulette' : 'slot-machine', round: `s${i}`, step: 'pay', medals: 1, at: T0 + i * 1000, day: DAY, left: 100 + i });
+    }
+    for (let i = 0; i < PAGE_SIZE + 7; i++) {
+      history = record(history, { type: 'move', game: 'blackjack', round: `c${i}`, step: 'pay', medals: 2, at: T0 + 100_000 + i * 1000, day: DAY, left: 200 + i });
+    }
+    const few = listing('roulette', history);
+    expect(few.match(/data-testid="mypage-entry"/g)).toHaveLength(22);
+    expect(few).not.toContain('data-testid="mypage-more"');
+    const many = listing('blackjack', history);
+    expect(many.match(/data-testid="mypage-entry"/g)).toHaveLength(PAGE_SIZE);
+    expect(textOf(many)).toContain(`Showing ${PAGE_SIZE} of ${PAGE_SIZE + 7}.`);
+    expect(many).toContain('Show 7 more');
+  });
+
+  it('goes back to everything when the list holds nothing of what was chosen', () => {
+    const html = listing('craps');
+    expect(html).toContain('data-listing=""');
+    expect(html.match(/data-testid="mypage-entry"/g)).toHaveLength(6);
+    expect(said(html)).toBe('The history holds 6 entries.');
+  });
+
+  it('once the history has let entries go, says a machine’s list is not all of it, and keeps the days’ totals for everything', () => {
+    const at = (date: number, minute: number) => new Date(2026, 9, date, 20, minute).getTime();
+    const steps: Observation[] = [
+      { type: 'move', game: 'roulette', round: 'a1', step: 'pay', medals: 5, at: at(15, 0), day: '2026-10-15', left: 105 },
+      ...[1, 2, 3].map((n): Observation => ({ type: 'move', game: 'roulette', round: `b${n}`, step: 'pay', medals: 2, at: at(16, n), day: '2026-10-16', left: 105 + 2 * n })),
+    ];
+    const whole = steps.reduce(record, createHistory('phone00001', at(15, 0) - 60_000));
+    const kept: History = { ...whole, entries: whole.entries.slice(0, 2) };
+    const one = listing('roulette', kept);
+    expect(one).toContain('data-testid="mypage-filter-cut"');
+    expect(one).not.toContain('data-testid="mypage-day-cut"');
+    expect(one).not.toContain('data-testid="mypage-older"');
+    const all = listing(EVERYTHING, kept);
+    expect(all).not.toContain('data-testid="mypage-filter-cut"');
+    expect(all).toContain('data-testid="mypage-day-cut"');
+    expect(all).toContain('data-testid="mypage-older"');
+    // A history that has let nothing go has nothing to say about it.
+    expect(listing('roulette', whole)).not.toContain('data-testid="mypage-filter-cut"');
+    expect(whole.entries.length).toBeLessThan(HISTORY_LIMITS.entries);
+  });
+
+  it('holds its place, with nothing to choose, until the history has been read and while it is empty', () => {
+    const waiting = wrap(<MyPageView bank={BANK_WAITING} history={HISTORY_WAITING} book={BOOK_WAITING} />);
+    expect(waiting).toMatch(/<select[^>]*data-testid="mypage-filter"[^>]*disabled=""/);
+    expect(said(waiting)).toBe('—');
+    const empty = listing(EVERYTHING, createHistory('phone00001', T0));
+    expect(empty).toMatch(/<select[^>]*data-testid="mypage-filter"[^>]*disabled=""/);
+    expect(said(empty)).toBe('The history holds 0 entries.');
+    expect(empty).toContain('data-testid="mypage-empty"');
+  });
+
+  it('reads in Japanese', () => {
+    const html = listing('roulette', historyOf(), 'ja');
+    expect(options(html)[0]).toBe(`${EVERYTHING}=すべて`);
+    expect(said(html).replace(/ /g, '')).toBe('ルーレット&マーチンゲール：履歴6件のうち1件です。ベット5枚・獲得35枚+3030枚プラス');
+    expect(html).toMatch(/>絞り込み<\/label>/);
+  });
+
+  it('counts what the entries are of, and adds up only rounds and visits', () => {
+    const { entries } = historyOf();
+    expect(listedIn(entries)).toEqual([
+      { game: CENTER, count: 2 },
+      { game: 'medal-pusher', count: 2 },
+      { game: 'slot-machine', count: 1 },
+      { game: 'roulette', count: 1 },
+    ]);
+    expect(listedIn([])).toEqual([]);
+    expect(chosenOf('roulette', listedIn(entries))).toBe('roulette');
+    expect(chosenOf('craps', listedIn(entries))).toBe(EVERYTHING);
+    expect(chosenOf('roulette', [])).toBe(EVERYTHING);
+    // Every entry: the two rounds and the pusher's one visit. The bonus, the jackpot and the reset are left out.
+    expect(tallyOf(entries)).toEqual({ rounds: 2, visits: 1, bet: 48, won: 357 });
+    expect(tallyOf(entries.filter((entry) => entry.g === CENTER))).toEqual({ rounds: 0, visits: 0, bet: 0, won: 0 });
   });
 });

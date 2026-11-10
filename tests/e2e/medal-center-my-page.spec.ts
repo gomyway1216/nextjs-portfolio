@@ -133,6 +133,16 @@ test('lists what happened to a guest’s medals at two machines, keeps it throug
   expect(kept && totalsOf(recordsOf(kept))).toEqual({ rounds: 2, bet: 6, won: 1045 });
   expect(WELCOME - 6 + 1045).toBe(medals);
 
+  // One machine at a time: its entries only, with how many they are and what they add up to; then everything again.
+  await page.getByTestId('mypage-filter').selectOption('video-poker');
+  await expect(entries(page)).toHaveCount(1);
+  await expect(entries(page).nth(0)).toHaveAttribute('data-game', 'video-poker');
+  await expect(page.getByTestId('mypage-filter-said')).toContainText('1 of the history’s 2 entries.');
+  await expect(page.getByTestId('mypage-filter-tally')).toHaveText('Bet 5 · won 45');
+  await page.getByTestId('mypage-filter').selectOption('');
+  await expect(entries(page)).toHaveCount(2);
+  await expect(page.getByTestId('mypage-filter-said')).toHaveText('The history holds 2 entries.');
+
   // A reload keeps it all.
   await page.reload();
   await arrived(page);

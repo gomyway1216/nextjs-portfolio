@@ -49,6 +49,7 @@
 .link:focus-visible,
 .play:focus-visible,
 .bookOpen:focus-visible,
+.filterSelect:focus-visible,
 .moreButton:focus-visible {
   outline: 3px solid var(--mc-cyan);
   outline-offset: 2px;
@@ -487,6 +488,52 @@
 }
 
 /* ---------- The history ---------- */
+/* The history of one machine at a time. The choice is as wide as it is given, whatever its options say, and what it
+   says under it is there from the start, so that nothing moves as the history is read. */
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  min-width: 0;
+}
+.filterLabel {
+  font-weight: 800;
+  font-size: 0.93rem;
+}
+.filterSelect {
+  flex: 0 1 20rem;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  border: 2px solid var(--games-route-fg);
+  background-color: var(--games-route-surface-solid);
+  color: var(--games-route-fg);
+  font: inherit;
+  /* 16 px: a phone does not zoom the page to a smaller field. */
+  font-size: 1rem;
+  font-weight: 700;
+}
+.filterSelect option {
+  background-color: var(--games-route-surface-solid);
+  color: var(--games-route-fg);
+}
+.filterSelect:disabled {
+  border-color: var(--games-route-border);
+  color: var(--mc-lead);
+}
+.filterSaid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5em;
+  margin: 0;
+  color: var(--mc-lead);
+  font-size: 0.93rem;
+  line-height: 1.55;
+}
 .empty {
   margin: 0;
   padding: 0.8rem 1rem;

@@ -186,7 +186,9 @@
 }
 
 .prompt {
-  min-height: 84px;
+  /* Tall enough for the result, the what-if line and the button, so the
+     record below does not jump between phases on a single-column layout. */
+  min-height: 10rem;
   color: var(--games-route-fg, #cbd5e1);
   line-height: 1.55;
 }
@@ -291,6 +293,75 @@
   color: var(--games-route-muted, #64748b);
   font-size: 0.8rem;
   line-height: 1.55;
+}
+
+.whatIf {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--games-route-fg, #cbd5e1);
+}
+.whatIfCard {
+  margin-top: 0.6rem;
+}
+
+/* ---------- Round history ---------- */
+
+.historyHeading {
+  margin: 1.5rem 0 0.6rem;
+  color: var(--games-route-fg, #fbbf24);
+  font-size: 1.05rem;
+}
+.historyScroll {
+  max-height: 15rem;
+  overflow-y: auto;
+  border: 1px solid var(--games-route-border, rgba(148, 163, 184, 0.3));
+  border-radius: 12px;
+  background: var(--games-route-surface-solid, #020617);
+}
+.historyScroll:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.historyRow {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--games-route-fg, #e2e8f0);
+}
+.historyRow + .historyRow {
+  border-top: 1px solid var(--games-route-border, rgba(148, 163, 184, 0.2));
+}
+.historyNum {
+  color: var(--games-route-muted, #94a3b8);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.historyText {
+  overflow-wrap: anywhere;
+}
+.historyBadge {
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+}
+.historyWin {
+  background: #15803d;
+}
+.historyLose {
+  background: #b91c1c;
 }
 
 /* ---------- Sim tab ---------- */

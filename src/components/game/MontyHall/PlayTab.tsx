@@ -11,6 +11,8 @@ import {
   theoreticalSwitch,
   DEFAULT_DOOR_COUNT,
 } from './engine';
+import { RoundRecord, summarizeHistory, toRecord, whatIf } from './history';
+import { RoundHistory } from './RoundHistory';
 import type { MontyHallStrings } from './i18n';
 import styles from './MontyHall.module.css';
 
@@ -27,6 +29,8 @@ const INITIAL_STATS: Stats = { stayWins: 0, stayTotal: 0, switchWins: 0, switchT
 
 const DOOR_OPTIONS = [3, 4, 5, 8];
 
+const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`;
+
 const doorEmoji = (state: 'closed' | 'goat' | 'prize') =>
   state === 'closed' ? '🚪' : state === 'goat' ? '🐐' : '🎁';
 
@@ -38,6 +42,7 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
   const [switchTarget, setSwitchTarget] = useState<Door | null>(null);
   const [didSwitch, setDidSwitch] = useState(false);
   const [stats, setStats] = useState<Stats>(INITIAL_STATS);
+  const [history, setHistory] = useState<RoundRecord[]>([]);
 
   const pick = (door: Door) => {
     if (phase !== 'pick') return;
@@ -59,6 +64,7 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
       switchWins: s.switchWins + (switched && w ? 1 : 0),
       switchTotal: s.switchTotal + (switched ? 1 : 0),
     }));
+    setHistory((h) => [...h, toRecord(h.length + 1, round, finalChoice)]);
   };
 
   const stay = () => {
@@ -95,12 +101,14 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
 
   const resetStats = () => {
     setStats(INITIAL_STATS);
+    setHistory([]);
     nextRound();
   };
 
   const changeDoorCount = (n: number) => {
     setDoorCount(n);
     setStats(INITIAL_STATS);
+    setHistory([]);
     nextRound();
   };
 
@@ -121,6 +129,9 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
   const candidates = round ? switchCandidates(round) : [];
 
   const justWon = phase === 'final' && finalDoor !== null && round !== null && won(round, finalDoor);
+
+  const lastRecord = phase === 'final' && history.length > 0 ? history[history.length - 1] : null;
+  const summary = summarizeHistory(history);
 
   const openedText =
     round && round.openedDoors.length > 0
@@ -188,12 +199,12 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
           })}
         </div>
 
-        <div className={styles.prompt}>
+        <div className={styles.prompt} role="status">
           {phase === 'pick' && <p style={{ margin: 0 }}>{t.pickPrompt}</p>}
           {phase === 'reveal' && round && (
             <div>
               <p style={{ margin: '0 0 0.5rem' }}>
-                {round.openedDoors.length === 1
+                {candidates.length === 1
                   ? t.hostRevealed(round.openedDoors[0] + 1)
                   : t.hostRevealedMulti(openedText)}
               </p>
@@ -221,6 +232,7 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
                   — {didSwitch ? t.youSwitched : t.youStayed}
                 </span>
               </p>
+              {lastRecord && <p className={styles.whatIf}>{t.whatIf(whatIf(lastRecord), lastRecord)}</p>}
               <button className={`${styles.btn} ${styles.btnNext}`} onClick={nextRound}>
                 {t.nextRound}
               </button>
@@ -249,10 +261,28 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
             t={t}
           />
         </div>
-        <p className={styles.note}>{t.theoryNote}</p>
+        <div className={styles.whatIfCard}>
+          <StatCard
+            label={t.alwaysStayLabel}
+            wins={summary.firstPickRight}
+            total={summary.rounds}
+            theoretical={theoreticalStay(doorCount)}
+            color="var(--games-route-fg, #e2e8f0)"
+            t={t}
+          />
+          <p className={styles.note}>
+            {summary.rounds > 0
+              ? t.alwaysStayNote(summary.rounds, summary.firstPickRight, doorCount - 2)
+              : t.alwaysStayEmpty}
+          </p>
+        </div>
+        <p className={styles.note}>
+          {t.theoryNote(fmtPct(theoreticalStay(doorCount)), fmtPct(theoreticalSwitch(doorCount)))}
+        </p>
         <button className={styles.iconBtn} onClick={resetStats} style={{ marginTop: '0.5rem' }}>
           {t.reset}
         </button>
+        <RoundHistory records={history} t={t} />
       </div>
     </div>
   );

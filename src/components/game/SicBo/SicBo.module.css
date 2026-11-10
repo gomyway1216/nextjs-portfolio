@@ -1322,6 +1322,40 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+/* What the medals on the layout can do: one figure to a line, so that a long label and its figure never share a
+   half-width column on a phone. The figure keeps to one line; its label takes what is left and breaks. */
+.chanceList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+}
+.chanceList div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.chanceList dt {
+  color: var(--games-route-muted);
+  min-width: 0;
+}
+.chanceList dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.chanceNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: var(--games-route-muted);
+}
 .pos {
   color: var(--sb-ahead);
 }
@@ -1536,6 +1570,8 @@
 .statLabel,
 .statNote,
 .statList dt,
+.chanceList dt,
+.chanceNote,
 .oddsTable th,
 .oddsTable td {
   word-break: keep-all;
@@ -1546,6 +1582,8 @@
   .statLabel,
   .statNote,
   .statList dt,
+  .chanceList dt,
+  .chanceNote,
   .oddsTable th,
   .oddsTable td {
     word-break: auto-phrase;

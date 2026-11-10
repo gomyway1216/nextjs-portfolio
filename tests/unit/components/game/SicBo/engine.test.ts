@@ -15,12 +15,15 @@ import {
   isBetId,
   kindOf,
   labelOf,
+  layoutOdds,
   resolveRoll,
   seeded,
   totalOf,
+  totalOnLayout,
   valueOf,
   winningAreas,
   type BetId,
+  type Bets,
   type Dice,
 } from '@/components/game/SicBo/engine';
 
@@ -176,5 +179,75 @@ describe('the exact odds', () => {
     expect(kindOf([1, 4, 5])).toBe('small');
     expect(kindOf([1, 4, 6])).toBe('big');
     expect(totalOf([6, 6, 5])).toBe(17);
+  });
+});
+
+describe('a layout’s chances', () => {
+  /** The same figures, added up the slow way from what each roll settles. */
+  const slowly = (bets: Bets) => {
+    const staked = totalOnLayout(bets);
+    const backs = ROLL_LIST.map((dice) => resolveRoll(bets, dice).returned);
+    return {
+      staked,
+      wins: backs.filter((back) => back > 0).length,
+      ahead: backs.filter((back) => back > staked).length,
+      mean: backs.reduce((sum, back) => sum + back, 0) / (ROLLS * staked),
+      most: Math.max(...backs),
+    };
+  };
+
+  it('has none with nothing on the layout', () => {
+    expect(layoutOdds({})).toBeNull();
+    expect(layoutOdds({ small: 0 })).toBeNull();
+  });
+
+  it('is one area’s own odds with medals on that area alone, however many', () => {
+    const odds = analyze();
+    for (const area of odds.areas) {
+      for (const medals of [1, 7]) {
+        const layout = layoutOdds({ [area.id]: medals })!;
+        expect(layout.staked, area.id).toBe(medals);
+        expect(layout.wins, area.id).toBe(area.wins);
+        // Every winning medal comes back with at least one more, so a roll that wins the area is ahead.
+        expect(layout.ahead, area.id).toBe(area.wins);
+        expect(layout.back, area.id).toEqual(area.back);
+      }
+    }
+    expect(layoutOdds({ small: 1 })).toEqual({ staked: 1, wins: 105, ahead: 105, back: { num: 35, den: 36 }, most: 2 });
+    expect(layoutOdds({ 'triple-6': 2 })).toEqual({ staked: 2, wins: 1, ahead: 1, back: { num: 181, den: 216 }, most: 362 });
+  });
+
+  it('tells a roll that brings something back from one that brings back more than was put on', () => {
+    // Small and Big together: one of them wins on every roll but the six triples, and never more than the two medals.
+    expect(layoutOdds({ small: 1, big: 1 })).toEqual({ staked: 2, wins: 210, ahead: 0, back: { num: 35, den: 36 }, most: 2 });
+    // A medal on every single number: every roll shows one at least, but the most that comes back is the six medals
+    // themselves (three different numbers); a double brings back 5 and a triple 4.
+    expect(layoutOdds({ 'single-1': 1, 'single-2': 1, 'single-3': 1, 'single-4': 1, 'single-5': 1, 'single-6': 1 })).toEqual({
+      staked: 6,
+      wins: 216,
+      ahead: 0,
+      back: { num: 199, den: 216 },
+      most: 6,
+    });
+  });
+
+  it('is what settling every one of the 216 rolls adds up to, for mixed layouts', () => {
+    const layouts: Bets[] = [
+      { small: 10, 'any-triple': 1 },
+      { big: 5, 'total-17': 1, 'triple-6': 1, 'double-6': 2, 'pair-5-6': 3, 'single-6': 4 },
+      Object.fromEntries(BET_IDS.map((id) => [id, 99])),
+      Object.fromEntries(BET_IDS.map((id, i) => [id, (i * 7) % 12])),
+    ];
+    for (const bets of layouts) {
+      const layout = layoutOdds(bets)!;
+      const slow = slowly(bets);
+      expect({ staked: layout.staked, wins: layout.wins, ahead: layout.ahead, most: layout.most }).toEqual({ staked: slow.staked, wins: slow.wins, ahead: slow.ahead, most: slow.most });
+      expect(valueOf(layout.back)).toBeCloseTo(slow.mean, 12);
+      // No layout brings back more than the best area does, or less than the least.
+      expect(valueOf(layout.back)).toBeLessThanOrEqual(35 / 36 + 1e-12);
+      expect(valueOf(layout.back)).toBeGreaterThanOrEqual(175 / 216 - 1e-12);
+    }
+    // Every area at its most: the most a roll brings back is the most the floor is told one can.
+    expect(layoutOdds(layouts[2])!.most).toBe(MOST_BACK_PER_MEDAL * 99);
   });
 });

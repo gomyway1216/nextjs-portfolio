@@ -8,6 +8,7 @@ import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { SicBo } from '@/components/game/SicBo';
+import { Chances } from '@/components/game/SicBo/Chances';
 import { CENTRE_Y, LAMPS, LAMP_COUNT, LAMP_SETS } from '@/components/game/SicBo/Dome';
 import { BET_IDS, MOST_BACK_PER_MEDAL, betInfo } from '@/components/game/SicBo/engine';
 import { getStrings, type SicBoStrings } from '@/components/game/SicBo/i18n';
@@ -77,6 +78,34 @@ describe('the table', () => {
     const parts = new Map<string, number>();
     for (const id of BET_IDS) parts.set(sectionOf(id), (parts.get(sectionOf(id)) ?? 0) + 1);
     expect(Object.fromEntries(parts)).toEqual({ bigSmall: 3, triples: 12, totals: 14, pairs: 15, singles: 6 });
+  });
+});
+
+describe('the layout’s chances', () => {
+  const figure = (markup: string, id: string) => markup.match(new RegExp(`data-testid="sb-chance-${id}">([^<]*)<`))?.[1];
+
+  it('stand empty, with their four lines, until medals are on the layout', () => {
+    const markup = render(<PlayTab />);
+    expect(markup).toContain('data-testid="sb-chances" data-staked="0"');
+    for (const id of ['wins', 'ahead', 'back', 'most']) expect(figure(markup, id), id).toBe('—');
+    expect(markup).toContain(getStrings('en').chancesNone);
+    expect(markup).not.toContain(getStrings('en').chancesNote);
+  });
+
+  it('say what the medals on the layout can do on a roll, in both languages', () => {
+    const bets = { small: 10, 'any-triple': 1 } as const;
+    const en = render(<Chances bets={bets} t={getStrings('en')} locale="en-US" />);
+    expect(en).toContain('data-staked="11"');
+    // Small wins 105 rolls and any triple the six that Small loses: 20 or 31 back, both more than the 11 on the layout.
+    expect(figure(en, 'wins')).toBe('111 of 216 · 51.4%');
+    expect(figure(en, 'ahead')).toBe('111 of 216 · 51.4%');
+    expect(figure(en, 'back')).toBe('96.2%');
+    expect(figure(en, 'most')).toBe('31 medals');
+    expect(en).toContain(getStrings('en').chancesNote);
+    const ja = render(<Chances bets={bets} t={getStrings('ja')} locale="ja-JP" />, 'ja');
+    expect(figure(ja, 'wins')).toBe('216通り中111・51.4%');
+    expect(figure(ja, 'most')).toBe('31枚');
+    expect(ja).toContain('このレイアウトの確率');
   });
 });
 
@@ -203,6 +232,8 @@ function everyString(t: SicBoStrings): { key: string; text: string }[] {
     t.checkResult('100,000'),
     t.checkTriples('2,800', '2,777.8'),
     t.rowName('x'),
+    t.chancesRolls(105, 216, '48.6%'),
+    t.chancesMedals(1234),
     ...t.infoBody(MOST_BACK_PER_MEDAL * SPOT_MAX),
   ]);
   return out;

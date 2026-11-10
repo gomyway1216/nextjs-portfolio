@@ -347,6 +347,42 @@ export function analyze(): SicBoOdds {
   return { areas, best: byValue[byValue.length - 1].back, least: byValue[0].back };
 }
 
+// ── A layout's chances ──────────────────────────────────────────────────────
+
+/** What the medals on a layout can do on one roll, counted over the 216 rolls. */
+export interface LayoutOdds {
+  /** The medals on the layout. */
+  staked: number;
+  /** How many of the 216 rolls bring any medals back. */
+  wins: number;
+  /** How many bring back more medals than are on the layout. */
+  ahead: number;
+  /** What comes back on average, as a share of the medals on the layout. */
+  back: Fraction;
+  /** The most one roll can bring back. */
+  most: number;
+}
+
+/** The exact chances of the layout as it is bet: null with nothing on it. One pass over the 216 rolls. */
+export function layoutOdds(bets: Bets): LayoutOdds | null {
+  const placed = BET_IDS.filter((id) => (bets[id] ?? 0) > 0);
+  const staked = placed.reduce((sum, id) => sum + (bets[id] ?? 0), 0);
+  if (staked === 0) return null;
+  let wins = 0;
+  let ahead = 0;
+  let sum = 0;
+  let most = 0;
+  for (const dice of ALL_ROLLS) {
+    let returned = 0;
+    for (const id of placed) returned += (bets[id] ?? 0) * backOf(id, dice);
+    if (returned > 0) wins += 1;
+    if (returned > staked) ahead += 1;
+    sum += returned;
+    if (returned > most) most = returned;
+  }
+  return { staked, wins, ahead, back: fraction(sum, ROLLS * staked), most };
+}
+
 // ── A check, for the Odds tab ───────────────────────────────────────────────
 
 /** A random number generator with a seed, so that a check can be run again and come out the same (mulberry32). */

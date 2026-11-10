@@ -42,6 +42,12 @@ const Grid = ({ cols, cell }: { cols: number; cell: number }) => (
   </g>
 );
 
+/**
+ * The column of the newest mark, which is not always the rightmost one: after a run has turned right along the
+ * bottom, a change of colour starts again near the left.
+ */
+export const newestCol = (cells: readonly { col: number }[]) => cells[cells.length - 1]?.col ?? 0;
+
 const BEAD = 24;
 
 /** Every hand in order, six to a column, as a filled bead with its letter. */
@@ -88,7 +94,7 @@ export const BigRoad = ({ entries, name, ariaLabel }: RoadProps) => {
   const { cells, leadingTies } = bigRoad(entries);
   const lastCol = cells.reduce((m, c) => Math.max(m, c.col), 0);
   const cols = Math.max(24, lastCol + 2);
-  const ref = useScrollToColumn((lastCol + 2) * BIG);
+  const ref = useScrollToColumn((newestCol(cells) + 2) * BIG);
   const r = BIG / 2 - 3;
   return (
     <div className={styles.road}>
@@ -155,7 +161,7 @@ export const DerivedRoad = ({
   const cells = derivedCells(marks);
   const lastCol = cells.reduce((m, c) => Math.max(m, c.col), 0);
   const cols = Math.max(minCols, lastCol + 2);
-  const ref = useScrollToColumn((lastCol + 2) * SMALL);
+  const ref = useScrollToColumn((newestCol(cells) + 2) * SMALL);
   const red = marks.filter((m) => m === 'red').length;
   return (
     <div className={styles.road}>

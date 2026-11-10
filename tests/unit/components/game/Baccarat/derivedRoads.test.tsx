@@ -11,7 +11,7 @@ import {
 } from '@/components/game/Baccarat/derivedRoads';
 import { ROAD_ROWS, type RoadEntry, type Side } from '@/components/game/Baccarat/engine';
 import { getStrings } from '@/components/game/Baccarat/i18n';
-import { DerivedRoad, NextMarks } from '@/components/game/Baccarat/Roads';
+import { DerivedRoad, NextMarks, newestCol } from '@/components/game/Baccarat/Roads';
 
 const e = (winner: RoadEntry['winner']): RoadEntry => ({ winner, playerPair: false, bankerPair: false, natural: false });
 const seq = (s: string) => s.split('').map((c) => e(c === 'B' ? 'banker' : c === 'P' ? 'player' : 'tie'));
@@ -137,6 +137,13 @@ describe('derived roads', () => {
     const tail = derivedCells(marks('rrrrrrrr'));
     expect(tail[ROAD_ROWS - 1]).toEqual({ col: 0, row: ROAD_ROWS - 1, mark: 'red' });
     expect(tail[7]).toEqual({ col: 2, row: ROAD_ROWS - 1, mark: 'red' });
+  });
+
+  it('finds the newest mark left of a dragon tail, where the board scrolls to', () => {
+    expect(newestCol([])).toBe(0);
+    const cells = derivedCells(marks('rrrrrrrrrrb'));
+    expect(Math.max(...cells.map((c) => c.col))).toBe(4);
+    expect(newestCol(cells)).toBe(1);
   });
 });
 

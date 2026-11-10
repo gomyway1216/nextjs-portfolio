@@ -988,10 +988,18 @@
   flex-wrap: wrap;
   gap: 0.3rem;
 }
+.historyList li {
+  display: flex;
+}
 .historyChip {
+  appearance: none;
+  font-family: inherit;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
+  justify-content: center;
+  min-height: 2.25rem;
+  min-width: 2.75rem;
   padding: 0 0.55rem;
   border-radius: 8px;
   font-size: 0.8rem;
@@ -1009,6 +1017,165 @@
 .historyChip[data-last-ball='true'] {
   background: #f6c343;
   color: #2a1600;
+}
+/* The game being looked back at: ringed, whatever its own colours. */
+.historyChip[aria-expanded='true'] {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 1px;
+}
+.historyChip:focus-visible {
+  outline: 3px solid var(--kn-accent-text);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .historyChip {
+    min-height: 44px;
+  }
+}
+.historyHint {
+  margin-top: 0.5rem;
+}
+
+/* ---------- A game looked back at ---------- */
+.review {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--games-route-border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+}
+.reviewTitle,
+.reviewSub {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+.reviewSub {
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+}
+.reviewResult {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.reviewLine {
+  margin: 0;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.reviewBoard,
+.reviewBalls {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 2px;
+  max-width: 340px;
+}
+/* The line between 1–40 and 41–80, as on the machine's board. */
+.reviewBoard > :nth-child(n + 41):nth-child(-n + 50) {
+  margin-top: 5px;
+}
+/* A number of the board in small, or a ball: a plain number, a spot (a square with a heavy edge), a ball drawn (a dark
+   disc), or a spot caught (a gold disc with a heavy edge). Each pair of colours is the same on a light page and a dark
+   one, and reads at 4.5:1 or more; the shapes tell them apart without the colours. */
+.reviewCell {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--games-route-fg);
+}
+.reviewCell[data-mark='spot'] {
+  border: 2px solid var(--kn-accent-text);
+  font-weight: 900;
+}
+.reviewCell[data-mark='drawn'] {
+  border-radius: 50%;
+  background: #334155;
+  border-color: #94a3b8;
+  color: #fff;
+}
+.reviewCell[data-mark='caught'] {
+  border-radius: 50%;
+  background: #f6c343;
+  border: 2px solid #7a4b00;
+  color: #2a1600;
+  font-weight: 900;
+}
+.reviewBalls .reviewCell[data-last='true'] {
+  box-shadow: 0 0 0 2px var(--games-route-surface), 0 0 0 4px var(--kn-accent-text);
+}
+.reviewBalls {
+  gap: 6px 2px;
+  padding: 4px;
+}
+.reviewLegend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  font-size: 0.78rem;
+  color: var(--games-route-fg);
+}
+.reviewLegend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.reviewLegend .reviewCell {
+  width: 1rem;
+  flex: none;
+}
+.reviewFacts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.3rem;
+  margin: 0;
+}
+.reviewFacts div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  border-bottom: 1px dotted var(--games-route-border);
+  padding-bottom: 0.2rem;
+  min-width: 0;
+}
+.reviewFacts dt {
+  color: var(--games-route-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.reviewFacts dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reviewButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.reviewButtons .btn {
+  flex: 1 1 8rem;
+  min-width: 0;
 }
 .statList {
   display: grid;

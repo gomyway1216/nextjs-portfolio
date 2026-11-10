@@ -15,6 +15,7 @@ import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { Board, type Half } from './Board';
+import { GameReview } from './GameReview';
 import { BETS, DRAWN, HALF, LAST_BALL_TIMES, SPOTS_MOST, drawBalls, gameOf, halfOf, isBet, payOf, quickPick, sameSpots, sortSpots, valueOf, type Bet } from './engine';
 import { getStrings, type Result } from './i18n';
 import { KENO_GAME, TICKET_KEY, createTable, gameId, parseTicket, type GameRecord, type Staked, type Table } from './medalTable';
@@ -190,6 +191,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   // Whether the last game's balls have been cleared off the board: the player has changed the ticket since.
   const [cleared, setCleared] = useState(false);
   const [history, setHistory] = useState<Ended[]>([]);
+  // The game of the list being looked back at, by its name: none once it has left the list.
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
@@ -203,6 +206,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const shownLast = useRef<string | null>(null);
   const syncNow = useRef<(() => void) | null>(null);
   const screenRef = useRef<HTMLDivElement | null>(null);
+  const historyRef = useRef<HTMLOListElement | null>(null);
   const glance = useRef<Glance | null>(null);
   // While DRAW writes its game down and takes the bet: the medals moving then are this press's own, not a game to take up.
   const staking = useRef(false);
@@ -299,6 +303,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const erase = () => {
     if (runningRef.current || !canPlayRef.current || marksRef.current.length === 0) return;
     changed([]);
+    play('button');
+  };
+
+  /** A game looked back at: its spots marked on the board again, ready to draw. */
+  const markAgain = (spots: readonly number[]) => {
+    if (runningRef.current || !canPlayRef.current || spots.length === 0) return;
+    changed([...spots]);
+    setHalf(halfOf(spots[0]), spots[0]);
     play('button');
   };
 
@@ -446,6 +458,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       shownLast.current = null;
       setOutcome(null);
       setHistory([]);
+      setReviewId(null);
       setStats(EMPTY_STATS);
       setMessage('');
       setResumed(false);
@@ -614,6 +627,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const net = stats.won - stats.played;
   const won = !running && outcome !== null && !outcome.earlier && outcome.won > 0 && !cleared;
   const drawDisabled = !canPlay || n === 0 || bankState.balance < bet;
+  const reviewed = history.find((entry) => entry.id === reviewId) ?? null;
   const sameDisabled = !canPlay || lastSpots.length === 0 || bankState.balance < bet;
 
   return (
@@ -876,13 +890,46 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           {history.length === 0 ? (
             <p className={styles.muted}>{t.historyEmpty}</p>
           ) : (
-            <ol className={styles.historyList} data-testid="kn-history">
-              {history.map((entry) => (
-                <li key={entry.id} className={styles.historyChip} data-won={entry.won > 0 ? 'true' : 'false'} data-last-ball={entry.lastBall ? 'true' : 'false'}>
-                  {t.historyEntry(entry)}
-                </li>
-              ))}
-            </ol>
+            <>
+              <ol className={styles.historyList} data-testid="kn-history" ref={historyRef}>
+                {history.map((entry) => {
+                  const open = reviewed?.id === entry.id;
+                  return (
+                    <li key={entry.id} data-won={entry.won > 0 ? 'true' : 'false'} data-last-ball={entry.lastBall ? 'true' : 'false'}>
+                      <button
+                        type="button"
+                        className={styles.historyChip}
+                        data-won={entry.won > 0 ? 'true' : 'false'}
+                        data-last-ball={entry.lastBall ? 'true' : 'false'}
+                        data-game={entry.id}
+                        aria-expanded={open}
+                        aria-controls={open ? 'kn-review' : undefined}
+                        aria-label={t.historyEntryAria(entry)}
+                        onClick={() => setReviewId(open ? null : entry.id)}
+                      >
+                        {t.historyEntry(entry)}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              {reviewed ? (
+                <GameReview
+                  t={t}
+                  locale={locale}
+                  game={reviewed}
+                  canMark={canPlay && !sameSpots(marks, reviewed.ticket)}
+                  onMark={() => markAgain(reviewed.ticket)}
+                  onClose={() => {
+                    // The press goes back to the game's place in the list, not to nowhere as its button leaves the page.
+                    historyRef.current?.querySelector<HTMLButtonElement>(`[data-game="${reviewed.id}"]`)?.focus();
+                    setReviewId(null);
+                  }}
+                />
+              ) : (
+                <p className={`${styles.muted} ${styles.historyHint}`}>{t.historyHint}</p>
+              )}
+            </>
           )}
         </section>
 

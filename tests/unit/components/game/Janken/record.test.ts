@@ -35,6 +35,9 @@ async function sitting(browser: FakeBrowser, page: FakePage = browser.open()) {
   machine.hear((happening) => {
     kept.record = noted(kept.record, happening, machine.view().round?.id);
   });
+  page.bank.listen((event) => {
+    if (event.type === 'reset') kept.record = emptyRecord();
+  });
   const close = machine.open();
   await quiet(browser);
   return { page, machine, draws, kept, close };
@@ -152,6 +155,30 @@ describe('the record, kept of a real machine', () => {
   });
 });
 
+describe('the record and the medal center’s reset', () => {
+  it('starts over with the reset, with no round in play as with one', async () => {
+    const browser = new FakeBrowser();
+    const { machine, draws, kept } = await sitting(browser);
+    machine.insert();
+    draws.push(CAT.pa);
+    machine.press('gu');
+    expect(kept.record.played).toBe(1);
+    const hub = browser.open();
+    hub.bank.subscribe(() => undefined);
+    await quiet(browser);
+    hub.bank.reset();
+    await quiet(browser);
+    expect(machine.view().round).toBeNull();
+    expect(kept.record).toEqual(emptyRecord());
+
+    await quiet(browser);
+    machine.insert();
+    hub.bank.reset();
+    await quiet(browser);
+    expect(kept.record).toEqual(emptyRecord());
+  });
+});
+
 describe('the record, as arithmetic', () => {
   const thrown = (outcome: Throw['outcome'], kind: Throw['kind'] = 'play', at = 3): Happening => ({
     type: 'thrown',
@@ -190,9 +217,21 @@ describe('the record, as arithmetic', () => {
   it('goes on with its own round when the card comes back, and takes any other as carried', () => {
     const mine = after(emptyRecord(), { type: 'inserted' }, thrown('draw'));
     expect(noted(mine, { type: 'resumed', round: round({ id: 'r1', draws: 1 }) })).toBe(mine);
+    // Thrown on in another tab meanwhile: the throws listed are this page's, the lamp and the double-ups the round's.
+    const on = noted(mine, { type: 'resumed', round: round({ id: 'r1', kind: 'double', phase: 'offer', stake: 0, win: 20, lamp: 0, doubles: 1 }) });
+    expect(on.open).toMatchObject({ n: 1, id: 'r1', carried: false, lamp: 10, doubles: 1 });
+    expect(on.open?.throws).toHaveLength(1);
+    expect(after(on, { type: 'paid', medals: 20, left: false })).toMatchObject({ played: 1, back: 20 });
     const other = noted(mine, { type: 'resumed', round: round({ id: 'r2', kind: 'double', phase: 'offer', stake: 0, win: 6, lamp: 6, doubles: 1 }) });
     expect(other.open).toMatchObject({ n: 2, id: 'r2', carried: true, lamp: 3, doubles: 1, throws: [] });
     expect(after(other, { type: 'paid', medals: 6, left: false })).toMatchObject({ played: 0, back: 0 });
+  });
+
+  it('names a round it first hears of at a throw, so that it is known again when the card comes back', () => {
+    const next = round({ id: 'r7', draws: 1 });
+    const found = noted(emptyRecord(), { type: 'thrown', throw: { player: 'gu', machine: 'gu', outcome: 'draw', lamp: -1, kind: 'play', draws: 0 }, round: next });
+    expect(found.open).toMatchObject({ id: 'r7', carried: true });
+    expect(noted(found, { type: 'resumed', round: next })).toBe(found);
   });
 
   it('leaves medals of a round it never saw out, and starts over with the medal center’s reset', () => {

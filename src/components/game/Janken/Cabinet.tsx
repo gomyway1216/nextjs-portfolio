@@ -287,6 +287,16 @@ export const Cabinet = ({ active }: CabinetProps) => {
     });
   }, [machine, later, light, play, spin, stopActing, payMedals]);
 
+  // The medal center's reset starts the record over, whether or not a round was in play (the machine tells of a reset
+  // only when it had one).
+  useEffect(
+    () =>
+      medalBank().listen((event) => {
+        if (event.type === 'reset') setRecord(emptyRecord());
+      }),
+    [],
+  );
+
   // Another tab's machine has the card: said a moment after, since the card goes away for a moment now and then.
   useEffect(() => {
     if (medals.card !== 'asking') return;

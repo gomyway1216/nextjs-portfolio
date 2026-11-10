@@ -107,13 +107,18 @@ export function noted(record: PlayRecord, happening: Happening, id?: string): Pl
       return opened({ ...record, open: null }, false, id);
     case 'resumed': {
       const round = happening.round;
-      // The round this page was playing, back with the card: it goes on. Any other was played on elsewhere.
-      if (record.open && record.open.id === round.id) return record;
-      return opened({ ...record, open: null }, true, round.id, round.lamp >= 0 ? LAMPS[round.lamp] : null, round.doubles);
+      const lamp = round.lamp >= 0 ? LAMPS[round.lamp] : null;
+      // The round this page was playing, back with the card: it goes on, with the lamp and the double-ups it has now
+      // (another tab may have thrown for it meanwhile). Any other round was played on elsewhere.
+      if (record.open && record.open.id === round.id) {
+        if (record.open.lamp === lamp && record.open.doubles === round.doubles) return record;
+        return { ...record, open: { ...record.open, lamp, doubles: round.doubles } };
+      }
+      return opened({ ...record, open: null }, true, round.id, lamp, round.doubles);
     }
     case 'thrown': {
       const { player, machine, outcome, kind, lamp } = happening.throw;
-      const at = record.open ? record : opened(record, true);
+      const at = record.open ? record : opened(record, true, happening.round?.id ?? id);
       const before = at.open!;
       const all = [...before.throws, { player, machine, outcome, kind }];
       const cut = Math.max(0, all.length - THROWS_KEPT);
@@ -142,7 +147,8 @@ export function noted(record: PlayRecord, happening: Happening, id?: string): Pl
       // The medal came back unthrown (draws aside): the round was not played.
       return record.open ? { ...record, open: null } : record;
     case 'restarted':
-      // Every medal was thrown away at the medal center, and the machine started over: so does the record.
+      // Every medal was thrown away at the medal center, and the machine started over: so does the record. (The machine
+      // says so only when it had a round in play; the cabinet also hears of every reset from the medals themselves.)
       return emptyRecord();
   }
 }

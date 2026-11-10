@@ -4,6 +4,7 @@
 
 import type { Difficulty, DifficultyOption } from '../common/types';
 import type { GameLanguage } from '../constants/gameTranslations';
+import { PowerUpType } from './types';
 
 export interface BreakoutStrings {
   title: string;
@@ -41,6 +42,13 @@ export interface BreakoutStrings {
   backToMenu: string;
   launchHint: string;
   clearedLevels: (n: number) => string;
+  powerupsTimerNote: string;
+  activePowerups: string;
+  noActivePowerups: string;
+  secondsShort: (n: number) => string;
+  effectTimeLeft: (name: string, n: number) => string;
+  collected: (name: string) => string;
+  listSeparator: string;
 }
 
 const en: BreakoutStrings = {
@@ -79,6 +87,14 @@ const en: BreakoutStrings = {
   backToMenu: 'Menu',
   launchHint: 'Click, tap or press Space to launch',
   clearedLevels: (n) => `Cleared ${n} level${n === 1 ? '' : 's'}`,
+  powerupsTimerNote:
+    'The paddle and ball-speed power-ups are temporary; the strip above the board shows the time each has left. A new one replaces its opposite.',
+  activePowerups: 'Active power-ups',
+  noActivePowerups: 'No active power-ups',
+  secondsShort: (n) => `${n}s`,
+  effectTimeLeft: (name, n) => `${name}: ${n} second${n === 1 ? '' : 's'} left`,
+  collected: (name) => `${name} collected`,
+  listSeparator: ', ',
 };
 
 const ja: BreakoutStrings = {
@@ -117,7 +133,32 @@ const ja: BreakoutStrings = {
   backToMenu: 'メニュー',
   launchHint: 'クリック・タップ・スペースで発射',
   clearedLevels: (n) => `${n}ステージクリア`,
+  powerupsTimerNote:
+    'パドルとボール速度のパワーアップは時間制限つき。盤面の上のバーに残り時間が表示されます。逆の効果を取ると上書きされます。',
+  activePowerups: '発動中のパワーアップ',
+  noActivePowerups: '発動中のパワーアップなし',
+  secondsShort: (n) => `${n}秒`,
+  effectTimeLeft: (name, n) => `${name}：残り${n}秒`,
+  collected: (name) => `${name}を取得`,
+  listSeparator: '、',
 };
+
+export function getPowerUpName(t: BreakoutStrings, type: PowerUpType): string {
+  switch (type) {
+    case PowerUpType.EXPAND_PADDLE:
+      return t.puExpand;
+    case PowerUpType.SHRINK_PADDLE:
+      return t.puShrink;
+    case PowerUpType.MULTI_BALL:
+      return t.puMulti;
+    case PowerUpType.SLOW_BALL:
+      return t.puSlow;
+    case PowerUpType.FAST_BALL:
+      return t.puFast;
+    case PowerUpType.EXTRA_LIFE:
+      return t.puLife;
+  }
+}
 
 export function getStrings(lang: GameLanguage): BreakoutStrings {
   return lang === 'ja' ? ja : en;

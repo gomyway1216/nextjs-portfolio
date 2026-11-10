@@ -19,6 +19,7 @@ import {
   DifficultyConfig,
   GameState,
   getBrickType,
+  getPowerUpConfig,
   InputState,
   MAX_BALL_SPEED,
   MAX_LEVEL,
@@ -28,6 +29,7 @@ import {
   PADDLE_SPEED,
   PADDLE_Y,
   Particle,
+  PICKUP_NOTICE_MS,
   PowerUp,
   POWERUP_CONFIGS,
   POWERUP_SIZE,
@@ -223,6 +225,8 @@ export function createGameState(difficulty: Difficulty = 'medium', level = 1): G
     bricks: createBricks(level),
     powerUps: [],
     activeEffects: [],
+    pickup: null,
+    pickupEvents: [],
     particles: [],
     score: 0,
     lives: config.lives,
@@ -257,6 +261,7 @@ export function resetBall(state: GameState): void {
   state.balls = [createHeldBall(state.paddle, state.config.ballSpeed)];
   state.powerUps = [];
   state.activeEffects = [];
+  state.pickup = null;
   state.combo = 0;
   state.launched = false;
 }
@@ -269,6 +274,7 @@ export function nextLevel(state: GameState): void {
   state.balls = [createHeldBall(state.paddle, state.config.ballSpeed)];
   state.powerUps = [];
   state.activeEffects = [];
+  state.pickup = null;
   state.combo = 0;
   state.launched = false;
 }
@@ -298,13 +304,34 @@ function spawnPowerUp(state: GameState, brick: Brick): PowerUp | null {
   };
 }
 
-function applyPowerUp(state: GameState, powerUp: PowerUp): void {
+// Effects that overwrite the same property (paddle width / ball speed).
+const OPPOSITE_EFFECT: Partial<Record<PowerUpType, PowerUpType>> = {
+  [PowerUpType.EXPAND_PADDLE]: PowerUpType.SHRINK_PADDLE,
+  [PowerUpType.SHRINK_PADDLE]: PowerUpType.EXPAND_PADDLE,
+  [PowerUpType.SLOW_BALL]: PowerUpType.FAST_BALL,
+  [PowerUpType.FAST_BALL]: PowerUpType.SLOW_BALL,
+};
+
+export function applyPowerUp(state: GameState, powerUp: PowerUp): void {
   const setEffect = (type: PowerUpType, duration?: number) => {
     if (!duration) return;
-    // Refresh existing effect of same type rather than stacking.
-    state.activeEffects = state.activeEffects.filter((e) => e.type !== type);
+    // Refresh an existing effect of the same type rather than stacking, and
+    // drop the opposite one: the new pickup has just overwritten what it did,
+    // so its timer must not linger and later undo the new effect early.
+    const opposite = OPPOSITE_EFFECT[type];
+    state.activeEffects = state.activeEffects.filter((e) => e.type !== type && e.type !== opposite);
     state.activeEffects.push({ type, remainingMs: duration });
   };
+  // A speed pickup that replaces its opposite starts from the base speed (as
+  // if the old effect had just expired), so "fast" never means "less slow".
+  const endOppositeSpeedEffect = (type: PowerUpType) => {
+    const opposite = OPPOSITE_EFFECT[type];
+    if (!state.activeEffects.some((e) => e.type === opposite)) return;
+    for (const ball of state.balls) setBallSpeed(ball, state.config.ballSpeed);
+  };
+
+  state.pickup = { type: powerUp.type, remainingMs: PICKUP_NOTICE_MS };
+  state.pickupEvents.push(powerUp.type);
 
   switch (powerUp.type) {
     case PowerUpType.EXPAND_PADDLE:
@@ -336,6 +363,7 @@ function applyPowerUp(state: GameState, powerUp: PowerUp): void {
     }
 
     case PowerUpType.SLOW_BALL:
+      endOppositeSpeedEffect(PowerUpType.SLOW_BALL);
       for (const ball of state.balls) {
         setBallSpeed(ball, Math.max(ball.speed * 0.7, state.config.ballSpeed * 0.5));
       }
@@ -343,6 +371,7 @@ function applyPowerUp(state: GameState, powerUp: PowerUp): void {
       break;
 
     case PowerUpType.FAST_BALL:
+      endOppositeSpeedEffect(PowerUpType.FAST_BALL);
       for (const ball of state.balls) {
         setBallSpeed(ball, Math.min(ball.speed * 1.3, MAX_BALL_SPEED));
       }
@@ -381,6 +410,46 @@ function updateEffects(state: GameState, deltaMs: number): void {
     }
   }
   state.activeEffects = state.activeEffects.filter((e) => e.remainingMs > 0);
+
+  if (state.pickup) {
+    state.pickup.remainingMs -= deltaMs;
+    if (state.pickup.remainingMs <= 0) state.pickup = null;
+  }
+}
+
+/** What the status strip shows for one running timed effect. */
+export interface EffectStatus {
+  type: PowerUpType;
+  /** Whole seconds left, rounded up (never 0 while the effect is running). */
+  secondsLeft: number;
+  /** Share of the full duration left (0..1), in half-second steps. */
+  fraction: number;
+}
+
+/**
+ * Running timed effects in a fixed order (the order of POWERUP_CONFIGS), so
+ * the strip doesn't reshuffle when an effect is refreshed. Values are
+ * quantised so the HUD only re-renders when a displayed value changes.
+ */
+export function getEffectStatuses(state: GameState): EffectStatus[] {
+  const statuses: EffectStatus[] = [];
+  for (const config of POWERUP_CONFIGS) {
+    const effect = state.activeEffects.find((e) => e.type === config.type);
+    if (!effect || effect.remainingMs <= 0) continue;
+    const duration = getPowerUpConfig(effect.type).duration ?? effect.remainingMs;
+    statuses.push({
+      type: effect.type,
+      secondsLeft: Math.ceil(effect.remainingMs / 1000),
+      fraction: clamp((Math.ceil(effect.remainingMs / 500) * 500) / duration, 0, 1),
+    });
+  }
+  return statuses;
+}
+
+/** The instant (untimed) power-up just caught, while it is still acknowledged. */
+export function getInstantPickup(state: GameState): PowerUpType | null {
+  if (!state.pickup || getPowerUpConfig(state.pickup.type).duration) return null;
+  return state.pickup.type;
 }
 
 // ---------------------------------------------------------------------------

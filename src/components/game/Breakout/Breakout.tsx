@@ -17,10 +17,19 @@ import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
   POWERUP_SIZE,
+  PowerUpType,
   getBrickType,
+  getPowerUpConfig,
 } from './types';
-import { createGameState, updateGame, launchBall } from './GameEngine';
-import { getStrings, getDifficultyOptions } from './i18n';
+import {
+  createGameState,
+  updateGame,
+  launchBall,
+  getEffectStatuses,
+  getInstantPickup,
+  type EffectStatus,
+} from './GameEngine';
+import { getStrings, getDifficultyOptions, getPowerUpName, type BreakoutStrings } from './i18n';
 
 type Screen = 'menu' | 'playing';
 
@@ -32,10 +41,25 @@ interface UISnapshot {
   isPaused: boolean;
   gameOver: boolean;
   victory: boolean;
+  effects: EffectStatus[];
+  /** Instant power-up just caught, shown briefly in the status strip. */
+  instantPickup: PowerUpType | null;
 }
 
+/** Power-ups caught in one frame; a new id makes the live region speak again. */
+interface PickupAnnouncement {
+  id: number;
+  types: PowerUpType[];
+}
+
+const NO_ANNOUNCEMENT: PickupAnnouncement = { id: 0, types: [] };
+
 function snapshot(state: GameState): UISnapshot {
+  // Once the game has ended the timers are frozen for good; show none.
+  const over = state.gameOver || state.victory;
   return {
+    effects: over ? [] : getEffectStatuses(state),
+    instantPickup: over ? null : getInstantPickup(state),
     score: state.score,
     lives: state.lives,
     level: state.level,
@@ -53,7 +77,13 @@ function snapshotsEqual(a: UISnapshot | null, b: UISnapshot): boolean {
     a.level === b.level &&
     a.isPaused === b.isPaused &&
     a.gameOver === b.gameOver &&
-    a.victory === b.victory
+    a.victory === b.victory &&
+    a.instantPickup === b.instantPickup &&
+    a.effects.length === b.effects.length &&
+    a.effects.every((e, i) => {
+      const o = b.effects[i];
+      return e.type === o.type && e.secondsLeft === o.secondsLeft && e.fraction === o.fraction;
+    })
   );
 }
 
@@ -71,6 +101,7 @@ const Breakout: React.FC = () => {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [highScore, updateHighScore] = useHighScore('breakout');
   const [beatHighScore, setBeatHighScore] = useState(false);
+  const [announcement, setAnnouncement] = useState<PickupAnnouncement>(NO_ANNOUNCEMENT);
 
   const inputRef = useRef<InputState>({ left: false, right: false, pointerX: null });
   const lastTimeRef = useRef<number>(0);
@@ -85,7 +116,8 @@ const Breakout: React.FC = () => {
   const syncUi = useCallback(() => {
     const state = gameStateRef.current;
     if (!state) return;
-    setUi((prev) => (snapshotsEqual(prev, snapshot(state)) ? prev : snapshot(state)));
+    const next = snapshot(state);
+    setUi((prev) => (snapshotsEqual(prev, next) ? prev : next));
   }, []);
 
   // Start a new game with the selected difficulty.
@@ -94,6 +126,7 @@ const Breakout: React.FC = () => {
     gameStateRef.current = state;
     resultRecordedRef.current = false;
     setBeatHighScore(false);
+    setAnnouncement(NO_ANNOUNCEMENT);
     lastTimeRef.current = 0;
     setUi(snapshot(state));
     setScreen('playing');
@@ -101,6 +134,7 @@ const Breakout: React.FC = () => {
 
   const returnToMenu = useCallback(() => {
     gameStateRef.current = null;
+    setAnnouncement(NO_ANNOUNCEMENT);
     setUi(null);
     setScreen('menu');
   }, []);
@@ -384,6 +418,11 @@ const Breakout: React.FC = () => {
       updateGame(state, inputRef.current, deltaTime);
       render(ctx, state);
 
+      if (state.pickupEvents.length > 0) {
+        const types = state.pickupEvents.splice(0);
+        setAnnouncement((prev) => ({ id: prev.id + 1, types }));
+      }
+
       // Only persist genuinely new highs (avoids scheduling a state update every frame).
       if (state.score > highScoreRef.current) updateHighScore(state.score);
 
@@ -432,6 +471,7 @@ const Breakout: React.FC = () => {
         <li><Chip color="#ef4444" sym="−" /> {t.puShrink}</li>
         <li><Chip color="#f97316" sym="F" /> {t.puFast}</li>
       </ul>
+      <p style={{ margin: '0.75rem 0 0', fontSize: '0.9rem' }}>{t.powerupsTimerNote}</p>
     </div>
   );
 
@@ -486,6 +526,8 @@ const Breakout: React.FC = () => {
             </div>
           </div>
         )}
+
+        {ui && <PowerUpStrip ui={ui} announcement={announcement} t={t} />}
 
         <div
           style={{
@@ -609,6 +651,66 @@ const Chip: React.FC<{ color: string; sym: string }> = ({ color, sym }) => (
   </span>
 );
 
+/**
+ * One fixed-height row between the HUD and the board: a countdown for every
+ * running timed power-up, plus a brief acknowledgement of an instant one.
+ */
+const PowerUpStrip: React.FC<{
+  ui: UISnapshot;
+  announcement: PickupAnnouncement;
+  t: BreakoutStrings;
+}> = ({ ui, announcement, t }) => {
+  const instant = ui.instantPickup;
+  const empty = ui.effects.length === 0 && instant === null;
+  return (
+    <div style={stripStyle}>
+      <ul aria-label={t.activePowerups} style={stripListStyle}>
+        {ui.effects.map((effect) => {
+          const config = getPowerUpConfig(effect.type);
+          const name = getPowerUpName(t, effect.type);
+          return (
+            <li key={effect.type} style={{ ...stripChipStyle, borderColor: config.color }}>
+              <span aria-hidden style={{ ...stripBadgeStyle, background: config.color }}>
+                {config.symbol}
+              </span>
+              <span aria-hidden style={stripNameStyle}>{name}</span>
+              <span aria-hidden style={stripSecondsStyle}>{t.secondsShort(effect.secondsLeft)}</span>
+              <span style={srOnlyStyle}>{t.effectTimeLeft(name, effect.secondsLeft)}</span>
+              <span aria-hidden style={stripTrackStyle}>
+                <span
+                  style={{
+                    display: 'block',
+                    height: '100%',
+                    width: `${effect.fraction * 100}%`,
+                    background: config.color,
+                  }}
+                />
+              </span>
+            </li>
+          );
+        })}
+        {instant !== null && (
+          <li style={{ ...stripChipStyle, borderColor: getPowerUpConfig(instant).color }}>
+            <span aria-hidden style={{ ...stripBadgeStyle, background: getPowerUpConfig(instant).color }}>
+              {getPowerUpConfig(instant).symbol}
+            </span>
+            <span style={stripNameStyle}>{getPowerUpName(t, instant)}</span>
+          </li>
+        )}
+        {empty && <li style={stripEmptyStyle}>{t.noActivePowerups}</li>}
+      </ul>
+      {/* The region persists; a fresh child per pickup frame re-announces even identical text. */}
+      <span role="status" style={srOnlyStyle}>
+        {announcement.types.length > 0 && (
+          <span key={announcement.id}>
+            {announcement.types.map((type) => t.collected(getPowerUpName(t, type))).join(t.listSeparator)}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+};
+
 const HudItem: React.FC<{ label: string; value: string; accent?: string }> = ({ label, value, accent }) => (
   <div style={hudItemStyle}>
     <span style={hudLabelStyle}>{label}</span>
@@ -654,6 +756,101 @@ const hudLabelStyle: React.CSSProperties = {
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
   color: 'var(--games-route-muted, #94a3b8)',
+};
+
+const stripStyle: React.CSSProperties = {
+  position: 'relative',
+  // Fixed height: the board below must not move as power-ups come and go.
+  height: '2.25rem',
+  marginBottom: '0.6rem',
+  padding: '0 0.6rem',
+  borderRadius: '0.75rem',
+  background: 'var(--games-route-surface-raised, rgba(15, 23, 42, 0.6))',
+  border: '1px solid var(--games-route-border, rgba(148, 163, 184, 0.2))',
+  overflow: 'hidden',
+};
+
+const stripListStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.4rem',
+  height: '100%',
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+};
+
+const stripChipStyle: React.CSSProperties = {
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.35rem',
+  flex: '0 1 auto',
+  minWidth: 0,
+  height: '1.6rem',
+  padding: '0 0.5rem 0 0.2rem',
+  borderRadius: '0.5rem',
+  border: '1px solid',
+  overflow: 'hidden',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  color: 'var(--games-route-fg, #f1f5f9)',
+};
+
+const stripBadgeStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  minWidth: '1.2rem',
+  height: '1.2rem',
+  padding: '0 0.15rem',
+  borderRadius: '0.3rem',
+  // Near-black on the capsule colours keeps every symbol above 4.5:1.
+  color: '#020617',
+  fontSize: '0.72rem',
+  fontWeight: 800,
+};
+
+const stripNameStyle: React.CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const stripSecondsStyle: React.CSSProperties = {
+  flexShrink: 0,
+  fontVariantNumeric: 'tabular-nums',
+};
+
+const stripTrackStyle: React.CSSProperties = {
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  bottom: 0,
+  height: 3,
+  background: 'rgba(148, 163, 184, 0.25)',
+};
+
+const stripEmptyStyle: React.CSSProperties = {
+  fontSize: '0.8rem',
+  color: 'var(--games-route-muted, #94a3b8)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
+
+const srOnlyStyle: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 };
 
 const overlayStyle: React.CSSProperties = {

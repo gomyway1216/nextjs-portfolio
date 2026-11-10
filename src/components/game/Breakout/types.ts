@@ -163,6 +163,20 @@ export interface ActiveEffect {
   remainingMs: number;
 }
 
+/** The most recently caught power-up, kept briefly so the UI can acknowledge it. */
+export interface PickupNotice {
+  type: PowerUpType;
+  /** Remaining display time in simulated ms — frozen while the game is paused. */
+  remainingMs: number;
+}
+
+// How long a caught power-up stays acknowledged in the status strip.
+export const PICKUP_NOTICE_MS = 1600;
+
+export function getPowerUpConfig(type: PowerUpType): PowerUpConfig {
+  return POWERUP_CONFIGS.find((c) => c.type === type) ?? POWERUP_CONFIGS[0];
+}
+
 export interface Particle {
   x: number;
   y: number;
@@ -179,6 +193,9 @@ export interface GameState {
   bricks: Brick[];
   powerUps: PowerUp[];
   activeEffects: ActiveEffect[];
+  pickup: PickupNotice | null;
+  /** Every caught power-up, in order, until the UI drains it to announce them. */
+  pickupEvents: PowerUpType[];
   particles: Particle[];
   score: number;
   lives: number;

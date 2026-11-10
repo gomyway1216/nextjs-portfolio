@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyChaos,
@@ -27,8 +27,13 @@ const idleInput: StepInput = { pointerX: null, left: false, right: false };
 
 const fakeStorage = (initial: Record<string, string> = {}) => {
   const data = new Map(Object.entries(initial));
+  const counts = { reads: 0 };
   return {
-    getItem: (key: string) => data.get(key) ?? null,
+    counts,
+    getItem: (key: string) => {
+      counts.reads += 1;
+      return data.get(key) ?? null;
+    },
     setItem: (key: string, value: string) => {
       data.set(key, value);
     },
@@ -197,6 +202,45 @@ describe('formatDuration', () => {
 });
 
 describe('records store', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('serves snapshots from its cache until another tab changes the book', () => {
+    const tab = new EventTarget();
+    vi.stubGlobal('window', tab);
+    const storage = fakeStorage();
+    const store = createRecordsStore(() => storage);
+    let calls = 0;
+    const unsubscribe = store.subscribe(() => {
+      calls += 1;
+    });
+    const storageEvent = (key: string | null) => Object.assign(new Event('storage'), { key });
+
+    expect(store.getSnapshot()).toBe(EMPTY_BOOK);
+    store.getSnapshot();
+    store.getSnapshot();
+    expect(storage.counts.reads).toBe(1);
+
+    storage.setItem(RECORDS_KEY, JSON.stringify({ hard: { score: 60, stage: 1, combo: 2 } }));
+    tab.dispatchEvent(storageEvent('some-other-key'));
+    expect(calls).toBe(0);
+    expect(store.getSnapshot()).toBe(EMPTY_BOOK);
+
+    tab.dispatchEvent(storageEvent(RECORDS_KEY));
+    expect(calls).toBe(1);
+    expect(store.getSnapshot()).toEqual({ hard: { score: 60, stage: 1, combo: 2 } });
+    expect(storage.counts.reads).toBe(2);
+
+    // A change made while nobody listened is picked up by the next subscriber.
+    unsubscribe();
+    storage.setItem(RECORDS_KEY, JSON.stringify({ hard: { score: 75, stage: 1, combo: 2 } }));
+    tab.dispatchEvent(storageEvent(RECORDS_KEY));
+    expect(calls).toBe(1);
+    store.subscribe(() => {})();
+    expect(store.getSnapshot().hard?.score).toBe(75);
+  });
+
   it('reads the stored book and returns a stable snapshot', () => {
     const storage = fakeStorage({
       [RECORDS_KEY]: JSON.stringify({ easy: { score: 10, stage: 1, combo: 2 } }),

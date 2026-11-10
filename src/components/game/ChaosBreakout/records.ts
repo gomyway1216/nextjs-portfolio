@@ -116,19 +116,21 @@ export interface RecordsStore {
 }
 
 /**
- * A store shaped for useSyncExternalStore. The book is re-read from storage
- * on every access, so a run saved by another tab is merged rather than
- * overwritten. If storage can't be read or written, the book lives in memory
- * for the rest of the page's life.
+ * A store shaped for useSyncExternalStore. Snapshots come from a cache, so
+ * rendering doesn't touch storage; the cache is refreshed when a subscriber
+ * arrives, when another tab changes the stored book, and before every save,
+ * so a run saved by another tab is merged rather than overwritten. If storage
+ * can't be written, the book lives in memory for the rest of the page's life.
  */
 export const createRecordsStore = (getStorage: () => RecordStorage | null): RecordsStore => {
   const listeners = new Set<() => void>();
   let cachedRaw: string | null = null;
   let cachedBook: RecordBook = EMPTY_BOOK;
   let memoryOnly = false;
+  let fresh = false;
 
   const read = (): RecordBook => {
-    if (memoryOnly) return cachedBook;
+    if (memoryOnly || fresh) return cachedBook;
     let raw: string | null;
     try {
       const storage = getStorage();
@@ -137,6 +139,7 @@ export const createRecordsStore = (getStorage: () => RecordStorage | null): Reco
     } catch {
       return cachedBook;
     }
+    fresh = true;
     if (raw !== cachedRaw) {
       cachedRaw = raw;
       cachedBook = parseBook(raw);
@@ -147,8 +150,12 @@ export const createRecordsStore = (getStorage: () => RecordStorage | null): Reco
   return {
     subscribe: (listener) => {
       listeners.add(listener);
+      // Storage events were not heard while nobody was subscribed.
+      fresh = false;
       const onStorage = (event: StorageEvent) => {
-        if (event.key === null || event.key === RECORDS_KEY) listener();
+        if (event.key !== null && event.key !== RECORDS_KEY) return;
+        fresh = false;
+        listener();
       };
       if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
       return () => {
@@ -158,10 +165,12 @@ export const createRecordsStore = (getStorage: () => RecordStorage | null): Reco
     },
     getSnapshot: read,
     saveRun: (difficulty, run) => {
+      fresh = false;
       const { book, improved } = recordRun(read(), difficulty, run);
       const raw = JSON.stringify(book);
       cachedRaw = raw;
       cachedBook = book;
+      fresh = true;
       try {
         const storage = getStorage();
         if (storage) storage.setItem(RECORDS_KEY, raw);

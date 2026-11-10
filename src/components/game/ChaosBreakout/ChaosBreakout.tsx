@@ -54,7 +54,6 @@ export const ChaosBreakout = () => {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const stateRef = useRef<GameState | null>(null);
   const frameRef = useRef<number | null>(null);
   const inputRef = useRef<StepInput>({ pointerX: null, left: false, right: false });
@@ -353,9 +352,14 @@ export const ChaosBreakout = () => {
           inputRef.current.pointerX = null;
           break;
         case 'Space':
-          // Space on the focused Difficulty button activates that button; it
-          // must not also launch or restart the run from here.
-          if (e.target instanceof Node && menuBtnRef.current?.contains(e.target)) break;
+          // Space on a focused control activates that control; it must not
+          // also launch or restart the run from here.
+          if (
+            e.target instanceof Element &&
+            e.target.closest('button, a[href], input, select, textarea')
+          ) {
+            break;
+          }
           if (phaseRef.current === 'ready') {
             e.preventDefault();
             doLaunch();
@@ -555,16 +559,20 @@ export const ChaosBreakout = () => {
                   {phase === 'paused' ? t.resume : t.pause}
                 </button>
               )}
-              <button type="button" className={styles.ghostBtn} onClick={startGame}>
+              <button
+                type="button"
+                className={styles.ghostBtn}
+                onClick={(e) => {
+                  startGame();
+                  // A pointer click (detail > 0) leaves focus on this button,
+                  // where Space would restart again instead of launching.
+                  if (e.detail > 0) e.currentTarget.blur();
+                }}
+              >
                 <RotateCcw size={16} /> {t.restart}
               </button>
               {phase !== 'playing' && (
-                <button
-                  ref={menuBtnRef}
-                  type="button"
-                  className={styles.ghostBtn}
-                  onClick={backToMenu}
-                >
+                <button type="button" className={styles.ghostBtn} onClick={backToMenu}>
                   <SlidersHorizontal size={16} /> {t.changeDifficulty}
                 </button>
               )}

@@ -63,7 +63,7 @@ import { useCountUp } from '../MedalCenter/countUp';
 import { NoteGate, createOnceNote, noteAttributes } from '../MedalCenter/onceNote';
 import { MedalCounter, MedalIcon, MedalStack } from './MedalCounter';
 import { PlayingCard, cardLabel } from './Cards';
-import { BeadPlate, BigRoad } from './Roads';
+import { BeadPlate, BigRoad, DerivedRoad, NextMarks } from './Roads';
 import { getStrings } from './i18n';
 import styles from './Baccarat.module.css';
 
@@ -845,7 +845,14 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
                   roads.filter((r) => r.winner === 'tie').length,
                 )}
               />
+              <DerivedRoad entries={roads} road="bigEye" name={t.derivedRoad.bigEye} ariaLabel={(red, blue) => t.derivedAria(t.derivedRoad.bigEye, red, blue)} minCols={24} />
+              <div className={styles.roadPair}>
+                <DerivedRoad entries={roads} road="small" name={t.derivedRoad.small} ariaLabel={(red, blue) => t.derivedAria(t.derivedRoad.small, red, blue)} />
+                <DerivedRoad entries={roads} road="cockroach" name={t.derivedRoad.cockroach} ariaLabel={(red, blue) => t.derivedAria(t.derivedRoad.cockroach, red, blue)} />
+              </div>
+              <NextMarks entries={roads} title={t.nextMarksTitle} letters={t.roadLetter} ariaLabel={t.nextMarksAria} />
               <p className={styles.note}>{t.roadNote}</p>
+              <p className={styles.note}>{t.derivedNote}</p>
             </div>
 
             <div className={styles.sectionLabel} style={{ marginTop: '0.9rem' }}>

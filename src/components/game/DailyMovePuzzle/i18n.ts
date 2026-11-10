@@ -29,6 +29,18 @@ export interface DailyMovePuzzleStrings {
   cellLabel: (row: number, col: number, content: string) => string;
   empty: string;
   alreadySolved: string;
+  statsTitle: string;
+  todayPending: string;
+  todayResult: (attempts: number, hinted: boolean) => string;
+  statSolved: string;
+  statCurrent: string;
+  statBest: string;
+  statFirstTry: string;
+  distTitle: string;
+  distHint: string;
+  distRow: (attempts: number, days: number) => string;
+  distHintRow: (days: number) => string;
+  statsNote: string;
 }
 
 const en: DailyMovePuzzleStrings = {
@@ -61,6 +73,7 @@ const en: DailyMovePuzzleStrings = {
     'Par is 1: a perfect solve finds it on the first tap.',
     'Wrong taps count as extra attempts. Use Undo to take back a tap, or Reset to start the puzzle over.',
     'Everyone gets the same puzzle each day, so compare your attempts with friends.',
+    'Your record keeps the first solve of each day on this device. Every different wrong square you tapped before it counts, even after Undo or Reset, and a solve after showing the hint is listed separately.',
   ],
   toMove: 'to move',
   boardLabel: 'Puzzle board, 3 by 3',
@@ -68,6 +81,21 @@ const en: DailyMovePuzzleStrings = {
     `Row ${row}, column ${col}, ${content}`,
   empty: 'empty',
   alreadySolved: "You already solved today's puzzle.",
+  statsTitle: 'Your record',
+  todayPending: 'Today: not solved yet.',
+  todayResult: (attempts, hinted) =>
+    `Today: recorded as ${attempts === 1 ? '1 attempt' : `${attempts} attempts`}${hinted ? ', with the hint' : ''}.`,
+  statSolved: 'Days solved',
+  statCurrent: 'Current streak',
+  statBest: 'Best streak',
+  statFirstTry: 'First-tap solves',
+  distTitle: 'Attempts on the first solve of each day',
+  distHint: 'Hint',
+  distRow: (attempts, days) =>
+    `${attempts === 1 ? '1 attempt' : `${attempts} attempts`}, no hint: ${days === 1 ? '1 day' : `${days} days`}`,
+  distHintRow: (days) => `Solved after showing the hint: ${days === 1 ? '1 day' : `${days} days`}`,
+  statsNote:
+    'Saved on this device. Only the first solve of each day is recorded; every different wrong square tapped before it counts, even after Undo or Reset.',
 };
 
 const ja: DailyMovePuzzleStrings = {
@@ -100,12 +128,27 @@ const ja: DailyMovePuzzleStrings = {
     '基準は1手。最初のタップで当てれば完璧です。',
     '間違えるとその分だけ挑戦回数が増えます。「取り消し」で1手戻す、「リセット」で最初からやり直せます。',
     '全員が同じ問題に挑戦するので、友達と挑戦回数を比べてみましょう。',
+    '記録にはその日の最初のクリアだけがこの端末に残ります。それまでにタップした不正解のマスは「取り消し」や「リセット」をしても数に入り、ヒントを表示してからのクリアは別枠で集計されます。',
   ],
   toMove: 'の手番',
   boardLabel: '3×3のパズル盤',
   cellLabel: (row, col, content) => `${row}行 ${col}列、${content}`,
   empty: '空き',
   alreadySolved: '本日のパズルはクリア済みです。',
+  statsTitle: 'あなたの記録',
+  todayPending: '今日：まだクリアしていません。',
+  todayResult: (attempts, hinted) =>
+    `今日：${attempts}回でクリアと記録${hinted ? '（ヒント使用）' : ''}。`,
+  statSolved: 'クリア日数',
+  statCurrent: '連続クリア',
+  statBest: '最長連続',
+  statFirstTry: '一発正解',
+  distTitle: '各日の最初のクリアまでの挑戦回数',
+  distHint: 'ヒント',
+  distRow: (attempts, days) => `ヒントなし${attempts}回：${days}日`,
+  distHintRow: (days) => `ヒントを表示してからクリア：${days}日`,
+  statsNote:
+    'この端末に保存されます。記録されるのはその日の最初のクリアだけで、それまでにタップした不正解のマスは「取り消し」や「リセット」をしても数に入ります。',
 };
 
 export const getStrings = (language: GameLanguage): DailyMovePuzzleStrings =>

@@ -125,7 +125,7 @@ const en: CouponStrings = {
   waitSummaryEmpty:
     'Draw to fill in the bars. The line is the expected wait for each new coupon; it reaches n for the last one.',
   waitSummary: (longest, which, expected) =>
-    `Longest wait so far: ${longest} draws for new coupon #${which} (expected ${expected}).`,
+    `Longest finished wait: ${longest} draws for new coupon #${which} (expected ${expected}).`,
   simSizeLabel: 'Collection size n',
   trialsLabel: 'Trials',
   runSim: 'Run simulation',
@@ -210,7 +210,7 @@ const ja: CouponStrings = {
   waitSummaryEmpty:
     '引くと棒が埋まっていきます。線は新種ごとの期待待ち回数で、最後の1種では n に達します。',
   waitSummary: (longest, which, expected) =>
-    `これまでの最長待ち：${which} 番目の新種で ${longest} 回（期待値 ${expected}）。`,
+    `確定済みの最長待ち：${which} 番目の新種で ${longest} 回（期待値 ${expected}）。`,
   simSizeLabel: 'コレクションのサイズ n',
   trialsLabel: '試行回数',
   runSim: 'シミュレーション実行',

@@ -356,6 +356,10 @@
   align-items: center;
   gap: 0.35rem;
 }
+.legendSwatch,
+.legendLine {
+  flex: none;
+}
 .legendSwatch {
   width: 0.7rem;
   height: 0.7rem;

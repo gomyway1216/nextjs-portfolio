@@ -1,6 +1,7 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import { PAYS, STAGES, type GateKind, type Play, type Pocket, type StageEnd } from './engine';
+import type { GateReview } from './review';
 
 /**
  * Every word Candy Shop Medal Maze shows, in English and Japanese.
@@ -66,6 +67,33 @@ const jaEnd: Record<StageEnd, string> = {
   shut: `カチン！${B}閉まっていて${B}アウト。`,
   timeout: `時間切れで${B}アウト。`,
 };
+
+/** A gate looked back at: how the flick stood against the gate's turn, then how it ended. */
+const enReviewEnd: Record<StageEnd, string> = {
+  through: 'through',
+  'graze-through': 'grazed the edge, through',
+  'graze-out': 'grazed the edge, OUT',
+  shut: 'gate shut, OUT',
+  timeout: 'No flick: time ran out, OUT',
+};
+function enReviewLine({ played, off, opens }: GateReview): string {
+  if (off === null) return enReviewEnd[played.end];
+  const n = Math.abs(off);
+  const timing = off === 0 ? (opens ? 'On time' : 'As wide as it gets') : `${n} ${n === 1 ? 'window' : 'windows'} ${off < 0 ? 'early' : 'late'}`;
+  return `${played.blind ? 'Flicked blind · ' : ''}${timing}: ${enReviewEnd[played.end]}`;
+}
+const jaReviewEnd: Record<StageEnd, string> = {
+  through: '抜けた',
+  'graze-through': `ふちに当たって${B}抜けた`,
+  'graze-out': `ふちに当たって${B}アウト`,
+  shut: `閉まっていて${B}アウト`,
+  timeout: `はじかないまま${B}時間切れでアウト`,
+};
+function jaReviewLine({ played, off, opens }: GateReview): string {
+  if (off === null) return jaReviewEnd[played.end];
+  const timing = off === 0 ? (opens ? 'ぴったり' : 'これがいちばん') : `${Math.abs(off)}つ${off < 0 ? '早い' : '遅い'}`;
+  return `${played.blind ? `目をつぶってはじいた・${B}` : ''}${timing}：${B}${jaReviewEnd[played.end]}`;
+}
 
 const en = {
   title: 'Candy Shop Medal Maze',
@@ -133,6 +161,14 @@ const en = {
   historyTitle: 'Last plays',
   historyEmpty: 'No plays yet.',
   historyEntry: (play: Play) => (play.outAt !== null ? `OUT ${play.outAt + 1}` : play.pocket === 'out' ? 'OUT pins' : `+${play.won}`),
+  // ── The look back at the last play ──
+  reviewTitle: 'Last play, flick by flick',
+  reviewEmpty: 'Finish a play to see how each flick met its gate.',
+  reviewKey: 'Each strip is that gate’s turn, window by window: O open · ½ half open · × shut. The dark window is the one flicked in. Early and late count the windows to the nearest one where the gate stood widest.',
+  reviewGate: (stage: number, kind: GateKind | null) => (kind ? `Gate ${stage + 1} · ${EN_KINDS[kind]}` : `Gate ${stage + 1}`),
+  reviewNotReached: 'Not reached',
+  reviewLine: enReviewLine,
+  reviewPins: (play: Play) => (play.pocket ? `Pins: ${EN_POCKETS[play.pocket]}${play.won > 0 ? ` +${play.won}` : ''}` : 'Pins: not reached'),
   sessionTitle: 'This visit',
   plays: 'Plays',
   played: 'Medals played',
@@ -269,6 +305,13 @@ const ja: CoinMazeStrings = {
   historyTitle: '最近のプレイ',
   historyEmpty: 'まだ遊んでいません。',
   historyEntry: (play: Play) => (play.outAt !== null ? `アウト${play.outAt + 1}` : play.pocket === 'out' ? 'はずれ' : `+${play.won}枚`),
+  reviewTitle: `前回のプレイを${B}ふり返る`,
+  reviewEmpty: `1回遊ぶと、${B}レバーごとの${B}タイミングが${B}ここに出ます。`,
+  reviewKey: `帯はゲートの1周です（${B}O 開く・½ 半分・× 閉まる）。${B}濃いマスが${B}はじいたタイミング。${B}「早い・遅い」は、${B}ゲートがいちばん開いていた${B}いちばん近いタイミングまでの数です。`,
+  reviewGate: (stage: number, kind: GateKind | null) => (kind ? `ゲート${stage + 1}・${JA_KINDS[kind]}` : `ゲート${stage + 1}`),
+  reviewNotReached: '届かず',
+  reviewLine: jaReviewLine,
+  reviewPins: (play: Play) => (play.pocket ? `釘：${B}${JA_POCKETS[play.pocket]}${play.won > 0 ? ` +${play.won}枚` : ''}` : `釘：${B}届かず`),
   sessionTitle: '今回のプレイ',
   plays: `プレイ${B}回数`,
   played: `使った${B}メダル`,

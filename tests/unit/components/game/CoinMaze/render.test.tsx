@@ -9,6 +9,7 @@ import { GATE_KINDS, GATE_PATTERNS, OPENING, PIN_ROWS, POCKETS, STAGES, TIMEOUT,
 import { getStrings, type CoinMazeStrings } from '@/components/game/CoinMaze/i18n';
 import { OddsTab } from '@/components/game/CoinMaze/OddsTab';
 import { MEDAL_PLACES, PlayTab, WIN_PLACES, phrasesOf } from '@/components/game/CoinMaze/PlayTab';
+import { reviewOf } from '@/components/game/CoinMaze/review';
 import { BOARD_H, BOARD_W, CUPS, CUP_LIP, FUNNEL, GATE_X, HOLES, POCKET_REST_Y, POCKET_X, R, SHELVES, createMachineClock, cuesOf, dropTrack, flickTrack, gateLook, pinsTrack, poseAt, type Track } from '@/components/game/CoinMaze/scene';
 import { FLOOR, MedalCenter } from '@/components/game/MedalCenter/MedalCenter';
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
@@ -251,9 +252,13 @@ function everyString(t: CoinMazeStrings): { key: string; text: string }[] {
       add(key, value);
       continue;
     }
-    if (key === 'outcome' || key === 'historyEntry') for (const play of plays) add(key, (value as (p: typeof play) => unknown)(play));
+    if (key === 'outcome' || key === 'historyEntry' || key === 'reviewPins') for (const play of plays) add(key, (value as (p: typeof play) => unknown)(play));
     else if (key === 'pocketName' || key === 'pocketShort' || key === 'pocketPays') for (const pocket of ['big', 'win', 'out'] as const) add(key, (value as (p: typeof pocket) => unknown)(pocket));
     else if (key === 'kindName') for (const kind of GATE_KINDS) add(key, t.kindName(kind));
+    else if (key === 'reviewGate') for (const kind of [...GATE_KINDS, null]) add(key, t.reviewGate(0, kind));
+    else if (key === 'reviewLine') {
+      for (const play of [...plays, playOf(draw({ gates: [7, 0, 0, 0] }), [0, 6]), playOf(draw(), [1], true)]) for (const gate of reviewOf(play)) if (gate) add(key, t.reviewLine(gate));
+    }
     else if (key === 'infoBody') add(key, t.infoBody('92.53%', '75.81%', '4.97%'));
     else {
       const call = value as (...a: unknown[]) => unknown;
@@ -324,6 +329,7 @@ describe('the words', () => {
     const markup = render(<PlayTab />, 'ja');
     expect(markup).toContain('>今回のプレイ<');
     expect(markup).toContain('>最近のプレイ<');
+    expect(markup.replace(/\u200b/g, '')).toContain('>前回のプレイをふり返る<');
   });
 
   it('tells how a play ended in a few words, and in a sentence for a screen reader', () => {

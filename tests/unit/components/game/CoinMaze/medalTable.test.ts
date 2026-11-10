@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { TIMEOUT, playOf, type Draw } from '@/components/game/CoinMaze/engine';
-import { COIN_MAZE_GAME, PLAY_KEY, createTable, parsePlay, playId, playKey, serializePlay, type PlayRecord, type Staked } from '@/components/game/CoinMaze/medalTable';
+import { COIN_MAZE_GAME, PLAY_KEY, createTable, parsePlay, playId, playKey, playOfRecord, serializePlay, type PlayRecord, type Staked } from '@/components/game/CoinMaze/medalTable';
 import { BANK_KEY, ledgerKey, type Seat } from '@/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, serializeLedger } from '@/components/game/MedalCenter/ledger';
 import type { Player } from '@/components/game/MedalPusher/account';
@@ -160,6 +160,32 @@ describe('a play, once', () => {
     expect(machine.stop()).toBe('paid');
     expect(record(browser)).toMatchObject({ flicks: [OPEN, 1, SHUT], paid: true });
     expect(stored(browser)).toBe(WELCOME - 1);
+  });
+
+  it('keeps whose each flick was through the settling: the player’s own counted, the rest marked blind when read back', async () => {
+    const browser = new FakeBrowser();
+    const machine = machineOn(browser.open());
+    await quiet(browser);
+    const staked = machine.drop(draw({ blinds: [1, 1, SHUT, 1] }));
+    machine.flick(OPEN);
+    expect(machine.stop()).toBe('paid');
+    // As the page that settled it knows it, and as the next page reads it out of storage.
+    for (const settled of [staked!.record, record(browser)!]) {
+      expect(settled.own).toBe(1);
+      expect(playOfRecord(settled).stages.map((stage) => stage.blind)).toEqual([false, true, true]);
+    }
+    // A play the player flicked to its end has no count, and no flick of it is marked.
+    const whole = machine.drop(WIN_PLAY);
+    for (let s = 0; s < 4; s++) machine.flick(OPEN);
+    expect(machine.stop()).toBe('paid');
+    expect(whole!.record).not.toHaveProperty('own');
+    expect(record(browser)).not.toHaveProperty('own');
+    expect(playOfRecord(record(browser)!).stages.map((stage) => stage.blind)).toEqual([false, false, false, false]);
+    // A medal that fell OUT at the player's own flick: nothing was flicked for the player.
+    const out = machine.drop(WIN_PLAY);
+    machine.flick(SHUT);
+    expect(machine.stop()).toBe('paid');
+    expect(out!.record).not.toHaveProperty('own');
   });
 
   it('takes nothing it should not: a draw it could not make, a medal the player does not have, a page without the card', async () => {
@@ -443,6 +469,12 @@ describe('reading a play back', () => {
     expect(parsePlay(serializePlay(good))).toEqual(good);
     const ended: PlayRecord = { ...good, flicks: [OPEN, SHUT], paid: true };
     expect(parsePlay(serializePlay(ended))).toEqual(ended);
+    // Whose the flicks were, on a play finished for the player: kept when it could be so, left out when it could not.
+    const finished: PlayRecord = { ...good, flicks: [OPEN, OPEN, OPEN, OPEN], paid: true, own: 2 };
+    expect(parsePlay(serializePlay(finished))).toEqual(finished);
+    expect(parsePlay(serializePlay({ ...finished, own: 0 }))?.own).toBe(0);
+    for (const own of [4, 5, -1, 1.5, '2', null]) expect(parsePlay(JSON.stringify({ ...finished, own })), String(own)).toEqual({ ...finished, own: undefined });
+    expect(parsePlay(JSON.stringify({ ...good, own: 1 }))).toEqual(good);
     const bad: unknown[] = [
       null,
       'not json',

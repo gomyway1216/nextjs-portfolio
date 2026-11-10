@@ -14,12 +14,14 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { CounterTally } from './CounterTally';
 import { HOLD_MAX, STEP_RATE, TIMES, TURN_STEPS, atRest, busy, idle, step as stepMachine, type Machine, type MachineEvent, type Spin } from './engine';
 import { getStrings } from './i18n';
 import { LOTTERY, OUTCOME_IDS, type OutcomeId } from './lottery';
 import { CAROUSEL_GAME, createTable, roundId, type SessionRecord, type Table } from './medalTable';
 import { PUBLISHED_CAROUSEL } from './published';
 import { Stage, type StageHandle } from './Stage';
+import { EMPTY_TALLY, counted, type Tally } from './tally';
 import { VIEW } from './view';
 import styles from './CarouselPusher.module.css';
 
@@ -221,6 +223,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [announcement, setAnnouncement] = useState('');
   const [history, setHistory] = useState<{ id: number; outcome: OutcomeId; medals: number }[]>([]);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  /** What the counter stopped on, and whose play it was: another player's is not shown. */
+  const [tally, setTally] = useState<{ uid: string | null; seen: Tally }>({ uid: player.uid, seen: EMPTY_TALLY });
   const [resting, setResting] = useState(true);
   /** Where and when the carousel last set off turning on its own: the step it was at, and the moment (for the tests' clock). */
   const [restFrom, setRestFrom] = useState<{ step: number; since: number } | null>(null);
@@ -322,6 +326,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const hear = useCallback(
     (events: readonly MachineEvent[], m: Machine): boolean => {
       const words = live.current.t;
+      const who = live.current.player.uid;
       let saveNow = false;
       for (const e of events) {
         switch (e.type) {
@@ -363,6 +368,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           }
           case 'paid': {
             const id = OUTCOME_IDS[e.outcome];
+            setTally((was) => ({ uid: who, seen: counted(was.uid === who ? was.seen : EMPTY_TALLY, e) }));
             setCounter((c) => ({ ...c, rolling: [false, false, false], result: id }));
             if (e.medals > 0) {
               play(id === 'triple' ? 'big' : 'win');
@@ -383,6 +389,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           }
           case 'jackpot':
             setCounter((c) => ({ ...c, rolling: [false, false, false], result: 'jackpot' }));
+            setTally((was) => ({ uid: who, seen: counted(was.uid === who ? was.seen : EMPTY_TALLY, e) }));
             play('fanfare');
             historyId.current += 1;
             setHistory((h) => [{ id: historyId.current, outcome: 'jackpot' as OutcomeId, medals: e.medals }, ...h].slice(0, HISTORY_LIMIT));
@@ -646,6 +653,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       session.current = null;
       setHistory([]);
       setStats(EMPTY_STATS);
+      setTally({ uid: live.current.player.uid, seen: EMPTY_TALLY });
       setMessage('');
       setCounter(REST_COUNTER);
       medalBank().restarted(CAROUSEL_GAME);
@@ -1037,6 +1045,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             </div>
           </dl>
         </section>
+
+        <CounterTally tally={tally.uid === player.uid ? tally.seen : EMPTY_TALLY} t={t} locale={locale} />
       </div>
 
       <p className={styles.srOnly} aria-live="polite" data-testid="cp-announcement">

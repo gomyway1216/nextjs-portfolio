@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { TrajectoryChart } from './charts';
 import { Outcome, RuinConfig, RunResult, expectedDuration, theoreticalRuinProb } from './engine';
 import {
+  EMPTY_SESSION,
+  PlaySession,
   RUN_LOG_LIMIT,
-  RunLogEntry,
   RunReview,
-  appendRunLog,
   continueRun,
   formatChance,
   oddsFrom,
+  recordRun,
   reviewRun,
 } from './liveOdds';
 import type { TFn } from './i18n';
@@ -21,28 +22,27 @@ const PLAY_MAX_STEPS = 5000;
 
 const defaultConfig: RuinConfig = { start: 10, target: 20, winProb: 0.5 };
 
-interface SessionStats {
-  ruined: number;
-  reached: number;
+interface PlayTabProps {
+  t: TFn;
+  /** Owned by the parent so the record survives a visit to the Simulate tab. */
+  session: PlaySession;
+  onSessionChange: Dispatch<SetStateAction<PlaySession>>;
 }
 
-export const PlayTab = ({ t }: { t: TFn }) => {
+export const PlayTab = ({ t, session, onSessionChange }: PlayTabProps) => {
   const [config, setConfig] = useState<RuinConfig>(defaultConfig);
   const [bankroll, setBankroll] = useState(defaultConfig.start);
   const [steps, setSteps] = useState(0);
   const [running, setRunning] = useState(false);
   const [trajectory, setTrajectory] = useState<number[]>([defaultConfig.start]);
-  const [sessionStats, setSessionStats] = useState<SessionStats>({ ruined: 0, reached: 0 });
   const [result, setResult] = useState<RunResult | null>(null);
   const [review, setReview] = useState<RunReview | null>(null);
-  const [runLog, setRunLog] = useState<RunLogEntry[]>([]);
 
   const runningRef = useRef(false);
   const cancelledRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   // Mirrors `trajectory` so a finished run can be reviewed from inside a timer callback.
   const trajRef = useRef<number[]>([defaultConfig.start]);
-  const runIdRef = useRef(0);
 
   useEffect(() => () => {
     cancelledRef.current = true;
@@ -70,20 +70,12 @@ export const PlayTab = ({ t }: { t: TFn }) => {
 
   const finishRun = (outcome: Outcome, finalBankroll: number) => {
     const done = reviewRun(config, trajRef.current, outcome);
-    const entry: RunLogEntry = { id: ++runIdRef.current, config, review: done };
     setResult({ outcome, steps: done.steps, finalBankroll, trajectory: [] });
     setReview(done);
-    setSessionStats((s) => ({
-      ruined: s.ruined + (outcome === 'ruined' ? 1 : 0),
-      reached: s.reached + (outcome === 'reached' ? 1 : 0),
-    }));
-    setRunLog((log) => appendRunLog(log, entry));
+    onSessionChange((s) => recordRun(s, config, done));
   };
 
-  const clearSession = () => {
-    setSessionStats({ ruined: 0, reached: 0 });
-    setRunLog([]);
-  };
+  const clearSession = () => onSessionChange(EMPTY_SESSION);
 
   const updateConfig = <K extends keyof RuinConfig>(key: K, value: RuinConfig[K]) => {
     const next: RuinConfig = { ...config, [key]: value };
@@ -126,17 +118,22 @@ export const PlayTab = ({ t }: { t: TFn }) => {
         setRunning(false);
         return;
       }
+      if (i < trail.length) {
+        const v = trail[i];
+        setBankroll(v);
+        pushPoint(v);
+        setSteps((s) => s + 1);
+        i++;
+      }
+      // Settle in the same tick as the last point, so a Stop can never land
+      // between the bankroll hitting a boundary and the run being recorded.
       if (i >= trail.length) {
+        timerRef.current = null;
         runningRef.current = false;
         setRunning(false);
         finishRun(full.outcome, full.finalBankroll);
         return;
       }
-      const v = trail[i];
-      setBankroll(v);
-      pushPoint(v);
-      setSteps((s) => s + 1);
-      i++;
       timerRef.current = window.setTimeout(tick, STEP_INTERVAL_MS);
     };
     tick();
@@ -265,8 +262,8 @@ export const PlayTab = ({ t }: { t: TFn }) => {
           <Stat label={t('theoRuin')} value={formatChance(theoreticalRuin)} color="var(--gr-ruin)" />
           <Stat label={t('theoReach')} value={formatChance(1 - theoreticalRuin)} color="var(--gr-reach)" />
           <Stat label={t('expDuration')} value={expDur.toFixed(1)} color="var(--gr-accent-strong)" />
-          <Stat label={t('sessionRuined')} value={`${sessionStats.ruined}`} color="var(--gr-ruin)" />
-          <Stat label={t('sessionReached')} value={`${sessionStats.reached}`} color="var(--gr-reach)" />
+          <Stat label={t('sessionRuined')} value={`${session.ruined}`} color="var(--gr-ruin)" />
+          <Stat label={t('sessionReached')} value={`${session.reached}`} color="var(--gr-reach)" />
         </div>
 
         <h4 className={styles.subHeading} style={{ marginTop: '0.9rem' }}>{t('bankrollTrend')}</h4>
@@ -280,18 +277,18 @@ export const PlayTab = ({ t }: { t: TFn }) => {
           <button
             type="button"
             onClick={clearSession}
-            disabled={runLog.length === 0 && sessionStats.ruined + sessionStats.reached === 0}
+            disabled={session.runCount === 0}
             className={`${styles.btn} ${styles.btnGhost} ${styles.btnSmall}`}
           >
             {t('logClear')}
           </button>
         </div>
-        {runLog.length === 0 ? (
+        {session.log.length === 0 ? (
           <p className={`${styles.caption} ${styles.logEmpty}`}>{t('logEmpty')}</p>
         ) : (
           <div className={styles.logScroll} role="region" aria-label={t('logRegionLabel')} tabIndex={0}>
             <ol className={styles.logList}>
-              {runLog.map((entry) => (
+              {session.log.map((entry) => (
                 <li key={entry.id} className={styles.logRow}>
                   <span
                     className={`${styles.logOutcome} ${

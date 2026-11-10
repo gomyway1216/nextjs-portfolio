@@ -5,6 +5,7 @@ import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { makeT } from './i18n';
+import { EMPTY_SESSION, type PlaySession } from './liveOdds';
 import styles from './GamblersRuin.module.css';
 
 type Tab = 'play' | 'sim';
@@ -12,6 +13,7 @@ type Tab = 'play' | 'sim';
 export const GamblersRuin = () => {
   const [tab, setTab] = useState<Tab>('play');
   const [showInfo, setShowInfo] = useState(false);
+  const [playSession, setPlaySession] = useState<PlaySession>(EMPTY_SESSION);
   const { language } = useGameLanguage();
   const t = makeT(language);
 
@@ -54,7 +56,11 @@ export const GamblersRuin = () => {
           </button>
         </div>
 
-        {tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} />}
+        {tab === 'play' ? (
+          <PlayTab t={t} session={playSession} onSessionChange={setPlaySession} />
+        ) : (
+          <SimTab t={t} />
+        )}
       </div>
 
       {showInfo && (

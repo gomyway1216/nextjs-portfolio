@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { expectedDuration, theoreticalRuinProb } from '@/components/game/GamblersRuin/engine';
 import {
+  EMPTY_SESSION,
   RUN_LOG_LIMIT,
-  appendRunLog,
   continueRun,
   formatChance,
   oddsFrom,
+  recordRun,
   reviewRun,
-  type RunLogEntry,
+  type PlaySession,
 } from '@/components/game/GamblersRuin/liveOdds';
 
 function sequence(values: number[], fallback = 0): () => number {
@@ -107,10 +108,14 @@ describe('continueRun', () => {
     expect(run.trajectory).toEqual([10, 11, 10, 11]);
   });
 
-  it('still takes one step when the cap is already used up', () => {
-    const run = continueRun(config, 10, 10, 10, sequence([0.1]));
-    expect(run.steps).toBe(1);
-    expect(run.outcome).toBe('capped');
+  it('does not move once the cap is already used up', () => {
+    for (const stepsSoFar of [10, 11]) {
+      const run = continueRun(config, 19, stepsSoFar, 10, sequence([0.1]));
+      expect(run.outcome).toBe('capped');
+      expect(run.steps).toBe(0);
+      expect(run.trajectory).toEqual([19]);
+      expect(run.finalBankroll).toBe(19);
+    }
   });
 });
 
@@ -171,26 +176,41 @@ describe('reviewRun', () => {
   });
 });
 
-describe('appendRunLog', () => {
+describe('recordRun', () => {
   const config = { start: 3, target: 6, winProb: 0.5 };
-  const entry = (id: number): RunLogEntry => ({
-    id,
-    config,
-    review: reviewRun(config, [3, 2, 1, 0], 'ruined'),
+  const ruined = reviewRun(config, [3, 2, 1, 0], 'ruined');
+  const reached = reviewRun(config, [3, 4, 5, 6], 'reached');
+  const capped = reviewRun(config, [3, 4, 3], 'capped');
+
+  it('counts each outcome and numbers runs from 1, newest first', () => {
+    let session: PlaySession = EMPTY_SESSION;
+    session = recordRun(session, config, ruined);
+    session = recordRun(session, config, reached);
+    session = recordRun(session, config, capped);
+    expect(session.ruined).toBe(1);
+    expect(session.reached).toBe(1);
+    expect(session.runCount).toBe(3);
+    expect(session.log.map((e) => e.id)).toEqual([3, 2, 1]);
+    expect(session.log.map((e) => e.review.outcome)).toEqual(['capped', 'reached', 'ruined']);
+    expect(session.log[0].config).toBe(config);
   });
 
-  it('puts the newest run first and does not mutate the input', () => {
-    const log = [entry(1)];
-    const next = appendRunLog(log, entry(2));
-    expect(next.map((e) => e.id)).toEqual([2, 1]);
-    expect(log.map((e) => e.id)).toEqual([1]);
+  it('does not mutate the session it is given', () => {
+    const before = recordRun(EMPTY_SESSION, config, ruined);
+    const after = recordRun(before, config, reached);
+    expect(before.log).toHaveLength(1);
+    expect(before.runCount).toBe(1);
+    expect(after).not.toBe(before);
+    expect(EMPTY_SESSION).toEqual({ ruined: 0, reached: 0, log: [], runCount: 0 });
   });
 
-  it('keeps only the most recent RUN_LOG_LIMIT runs', () => {
-    let log: RunLogEntry[] = [];
-    for (let id = 1; id <= RUN_LOG_LIMIT + 3; id++) log = appendRunLog(log, entry(id));
-    expect(log).toHaveLength(RUN_LOG_LIMIT);
-    expect(log[0].id).toBe(RUN_LOG_LIMIT + 3);
-    expect(log[log.length - 1].id).toBe(4);
+  it('keeps only the most recent RUN_LOG_LIMIT runs but keeps counting', () => {
+    let session: PlaySession = EMPTY_SESSION;
+    for (let n = 0; n < RUN_LOG_LIMIT + 3; n++) session = recordRun(session, config, ruined);
+    expect(session.log).toHaveLength(RUN_LOG_LIMIT);
+    expect(session.log[0].id).toBe(RUN_LOG_LIMIT + 3);
+    expect(session.log[session.log.length - 1].id).toBe(4);
+    expect(session.ruined).toBe(RUN_LOG_LIMIT + 3);
+    expect(session.runCount).toBe(RUN_LOG_LIMIT + 3);
   });
 });

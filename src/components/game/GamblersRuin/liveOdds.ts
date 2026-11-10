@@ -49,7 +49,8 @@ export function formatChance(prob: number, settled = false): string {
 
 /**
  * Continue a run from wherever the bankroll currently is, spending only what is
- * left of the step cap. The returned trajectory starts at `bankroll`.
+ * left of the step cap. The returned trajectory starts at `bankroll`; with no
+ * steps left it comes back `capped` without moving.
  */
 export function continueRun(
   config: RuinConfig,
@@ -58,7 +59,7 @@ export function continueRun(
   stepCap: number,
   rng: () => number = Math.random,
 ): RunResult {
-  const budget = Math.max(1, stepCap - stepsSoFar);
+  const budget = Math.max(0, stepCap - stepsSoFar);
   return runRuin({ ...config, start: bankroll }, budget, rng);
 }
 
@@ -120,7 +121,25 @@ export interface RunLogEntry {
 
 export const RUN_LOG_LIMIT = 10;
 
-/** Newest first, capped at RUN_LOG_LIMIT entries. */
-export function appendRunLog(log: RunLogEntry[], entry: RunLogEntry): RunLogEntry[] {
-  return [entry, ...log].slice(0, RUN_LOG_LIMIT);
+/** What the Play tab remembers across runs until the record is cleared. */
+export interface PlaySession {
+  ruined: number;
+  reached: number;
+  /** Newest first, at most RUN_LOG_LIMIT entries. */
+  log: RunLogEntry[];
+  /** Runs recorded so far; the next entry gets this + 1 as its id. */
+  runCount: number;
+}
+
+export const EMPTY_SESSION: PlaySession = { ruined: 0, reached: 0, log: [], runCount: 0 };
+
+/** Add a finished run to the session: bump its counter and prepend it to the log. */
+export function recordRun(session: PlaySession, config: RuinConfig, review: RunReview): PlaySession {
+  const id = session.runCount + 1;
+  return {
+    ruined: session.ruined + (review.outcome === 'ruined' ? 1 : 0),
+    reached: session.reached + (review.outcome === 'reached' ? 1 : 0),
+    log: [{ id, config, review }, ...session.log].slice(0, RUN_LOG_LIMIT),
+    runCount: id,
+  };
 }

@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { VideoPoker } from '@/components/game/VideoPoker';
 import { MiniCard, PlayingCard } from '@/components/game/VideoPoker/Cards';
-import { HandHistory } from '@/components/game/VideoPoker/HandHistory';
+import { HandHistory, keepSpace } from '@/components/game/VideoPoker/HandHistory';
 import { OddsTab } from '@/components/game/VideoPoker/OddsTab';
 import { EMPTY_STATS, MEDAL_PLACES, PlayTab, effectivePays, judgePlay } from '@/components/game/VideoPoker/PlayTab';
 import { SimTab } from '@/components/game/VideoPoker/SimTab';
@@ -149,6 +149,17 @@ describe('HandHistory', () => {
     expect(item(3)).not.toContain('data-good');
     expect(item(3)).toContain('Dealt 2♠ 7♥ J♦ 4♣ 9♠. Held nothing.');
     expect(item(3)).toContain('>Calculating every draw…<');
+  });
+
+  it('keeps Space on the focused list from the machine, which would deal or draw with it, and no other key', () => {
+    const space = { key: ' ', stopPropagation: vi.fn() };
+    keepSpace(space);
+    expect(space.stopPropagation).toHaveBeenCalledTimes(1);
+    for (const key of ['Enter', '1', 'd', 'ArrowDown']) {
+      const other = { key, stopPropagation: vi.fn() };
+      keepSpace(other);
+      expect(other.stopPropagation).not.toHaveBeenCalled();
+    }
   });
 
   it('can show only the holds that were not the best, and says so when there are none', () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState, type KeyboardEvent } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { MiniCard } from './Cards';
 import { HANDS, cardLabel } from './engine';
@@ -11,10 +11,18 @@ import styles from './VideoPoker.module.css';
 const labels = (list: number[]) => list.map(cardLabel).join(' ');
 
 /**
+ * Space pressed on the focused list scrolls it, as it does any scrolling region: it is kept from the machine's keys
+ * (MedalCenter/machineKeys.ts), which listen on the window and would deal or draw with it.
+ */
+export const keepSpace = (event: Pick<KeyboardEvent, 'key' | 'stopPropagation'>) => {
+  if (event.key === ' ') event.stopPropagation();
+};
+
+/**
  * The hands drawn this session, newest first: what was dealt, what was held, what it won, and how the hold compares
  * with the best play. `startFiltered` opens it on the holds that were not the best.
  */
-export const HandHistory = ({ log, startFiltered = false }: { log: readonly HandRecord[]; startFiltered?: boolean }) => {
+export const HandHistory = memo(function HandHistory({ log, startFiltered = false }: { log: readonly HandRecord[]; startFiltered?: boolean }) {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const fmt = (n: number) => n.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US');
@@ -38,7 +46,7 @@ export const HandHistory = ({ log, startFiltered = false }: { log: readonly Hand
           {log.length === 0 ? t.historyEmpty : t.historyNoMistakes}
         </p>
       ) : (
-        <div className={styles.historyScroll} role="region" aria-label={t.historyTitle} tabIndex={0} data-testid="vp-history">
+        <div className={styles.historyScroll} role="region" aria-label={t.historyTitle} tabIndex={0} onKeyDown={keepSpace} data-testid="vp-history">
           <ol className={styles.historyList}>
             {shownLog.map((r) => {
               const keptCards = cardsAt(r.dealt, r.held);
@@ -83,4 +91,4 @@ export const HandHistory = ({ log, startFiltered = false }: { log: readonly Hand
       <p className={styles.note}>{t.historyNote(HISTORY_LIMIT)}</p>
     </>
   );
-};
+});

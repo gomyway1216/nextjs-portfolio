@@ -164,6 +164,9 @@ function everyString(t: BallTowerStrings): { key: string; text: string }[] {
     }
     if (key === 'outcome' || key === 'historyEntry' || key === 'historyEntryLabel') for (const run of RUNS) for (const bet of [1, 10]) add(`${key}(${bet})`, (value as (r: Run, b: number) => unknown)(run, bet));
     else if (key === 'flash') for (const run of RUNS) add(key, t.flash(run));
+    else if (key === 'routePocket') for (const stop of stops) add(`${key}(${stop.level},${stop.kind})`, t.routePocket(stop));
+    else if (key === 'routeChance') add(key, t.routeChance('0.031%', '1/3,240'));
+    else if (key === 'sayRoute') for (const run of RUNS) add(key, t.sayRoute(t.historyEntryLabel(run, 2)));
     else if (key === 'saySettled') for (const stop of stops) add(`${key}(${stop.kind})`, t.saySettled(stop, 2));
     else if (key === 'pocketWords') for (let level = 0; level < LEVELS; level++) for (const kind of kinds) add(`${key}(${kind},${level})`, t.pocketWords(kind, level, 6));
     else if (key === 'infoBody') add(key, t.infoBody('90.00%'));

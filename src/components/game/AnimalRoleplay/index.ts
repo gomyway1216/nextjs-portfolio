@@ -6,3 +6,4 @@ export { default } from './AnimalRoleplay';
 export { AnimalRoleplay } from './AnimalRoleplay';
 export * from './types';
 export * from './gameLogic';
+export * from './runReview';

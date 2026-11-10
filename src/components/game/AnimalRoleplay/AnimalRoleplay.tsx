@@ -19,6 +19,8 @@ import {
   startGameWithAnimal,
 } from './gameLogic';
 import { getLocalStrings } from './i18n';
+import { RunReviewPanel } from './RunReviewPanel';
+import { buildRunReview } from './runReview';
 import {
   ActionId,
   AnimalId,
@@ -72,6 +74,7 @@ export function AnimalRoleplay() {
   const currentAnimal = state.selectedAnimalId ? ANIMAL_PROFILES[state.selectedAnimalId] : null;
   const isPlaying = !!state.selectedAnimalId && !state.outcome;
   const recentLogs = useMemo(() => state.logs.slice(-5).reverse(), [state.logs]);
+  const runReview = useMemo(() => (state.outcome ? buildRunReview(state) : null), [state]);
 
   const longDescription = t('games.animal-roleplay.longDescription');
   const howToPlay = t('games.animal-roleplay.howToPlay', { returnObjects: true }) as string[];
@@ -481,16 +484,19 @@ export function AnimalRoleplay() {
               <p className={styles.lede}>{latestResultText}</p>
             </div>
 
-            <div className={styles.card}>
-              <div className={styles.sectionLabel}>{t('games.animal-roleplay.ui.logTitle')}</div>
-              <div className={styles.logList}>
-                {recentLogs.length === 0 ? (
-                  <p className={styles.logEmpty}>{t('games.animal-roleplay.ui.logEmpty')}</p>
-                ) : (
-                  recentLogs.map(renderLogItem)
-                )}
+            {/* Once the run is over the review below lists every turn instead. */}
+            {runReview ? null : (
+              <div className={styles.card}>
+                <div className={styles.sectionLabel}>{t('games.animal-roleplay.ui.logTitle')}</div>
+                <div className={styles.logList}>
+                  {recentLogs.length === 0 ? (
+                    <p className={styles.logEmpty}>{t('games.animal-roleplay.ui.logEmpty')}</p>
+                  ) : (
+                    recentLogs.map(renderLogItem)
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {state.outcome ? (
               <div className={styles.outcomeCard} role="status" aria-live="polite">
@@ -513,6 +519,8 @@ export function AnimalRoleplay() {
                 </div>
               </div>
             ) : null}
+
+            {runReview ? <RunReviewPanel review={runReview} local={local} /> : null}
           </div>
         )}
       </div>

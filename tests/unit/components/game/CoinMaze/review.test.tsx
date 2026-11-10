@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { GATE_KINDS, GATE_PATTERNS, STAGES, TIMEOUT, WINDOWS, playOf, type Draw } from '@/components/game/CoinMaze/engine';
 import { FlickReview } from '@/components/game/CoinMaze/FlickReview';
 import { getStrings } from '@/components/game/CoinMaze/i18n';
+import { parsePlay, playOfRecord, serializePlay, type PlayRecord } from '@/components/game/CoinMaze/medalTable';
 import { atWidest, reviewOf, timingOf, widestOf } from '@/components/game/CoinMaze/review';
 
 // Gate settings 0 are wide, wide, mid, mid; setting 7 is a fluttering gate at every lever.
@@ -133,6 +134,15 @@ describe('the look back beside the machine', () => {
     expect(out.match(/>Gate 3</g)).toHaveLength(1);
     const left = renderToStaticMarkup(<FlickReview t={en} play={playOf(draw(), [1], true)} />);
     expect(left).toContain('>Flicked blind · 2 windows late: gate shut, OUT<');
+  });
+
+  it('still says which flicks were made blind once the play is settled and read back from its record', () => {
+    // As it is settled, a play left after its first lever has all its flicks written down, and the count of the player's own.
+    const settled: PlayRecord = { v: 1, id: 'play1', owner: null, ledger: 'device00001', era: 0, draw: draw(), flicks: [1, 6], paid: true, own: 1 };
+    const markup = renderToStaticMarkup(<FlickReview t={en} play={playOfRecord(parsePlay(serializePlay(settled))!)} />);
+    expect(markup).toContain('>On time: through<');
+    expect(markup).toContain('>Flicked blind · 2 windows late: gate shut, OUT<');
+    expect(markup.match(/Flicked blind/g)).toHaveLength(1);
   });
 
   it('shows where the pins sent a medal that got through', () => {

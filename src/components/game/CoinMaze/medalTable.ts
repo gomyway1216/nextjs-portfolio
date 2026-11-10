@@ -75,6 +75,12 @@ export interface PlayRecord {
   flicks: number[];
   /** Whether it has been settled: played to its end, and what it pays in (or there was nothing). */
   paid: boolean;
+  /**
+   * On a play finished for the player (its page went away mid-play): how many of `flicks` were the player's own; the
+   * rest were flicked blind as it was settled. Not there on a play the player flicked to its end. It only says whose
+   * each flick was when the play is looked back at: nothing that is paid reads it.
+   */
+  own?: number;
 }
 
 /** A play as the page that holds it knows it. */
@@ -111,7 +117,12 @@ export type StakeOutcome =
 export type FlickOutcome = 'kept' | 'gone' | 'unsaved' | 'away';
 
 /** A play on record, played as far as its flicks go; finished (every lever still to come flicked blind) once it is paid. */
-export const playOfRecord = (record: PlayRecord): Play => playOf(record.draw, record.flicks, record.paid);
+export const playOfRecord = (record: PlayRecord): Play => {
+  const play = playOf(record.draw, record.flicks, record.paid);
+  const { own } = record;
+  // Settled, its flicks are all written down: the ones made for the player are told from the player's by their count.
+  return own === undefined ? play : { ...play, stages: play.stages.map((stage, s) => (s >= own ? { ...stage, blind: true } : stage)) };
+};
 
 // ── Reading a play back ─────────────────────────────────────────────────────
 
@@ -143,7 +154,10 @@ export function parsePlay(text: unknown): PlayRecord | null {
   const flicks = [...(data.flicks as number[])];
   if (!flicksFit(draw, flicks)) return null;
   if (data.paid && !playOf(draw, flicks).complete) return null;
-  return { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, draw, flicks, paid: data.paid };
+  const record: PlayRecord = { v: 1, id: data.id, owner, ledger: data.ledger, era: data.era, draw, flicks, paid: data.paid };
+  // Whose the flicks were is only ever shown: a count that cannot be one is left out, and the play stands.
+  if (data.paid && isWhole(data.own, 0, flicks.length - 1)) record.own = data.own;
+  return record;
 }
 
 export const serializePlay = (record: PlayRecord): string => JSON.stringify(record);
@@ -430,7 +444,9 @@ export function createTable({ bank, storage, holding, newId }: TableOptions) {
       // Played to its end and marked paid first, so that nothing that hears of the medals moving finds the play still
       // to finish; then its winnings go in under their receipt. A page that dies between the two leaves a play marked
       // paid whose winnings the next page that holds the card puts in, once (`square`).
-      const paid: PlayRecord = { ...record, flicks: finishedFlicks(record.draw, record.flicks), paid: true };
+      const flicks = finishedFlicks(record.draw, record.flicks);
+      const paid: PlayRecord = { ...record, flicks, paid: true };
+      if (flicks.length > record.flicks.length) paid.own = record.flicks.length;
       if (staked.stored) write(key, serializePlay(paid));
       if (memory?.id === record.id) memory = paid;
       settledHere.add(record.id);

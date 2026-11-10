@@ -1024,10 +1024,13 @@
   gap: 0.3rem;
 }
 .historyChip {
+  appearance: none;
+  font-family: inherit;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
-  padding: 0 0.55rem;
+  min-height: 2.25rem;
+  padding: 0 0.6rem;
   border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 800;
@@ -1043,6 +1046,77 @@
 .historyChip[data-top='true'] {
   background: #f2c14e;
   color: #2a1600;
+}
+.historyChip[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--games-route-fg);
+}
+.historyChip:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 3px;
+}
+.historyHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--games-route-muted);
+}
+
+/* The review: a row a choice — its card, what was done from it, and how that stands beside best play. */
+.reviewSummary {
+  margin: 0 0 0.6rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.reviewList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.reviewRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.2rem 0.55rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px dotted var(--games-route-border);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+.reviewMove {
+  display: grid;
+  min-width: 0;
+}
+.reviewAt {
+  font-size: 0.72rem;
+  color: var(--games-route-muted);
+}
+.reviewDid {
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.reviewResult {
+  font-weight: 600;
+  color: var(--games-route-muted);
+}
+.reviewVerdict {
+  min-width: 0;
+  text-align: right;
+  font-weight: 700;
+  color: var(--hl-ahead);
+  overflow-wrap: anywhere;
+}
+/* A choice that was not the best says what was, at length: on a line of its own under the choice, at any width. */
+.reviewRow[data-matched='false'] .reviewVerdict {
+  grid-column: 2 / -1;
+  text-align: left;
+  color: var(--hl-behind);
+}
+.reviewVisit {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 .statList {
   display: grid;

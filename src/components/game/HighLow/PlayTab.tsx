@@ -19,6 +19,8 @@ import { BETS, TOP, drawCard, ladderFor, rankOf, ranksFor, suitOf, valueOf, type
 import { getStrings, type HighLowStrings } from './i18n';
 import { HIGH_LOW_GAME, createTable, inPlay, lostOf, offerOf, overOf, roundId, rungOf, shownOf, wonOf, type RoundRecord, type Table } from './medalTable';
 import { PUBLISHED_LADDER } from './published';
+import { ReviewPanel } from './ReviewPanel';
+import { reviewGame, type GameReview } from './review';
 import styles from './HighLow.module.css';
 
 /** How many digits each LED counter has: the medals up to 9,999,999 (the medal center's own), the bet (50) and the ladder (2,000). */
@@ -74,6 +76,8 @@ interface Ended {
   rung: number;
   won: number;
   top: boolean;
+  /** The game's choices beside best play (review.ts). */
+  review: GameReview | null;
 }
 
 interface SessionStats {
@@ -82,8 +86,11 @@ interface SessionStats {
   won: number;
   tops: number;
   highest: number;
+  /** The choices made (every HIGH, LOW and TAKE), and how many of them were a best play. */
+  choices: number;
+  matched: number;
 }
-const EMPTY_STATS: SessionStats = { games: 0, played: 0, won: 0, tops: 0, highest: 0 };
+const EMPTY_STATS: SessionStats = { games: 0, played: 0, won: 0, tops: 0, highest: 0, choices: 0, matched: 0 };
 
 /** Whether two records are the same game at the same point. */
 const sameState = (a: RoundRecord | null, b: RoundRecord | null): boolean =>
@@ -191,6 +198,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [history, setHistory] = useState<Ended[]>([]);
+  // The game of the history whose review is shown: the last one ended, until another is chosen.
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   // The top's medals, paid in the press, kept off the counter until its card has turned on the screen.
   const [hiddenWin, setHiddenWin] = useState(0);
@@ -234,8 +243,18 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     const won = wonOf(done);
     const rung = rungOf(done);
     const top = rung >= TOP;
-    setHistory((before) => (before.some((entry) => entry.id === done.id) ? before : [{ id: done.id, bet: done.bet, rung, won, top }, ...before].slice(0, HISTORY_LIMIT)));
-    setStats((s) => ({ games: s.games + 1, played: s.played + done.bet, won: s.won + won, tops: s.tops + (top ? 1 : 0), highest: Math.max(s.highest, rung) }));
+    const review = reviewGame(done);
+    setHistory((before) => (before.some((entry) => entry.id === done.id) ? before : [{ id: done.id, bet: done.bet, rung, won, top, review }, ...before].slice(0, HISTORY_LIMIT)));
+    setReviewId(null);
+    setStats((s) => ({
+      games: s.games + 1,
+      played: s.played + done.bet,
+      won: s.won + won,
+      tops: s.tops + (top ? 1 : 0),
+      highest: Math.max(s.highest, rung),
+      choices: s.choices + (review?.decisions.length ?? 0),
+      matched: s.matched + (review?.matched ?? 0),
+    }));
   }, []);
 
   /** Ends whatever the cards are doing at once: the card turned, the slide done, the counters told. */
@@ -390,6 +409,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setRecord(null);
       setHiddenWin(0);
       setHistory([]);
+      setReviewId(null);
       setStats(EMPTY_STATS);
       setMessage('');
       setResumed(false);
@@ -568,6 +588,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;
   const best = valueOf(PUBLISHED_LADDER.best);
+  const reviewed = history.find((entry) => entry.id === reviewId) ?? history[0] ?? null;
   const leftLabel = leftCard === null || show === 'deal' ? (leftCard === null ? t.noCard : t.faceDown) : t.cardName(rankOf(leftCard), suitOf(leftCard));
   const rightLabel = rightCard === null || show === 'turn' ? t.faceDown : t.cardName(rankOf(rightCard), suitOf(rightCard));
 
@@ -791,15 +812,30 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           {history.length === 0 ? (
             <p className={styles.muted}>{t.historyEmpty}</p>
           ) : (
-            <ol className={styles.historyList} data-testid="hl-history">
-              {history.map((entry) => (
-                <li key={entry.id} className={styles.historyChip} data-won={entry.won > 0 ? 'true' : 'false'} data-top={entry.top ? 'true' : 'false'}>
-                  {t.historyEntry(entry.rung, entry.won)}
-                </li>
-              ))}
-            </ol>
+            <>
+              {/* Each game is a button: the one pressed is the game the review below looks back over. */}
+              <ol className={styles.historyList} data-testid="hl-history">
+                {history.map((entry) => (
+                  <li key={entry.id}>
+                    <button
+                      type="button"
+                      className={styles.historyChip}
+                      data-won={entry.won > 0 ? 'true' : 'false'}
+                      data-top={entry.top ? 'true' : 'false'}
+                      aria-pressed={entry.id === reviewed?.id}
+                      onClick={() => setReviewId(entry.id)}
+                    >
+                      {t.historyEntry(entry.rung, entry.won)}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              <p className={styles.historyHint}>{t.reviewChoose}</p>
+            </>
           )}
         </section>
+
+        <ReviewPanel review={reviewed?.review ?? null} visit={{ choices: stats.choices, matched: stats.matched }} t={t} locale={locale} />
 
         <section className={styles.panel} aria-labelledby="hl-session-title">
           <h2 id="hl-session-title" className={styles.panelTitle}>

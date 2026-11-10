@@ -161,6 +161,28 @@
   background: radial-gradient(circle at 32% 30%, #4b5563, #000);
 }
 
+.hintMark {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  border: 2px dashed #b45309;
+  background: rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.8);
+  pointer-events: none;
+  animation: hintPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes hintPulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
 .stone {
   width: 82%;
   height: 82%;
@@ -214,6 +236,7 @@
 @media (prefers-reduced-motion: reduce) {
   .stone,
   .winStone,
+  .hintMark,
   .spinner {
     animation: none;
   }

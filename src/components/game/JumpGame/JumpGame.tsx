@@ -18,6 +18,18 @@ import {
   getJumpImpulse,
   stageForScore,
 } from './gameLogic';
+import { getJumpGamePauseCopy } from './i18n';
+import {
+  beginResume,
+  countdownSeconds,
+  isSimulating,
+  PausePhase,
+  PauseState,
+  pausedState,
+  RESUME_COUNTDOWN_SECONDS,
+  runningState,
+  tickResume,
+} from './pause';
 import { Enemy, GAME_CONSTANTS, GameState, Scene } from './types';
 import styles from './JumpGame.module.css';
 
@@ -70,6 +82,7 @@ const JumpGame = () => {
   const { language } = useGameLanguage();
   const ui = getUITranslation(language);
   const jumpCopy = getJumpGameUITranslation(language);
+  const pauseCopy = getJumpGamePauseCopy(language);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [highScore, updateHighScore] = useHighScore('jumpgame');
   const [showInfo, setShowInfo] = useState(false);
@@ -78,6 +91,14 @@ const JumpGame = () => {
   const [currentStage, setCurrentStage] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const isMutedRef = useRef(false);
+  // The loop reads the ref; the state mirrors it for the overlay and buttons.
+  const pauseRef = useRef<PauseState>(runningState());
+  const [pausePhase, setPausePhase] = useState<PausePhase>('running');
+  const [countdown, setCountdown] = useState(0);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const resumeButtonRef = useRef<HTMLButtonElement>(null);
+  // Holds the frame loop (assigned in an effect further down).
+  const gameLoopRef = useRef<(timestamp: number) => void>(() => {});
   const jumpCopyRef = useRef(jumpCopy);
   const gameStateRef = useRef<GameState | null>(null);
   const animationIdRef = useRef<number | null>(null);
@@ -230,6 +251,8 @@ const JumpGame = () => {
   const triggerJumpAction = useCallback(() => {
     const state = gameStateRef.current;
     if (!state) return;
+    // Nothing is simulated while paused or counting down, so ignore input too.
+    if (!isSimulating(pauseRef.current)) return;
 
     if (state.scene === Scene.GameMain) {
       // Only jump when grounded (prevents mid-air double jumps).
@@ -243,22 +266,62 @@ const JumpGame = () => {
       if (state.frameCount > 60) {
         gameStateRef.current = initGame(state.difficulty as Difficulty);
         setCurrentStage(1);
+        setIsGameOver(false);
       }
     }
   }, [initGame, playJumpSound]);
+
+  const pauseGame = useCallback(() => {
+    const state = gameStateRef.current;
+    if (!state || state.scene !== Scene.GameMain || pauseRef.current.phase === 'paused') return;
+    pauseRef.current = pausedState();
+    setPausePhase('paused');
+  }, []);
+
+  const resumeGame = useCallback(() => {
+    if (!gameStateRef.current || pauseRef.current.phase !== 'paused') return;
+    pauseRef.current = beginResume(pauseRef.current);
+    setCountdown(countdownSeconds(pauseRef.current));
+    setPausePhase('resuming');
+    // The loop stops itself while paused; restart it with a fresh clock.
+    lastTimeRef.current = null;
+    if (animationIdRef.current == null) {
+      animationIdRef.current = requestAnimationFrame((t) => gameLoopRef.current(t));
+    }
+  }, []);
+
+  const togglePauseGame = useCallback(() => {
+    if (pauseRef.current.phase === 'paused') resumeGame();
+    else pauseGame();
+  }, [pauseGame, resumeGame]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Only act while a game is running; otherwise leave Space/ArrowUp to the
       // page (scrolling, activating the difficulty-screen buttons, etc.).
       if (!gameStateRef.current) return;
+      // While the guide is open the keyboard belongs to it (Escape closes it).
+      if (showInfo) return;
+      // Match the letter the layout types; fall back to the key position when
+      // an input method hides it (e.key is then e.g. "Process").
+      const isPauseLetter = e.key.length === 1 ? e.key.toLowerCase() === 'p' : e.code === 'KeyP';
+      if (isPauseLetter || e.key === 'Escape') {
+        // Leave browser shortcuts such as Ctrl/Cmd+P alone.
+        if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (gameStateRef.current.scene !== Scene.GameMain) return;
+        e.preventDefault();
+        togglePauseGame();
+        return;
+      }
+      // While paused, Space must reach the focused Resume button untouched.
+      if (pauseRef.current.phase === 'paused') return;
       // Only intercept the game controls; leave other keys (tab, devtools) alone.
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === ' ' || e.key === 'ArrowUp') {
         e.preventDefault();
         triggerJumpAction();
       }
     },
-    [triggerJumpAction]
+    [showInfo, togglePauseGame, triggerJumpAction]
   );
   const handleKeyDownRef = useRef(handleKeyDown);
   useEffect(() => {
@@ -404,6 +467,7 @@ const JumpGame = () => {
                 if (state.lives <= 0) {
                   state.scene = Scene.GameOver;
                   state.frameCount = 0;
+                  setIsGameOver(true);
                 } else {
                   state.invincibilityTimer = INVINCIBILITY_FRAMES;
                 }
@@ -786,6 +850,12 @@ const JumpGame = () => {
       if (pw > 0 && ph > 0 && (canvas.width !== pw || canvas.height !== ph)) {
         canvas.width = pw;
         canvas.height = ph;
+        // Resizing clears the canvas, and a paused game draws no further
+        // frames, so repaint the frozen frame here.
+        const ctx = canvas.getContext('2d');
+        if (ctx && gameStateRef.current && pauseRef.current.phase === 'paused') {
+          drawRef.current(ctx, gameStateRef.current);
+        }
       }
     };
     // Size synchronously so the first frame renders at the right resolution.
@@ -802,7 +872,6 @@ const JumpGame = () => {
   // The loop is fully stable: it reads all mutable state through refs, so it
   // never captures a stale closure and can safely re-schedule itself. It reads
   // every mutable value through a ref, so it is defined once and held in a ref.
-  const gameLoopRef = useRef<(timestamp: number) => void>(() => {});
   useEffect(() => {
     const loop = (timestamp: number) => {
       if (!canvasRef.current || !gameStateRef.current) return;
@@ -816,7 +885,24 @@ const JumpGame = () => {
       const dt = Math.min(elapsedMs / (1000 / 60), 3);
 
       const state = gameStateRef.current;
-      updateRef.current(state, dt > 0 ? dt : 1);
+      const pause = pauseRef.current;
+      if (pause.phase === 'paused') {
+        // Paint the frozen frame once, then stop until the player resumes.
+        drawRef.current(ctx, state);
+        animationIdRef.current = null;
+        return;
+      }
+      if (pause.phase === 'resuming') {
+        const next = tickResume(pause, elapsedMs);
+        pauseRef.current = next;
+        if (next.phase === 'running') {
+          setPausePhase('running');
+        } else if (countdownSeconds(next) !== countdownSeconds(pause)) {
+          setCountdown(countdownSeconds(next));
+        }
+      } else {
+        updateRef.current(state, dt > 0 ? dt : 1);
+      }
       drawRef.current(ctx, state);
 
       animationIdRef.current = requestAnimationFrame(loop);
@@ -831,6 +917,9 @@ const JumpGame = () => {
     }
 
     gameStateRef.current = initGame(selectedDifficultyRef.current);
+    pauseRef.current = runningState();
+    setPausePhase('running');
+    setIsGameOver(false);
     setCurrentStage(1);
     setIsGameStarted(true);
     setShowDifficultySelect(false);
@@ -846,6 +935,9 @@ const JumpGame = () => {
     }
     gameStateRef.current = null;
     lastTimeRef.current = null;
+    pauseRef.current = runningState();
+    setPausePhase('running');
+    setIsGameOver(false);
     setIsGameStarted(false);
     setShowDifficultySelect(true);
     setCurrentStage(1);
@@ -857,6 +949,26 @@ const JumpGame = () => {
     document.addEventListener('keydown', listener);
     return () => document.removeEventListener('keydown', listener);
   }, []);
+
+  // Pause by itself when the player can no longer see or control the game.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden) pauseGame();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('blur', pauseGame);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', pauseGame);
+    };
+  }, [pauseGame]);
+
+  // Put the keyboard on Resume so Space/Enter continue the run.
+  useEffect(() => {
+    if (pausePhase === 'paused' && !showInfo) {
+      resumeButtonRef.current?.focus();
+    }
+  }, [pausePhase, showInfo]);
 
   // Cleanup rAF on unmount.
   useEffect(() => {
@@ -918,7 +1030,11 @@ const JumpGame = () => {
           </button>
           <button
             type="button"
-            onClick={() => setShowInfo(!showInfo)}
+            onClick={() => {
+              // The run would carry on unseen behind the guide otherwise.
+              if (!showInfo) pauseGame();
+              setShowInfo(!showInfo);
+            }}
             className={styles.toolbarButton}
             aria-label={ui.howToPlay}
           >
@@ -929,7 +1045,7 @@ const JumpGame = () => {
       ),
     });
     return () => setContent(null);
-  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy]);
+  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy, pauseGame]);
 
   return (
     <div className={styles.gameShell}>
@@ -954,6 +1070,34 @@ const JumpGame = () => {
             {jumpCopy.infoSections[0]?.description}
           </div>
         )}
+
+        {isGameStarted && pausePhase === 'paused' && (
+          <div className={styles.pauseOverlay}>
+            <h2 className={styles.pauseTitle}>{pauseCopy.pausedTitle}</h2>
+            <p className={styles.pauseHint}>{pauseCopy.pausedHint(RESUME_COUNTDOWN_SECONDS)}</p>
+            <button
+              ref={resumeButtonRef}
+              type="button"
+              onClick={resumeGame}
+              className={`${styles.startButton} ${styles.resumeButton}`}
+            >
+              {pauseCopy.resume}
+            </button>
+          </div>
+        )}
+
+        {isGameStarted && pausePhase === 'resuming' && (
+          <div className={styles.countdownOverlay} aria-hidden="true">
+            <span key={countdown} className={styles.countdownNumber}>
+              {countdown}
+            </span>
+          </div>
+        )}
+
+        <div className={styles.srOnly} role="status" aria-live="polite">
+          {isGameStarted && pausePhase === 'paused' && pauseCopy.pausedTitle}
+          {isGameStarted && pausePhase === 'resuming' && pauseCopy.resumingIn(countdown)}
+        </div>
 
         {!isGameStarted && showDifficultySelect && (
           <div className={styles.difficultyOverlay}>
@@ -988,6 +1132,19 @@ const JumpGame = () => {
 
       {isGameStarted && (
         <div className={styles.stopButtonWrap}>
+          <button
+            type="button"
+            onClick={(e) => {
+              // Drop focus when resuming so a later Space jumps instead of
+              // pressing this button again.
+              if (pausePhase === 'paused') e.currentTarget.blur();
+              togglePauseGame();
+            }}
+            disabled={isGameOver}
+            className={styles.pauseButton}
+          >
+            {pausePhase === 'paused' ? pauseCopy.resume : pauseCopy.pause}
+          </button>
           <button type="button" onClick={stopGame} className={styles.stopButton}>
             {jumpCopy.stopGame}
           </button>
@@ -1026,6 +1183,22 @@ const JumpGame = () => {
               </div>
             );
           })}
+          <div
+            style={{
+              background: 'rgba(14, 165, 233, 0.1)',
+              border: '1px solid rgba(14, 165, 233, 0.3)',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+            }}
+          >
+            <div style={{ color: '#0ea5e9', fontSize: '2rem', marginBottom: '0.5rem' }}>⏸️</div>
+            <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>
+              {pauseCopy.helpTitle}
+            </h3>
+            <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
+              {pauseCopy.help(RESUME_COUNTDOWN_SECONDS)}
+            </p>
+          </div>
         </div>
 
         <div

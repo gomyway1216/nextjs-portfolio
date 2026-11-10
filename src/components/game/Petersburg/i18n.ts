@@ -58,6 +58,18 @@ export interface PetersburgStrings {
   wealth: string;
   logUtilityPrice: string;
   logUtilityHint: string;
+  // Running balance
+  bankrollTitle: string;
+  bankrollEmpty: string;
+  bankrollAxis: string;
+  bankrollLow: string;
+  bankrollHigh: string;
+  bankrollAtGame: (game: string) => string;
+  bankrollPaidBack: string;
+  bankrollChance: (price: string) => string;
+  bankrollChanceSub: string;
+  bankrollCaption: string;
+  bankrollAria: (games: string, net: string, low: string, high: string) => string;
   // Info modal
   howItWorksTitle: string;
   howItWorks: string[];
@@ -123,6 +135,19 @@ const en: PetersburgStrings = {
   logUtilityPrice: 'You should pay at most',
   logUtilityHint:
     "Bernoulli's fix: a player with wealth w and logarithmic utility pays c so that E[ln(w − c + payout)] = ln(w). The answer is finite and grows only slowly with wealth — resolving the paradox.",
+  bankrollTitle: 'Running balance',
+  bankrollEmpty: 'Play a game to start the balance line.',
+  bankrollAxis: 'Games played',
+  bankrollLow: 'Lowest balance',
+  bankrollHigh: 'Highest balance',
+  bankrollAtGame: (game) => `after game ${game}`,
+  bankrollPaidBack: 'Games that paid at least their entry price',
+  bankrollChance: (price) => `Chance one game pays at least ${price}`,
+  bankrollChanceSub: 'theory, at the current entry price',
+  bankrollCaption:
+    'The line is winnings minus entry prices paid, game by game — the same figure as "Net". Each game is charged the entry price set when it was played. In long sessions the line is drawn through evenly spaced samples; the lowest and highest balances are exact and marked with dots.',
+  bankrollAria: (games, net, low, high) =>
+    `Running balance over ${games} games: now ${net}, lowest ${low}, highest ${high}.`,
   howItWorksTitle: 'The St. Petersburg Paradox',
   howItWorks: [
     'A fair coin is flipped until it lands tails. If the first tails is on flip k, you win 2^(k-1) dollars: T → $1, HT → $2, HHT → $4, HHHT → $8, …',
@@ -193,6 +218,19 @@ const ja: PetersburgStrings = {
   logUtilityPrice: '払ってよい上限は',
   logUtilityHint:
     'ベルヌーイの解決策: 資産 w と対数効用を持つ人は E[ln(w − c + 配当)] = ln(w) となる c を払う。答えは有限で、資産が増えてもゆっくりしか増えない — これがパラドックスの解消。',
+  bankrollTitle: '収支の推移',
+  bankrollEmpty: 'ゲームをプレイすると収支の線が始まります。',
+  bankrollAxis: 'プレイ数',
+  bankrollLow: '最低収支',
+  bankrollHigh: '最高収支',
+  bankrollAtGame: (game) => `${game}ゲーム目`,
+  bankrollPaidBack: '配当が参加料以上だったゲーム',
+  bankrollChance: (price) => `1ゲームの配当が ${price} 以上になる確率`,
+  bankrollChanceSub: '理論値 (現在の参加料)',
+  bankrollCaption:
+    '線は 1 ゲームごとの「配当の累計 − 支払った参加料の累計」で、「差し引き」と同じ値。各ゲームにはプレイ時点の参加料がかかる。長いセッションでは等間隔に間引いた点を結んで描くが、最低収支と最高収支は正確な値で、点で示している。',
+  bankrollAria: (games, net, low, high) =>
+    `${games}ゲームの収支の推移: 現在 ${net}、最低 ${low}、最高 ${high}。`,
   howItWorksTitle: 'セントペテルブルクのパラドックス',
   howItWorks: [
     'コインを初めて裏が出るまで投げる。裏が出た回を k とすると 2^(k-1) ドルもらえる: T → $1、HT → $2、HHT → $4、HHHT → $8、…',

@@ -87,9 +87,9 @@ const en: BirthdayStrings = {
   dealing: 'Dealing…',
   calendarTitle: 'Where the birthdays land',
   calendarSummary: (people, pairs, days) =>
-    `${people} people make ${pairs} pairs, yet they only fill ${days} of the 365 days.`,
+    `${people} people make ${pairs} ${pairs === 1 ? 'pair' : 'pairs'}, yet they only fill ${days} of the 365 days.`,
   calendarAria: (people, days, sharedDays) =>
-    `Year calendar: ${people} birthdays fall on ${days} different days. Days shared by two or more people: ${sharedDays}.`,
+    `Year calendar: ${people} birthdays fall on ${days} ${days === 1 ? 'day' : 'different days'}. Days shared by two or more people: ${sharedDays}.`,
   monthShort: (month) => EN_MONTHS[month - 1] ?? '',
   legendSingle: 'One birthday',
   legendShared: 'Shared by 2 or more',

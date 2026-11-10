@@ -107,6 +107,13 @@ describe('the year calendar', () => {
     expect(dealing).toContain(`aria-label="${t.dealing}"`);
   });
 
+  it('keeps the English wording grammatical for the smallest group', () => {
+    const t = getStrings('en');
+    expect(t.calendarSummary(2, 1, 1)).toBe('2 people make 1 pair, yet they only fill 1 of the 365 days.');
+    expect(t.calendarAria(2, 1, 1)).toContain('2 birthdays fall on 1 day.');
+    expect(t.calendarAria(2, 2, 0)).toContain('2 birthdays fall on 2 different days.');
+  });
+
   it('is fully localized in Japanese, including the screen-reader text', () => {
     const t = getStrings('ja');
     const html = renderToStaticMarkup(

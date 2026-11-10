@@ -8,11 +8,32 @@ import { InfoModal } from '../common/InfoModal';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { getDateKey, getPuzzleForDate, type Mark } from './engine';
+import {
+  emptyStore,
+  parseStore,
+  recordHint,
+  recordSolve,
+  recordWrongPick,
+  serializeStore,
+  summarize,
+  type StatsStore,
+} from './stats';
 import styles from './DailyMovePuzzle.module.css';
 
 type Feedback = 'idle' | 'wrong' | 'solved';
 
 const STORAGE_KEY = 'daily-move-puzzle-last-solved';
+const STATS_KEY = 'daily-move-puzzle-stats';
+
+/** Null when storage cannot be read (blocked or unavailable). */
+const readStoredStats = (): StatsStore | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return parseStore(window.localStorage.getItem(STATS_KEY));
+  } catch {
+    return null;
+  }
+};
 
 export const DailyMovePuzzle = () => {
   useFeatureLifecycle('game.daily-move-puzzle');
@@ -42,6 +63,28 @@ export const DailyMovePuzzle = () => {
     return window.localStorage.getItem(STORAGE_KEY) === dateKey;
   });
 
+  const [stats, setStats] = useState<StatsStore>(() => readStoredStats() ?? emptyStore());
+  const statsRef = useRef(stats);
+
+  // Re-read storage before every change so a second tab cannot overwrite a
+  // result this tab has not seen; fall back to memory when storage is blocked.
+  const updateStats = useCallback((apply: (store: StatsStore) => StatsStore) => {
+    const current = readStoredStats() ?? statsRef.current;
+    const next = apply(current);
+    statsRef.current = next;
+    setStats(next);
+    if (next === current) return;
+    try {
+      window.localStorage.setItem(STATS_KEY, serializeStore(next));
+    } catch {
+      // Storage is full or blocked: the record lasts for this visit only.
+    }
+  }, []);
+
+  const summary = useMemo(() => summarize(stats, dateKey), [stats, dateKey]);
+  const todayResult = stats.results[dateKey];
+  const distributionMax = Math.max(1, summary.hinted, ...summary.distribution);
+
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const displayBoard = useMemo<Mark[]>(() => {
@@ -63,19 +106,28 @@ export const DailyMovePuzzle = () => {
       if (index === puzzle.correctMove) {
         setSolved(true);
         setFeedback('solved');
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(STORAGE_KEY, dateKey);
-        }
         setCompletedToday(true);
+        updateStats((store) => recordSolve(store, dateKey));
+        try {
+          window.localStorage.setItem(STORAGE_KEY, dateKey);
+        } catch {
+          // Storage is full or blocked: the solved badge lasts for this visit only.
+        }
         return;
       }
 
+      updateStats((store) => recordWrongPick(store, dateKey, index));
       setWrongPicks((prev) => [...prev, index]);
       setLastWrong(index);
       setFeedback('wrong');
     },
-    [solved, puzzle.board, puzzle.correctMove, wrongPicks, dateKey],
+    [solved, puzzle.board, puzzle.correctMove, wrongPicks, dateKey, updateStats],
   );
+
+  const toggleHint = useCallback(() => {
+    if (!showHint) updateStats((store) => recordHint(store, dateKey));
+    setShowHint(!showHint);
+  }, [showHint, dateKey, updateStats]);
 
   const undo = useCallback(() => {
     if (solved || wrongPicks.length === 0) return;
@@ -250,7 +302,7 @@ export const DailyMovePuzzle = () => {
               <button
                 type="button"
                 className={styles.btn}
-                onClick={() => setShowHint((v) => !v)}
+                onClick={toggleHint}
                 aria-pressed={showHint}
               >
                 <Lightbulb aria-hidden size={16} /> {t.hintBtn}
@@ -265,6 +317,58 @@ export const DailyMovePuzzle = () => {
               </button>
             )}
           </div>
+        </section>
+
+        <section className={styles.stats} aria-labelledby="daily-move-puzzle-stats-title">
+          <h2 id="daily-move-puzzle-stats-title" className={styles.statsTitle}>
+            {t.statsTitle}
+          </h2>
+          <p className={styles.statsToday}>
+            {todayResult ? t.todayResult(todayResult.attempts, todayResult.hinted) : t.todayPending}
+          </p>
+          <dl className={styles.statTiles}>
+            {(
+              [
+                [t.statSolved, summary.solved],
+                [t.statCurrent, summary.currentStreak],
+                [t.statBest, summary.bestStreak],
+                [t.statFirstTry, summary.firstTry],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label} className={styles.statTile}>
+                <dt className={styles.statLabel}>{label}</dt>
+                <dd className={styles.statValue}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <h3 className={styles.distTitle}>{t.distTitle}</h3>
+          <ul className={styles.distList}>
+            {summary.distribution.map((days, i) => (
+              <li key={i} className={styles.distRow}>
+                <span className={styles.srOnly}>{t.distRow(i + 1, days)}</span>
+                <span aria-hidden className={styles.distLabel}>{i + 1}</span>
+                <span aria-hidden className={styles.distTrack}>
+                  <span
+                    className={styles.distFill}
+                    style={{ width: `${(days / distributionMax) * 100}%` }}
+                  />
+                </span>
+                <span aria-hidden className={styles.distCount}>{days}</span>
+              </li>
+            ))}
+            <li className={styles.distRow}>
+              <span className={styles.srOnly}>{t.distHintRow(summary.hinted)}</span>
+              <span aria-hidden className={styles.distLabel}>{t.distHint}</span>
+              <span aria-hidden className={styles.distTrack}>
+                <span
+                  className={`${styles.distFill} ${styles.distFillHint}`}
+                  style={{ width: `${(summary.hinted / distributionMax) * 100}%` }}
+                />
+              </span>
+              <span aria-hidden className={styles.distCount}>{summary.hinted}</span>
+            </li>
+          </ul>
+          <p className={styles.statsNote}>{t.statsNote}</p>
         </section>
 
         <div style={{ textAlign: 'center' }}>

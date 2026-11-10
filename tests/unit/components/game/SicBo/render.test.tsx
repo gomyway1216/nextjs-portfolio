@@ -88,8 +88,13 @@ describe('the layout’s chances', () => {
     const markup = render(<PlayTab />);
     expect(markup).toContain('data-testid="sb-chances" data-staked="0"');
     for (const id of ['wins', 'ahead', 'back', 'most']) expect(figure(markup, id), id).toBe('—');
-    expect(markup).toContain(getStrings('en').chancesNone);
-    expect(markup).not.toContain(getStrings('en').chancesNote);
+    // Both notes take up their lines, so the panel is one height; the one for an empty layout is the one seen.
+    expect(markup).toContain(`data-testid="sb-chance-note-none" data-shown="true">${getStrings('en').chancesNone}<`);
+    expect(markup).toContain(`data-testid="sb-chance-note" data-shown="false" aria-hidden="true">${getStrings('en').chancesNote}<`);
+    // Every figure holds the room of the widest it can show: every roll, all of it back, every area full on a triple.
+    expect(markup.match(/aria-hidden="true">216 of 216 · 100\.0%</g)).toHaveLength(2);
+    expect(markup).toContain('aria-hidden="true">100.0%<');
+    expect(markup).toContain(`aria-hidden="true">${(MOST_BACK_PER_MEDAL * SPOT_MAX).toLocaleString('en-US')} medals<`);
   });
 
   it('say what the medals on the layout can do on a roll, in both languages', () => {
@@ -101,7 +106,8 @@ describe('the layout’s chances', () => {
     expect(figure(en, 'ahead')).toBe('111 of 216 · 51.4%');
     expect(figure(en, 'back')).toBe('96.2%');
     expect(figure(en, 'most')).toBe('31 medals');
-    expect(en).toContain(getStrings('en').chancesNote);
+    expect(en).toContain(`data-testid="sb-chance-note" data-shown="true">${getStrings('en').chancesNote}<`);
+    expect(en).toContain('data-testid="sb-chance-note-none" data-shown="false" aria-hidden="true"');
     const ja = render(<Chances bets={bets} t={getStrings('ja')} locale="ja-JP" />, 'ja');
     expect(figure(ja, 'wins')).toBe('216通り中111・51.4%');
     expect(figure(ja, 'most')).toBe('31枚');

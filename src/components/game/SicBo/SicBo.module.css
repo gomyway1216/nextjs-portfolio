@@ -1350,11 +1350,31 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+  /* The figure lies over the widest one the line can show, which is not seen: the label beside it breaks the same
+     way whatever the figure is. */
+  display: grid;
+  flex: none;
+}
+.chanceList dd > span {
+  grid-area: 1 / 1;
+}
+.chanceRoom {
+  visibility: hidden;
+}
+/* The two notes lie over each other and the one that applies is seen: the taller sets the height for both. */
+.chanceNotes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 0.6rem;
 }
 .chanceNote {
-  margin: 0.6rem 0 0;
+  grid-area: 1 / 1;
+  margin: 0;
   font-size: 0.8rem;
   color: var(--games-route-muted);
+}
+.chanceNote[data-shown='false'] {
+  visibility: hidden;
 }
 .pos {
   color: var(--sb-ahead);

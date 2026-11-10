@@ -74,6 +74,15 @@ export interface ChaosBanner {
   timer: number;
 }
 
+/** What the run has done so far, for the end-of-run summary. */
+export interface RunStats {
+  bricksBroken: number;
+  maxCombo: number;
+  chaosPulses: number;
+  /** Simulated play time in 60fps-frame units (pauses and the ready screen don't count). */
+  frames: number;
+}
+
 export interface GameState {
   balls: Ball[];
   paddle: Paddle;
@@ -90,6 +99,7 @@ export interface GameState {
   banner: ChaosBanner | null;
   flash: number;
   gravityFlash: number;
+  stats: RunStats;
   status: 'ready' | 'playing' | 'gameover';
 }
 
@@ -279,6 +289,7 @@ export const createGameState = (
     banner: null,
     flash: 0,
     gravityFlash: 0,
+    stats: { bricksBroken: 0, maxCombo: 0, chaosPulses: 0, frames: 0 },
     status: 'ready',
   };
 };
@@ -372,6 +383,7 @@ export const applyChaos = (
 
   state.banner = banner;
   state.flash = 12;
+  state.stats.chaosPulses += 1;
   return kind;
 };
 
@@ -417,6 +429,8 @@ const damageBrick = (
   if (brick.hp <= 0) {
     state.combo += 1;
     state.comboTimer = 90;
+    state.stats.bricksBroken += 1;
+    state.stats.maxCombo = Math.max(state.stats.maxCombo, state.combo);
     const comboBonus = Math.min(state.combo, 10);
     state.score += 10 * comboBonus;
     return true;
@@ -536,6 +550,7 @@ export const step = (
   if (state.status !== 'playing') return events;
 
   const config = DIFFICULTY_CONFIG[difficulty];
+  state.stats.frames += dt;
 
   // Paddle movement (pointer takes priority, else keyboard).
   if (input.pointerX !== null) {

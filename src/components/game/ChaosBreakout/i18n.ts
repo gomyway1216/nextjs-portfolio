@@ -34,6 +34,17 @@ export interface ChaosBreakoutStrings {
   chaosIntro: string;
   chaosList: string[];
   difficulties: Record<Difficulty, { label: string; description: string }>;
+  changeDifficulty: string;
+  summaryTitle: (difficulty: string) => string;
+  bricksBroken: string;
+  bestCombo: string;
+  chaosPulses: string;
+  playTime: string;
+  recordValue: (value: string) => string;
+  newRecord: string;
+  recordsNote: string;
+  menuRecord: (score: string, stage: number) => string;
+  noRecord: string;
 }
 
 const en: ChaosBreakoutStrings = {
@@ -79,6 +90,18 @@ const en: ChaosBreakoutStrings = {
     expert: { label: 'Expert', description: 'Relentless chaos, narrow paddle' },
     master: { label: 'Master', description: 'Maximum mayhem, 2 lives' },
   },
+  changeDifficulty: 'Difficulty',
+  summaryTitle: (difficulty) => `Run summary — ${difficulty}`,
+  bricksBroken: 'Bricks broken',
+  bestCombo: 'Best combo',
+  chaosPulses: 'Chaos pulses',
+  playTime: 'Play time',
+  recordValue: (value) => `Record ${value}`,
+  newRecord: 'New record!',
+  recordsNote:
+    'Records are kept per difficulty in this browser. A run counts once it ends in Game Over.',
+  menuRecord: (score, stage) => `Record ${score} · Stage ${stage}`,
+  noRecord: 'No record yet',
 };
 
 const ja: ChaosBreakoutStrings = {
@@ -124,6 +147,18 @@ const ja: ChaosBreakoutStrings = {
     expert: { label: 'エキスパート', description: '容赦ないカオス・狭いパドル' },
     master: { label: 'マスター', description: '最大級の混沌・残機2' },
   },
+  changeDifficulty: '難易度変更',
+  summaryTitle: (difficulty) => `今回の結果（${difficulty}）`,
+  bricksBroken: '破壊ブロック',
+  bestCombo: '最大コンボ',
+  chaosPulses: 'カオスパルス',
+  playTime: 'プレイ時間',
+  recordValue: (value) => `自己ベスト ${value}`,
+  newRecord: '記録更新！',
+  recordsNote:
+    '記録は難易度ごとにこのブラウザへ保存されます。ゲームオーバーまで遊んだランが対象です。',
+  menuRecord: (score, stage) => `自己ベスト ${score}・ステージ${stage}`,
+  noRecord: '記録なし',
 };
 
 export const getStrings = (language: GameLanguage): ChaosBreakoutStrings =>

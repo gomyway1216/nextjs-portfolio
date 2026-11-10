@@ -1,7 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Heart, Info, Pause, Play, RotateCcw, Sparkles, Trophy, Zap } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  Heart,
+  Info,
+  Pause,
+  Play,
+  RotateCcw,
+  SlidersHorizontal,
+  Sparkles,
+  Trophy,
+  Zap,
+} from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { useHighScore } from '@/hooks/useHighScore';
@@ -22,6 +32,8 @@ import {
   type StepInput,
   WIDTH,
 } from './engine';
+import { getServerBook, type Improved, recordsStore, type RunResult, runResult } from './records';
+import { RunSummary } from './RunSummary';
 
 type Phase = 'menu' | 'ready' | 'playing' | 'paused' | 'gameover';
 
@@ -42,6 +54,7 @@ export const ChaosBreakout = () => {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const stateRef = useRef<GameState | null>(null);
   const frameRef = useRef<number | null>(null);
   const inputRef = useRef<StepInput>({ pointerX: null, left: false, right: false });
@@ -55,6 +68,12 @@ export const ChaosBreakout = () => {
   const [showInfo, setShowInfo] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
   const [hud, setHud] = useState<Hud>({ score: 0, lives: 0, stage: 1, combo: 0, gravity: 'down' });
+  const [summary, setSummary] = useState<{ run: RunResult; improved: Improved } | null>(null);
+  const records = useSyncExternalStore(
+    recordsStore.subscribe,
+    recordsStore.getSnapshot,
+    getServerBook,
+  );
 
   const setPhaseBoth = useCallback((p: Phase) => {
     phaseRef.current = p;
@@ -244,6 +263,8 @@ export const ChaosBreakout = () => {
           updateHighScore(s.score);
           setIsNewBest(true);
         }
+        const run = runResult(s);
+        setSummary({ run, improved: recordsStore.saveRun(difficultyRef.current, run) });
         trackEvent('gameover', { score: s.score, stage: s.stage });
         setPhaseBoth('gameover');
         return;
@@ -277,11 +298,21 @@ export const ChaosBreakout = () => {
     const s = createGameState(difficulty);
     stateRef.current = s;
     setIsNewBest(false);
+    setSummary(null);
     setHud({ score: 0, lives: s.lives, stage: 1, combo: 0, gravity: 'down' });
     inputRef.current = { pointerX: null, left: false, right: false };
     trackEvent('start', { difficulty });
     setPhaseBoth('ready');
   }, [difficulty, trackEvent, setPhaseBoth]);
+
+  // Back to the difficulty menu, abandoning the current run (it is not recorded).
+  const backToMenu = useCallback(() => {
+    stateRef.current = null;
+    setIsNewBest(false);
+    setSummary(null);
+    inputRef.current = { pointerX: null, left: false, right: false };
+    setPhaseBoth('menu');
+  }, [setPhaseBoth]);
 
   const doLaunch = useCallback(() => {
     const s = stateRef.current;
@@ -322,6 +353,9 @@ export const ChaosBreakout = () => {
           inputRef.current.pointerX = null;
           break;
         case 'Space':
+          // Space on the focused Difficulty button activates that button; it
+          // must not also launch or restart the run from here.
+          if (e.target instanceof Node && menuBtnRef.current?.contains(e.target)) break;
           if (phaseRef.current === 'ready') {
             e.preventDefault();
             doLaunch();
@@ -524,7 +558,27 @@ export const ChaosBreakout = () => {
               <button type="button" className={styles.ghostBtn} onClick={startGame}>
                 <RotateCcw size={16} /> {t.restart}
               </button>
+              {phase !== 'playing' && (
+                <button
+                  ref={menuBtnRef}
+                  type="button"
+                  className={styles.ghostBtn}
+                  onClick={backToMenu}
+                >
+                  <SlidersHorizontal size={16} /> {t.changeDifficulty}
+                </button>
+              )}
             </div>
+
+            {phase === 'gameover' && summary && (
+              <RunSummary
+                t={t}
+                difficultyLabel={t.difficulties[difficulty].label}
+                run={summary.run}
+                improved={summary.improved}
+                record={records[difficulty]}
+              />
+            )}
 
             <p className={styles.hint}>{t.controls[0]}</p>
           </>
@@ -538,6 +592,7 @@ export const ChaosBreakout = () => {
               {DIFFICULTIES.map((d) => {
                 const colors = getDifficultyColor(d);
                 const info = t.difficulties[d];
+                const record = records[d];
                 return (
                   <button
                     key={d}
@@ -557,6 +612,11 @@ export const ChaosBreakout = () => {
                   >
                     <span className={styles.difficultyLabel}>{info.label}</span>
                     <span className={styles.difficultyDesc}>{info.description}</span>
+                    <span className={styles.difficultyRecord}>
+                      {record
+                        ? t.menuRecord(record.score.toLocaleString(), record.stage)
+                        : t.noRecord}
+                    </span>
                   </button>
                 );
               })}

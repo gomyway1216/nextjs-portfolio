@@ -314,6 +314,81 @@
   line-height: 1.35;
 }
 
+.difficultyRecord {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* End-of-run summary */
+.summary {
+  margin-top: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  padding: 0.9rem 1rem 1rem;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(2, 6, 23, 0.7));
+}
+.summaryTitle {
+  margin: 0 0 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+.summaryItem {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  padding: 0.5rem 0.7rem;
+  background: rgba(30, 41, 59, 0.45);
+  min-width: 0;
+}
+.summaryItem dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+.summaryItem dd {
+  margin: 0.1rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.summaryValue {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f1f5f9;
+  overflow-wrap: anywhere;
+}
+.summaryRecord {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.summaryRecord[data-new='true'] {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.summaryNote {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+@media (max-width: 520px) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .modalText {
   color: #cbd5e1;
   line-height: 1.6;

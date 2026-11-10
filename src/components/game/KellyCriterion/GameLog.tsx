@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { CAP, MAX_FLIPS, SCENARIOS } from './engine';
 import { money, percent } from './format';
@@ -19,7 +19,8 @@ export const GameLog = ({ records, onClear }: GameLogProps) => {
   const { language } = useGameLanguage();
   const t = getStrings(language);
   const title = useRef<HTMLHeadingElement>(null);
-  const tally = tallyOf(records);
+  // The table re-renders on every flip; the list only changes when a game ends.
+  const tally = useMemo(() => tallyOf(records), [records]);
 
   return (
     <div className={`${styles.panel} ${styles.logPanel}`} data-testid="kelly-log">
@@ -91,9 +92,10 @@ export const GameLog = ({ records, onClear }: GameLogProps) => {
               </thead>
               <tbody>
                 {records
-                  .map((record, index) => ({ record, number: index + 1 }))
+                  .slice()
                   .reverse()
-                  .map(({ record, number }) => {
+                  .map((record, index) => {
+                    const number = records.length - index;
                     const wager = SCENARIOS[record.scenario];
                     const versus = againstKelly(record);
                     return (

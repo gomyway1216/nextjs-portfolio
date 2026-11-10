@@ -1,4 +1,5 @@
 import type { GameLanguage } from '../constants/gameTranslations';
+import type { RoundRecord, WhatIf } from './history';
 
 /**
  * Local, self-contained bilingual strings for the Monty Hall game.
@@ -28,8 +29,19 @@ export interface MontyHallStrings {
   nextRound: string;
   yourRecord: string;
   reset: string;
-  theoryNote: string;
+  theoryNote: (stay: string, sw: string) => string;
   doorCountLabel: string;
+  // Round history / what-if
+  whatIf: (w: WhatIf, record: RoundRecord) => string;
+  alwaysStayLabel: string;
+  alwaysStayEmpty: string;
+  alwaysStayNote: (rounds: number, firstPickRight: number, switchOptions: number) => string;
+  historyTitle: string;
+  historyEmpty: string;
+  historyShowing: (shown: number, total: number) => string;
+  historyRow: (record: RoundRecord, switched: boolean) => string;
+  historyWin: string;
+  historyLose: string;
   // Sim tab
   trialsLabel: (max: string) => string;
   runSim: string;
@@ -78,9 +90,45 @@ const en: MontyHallStrings = {
   nextRound: 'Next round',
   yourRecord: 'Your record',
   reset: 'Reset record',
-  theoryNote:
-    'Theory: Stay wins 1/3 of the time, Switch wins 2/3. Small samples wobble — run thousands of trials in the Simulate tab to watch them converge.',
+  theoryNote: (stay, sw) =>
+    `Theory: Stay wins ${stay} of the time, Switch wins ${sw}. Small samples wobble — run thousands of trials in the Simulate tab to watch them converge.`,
   doorCountLabel: 'Doors',
+  whatIf: (w, r) => {
+    const prize = r.prizeDoor + 1;
+    switch (w.kind) {
+      case 'switchWouldWin':
+        return w.switchOptions === 1
+          ? `Switching would have won — the prize was behind Door ${prize}.`
+          : `The prize was behind Door ${prize} — switching to it would have won (it was 1 of the ${w.switchOptions} doors you could switch to).`;
+      case 'switchWouldLose':
+        return 'Switching would have lost — your first pick was right.';
+      case 'stayWouldWin':
+        return `Staying would have won — your first pick, Door ${r.pickedDoor + 1}, had the prize.`;
+      case 'stayWouldLose':
+        return `Staying would have lost — your first pick, Door ${r.pickedDoor + 1}, hid a goat.`;
+      case 'stayWouldLoseToo':
+        return `Staying would have lost too — the prize was behind Door ${prize}.`;
+    }
+  },
+  alwaysStayLabel: 'Had you stayed every round',
+  alwaysStayEmpty:
+    'Counts every round you play, whichever choice you make: staying wins exactly when your first pick was right.',
+  alwaysStayNote: (rounds, right, switchOptions) => {
+    const wrong = rounds - right;
+    const head = `Staying only wins when your first pick was right — yours was in ${right} of ${rounds} round${rounds === 1 ? '' : 's'}.`;
+    return switchOptions === 1
+      ? `${head} Switching every round would have won the other ${wrong}.`
+      : `${head} In the other ${wrong}, the prize was behind one of the ${switchOptions} doors you could switch to.`;
+  },
+  historyTitle: 'Round history',
+  historyEmpty: 'Finished rounds are listed here, newest first.',
+  historyShowing: (shown, total) => `Showing the latest ${shown} of ${total} rounds.`,
+  historyRow: (r, switched) =>
+    `Picked ${r.pickedDoor + 1} · host opened ${r.openedDoors.map((d) => d + 1).join(', ')} · ${
+      switched ? `switched to ${r.finalDoor + 1}` : 'stayed'
+    } · prize behind ${r.prizeDoor + 1}`,
+  historyWin: 'Win',
+  historyLose: 'Lose',
   trialsLabel: (max) => `Trials (max ${max})`,
   runSim: 'Run simulation',
   running: (done, total) => `Running… ${done} / ${total}`,
@@ -130,9 +178,44 @@ const ja: MontyHallStrings = {
   nextRound: '次のラウンド',
   yourRecord: 'あなたの戦績',
   reset: '戦績リセット',
-  theoryNote:
-    '理論値は Stay 1/3、Switch 2/3。サンプルが少ないうちはブレますが、シミュレーションタブで何万回も試すと収束が見えます。',
+  theoryNote: (stay, sw) =>
+    `理論値は「そのまま」${stay}、「変える」${sw}。サンプルが少ないうちはブレますが、シミュレーションタブで何万回も試すと収束が見えます。`,
   doorCountLabel: 'ドアの数',
+  whatIf: (w, r) => {
+    const prize = r.prizeDoor + 1;
+    switch (w.kind) {
+      case 'switchWouldWin':
+        return w.switchOptions === 1
+          ? `変えていれば当たりでした（景品はドア${prize}）。`
+          : `景品はドア${prize}でした。そこに変えていれば当たりでした（変えられるドア${w.switchOptions}枚のうちの1枚）。`;
+      case 'switchWouldLose':
+        return '変えていたら外れでした（最初の選択が当たり）。';
+      case 'stayWouldWin':
+        return `そのままなら当たりでした（最初に選んだドア${r.pickedDoor + 1}が景品）。`;
+      case 'stayWouldLose':
+        return `そのままなら外れでした（最初に選んだドア${r.pickedDoor + 1}は🐐）。`;
+      case 'stayWouldLoseToo':
+        return `そのままでも外れでした（景品はドア${prize}）。`;
+    }
+  },
+  alwaysStayLabel: '毎回そのままにしていたら',
+  alwaysStayEmpty: 'どちらを選んでも全ラウンドを数えます。「そのまま」で勝てるのは、最初の選択が当たっていたときだけです。',
+  alwaysStayNote: (rounds, right, switchOptions) => {
+    const wrong = rounds - right;
+    const head = `「そのまま」で勝てるのは、最初の選択が当たっていたときだけです。あなたの場合は${rounds}回中${right}回でした。`;
+    return switchOptions === 1
+      ? `${head}毎回変えていれば、残りの${wrong}回で勝てました。`
+      : `${head}残りの${wrong}回は、変えられる${switchOptions}枚のドアのどれかに景品がありました。`;
+  },
+  historyTitle: 'ラウンド履歴',
+  historyEmpty: '終わったラウンドが新しい順にここに並びます。',
+  historyShowing: (shown, total) => `全${total}ラウンドのうち最新${shown}件を表示中。`,
+  historyRow: (r, switched) =>
+    `ドア${r.pickedDoor + 1}を選択 ・ ホストがドア${r.openedDoors.map((d) => d + 1).join('、')}を開ける ・ ${
+      switched ? `ドア${r.finalDoor + 1}に変更` : 'そのまま'
+    } ・ 景品はドア${r.prizeDoor + 1}`,
+  historyWin: '当たり',
+  historyLose: 'はずれ',
   trialsLabel: (max) => `試行回数（最大 ${max}）`,
   runSim: 'シミュレーション実行',
   running: (done, total) => `実行中… ${done} / ${total}`,

@@ -45,6 +45,11 @@ export interface OthelloStrings {
   noMoves: string;
   pass: string;
   discsLabel: string;
+  undo: string;
+  hint: string;
+  hintThinking: string;
+  hintResult: (move: string) => string;
+  hintSuggested: string;
   // Info modal
   objectiveTitle: string;
   objectiveBody: string;
@@ -91,6 +96,11 @@ const en: OthelloStrings = {
   noMoves: 'No moves yet',
   pass: 'Pass',
   discsLabel: 'discs',
+  undo: 'Undo',
+  hint: 'Hint',
+  hintThinking: 'Finding a move…',
+  hintResult: (move) => `Hint: ${move}`,
+  hintSuggested: 'suggested move',
   objectiveTitle: 'Objective',
   objectiveBody: 'Have more discs than your opponent when the game ends.',
   rulesTitle: 'Rules',
@@ -154,6 +164,11 @@ const ja: OthelloStrings = {
   noMoves: 'まだ着手はありません',
   pass: 'パス',
   discsLabel: '枚',
+  undo: '待った',
+  hint: 'ヒント',
+  hintThinking: '候補手を探しています…',
+  hintResult: (move) => `ヒント: ${move}`,
+  hintSuggested: 'おすすめの手',
   objectiveTitle: '目的',
   objectiveBody: '対局終了時に相手より多くの石を並べましょう。',
   rulesTitle: 'ルール',

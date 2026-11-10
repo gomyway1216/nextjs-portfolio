@@ -11,21 +11,32 @@
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { CircleHelp, Cpu, Loader2, Play, RotateCcw } from 'lucide-react';
+import { CircleHelp, Cpu, Lightbulb, Loader2, Play, RotateCcw, Undo2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Difficulty, GameStats, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { OthelloAI } from './AI';
 import { Board } from './Board';
+import { findHint } from './hint';
 import { getOthelloStrings } from './i18n';
 import { initMobilityTables } from './MobilityTable';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
 import styles from './Othello.module.css';
 import type { MoveHistoryEntry } from './multiplayerTypes';
+import { lastPlacement, replayHistory, takebackLength } from './takeback';
 import { BLACK, BOARD_SIZE, Color, EMPTY, Point, pointToString, WHITE } from './types';
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
+
+const appendEntry = (
+  history: MoveHistoryEntry[],
+  color: Color,
+  move: Point | null
+): MoveHistoryEntry[] => [
+  ...history,
+  { moveNumber: history.length + 1, color, move, timestamp: Date.now() },
+];
 
 /**
  * A structured (language-independent) description of the current status, so
@@ -86,6 +97,11 @@ const Othello = () => {
   });
 
   const lastProcessedUpdate = useRef<number>(0);
+
+  // Hints are keyed by the board object they were computed for; every move,
+  // take-back and new game swaps in a new Board, which retires the hint.
+  const [hintRequest, setHintRequest] = useState<Board | null>(null);
+  const [hint, setHint] = useState<{ board: Board; move: Point } | null>(null);
 
   useEffect(() => {
     initMobilityTables();
@@ -342,6 +358,7 @@ const Othello = () => {
         gameOver: isOver,
         winner,
         status: isOver ? status : { kind: 'passed', passer: aiColor },
+        moveHistory: appendEntry(prev.moveHistory, aiColor, null),
         isAIThinking: false,
       }));
       return;
@@ -362,6 +379,7 @@ const Othello = () => {
           gameOver: isOver,
           winner,
           status: isOver ? status : { kind: 'passed', passer: aiColor },
+          moveHistory: appendEntry(prev.moveHistory, aiColor, null),
           isAIThinking: false,
         }));
         return;
@@ -380,6 +398,7 @@ const Othello = () => {
           winner,
           status,
           lastMove: bestMove,
+          moveHistory: appendEntry(prev.moveHistory, aiColor, bestMove),
           isAIThinking: false,
         }));
         if (winner === playerColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
@@ -397,6 +416,7 @@ const Othello = () => {
           validMoves: newBoard.getMovablePos(),
           status: { kind: 'passed', passer: playerColor },
           lastMove: bestMove,
+          moveHistory: appendEntry(appendEntry(prev.moveHistory, aiColor, bestMove), playerColor, null),
           isAIThinking: true,
         }));
         return;
@@ -408,12 +428,59 @@ const Othello = () => {
         validMoves: playerMovables,
         status: { kind: 'aiPlayed', move: pointToString(bestMove), next: playerColor },
         lastMove: bestMove,
+        moveHistory: appendEntry(prev.moveHistory, aiColor, bestMove),
         isAIThinking: false,
       }));
     }, 450);
 
     return () => clearTimeout(timeoutId);
   }, [gameMode, gameState.isAIThinking, gameState.gameOver, gameState.board, difficulty, checkGameState, playerColor, aiColor]);
+
+  // ---- Take-back & hint (single-player only) ----
+  const canAct =
+    gameMode === 'ai' &&
+    !gameState.gameOver &&
+    !gameState.isAIThinking &&
+    gameState.board.getCurrentColor() === playerColor;
+  const canUndo = canAct && takebackLength(gameState.moveHistory, playerColor) !== null;
+  const shownHint = canAct && hint?.board === gameState.board ? hint.move : null;
+  const isHintThinking = canAct && hintRequest === gameState.board && shownHint === null;
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    const keep = takebackLength(gameState.moveHistory, playerColor);
+    if (keep === null) return;
+    const moveHistory = gameState.moveHistory.slice(0, keep);
+    const board = replayHistory(moveHistory);
+    if (!board) return;
+    setGameState({
+      board,
+      validMoves: board.getMovablePos(),
+      gameOver: false,
+      winner: null,
+      isAIThinking: false,
+      status: { kind: 'toPlay', color: playerColor },
+      lastMove: lastPlacement(moveHistory),
+      moveHistory,
+    });
+  }, [canUndo, gameState.moveHistory, playerColor]);
+
+  const handleHint = useCallback(() => {
+    if (!canAct || shownHint || gameState.validMoves.length === 0) return;
+    setHintRequest(gameState.board);
+  }, [canAct, shownHint, gameState.board, gameState.validMoves]);
+
+  useEffect(() => {
+    if (!isHintThinking) return;
+    const board = gameState.board;
+    // Deferred so the "thinking" label paints before the search runs.
+    const timeoutId = setTimeout(() => {
+      const move = findHint(board);
+      setHintRequest(null);
+      if (move) setHint({ board, move });
+    }, 60);
+    return () => clearTimeout(timeoutId);
+  }, [isHintThinking, gameState.board]);
 
   const startAIGame = useCallback(() => {
     setDifficulty(selectedDifficulty);
@@ -490,6 +557,7 @@ const Othello = () => {
         const isLastMove = gameState.lastMove?.x === x && gameState.lastMove?.y === y;
         const showHint = isValidMove && !gameState.isAIThinking && !gameState.gameOver;
         const canClick = showHint && gameState.board.getCurrentColor() === myTurnColor;
+        const isSuggested = canClick && shownHint?.x === x && shownHint?.y === y;
         const coord = `${String.fromCharCode(96 + x)}${y}`;
 
         cells.push(
@@ -508,9 +576,11 @@ const Othello = () => {
                 ? `${coord} ${t.black}`
                 : color === WHITE
                   ? `${coord} ${t.white}`
-                  : canClick
-                    ? `${coord} — ${t.yourTurn}`
-                    : coord
+                  : isSuggested
+                    ? `${coord} — ${t.hintSuggested}`
+                    : canClick
+                      ? `${coord} — ${t.yourTurn}`
+                      : coord
             }
           >
             {color !== EMPTY && (
@@ -524,7 +594,9 @@ const Othello = () => {
                 {isLastMove && <span className={styles.lastRing} />}
               </span>
             )}
-            {color === EMPTY && showHint && <span className={styles.hint} />}
+            {color === EMPTY && showHint && (
+              <span className={`${styles.hint} ${isSuggested ? styles.suggested : ''}`} />
+            )}
           </button>
         );
       }
@@ -737,6 +809,31 @@ const Othello = () => {
             </div>
           </div>
         </div>
+
+        {/* Take-back / hint (single-player, while the game is in progress) */}
+        {gameMode === 'ai' && !gameState.gameOver && (
+          <div className={styles.actions}>
+            <button type="button" className={styles.btnGhost} onClick={handleUndo} disabled={!canUndo}>
+              <Undo2 size={17} />
+              {t.undo}
+            </button>
+            <button
+              type="button"
+              className={styles.btnGhost}
+              onClick={handleHint}
+              disabled={!canAct || isHintThinking || gameState.validMoves.length === 0}
+            >
+              {isHintThinking ? <Loader2 className={styles.spinner} /> : <Lightbulb size={17} />}
+              <span aria-live="polite">
+                {isHintThinking
+                  ? t.hintThinking
+                  : shownHint
+                    ? t.hintResult(pointToString(shownHint))
+                    : t.hint}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Game-over actions */}
         {gameState.gameOver && (

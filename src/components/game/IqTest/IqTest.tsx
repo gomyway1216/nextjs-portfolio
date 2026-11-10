@@ -10,75 +10,15 @@ import { InfoModal } from '../common';
 import { getDifficultyColor } from '../common/utils';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
-import {
-  CellSpec,
-  Question,
-  QuizDifficulty,
-  generateQuestion,
-} from './questions';
+import { Question, QuizDifficulty, generateQuestion } from './questions';
+import { CellShapeSvg, MatrixGridView } from './figures';
 import { estimateIq, getIqStrings } from './i18n';
+import type { ReviewEntry } from './review';
+import { ReviewPanel } from './ReviewPanel';
 import styles from './IqTest.module.css';
 
 const TOTAL_QUESTIONS = 10;
 const TIME_PER_QUESTION = 25; // seconds, when timer enabled
-
-// --------------------------------------------------------------------------
-// Shape renderer (matrix cells)
-// --------------------------------------------------------------------------
-
-const CellShapeSvg = ({ cell, size = 70 }: { cell: CellSpec; size?: number }) => {
-  const cy = size / 2;
-  const gap = size * 0.06;
-  const usable = size - gap * 2;
-  const shapeSize = Math.min(usable / cell.count - gap, size * 0.55);
-  const r = shapeSize / 2;
-  const startX = (size - (shapeSize * cell.count + gap * (cell.count - 1))) / 2 + r;
-
-  const shapes = Array.from({ length: cell.count }, (_, i) => {
-    const cx = startX + i * (shapeSize + gap);
-    if (cell.shape === 'circle') {
-      return <circle key={i} cx={cx} cy={cy} r={r} fill={cell.color} />;
-    }
-    if (cell.shape === 'square') {
-      return (
-        <rect key={i} x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={cell.color} rx={r * 0.12} />
-      );
-    }
-    if (cell.shape === 'triangle') {
-      const pts = `${cx},${cy - r} ${cx - r},${cy + r * 0.85} ${cx + r},${cy + r * 0.85}`;
-      return <polygon key={i} points={pts} fill={cell.color} />;
-    }
-    const star: string[] = [];
-    for (let k = 0; k < 10; k += 1) {
-      const angle = (Math.PI / 5) * k - Math.PI / 2;
-      const radius = k % 2 === 0 ? r : r * 0.45;
-      star.push(`${cx + Math.cos(angle) * radius},${cy + Math.sin(angle) * radius}`);
-    }
-    return <polygon key={i} points={star.join(' ')} fill={cell.color} />;
-  });
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="matrix cell">
-      {shapes}
-    </svg>
-  );
-};
-
-const MatrixGridView = ({ grid }: { grid: (CellSpec | null)[][] }) => (
-  <div className={styles.matrixGrid} aria-label="3 by 3 pattern matrix">
-    {grid.flatMap((row, r) =>
-      row.map((cell, c) => (
-        <div key={`${r}-${c}`} className={styles.matrixCell}>
-          {cell ? (
-            <CellShapeSvg cell={cell} size={80} />
-          ) : (
-            <span className={styles.matrixCellQ}>?</span>
-          )}
-        </div>
-      )),
-    )}
-  </div>
-);
 
 // --------------------------------------------------------------------------
 // State
@@ -86,19 +26,13 @@ const MatrixGridView = ({ grid }: { grid: (CellSpec | null)[][] }) => (
 
 type Phase = 'menu' | 'question' | 'feedback' | 'gameover';
 
-interface HistoryEntry {
-  correct: boolean;
-  question: Question;
-  selected: number | null; // null = timed out
-}
-
 interface GameState {
   phase: Phase;
   questionIndex: number; // 1-based
   question: Question | null;
   score: number;
   selected: number | null;
-  history: HistoryEntry[];
+  history: ReviewEntry[];
 }
 
 const initialState: GameState = {
@@ -138,6 +72,22 @@ export const IqTest = () => {
     advancingRef.current = false;
   });
 
+  // Time the current question has been on screen: finished stretches plus the
+  // one running now. A stretch ends when the question is answered or the
+  // How-to-play modal opens, so reading the rules is not counted.
+  const elapsedRef = useRef(0);
+  const stretchStartRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (state.phase !== 'question' || showInfo) return;
+    stretchStartRef.current = performance.now();
+    return () => {
+      if (stretchStartRef.current !== null) {
+        elapsedRef.current += performance.now() - stretchStartRef.current;
+        stretchStartRef.current = null;
+      }
+    };
+  }, [state.phase, state.questionIndex, showInfo]);
+
   const makeQuestion = useCallback(
     (index: number): Question =>
       generateQuestion(difficulty, index, TOTAL_QUESTIONS, usedRef.current),
@@ -146,6 +96,7 @@ export const IqTest = () => {
 
   const start = useCallback(() => {
     usedRef.current = new Set();
+    elapsedRef.current = 0;
     setState({
       phase: 'question',
       questionIndex: 1,
@@ -158,6 +109,10 @@ export const IqTest = () => {
   }, [makeQuestion]);
 
   const choose = useCallback((idx: number | null) => {
+    // Read the clock here, not in the updater, which must stay pure.
+    const timeMs =
+      elapsedRef.current +
+      (stretchStartRef.current === null ? 0 : performance.now() - stretchStartRef.current);
     setState((prev) => {
       if (prev.phase !== 'question' || !prev.question) return prev;
       const correct = idx !== null && idx === prev.question.answerIndex;
@@ -166,7 +121,7 @@ export const IqTest = () => {
         phase: 'feedback',
         selected: idx,
         score: prev.score + (correct ? 10 : 0),
-        history: [...prev.history, { correct, question: prev.question, selected: idx }],
+        history: [...prev.history, { correct, question: prev.question, selected: idx, timeMs }],
       };
     });
   }, []);
@@ -182,6 +137,7 @@ export const IqTest = () => {
       setState((prev) => ({ ...prev, phase: 'gameover' }));
     } else {
       const question = makeQuestion(state.questionIndex);
+      elapsedRef.current = 0;
       setState((prev) => ({
         ...prev,
         phase: 'question',
@@ -395,7 +351,7 @@ export const IqTest = () => {
               <p className={styles.prompt}>{q.prompt[language]}</p>
 
               {q.matrix ? (
-                <MatrixGridView grid={q.matrix.grid} />
+                <MatrixGridView grid={q.matrix.grid} language={language} />
               ) : (
                 <div className={styles.puzzleBox}>{q.display}</div>
               )}
@@ -421,7 +377,7 @@ export const IqTest = () => {
                       <span className={styles.optionKey}>{i + 1}.</span>
                       {q.matrix ? (
                         <span style={{ display: 'inline-flex' }}>
-                          <CellShapeSvg cell={q.matrix.cellOptions[i]} size={64} />
+                          <CellShapeSvg cell={q.matrix.cellOptions[i]} size={64} language={language} />
                         </span>
                       ) : (
                         <span>{opt}</span>
@@ -474,27 +430,11 @@ export const IqTest = () => {
                 {t.outOf(correctCount, TOTAL_QUESTIONS)} · {t.score}: {state.score} / {TOTAL_QUESTIONS * 10}
               </div>
 
-              <div className={styles.reviewSectionTitle}>{t.reviewTitle}</div>
-              <div className={styles.reviewList}>
-                {state.history.map((h, i) => (
-                  <div key={i} className={styles.reviewRow}>
-                    <span className={styles.reviewMark + ' ' + (h.correct ? styles.reviewMarkOk : styles.reviewMarkNo)}>
-                      {h.correct ? '◯' : '✗'}
-                    </span>
-                    <span className={styles.reviewBody}>
-                      {h.question.matrix ? (
-                        <>
-                          <span>{language === 'ja' ? 'マトリックス →' : 'Matrix →'}</span>
-                          <CellShapeSvg cell={h.question.matrix.cellOptions[h.question.answerIndex]} size={30} />
-                        </>
-                      ) : (
-                        <span>{h.question.display.replace('?', h.question.options[h.question.answerIndex])}</span>
-                      )}
-                    </span>
-                    <span className={styles.reviewType}>{h.question.type}</span>
-                  </div>
-                ))}
-              </div>
+              <button type="button" onClick={reset} className={styles.primaryBtn}>
+                {t.playAgain}
+              </button>
+
+              <ReviewPanel history={state.history} language={language} />
 
               <button type="button" onClick={reset} className={styles.primaryBtn}>
                 {t.playAgain}

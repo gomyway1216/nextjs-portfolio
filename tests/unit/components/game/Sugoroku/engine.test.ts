@@ -24,6 +24,7 @@ import {
   STAR,
   START,
   UNIT,
+  aheadOf,
   analyzeBoard,
   checkRolls,
   drawFrom,
@@ -258,5 +259,47 @@ describe('the exact odds', () => {
 
   it('pays every roll in whole medals on every bet', () => {
     for (let s = 0; s < BOARD_SIZE; s++) for (const { play } of outcomesFrom(s)) for (const bet of BETS) expect(Number.isInteger(wonFor(bet, play))).toBe(true);
+  });
+});
+
+describe('the next roll, face by face', () => {
+  it('says for each face where the boat stops and what the roll pays, the lap bonus counted', () => {
+    const fromStart = aheadOf(START);
+    expect(fromStart.map((row) => row.face)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(fromStart[0]).toEqual({ face: 1, landed: 1, sent: null, stop: 1, lap: false, least: 1, most: 1 });
+    expect(fromStart[2]).toMatchObject({ stop: 3, least: 0, most: 0 });
+    // An arrow: the storm on 9 takes the boat back to the palm tree on 3, and the whirlpool to START with no lap bonus.
+    expect(aheadOf(4)[4]).toEqual({ face: 5, landed: 9, sent: 'storm', stop: 3, lap: false, least: 0, most: 0 });
+    expect(aheadOf(11)[3]).toEqual({ face: 4, landed: 15, sent: 'whirlpool', stop: START, lap: false, least: 0, most: 0 });
+    // Past START: the pearl's 2 and the lap bonus.
+    expect(aheadOf(27)[4]).toEqual({ face: 5, landed: 2, sent: null, stop: 2, lap: true, least: LAP_PAYS + 2, most: LAP_PAYS + 2 });
+    expect(aheadOf(27)[2]).toMatchObject({ stop: START, lap: true, least: LAP_PAYS, most: LAP_PAYS });
+  });
+
+  it('gives the least and the most where a chance or the whale ride is played', () => {
+    expect(aheadOf(START)[5]).toMatchObject({ stop: 6, least: Math.min(...LAMPS), most: Math.max(...LAMPS) });
+    expect(aheadOf(18)[5]).toMatchObject({ stop: 24, least: 0, most: JP_PAYS });
+    const whale = aheadOf(6)[5];
+    expect(BOARD[whale.stop].kind).toBe('whale');
+    expect(whale.least).toBeGreaterThan(0);
+    expect(whale.most).toBeGreaterThan(JP_PAYS);
+  });
+
+  it('agrees, from every square, with every way the roll can go', () => {
+    for (let from = 0; from < BOARD_SIZE; from++) {
+      const rows = aheadOf(from);
+      expect(rows).toHaveLength(FACES);
+      expect(aheadOf(from)).toBe(rows);
+      for (const row of rows) {
+        const plays = outcomesFrom(from)
+          .map(({ play }) => play)
+          .filter((play) => play.draw.roll === row.face);
+        expect(row.least, `square ${from}, a ${row.face}`).toBe(Math.min(...plays.map((play) => play.pays)));
+        expect(row.most, `square ${from}, a ${row.face}`).toBe(Math.max(...plays.map((play) => play.pays)));
+        const plain = playOf(from, draw(row.face));
+        expect([row.landed, row.stop, row.lap, row.sent]).toEqual([plain.landed, plain.stop, plain.lap, plain.sent?.kind ?? null]);
+        for (const bet of BETS) expect(Number.isInteger(medalsFor(bet, row.least)) && Number.isInteger(medalsFor(bet, row.most))).toBe(true);
+      }
+    }
   });
 });

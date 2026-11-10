@@ -184,6 +184,7 @@ function everyString(t: SugorokuStrings): { key: string; text: string }[] {
     else if (key === 'laneAria') for (let step = 1; step <= BLOWHOLE; step++) add('laneAria', t.laneAria(step, 5));
     else if (key === 'lampsLabel') for (const set of ['lamp', 'jp', null] as const) add('lampsLabel', t.lampsLabel(set));
     else if (key === 'infoBody') add(key, t.infoBody('93.06%', '89.74%'));
+    else if (key === 'aheadGain') for (const [least, most] of [[0, 0], [3, 3], [2, 20], [0, 1_000]]) add(`aheadGain(${least},${most})`, t.aheadGain(least, most));
     else {
       const call = value as (...a: unknown[]) => unknown;
       for (const args of [[3], [1_020], ['1,879'], [3, 'Pearl'], ['9', '0.5%'], [4, 1_000], [true], [false], [6, false]]) add(`${key}(${args.join(',')})`, call(...args));
@@ -266,5 +267,38 @@ describe('the Odds tab', () => {
     expect(markup).toContain('Tailwind → 10');
     expect(markup).toContain('37/12');
     expect(render(<OddsTab />, 'ja')).toContain('定常分布');
+  });
+});
+
+describe('the next roll panel', () => {
+  it('lists the six faces from the boat’s square: where each goes and what it can bring at the bet', () => {
+    const markup = render(<PlayTab />);
+    expect(markup).toContain('data-testid="sg-ahead" data-from="0"');
+    expect(markup.match(/<li[^>]*data-face="\d"[^>]*data-stop="\d+"[^>]*data-rolled="false"/g)).toHaveLength(6);
+    const text = (face: number) =>
+      (markup.match(new RegExp(`<li[^>]*data-face="${face}"[^>]*data-stop.*?</li>`))?.[0] ?? '')
+        .replace(/<svg.*?<\/svg>/g, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    expect(text(1)).toBe('A 1: Shell +1');
+    expect(text(3)).toBe('A 3: Palm tree —');
+    expect(text(6)).toBe('A 6: Lamp Chance +2 to +20');
+  });
+
+  it('words what a face can bring in both languages', () => {
+    const en = getStrings('en');
+    expect(en.aheadGain(0, 0)).toBe('—');
+    expect(en.aheadGain(3, 3)).toBe('+3');
+    expect(en.aheadGain(0, 1000)).toBe('up to +1,000');
+    expect(en.aheadSent('Storm', 'Palm tree')).toBe('Storm → Palm tree');
+    const ja = getStrings('ja');
+    expect(ja.aheadGain(0, 0)).toBe('—');
+    expect(ja.aheadGain(2, 20)).toBe('+2〜+20');
+    expect(ja.aheadGain(0, 1000)).toBe('最大+1,000');
+    const markup = render(<PlayTab />, 'ja');
+    expect(markup).toContain('>次のサイコロ<');
+    expect(markup).toContain('1の目：');
+    expect(markup).toContain('>ランプチャンス<');
   });
 });

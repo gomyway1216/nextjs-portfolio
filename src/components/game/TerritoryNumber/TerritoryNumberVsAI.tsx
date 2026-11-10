@@ -6,9 +6,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Info } from 'lucide-react';
+import { History, Info } from 'lucide-react';
 import { TerritoryNumberBoard, type Phase } from './TerritoryNumberBoard';
 import { pickAIMove } from './TerritoryNumberAI';
+import { TerritoryNumberReview } from './TerritoryNumberReview';
+import type { MoveRecord } from './review';
 import {
   emptyBoard,
   evaluateBoard,
@@ -60,6 +62,8 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
   const [board, setBoard] = useState<Board>(emptyBoard());
   const [currentTurn, setCurrentTurn] = useState<PlayerSlot>('p1');
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
+  const [moves, setMoves] = useState<MoveRecord[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Pending AI move handle, so we can cancel on unmount or leave.
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,6 +97,7 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
       const move = pickAIMove(difficulty, board, aiSlot);
       const next = placeCard(board, move.cellIndex, move.card, aiSlot);
       setBoard(next);
+      setMoves(prev => [...prev, { slot: aiSlot, card: move.card, cellIndex: move.cellIndex }]);
       setCurrentTurn(humanSlot);
       aiTimerRef.current = null;
     }, AI_THINK_MS);
@@ -103,6 +108,8 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
     setBoard(emptyBoard());
     setCurrentTurn(first);
     setSelectedCard(null);
+    setMoves([]);
+    setReviewOpen(false);
     setPhase('playing');
     clearAiTimer();
   }, [firstRule, clearAiTimer]);
@@ -119,12 +126,14 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
 
     const next = placeCard(board, cellIndex, selectedCard, humanSlot);
     setBoard(next);
+    setMoves(prev => [...prev, { slot: humanSlot, card: selectedCard, cellIndex }]);
     setSelectedCard(null);
     setCurrentTurn(aiSlot);
   }, [selectedCard, currentTurn, humanSlot, board, remaining, aiSlot]);
 
   const handleLeave = useCallback(() => {
     clearAiTimer();
+    setReviewOpen(false);
     setPhase('setup');
   }, [clearAiTimer]);
 
@@ -270,6 +279,20 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
     );
   }
 
+  if (reviewOpen && finished) {
+    return (
+      <TerritoryNumberReview
+        moves={moves}
+        mySlot={humanSlot}
+        myLabel={myLabel}
+        opponentLabel={opponentLabel}
+        language={language}
+        onBack={() => setReviewOpen(false)}
+        onPlayAgain={startMatch}
+      />
+    );
+  }
+
   return (
     <>
       <TerritoryNumberBoard
@@ -288,6 +311,16 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
         onLeave={handleLeave}
         onPlayAgain={startMatch}
         headerExtra={infoButton}
+        finishedExtra={
+          <button
+            type="button"
+            onClick={() => setReviewOpen(true)}
+            className={styles.secondaryButton}
+          >
+            <History size={16} aria-hidden />
+            <span>{s.reviewGame}</span>
+          </button>
+        }
         language={language}
       />
       {infoModal}

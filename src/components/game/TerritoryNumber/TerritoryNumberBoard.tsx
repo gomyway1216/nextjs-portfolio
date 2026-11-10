@@ -44,6 +44,8 @@ interface TerritoryNumberBoardProps {
   onPlayAgain?: () => void; // shown only when finished
   /** Optional extra header control (e.g. info button). */
   headerExtra?: React.ReactNode;
+  /** Optional extra action shown beside "Play again" once finished. */
+  finishedExtra?: React.ReactNode;
   language: GameLanguage;
 }
 
@@ -72,6 +74,7 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
     onLeave,
     onPlayAgain,
     headerExtra,
+    finishedExtra,
     language,
   } = props;
 
@@ -83,6 +86,7 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
   const oppCaptures = oppSlot === 'p1' ? evaluation.p1Captures : evaluation.p2Captures;
 
   const canInteract = phase === 'your-turn';
+  const poolSpent = phase === 'finished' && remainingCards.length === 0;
 
   // Track score changes to trigger a one-shot "bump" animation. We keep the
   // previous values in refs (mutated only inside the effect) and drive the
@@ -197,8 +201,9 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
 
       {/* Card pool */}
       <div className={styles.pool}>
-        <div className={styles.poolLabel}>{s.remaining}</div>
-        <div className={styles.cards} role="group" aria-label={s.remaining}>
+        {/* Once the board is full every card is spent: show the actions instead. */}
+        {!poolSpent && <div className={styles.poolLabel}>{s.remaining}</div>}
+        {!poolSpent && <div className={styles.cards} role="group" aria-label={s.remaining}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(card => {
             const inPool = remainingCards.includes(card);
             const isSelected = selectedCard === card;
@@ -222,12 +227,17 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
               </button>
             );
           })}
-        </div>
+        </div>}
 
-        {phase === 'finished' && onPlayAgain && (
-          <button type="button" onClick={onPlayAgain} className={styles.primaryButton}>
-            {s.playAgain}
-          </button>
+        {phase === 'finished' && (onPlayAgain || finishedExtra) && (
+          <div className={styles.finishActions}>
+            {finishedExtra}
+            {onPlayAgain && (
+              <button type="button" onClick={onPlayAgain} className={styles.primaryButton}>
+                {s.playAgain}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -116,6 +116,21 @@ export const HERO_SEAT: Seat = 0;
 /** Pause before an AI seat's action lands, so the table is watchable. */
 export const AI_DELAY_MS = 320;
 
+/** Where the discard-guide switch is remembered between visits. */
+export const GUIDE_STORAGE_KEY = 'mahjong.discardGuide';
+
+/** The remembered guide preference; off when storage is missing or blocked. */
+function readGuidePreference(): boolean {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      window.localStorage.getItem(GUIDE_STORAGE_KEY) === '1'
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Log entries kept on screen. */
 const LOG_LIMIT = 6;
 
@@ -244,6 +259,9 @@ export function MahjongGame({
   const [log, setLog] = useState<LogEntry[]>([]);
   const [riichiArmed, setRiichiArmed] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  // Read lazily: the hand is never part of the server-rendered setup screen,
+  // so a stored "on" cannot cause a hydration mismatch.
+  const [guideEnabled, setGuideEnabled] = useState(readGuidePreference);
   const [roundId, setRoundId] = useState(0);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
 
@@ -451,6 +469,15 @@ export function MahjongGame({
     [copy],
   );
 
+  const toggleGuide = useCallback((next: boolean) => {
+    setGuideEnabled(next);
+    try {
+      window.localStorage.setItem(GUIDE_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      // Private mode or blocked storage: the switch still works for this visit.
+    }
+  }, []);
+
   const openInfo = useCallback(() => setShowInfo(true), []);
   const closeInfo = useCallback(() => setShowInfo(false), []);
 
@@ -529,6 +556,8 @@ export function MahjongGame({
               onToggleRiichi={setRiichiArmed}
               onDiscard={commit}
               interactive={heroToDiscard}
+              guideEnabled={guideEnabled}
+              onToggleGuide={toggleGuide}
             />
           </>
         )}

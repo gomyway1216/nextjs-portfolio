@@ -30,6 +30,8 @@ import {
   type PayTableId,
 } from './engine';
 import { CardBack, MiniCard, PlayingCard } from './Cards';
+import { HandHistory } from './HandHistory';
+import { addRecord, judgeHold, judgePending, type HandRecord } from './history';
 import { getStrings } from './i18n';
 import { roundOutcome, type DoubleOutcome } from './doubleUp';
 import { canDouble, cardsOf, createMedalPlay, deviceStore, doubleOf, doublePending, serializeHand, wonBy, GAME, type MedalPlay, type SavedHand } from './medals';
@@ -90,11 +92,9 @@ export const effectivePays = (pays: PayTable, coins: number): PayTable =>
 
 /** Adds a finished hold to the session: whether it was the best play, and what it gave up. */
 export const judgePlay = (s: Stats, play: Play): Stats => {
-  const values = analyzeHand(play.hand, play.pays);
-  const mine = values.find((h) => h.mask === play.mask);
-  if (!mine) return s;
-  const lost = values[0].ev - mine.ev;
-  return { ...s, judged: s.judged + 1, best: s.best + (lost < EPS ? 1 : 0), givenUp: s.givenUp + lost * play.coins };
+  const verdict = judgeHold(play.hand, play.mask, play.pays);
+  if (!verdict) return s;
+  return { ...s, judged: s.judged + 1, best: s.best + (verdict.best ? 1 : 0), givenUp: s.givenUp + verdict.lost * play.coins };
 };
 
 const sameHand = (a: SavedHand | null, b: SavedHand | null): boolean => (a === null || b === null ? a === b : serializeHand(a) === serializeHand(b));
@@ -153,6 +153,8 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
   const [showBest, setShowBest] = useState(true);
   const [ready, setReady] = useState(false);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  /** The hands finished this session, newest first (history.ts). */
+  const [log, setLog] = useState<HandRecord[]>([]);
   /** Changes every deal so each hand's cards mount (and flip) fresh. */
   const [dealNo, setDealNo] = useState(0);
   const [announcement, setAnnouncement] = useState('');
@@ -171,6 +173,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
   const alive = useRef(true);
   /** Hands drawn before the tables were ready; judged as soon as they are. */
   const unjudged = useRef<Play[]>([]);
+  const handNo = useRef(0);
   // The machine's place at the medal center, and its play with the medals.
   const seat = useRef<Seat | null>(null);
   const medals = useRef<MedalPlay | null>(null);
@@ -250,6 +253,7 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
         if (!alive.current) return;
         setReady(true);
         for (const play of unjudged.current.splice(0)) setStats((s) => judgePlay(s, play));
+        setLog(judgePending);
       });
     }, 300);
     const pending = timers.current;
@@ -412,8 +416,22 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
       }
       setStats((s) => ({ ...s, hands: s.hands + 1, wagered: s.wagered + finished.coins, paid: s.paid + outcome.won }));
       // The tables may still be building on the first hands: judge those once they exist.
-      if (tablesReady()) setStats((s) => judgePlay(s, finished));
+      const judged = tablesReady();
+      if (judged) setStats((s) => judgePlay(s, finished));
       else unjudged.current.push(finished);
+      const final = cardsOf(drawn);
+      const record: HandRecord = {
+        no: ++handNo.current,
+        dealt: drawn.hand,
+        held: drawn.held,
+        payId: drawn.payId,
+        coins: drawn.coins,
+        pays: finished.pays,
+        rank: rankCards(final),
+        won: outcome.won,
+        verdict: judged ? judgeHold(finished.hand, finished.mask, finished.pays) : null,
+      };
+      setLog((l) => addRecord(l, record));
       commitBusy(false);
     };
     const wait = prefersReducedMotion() || lastReplaced < 0 ? 0 : lastReplaced * TIMING.step + TIMING.flip + TIMING.settle;
@@ -906,6 +924,8 @@ export const PlayTab = ({ seatedFor = GUEST_SEAT, active = true }: { seatedFor?:
             <dd data-testid="vp-given-up">{stats.judged > 0 ? stats.givenUp.toFixed(2) : '–'}</dd>
           </div>
         </dl>
+
+        <HandHistory log={log} />
 
         <ul className={styles.hint}>
           {t.hint.map((h, i) => (

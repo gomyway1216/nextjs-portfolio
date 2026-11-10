@@ -1108,6 +1108,91 @@
   text-align: right;
 }
 
+/* ---------- Recent hands ---------- */
+.historyScroll {
+  max-height: 21rem;
+  overflow-y: auto;
+  border: 1px solid var(--games-route-border);
+  border-radius: 10px;
+}
+.historyScroll:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.historyItem {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+  border-left: 3px solid transparent;
+}
+.historyItem + .historyItem {
+  border-top: 1px dashed var(--games-route-border);
+}
+.historyItem[data-good='false'] {
+  border-left-color: var(--vp-lose-text);
+}
+.historyHead,
+.historyVerdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+.historyVerdict {
+  margin-top: 0.3rem;
+  color: var(--games-route-muted);
+}
+.historyNo {
+  min-width: 2.2em;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.historyCard {
+  display: inline-flex;
+}
+/* A card thrown away: an outline in the panel's own muted ink, which reads on both themes. */
+.historyCard[data-held='false'] .miniCard,
+.historyCard[data-held='false'] .miniCard[data-red='true'] {
+  background: transparent;
+  color: var(--games-route-muted);
+  border: 1px dashed var(--games-route-muted);
+  font-weight: 600;
+}
+.historyResult {
+  margin-left: auto;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.historyResult[data-win='true'],
+.historyGood {
+  color: var(--vp-win-text);
+}
+.historyGood {
+  font-weight: 750;
+}
+.historyCost {
+  color: var(--vp-lose-text);
+  font-weight: 750;
+}
+.historyBet {
+  white-space: nowrap;
+}
+@media (max-width: 390px) {
+  .historyItem {
+    padding: 0.45rem 0.4rem;
+  }
+  .historyResult {
+    white-space: normal;
+    text-align: right;
+  }
+}
+
 /* ---------- Odds tab extras ---------- */
 .headline {
   display: flex;

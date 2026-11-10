@@ -706,6 +706,39 @@
 .roadScroll svg {
   display: block;
 }
+.roadPair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.nextMarks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.82rem;
+}
+.nextMarksTitle {
+  color: var(--games-route-muted);
+  font-weight: 700;
+}
+.nextSide {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.nextSide svg {
+  display: block;
+}
+.nextLetter {
+  font-weight: 800;
+}
+.nextSide[data-side='banker'] .nextLetter {
+  color: var(--bc-banker-text);
+}
+.nextSide[data-side='player'] .nextLetter {
+  color: var(--bc-player-text);
+}
 .note {
   margin: 0.5rem 0 0;
   color: var(--games-route-muted);

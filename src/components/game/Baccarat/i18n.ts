@@ -5,6 +5,7 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import { NOT_MONEY } from '../MedalCenter/strings';
 import type { OddsBet } from './analysis';
+import { DERIVED_ROADS, type DerivedMark, type DerivedRoadId } from './derivedRoads';
 import type { BetId, Mode, Outcome, Side, Winner } from './engine';
 import type { PatternId } from './sim';
 
@@ -82,6 +83,11 @@ export interface BaccaratStrings {
   roadLetter: Record<Winner, string>;
   roadAria: (name: string, banker: number, player: number, tie: number) => string;
   roadNote: string;
+  derivedRoad: Record<DerivedRoadId, string>;
+  derivedAria: (name: string, red: number, blue: number) => string;
+  derivedNote: string;
+  nextMarksTitle: string;
+  nextMarksAria: (side: Side, marks: Record<DerivedRoadId, DerivedMark | null>) => string;
   statsTitle: string;
   hands: string;
   observedVsExact: string;
@@ -165,6 +171,9 @@ export interface BaccaratStrings {
   sampleShoeAxis: string;
   sampleShoeNote: string;
 }
+
+const EN_ROAD: Record<DerivedRoadId, string> = { bigEye: 'Big eye boy', small: 'Small road', cockroach: 'Cockroach pig' };
+const JA_ROAD: Record<DerivedRoadId, string> = { bigEye: '大眼仔（ビッグアイボーイ）', small: '小路（スモールロード）', cockroach: '甲由路（コックローチピッグ）' };
 
 const en: BaccaratStrings = {
   title: 'Baccarat',
@@ -256,6 +265,13 @@ const en: BaccaratStrings = {
   roadAria: (name, b, p, t) => `${name}: Banker ${b}, Player ${p}, Tie ${t}`,
   roadNote:
     'Casinos post these boards so players can chase streaks and patterns. Every hand is still a fresh draw from the shoe — the patterns predict nothing.',
+  derivedRoad: EN_ROAD,
+  derivedAria: (name, red, blue) => `${name}: red ${red}, blue ${blue}`,
+  derivedNote:
+    'The three small boards are read off the big road, not off who won, and their red and blue are not Banker and Player. Each compares the big road with the column one (big eye boy), two (small road) or three (cockroach pig) back. A hand that opens a new column is red when the column just finished is as long as the one that far before it; a hand that extends a streak is blue when the streak has just grown one hand past the column that far to its left, red otherwise. They are a second reading of the same past hands, and predict nothing either.',
+  nextMarksTitle: 'Next hand would mark',
+  nextMarksAria: (side, marks) =>
+    `If ${side === 'banker' ? 'Banker' : 'Player'} wins: ${DERIVED_ROADS.map((road) => `${EN_ROAD[road]} ${marks[road] ?? 'no mark yet'}`).join(', ')}`,
   statsTitle: 'This table',
   hands: 'Hands',
   observedVsExact: 'observed · exact',
@@ -463,6 +479,13 @@ const ja: BaccaratStrings = {
   roadAria: (name, b, p, t) => `${name}：バンカー${b}、プレイヤー${p}、タイ${t}`,
   roadNote:
     'カジノはこうした罫線を掲示して、流れやパターンを追わせます。でも毎回シューから新しく引いているだけで、パターンは何も予言しません。',
+  derivedRoad: JA_ROAD,
+  derivedAria: (name, red, blue) => `${name}：赤${red}、青${blue}`,
+  derivedNote:
+    '下の3つの小さな罫線は、勝敗ではなく大路の形から読み取ります。赤と青はバンカー・プレイヤーの色ではありません。それぞれ大路の1列前（大眼仔）、2列前（小路）、3列前（甲由路）と比べます。新しい列を始めたハンドは、直前に終わった列がそのぶん前の列と同じ長さなら赤。連勝を伸ばしたハンドは、そのぶん左の列をちょうど1つ追い越したところなら青、それ以外は赤です。同じ過去のハンドを読み替えただけで、こちらも何も予言しません。',
+  nextMarksTitle: '次のハンドで付く印',
+  nextMarksAria: (side, marks) =>
+    `${side === 'banker' ? 'バンカー' : 'プレイヤー'}が勝った場合：${DERIVED_ROADS.map((road) => `${JA_ROAD[road]} ${marks[road] === 'red' ? '赤' : marks[road] === 'blue' ? '青' : 'まだ印なし'}`).join('、')}`,
   statsTitle: 'このテーブル',
   hands: 'ハンド数',
   observedVsExact: '実測・理論値',

@@ -891,6 +891,10 @@
   font-size: 0.85rem;
   color: var(--games-route-muted);
 }
+.historyBox {
+  /* Room for the sixteen last spins (three rows of chips) from the first spin on: the panels below do not move as they come in. */
+  min-height: calc(3 * 44px + 2 * 0.3rem);
+}
 .historyList {
   list-style: none;
   margin: 0;
@@ -900,28 +904,154 @@
   gap: 0.3rem;
 }
 .historyChip {
+  appearance: none;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 2.2rem;
-  height: 2.4rem;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 0.3rem;
   border-radius: 8px;
   background: var(--fill);
   color: var(--ink);
+  font: inherit;
   font-weight: 900;
   font-size: 0.95rem;
   line-height: 1;
   border: 2px solid transparent;
+  cursor: pointer;
 }
 .historyChip[data-won='true'] {
   border-color: #f5c400;
+}
+/* The spin picked: a ring in the page's own ink round the chip, clear of its colour on both themes. */
+.historyChip[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--games-route-surface),
+    0 0 0 4px var(--games-route-fg);
+}
+.historyChip:focus-visible {
+  outline: 3px solid var(--games-route-fg);
+  outline-offset: 4px;
 }
 .historyStar {
   font-size: 0.55rem;
   font-weight: 800;
   margin-bottom: 0.1rem;
+}
+.spinDetail {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dotted var(--games-route-border);
+  min-height: 11rem;
+  min-width: 0;
+}
+.detailTitle {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 850;
+  line-height: 1.3;
+}
+.detailPath {
+  margin: 0 0 0.5rem;
+  /* Two lines kept for it: a second chance's path is longer than a plain stop's and may wrap on a phone. */
+  min-height: 2.8em;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.detailBets {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.2rem;
+}
+.detailBet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.2rem 0.05rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+.detailBet[data-paying='true'] {
+  border-color: var(--games-route-fg);
+}
+.detailSpot {
+  display: block;
+  width: 100%;
+  padding: 0.15rem 0;
+  border-radius: 5px;
+  background: var(--fill);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+}
+.detailAmount {
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.detailSums {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0;
+}
+.detailSums div {
+  min-width: 0;
+}
+.detailSums dt {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--games-route-muted);
+}
+.detailSums dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.tallyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+.tallyTable th,
+.tallyTable td {
+  padding: 0.3rem 0.25rem;
+  border-bottom: 1px solid var(--games-route-border);
+  text-align: right;
+  vertical-align: middle;
+}
+.tallyTable th:first-child {
+  text-align: left;
+}
+.tallyTable thead th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+  vertical-align: bottom;
+}
+.tallyTable td {
+  font-weight: 700;
+}
+.tallyNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--games-route-muted);
 }
 .statList {
   display: grid;

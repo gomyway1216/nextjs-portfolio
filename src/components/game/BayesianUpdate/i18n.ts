@@ -135,7 +135,7 @@ const ja: BayesianStrings = {
   traceHeading: '推定の歩み',
   traceAxis: '事後平均と 95% 信用区間',
   traceEmpty: 'コインを振ると、ここに推定の推移が描かれます。',
-  traceHint: '線は事後平均、帯は 95% 信用区間。振るたびに右へ伸びていきます。',
+  traceHint: '線は事後平均、帯は 95% 信用区間。横軸は今回これまでに振った回数です。',
   traceSummary: (flips, before, now) =>
     `95% 信用区間の幅: 振る前 ${before} → ${flips.toLocaleString('ja-JP')} 回後 ${now}`,
   chartAriaTrace: (flips, mean, lo, hi) =>
@@ -222,7 +222,7 @@ const en: BayesianStrings = {
   traceHeading: 'How your estimate has moved',
   traceAxis: 'posterior mean with 95% credible interval',
   traceEmpty: 'Flip the coin and the path of your estimate is drawn here.',
-  traceHint: 'The line is the posterior mean, the band the 95% credible interval. It grows to the right with every flip.',
+  traceHint: 'The line is the posterior mean, the band the 95% credible interval. The horizontal axis is the number of flips so far in this run.',
   traceSummary: (flips, before, now) =>
     `95% interval width: ${before} before any flips → ${now} after ${enFlips(flips)}`,
   chartAriaTrace: (flips, mean, lo, hi) =>

@@ -256,6 +256,15 @@
   .keeping {
     grid-column: 1 / -1;
   }
+  /* The calendar goes under the stamp card, and the board stands beside the two of them. */
+  .board {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .calendar {
+    grid-column: 1;
+    grid-row: 2;
+  }
 }
 
 /* ---------- Paper: the stamp card and the achievement sheet ---------- */
@@ -414,6 +423,128 @@
 }
 .cardNote:last-child {
   padding-bottom: 0.9rem;
+}
+
+/* ---------- The calendar of days played: a sheet of the same paper ---------- */
+.calendarNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem 0;
+}
+.calendarMonth {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  font-size: 1.02rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The buttons that turn the sheet: as large as a fingertip, each of them. */
+.calendarStep {
+  appearance: none;
+  flex: none;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--mp-rule);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--mp-print);
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+.calendarStep[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+.calendarStep:focus-visible {
+  outline: 2px solid var(--mp-print);
+  outline-offset: 2px;
+}
+/* Seven columns of one width and six rows of one height, whatever the month, so nothing under the sheet moves when it is turned. */
+.calendarSheet {
+  box-sizing: border-box;
+  width: calc(100% - 1.8rem);
+  margin: 0.4rem 0.9rem 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.calendarSheet th {
+  height: 1.6rem;
+  padding: 0;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--mp-print-soft);
+  border-bottom: 1px solid var(--mp-rule);
+}
+.calendarSheet td {
+  height: 2.5rem;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+.calendarDay {
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* A day played is a medal on the sheet: filled, rimmed and in heavier figures, so it is told from the others by more than its colour. */
+.calendarSheet td[data-played='true'] .calendarDay,
+.calendarKey[data-played='true'] .calendarDay {
+  border-color: #8a5a00;
+  background: radial-gradient(circle at 35% 25%, #fff3b0 0%, #f6c544 55%, #dba323 100%);
+  color: #2a1700;
+  font-weight: 900;
+}
+/* Today is ringed, played or not. */
+.calendarSheet td[data-now='true'] .calendarDay,
+.calendarKey[data-now='true'] .calendarDay {
+  outline: 2px solid #a30d25;
+  outline-offset: 1px;
+}
+.calendarCount {
+  margin: 0.45rem 0.9rem 0;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.calendarLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0.4rem 0.9rem 0;
+  font-size: 0.76rem;
+  color: var(--mp-print-soft);
+}
+.calendarKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+/* The key's own two days are small copies of the sheet's, and their figure is only a shape. */
+.calendarKey .calendarDay {
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0;
 }
 
 /* ---------- The record board: a panel of the cabinet ---------- */

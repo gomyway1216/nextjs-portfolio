@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ACHIEVEMENT_NUMBERS, StampCard } from './DailyBonus';
 import { percent } from './format';
+import { PlayedCalendar } from './PlayedCalendar';
 import { RESET_WINDOW, confirmsReset } from './PlayTab';
 import { keepNoteFor } from './recordsNote';
 import { ACHIEVEMENT_IDS, currentStreak, lifetimeReturn, viewOf, type BookView, type Day } from './records';
@@ -53,7 +54,8 @@ export function boardValue(row: BoardRow, view: BookView, streakNow: number, t: 
 
 /**
  * The Records tab: the daily stamp card, the board of everything this player
- * has done at the cabinet, and the sheet of achievement stamps. All of it
+ * has done at the cabinet, the calendar of the days they played, and the sheet
+ * of achievement stamps. All of it
  * comes out of the browser's storage and depends on the day, so the server,
  * and the first drawing in the browser, show the card unstamped and the board
  * and the sheet with dashes.
@@ -152,6 +154,8 @@ export const RecordsView = ({ state }: { state: RecordsState }) => {
           ))}
         </div>
       </section>
+
+      <PlayedCalendar state={state} />
 
       <section className={styles.sheet} aria-label={t.sheetTitle} data-testid="pusher-achievements">
         <div className={styles.cardHead}>

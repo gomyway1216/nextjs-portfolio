@@ -48,7 +48,7 @@ export const SightPanel: React.FC<SightPanelProps> = ({ enemies, open, onToggle,
           ) : (
             <ul className={styles.sightList} aria-label={s.title}>
               {shown.map(e => {
-                const hpPct = Math.max(0, Math.min(100, Math.round((e.hp / e.maxHp) * 100)));
+                const hpPct = e.maxHp > 0 ? Math.max(0, Math.min(100, Math.round((e.hp / e.maxHp) * 100))) : 0;
                 const status = e.status === StatusEffect.NONE ? undefined : s.status[e.status];
                 return (
                   <li key={e.id} className={styles.sightRow}>

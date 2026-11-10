@@ -214,6 +214,19 @@ describe('SightPanel', () => {
     expect(closed).toContain('In sight');
   });
 
+  it('draws the HP bar as a share of max HP, and empty rather than broken if max HP were 0', () => {
+    const slime = createEnemy(EnemyType.SLIME, 6, 5, 2);
+    slime.maxHp = 8;
+    slime.hp = 2;
+    const state = arena('normal', [slime]);
+    expect(render(state, 'en')).toContain('width:25%');
+
+    slime.maxHp = 0;
+    const broken = render(state, 'en');
+    expect(broken).toContain('width:0%');
+    expect(broken).not.toContain('NaN');
+  });
+
   it('has a name for every enemy type, status and trait in both languages', () => {
     for (const lang of ['en', 'ja'] as const) {
       const s = getMiniAdventureStrings(lang).sight;

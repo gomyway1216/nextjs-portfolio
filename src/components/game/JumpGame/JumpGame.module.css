@@ -204,9 +204,118 @@
   transform: translateY(-1px);
 }
 
+.resumeButton:focus-visible {
+  outline: 2px solid #f8fafc;
+  outline-offset: 3px;
+}
+
+.pauseOverlay,
+.countdownOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+}
+
+/* The canvas is dark in both themes, so this overlay uses fixed light text. */
+.pauseOverlay {
+  background: rgba(2, 6, 16, 0.72);
+  color: #f8fafc;
+  gap: clamp(0.6rem, 2.6vw, 0.95rem);
+  padding: clamp(1rem, 4vw, 1.35rem);
+  text-align: center;
+}
+
+.pauseTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 6.4vw, 2rem);
+  font-weight: 760;
+  line-height: 1.1;
+}
+
+.pauseHint {
+  max-width: 22rem;
+  margin: 0;
+  color: #e2e8f0;
+  font-size: clamp(0.78rem, 3.1vw, 0.9rem);
+  line-height: 1.5;
+}
+
+/* Swallows taps during the countdown while leaving the field visible. */
+.countdownOverlay {
+  background: rgba(2, 6, 16, 0.28);
+}
+
+.countdownNumber {
+  color: #f8fafc;
+  font-size: clamp(4rem, 26vw, 7rem);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 4px 24px rgba(2, 6, 16, 0.9);
+  animation: countdownPop 0.9s ease-out both;
+}
+
+@keyframes countdownPop {
+  0% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.75;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdownNumber {
+    animation: none;
+  }
+}
+
 .stopButtonWrap {
   position: absolute;
   bottom: 2rem;
+  display: flex;
+  max-width: calc(100% - 2rem);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.pauseButton {
+  min-width: 7.5rem;
+  min-height: 44px;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #0369a1;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 650;
+  padding: 0.75rem 1.5rem;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.pauseButton:hover:not(:disabled),
+.pauseButton:focus-visible {
+  background: #075985;
+  outline: 2px solid #7dd3fc;
+  outline-offset: 2px;
+  transform: translateY(-1px);
+}
+
+.pauseButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .stopButton {

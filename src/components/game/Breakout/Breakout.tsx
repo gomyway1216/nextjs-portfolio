@@ -44,9 +44,15 @@ interface UISnapshot {
   effects: EffectStatus[];
   /** Instant power-up just caught, shown briefly in the status strip. */
   instantPickup: PowerUpType | null;
-  /** Any power-up just caught, announced to screen readers. */
-  announcedPickup: PowerUpType | null;
 }
+
+/** Power-ups caught in one frame; a new id makes the live region speak again. */
+interface PickupAnnouncement {
+  id: number;
+  types: PowerUpType[];
+}
+
+const NO_ANNOUNCEMENT: PickupAnnouncement = { id: 0, types: [] };
 
 function snapshot(state: GameState): UISnapshot {
   // Once the game has ended the timers are frozen for good; show none.
@@ -54,7 +60,6 @@ function snapshot(state: GameState): UISnapshot {
   return {
     effects: over ? [] : getEffectStatuses(state),
     instantPickup: over ? null : getInstantPickup(state),
-    announcedPickup: over ? null : (state.pickup?.type ?? null),
     score: state.score,
     lives: state.lives,
     level: state.level,
@@ -74,7 +79,6 @@ function snapshotsEqual(a: UISnapshot | null, b: UISnapshot): boolean {
     a.gameOver === b.gameOver &&
     a.victory === b.victory &&
     a.instantPickup === b.instantPickup &&
-    a.announcedPickup === b.announcedPickup &&
     a.effects.length === b.effects.length &&
     a.effects.every((e, i) => {
       const o = b.effects[i];
@@ -97,6 +101,7 @@ const Breakout: React.FC = () => {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [highScore, updateHighScore] = useHighScore('breakout');
   const [beatHighScore, setBeatHighScore] = useState(false);
+  const [announcement, setAnnouncement] = useState<PickupAnnouncement>(NO_ANNOUNCEMENT);
 
   const inputRef = useRef<InputState>({ left: false, right: false, pointerX: null });
   const lastTimeRef = useRef<number>(0);
@@ -121,6 +126,7 @@ const Breakout: React.FC = () => {
     gameStateRef.current = state;
     resultRecordedRef.current = false;
     setBeatHighScore(false);
+    setAnnouncement(NO_ANNOUNCEMENT);
     lastTimeRef.current = 0;
     setUi(snapshot(state));
     setScreen('playing');
@@ -128,6 +134,7 @@ const Breakout: React.FC = () => {
 
   const returnToMenu = useCallback(() => {
     gameStateRef.current = null;
+    setAnnouncement(NO_ANNOUNCEMENT);
     setUi(null);
     setScreen('menu');
   }, []);
@@ -411,6 +418,11 @@ const Breakout: React.FC = () => {
       updateGame(state, inputRef.current, deltaTime);
       render(ctx, state);
 
+      if (state.pickupEvents.length > 0) {
+        const types = state.pickupEvents.splice(0);
+        setAnnouncement((prev) => ({ id: prev.id + 1, types }));
+      }
+
       // Only persist genuinely new highs (avoids scheduling a state update every frame).
       if (state.score > highScoreRef.current) updateHighScore(state.score);
 
@@ -515,7 +527,7 @@ const Breakout: React.FC = () => {
           </div>
         )}
 
-        {ui && <PowerUpStrip ui={ui} t={t} />}
+        {ui && <PowerUpStrip ui={ui} announcement={announcement} t={t} />}
 
         <div
           style={{
@@ -643,7 +655,11 @@ const Chip: React.FC<{ color: string; sym: string }> = ({ color, sym }) => (
  * One fixed-height row between the HUD and the board: a countdown for every
  * running timed power-up, plus a brief acknowledgement of an instant one.
  */
-const PowerUpStrip: React.FC<{ ui: UISnapshot; t: BreakoutStrings }> = ({ ui, t }) => {
+const PowerUpStrip: React.FC<{
+  ui: UISnapshot;
+  announcement: PickupAnnouncement;
+  t: BreakoutStrings;
+}> = ({ ui, announcement, t }) => {
   const instant = ui.instantPickup;
   const empty = ui.effects.length === 0 && instant === null;
   return (
@@ -683,8 +699,13 @@ const PowerUpStrip: React.FC<{ ui: UISnapshot; t: BreakoutStrings }> = ({ ui, t 
         )}
         {empty && <li style={stripEmptyStyle}>{t.noActivePowerups}</li>}
       </ul>
+      {/* The region persists; a fresh child per pickup frame re-announces even identical text. */}
       <span role="status" style={srOnlyStyle}>
-        {ui.announcedPickup !== null ? t.collected(getPowerUpName(t, ui.announcedPickup)) : ''}
+        {announcement.types.length > 0 && (
+          <span key={announcement.id}>
+            {announcement.types.map((type) => t.collected(getPowerUpName(t, type))).join(t.listSeparator)}
+          </span>
+        )}
       </span>
     </div>
   );

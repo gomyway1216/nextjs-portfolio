@@ -48,6 +48,7 @@ export interface BreakoutStrings {
   secondsShort: (n: number) => string;
   effectTimeLeft: (name: string, n: number) => string;
   collected: (name: string) => string;
+  listSeparator: string;
 }
 
 const en: BreakoutStrings = {
@@ -93,6 +94,7 @@ const en: BreakoutStrings = {
   secondsShort: (n) => `${n}s`,
   effectTimeLeft: (name, n) => `${name}: ${n} second${n === 1 ? '' : 's'} left`,
   collected: (name) => `${name} collected`,
+  listSeparator: ', ',
 };
 
 const ja: BreakoutStrings = {
@@ -138,6 +140,7 @@ const ja: BreakoutStrings = {
   secondsShort: (n) => `${n}秒`,
   effectTimeLeft: (name, n) => `${name}：残り${n}秒`,
   collected: (name) => `${name}を取得`,
+  listSeparator: '、',
 };
 
 export function getPowerUpName(t: BreakoutStrings, type: PowerUpType): string {

@@ -226,6 +226,7 @@ export function createGameState(difficulty: Difficulty = 'medium', level = 1): G
     powerUps: [],
     activeEffects: [],
     pickup: null,
+    pickupEvents: [],
     particles: [],
     score: 0,
     lives: config.lives,
@@ -330,6 +331,7 @@ export function applyPowerUp(state: GameState, powerUp: PowerUp): void {
   };
 
   state.pickup = { type: powerUp.type, remainingMs: PICKUP_NOTICE_MS };
+  state.pickupEvents.push(powerUp.type);
 
   switch (powerUp.type) {
     case PowerUpType.EXPAND_PADDLE:

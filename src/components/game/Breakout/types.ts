@@ -194,6 +194,8 @@ export interface GameState {
   powerUps: PowerUp[];
   activeEffects: ActiveEffect[];
   pickup: PickupNotice | null;
+  /** Every caught power-up, in order, until the UI drains it to announce them. */
+  pickupEvents: PowerUpType[];
   particles: Particle[];
   score: number;
   lives: number;

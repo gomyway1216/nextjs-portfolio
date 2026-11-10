@@ -179,6 +179,43 @@ describe('opposite power-ups', () => {
   });
 });
 
+describe('pickupEvents', () => {
+  it('starts empty', () => {
+    expect(createGameState('medium').pickupEvents).toEqual([]);
+  });
+
+  it('queues the same power-up caught twice in a row as two events', () => {
+    const state = runningState();
+    give(state, PowerUpType.EXTRA_LIFE);
+    advance(state, 200);
+    give(state, PowerUpType.EXTRA_LIFE);
+    expect(state.pickupEvents).toEqual([PowerUpType.EXTRA_LIFE, PowerUpType.EXTRA_LIFE]);
+  });
+
+  it('queues every capsule caught in the same update', () => {
+    const state = runningState();
+    for (const type of [PowerUpType.SLOW_BALL, PowerUpType.EXTRA_LIFE]) {
+      state.powerUps.push({
+        x: state.paddle.x + state.paddle.width / 2,
+        y: state.paddle.y,
+        type,
+        config: getPowerUpConfig(type),
+      });
+    }
+    advance(state, 10);
+    expect(state.powerUps).toHaveLength(0);
+    expect([...state.pickupEvents].sort()).toEqual([PowerUpType.EXTRA_LIFE, PowerUpType.SLOW_BALL].sort());
+  });
+
+  it('keeps unannounced events across a lost ball and a new level', () => {
+    const state = runningState();
+    give(state, PowerUpType.MULTI_BALL);
+    resetBall(state);
+    nextLevel(state);
+    expect(state.pickupEvents).toEqual([PowerUpType.MULTI_BALL]);
+  });
+});
+
 describe('getInstantPickup', () => {
   it('is null until something is caught', () => {
     expect(getInstantPickup(createGameState('medium'))).toBeNull();

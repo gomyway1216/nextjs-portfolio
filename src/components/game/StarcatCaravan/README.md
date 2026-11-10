@@ -27,6 +27,7 @@ Exploration, story flags, companions and currency stay in the same account journ
 - `adventure.ts` / `AdventureWorld.tsx`: collision-aware walking, story interactions and journal.
 - `engine.ts`: economy, validated saves and once-only results; the old one-dimensional simulation functions remain for compatibility tests, but are not exposed as a play mode.
 - `progress.ts` / `useProgress.ts`: the existing game-center account keeper, offline retries and per-account slots.
+- `briefing.ts` / `FortressBriefing.tsx`: a read-only fortress briefing for the island being explored, shown on the companions screen and under the map. It builds the party through `createArena`, so shared HP, combined attack and mean defense are the values a battle would start with, and lists enemy count, enemy HP, the damage of one marked hit before wards, one Star bond after enemy defense, which party members have the ×1.5 normal-attack matchup, and up to three owned companions outside the party that have it. Nothing is stored and no battle rule changes.
 - `StarcatGuide.tsx`: the full Japanese/English guide for current play and saved/unsaved boundaries.
 - `catalog.ts` / `catalogClient.ts` and `/api/game/starcat/catalog`: DB character definitions with administrator editing and validated offline cache.
 

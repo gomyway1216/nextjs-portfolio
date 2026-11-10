@@ -15,6 +15,7 @@ import SummonShow from './SummonShow';
 import { CompanionCollection, PartyOverview, TravelRecord } from './Companions';
 import { GUIDE_URL } from './guide';
 import { AchievementBadges, ResumeEncounter } from './Progression';
+import { FortressBriefing } from './FortressBriefing';
 import AdventureWorld from './AdventureWorld';
 import AdventureBattle from './AdventureBattle';
 import { adventureOf } from './adventure';
@@ -121,6 +122,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
       {view === 'collection' && <section ref={contentRef} className={styles.content}>
         <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>YOUR LITTLE CONSTELLATION</p><h2>{tx('仲間と、一緒なら。', 'Better, together.')}</h2><p>{tx('獲得した仲間だけを表示。好きな仲間を最大4体、属性で自由に組み合わせよう。', 'Only acquired companions appear here. Choose up to four favorites and combine their elements.')}</p></div><span>{collected} / {characters.length} {tx('発見', 'discovered')}</span></div>
         <div className={styles.teamStrip}><strong><Users size={18} />{tx('冒険パーティー', 'Your party')} <small>{save.team.length}/4</small></strong><div>{[0, 1, 2, 3].map((index) => { const cat = team[index] ? characterById(team[index], characters) : null; return <div key={index} className={styles.teamSlot}>{cat ? <><CatSprite cat={cat} /><span>{cat.name[language]}</span><button aria-label={tx(`${cat.name.ja}を編成から外す`, `Remove ${cat.name.en} from party`)} disabled={!ready || save.team.length <= 1} onClick={() => dispatch({ type: 'team', id: cat.id })}>×</button></> : <span>＋</span>}</div>; })}</div><button className={styles.textButton} onClick={() => setView('adventure')}>{tx('冒険へ', 'To adventure')}<ArrowRight size={16} /></button></div>
+        <FortressBriefing save={save} characters={characters} language={language} />
         <PartyOverview save={save} characters={characters} language={language} />
         <AchievementBadges save={save} language={language} />
         <CompanionCollection save={save} characters={characters} language={language} ready={ready} onAction={dispatch} />
@@ -128,7 +130,7 @@ export default function StarcatCaravan({ player = GUEST, store = null, signInHre
 
       {/* A new account/region remounts the world: followers, routes and dialogue never cross maps. */}
       {view === 'adventure' && <section ref={contentRef} className={styles.content}>
-        {!arena ? <><ResumeEncounter save={save} characters={characters} language={language} ready={ready} dispatch={dispatch}/><AdventureWorld key={`${snapshot.opened}:${adventureOf(save).region}`} game={state} characters={characters} language={language} ready={ready} readGame={() => progress.getSnapshot().game} dispatch={dispatch} onParty={() => setView('collection')} onWish={() => setView('summon')} />{guestInvitation}<TravelRecord save={save} language={language} /><AchievementBadges save={save} language={language}/></> : <AdventureBattle arena={arena} save={save} characters={characters} language={language} ready={ready} dispatch={dispatch} reward={reward} />}
+        {!arena ? <><ResumeEncounter save={save} characters={characters} language={language} ready={ready} dispatch={dispatch}/><AdventureWorld key={`${snapshot.opened}:${adventureOf(save).region}`} game={state} characters={characters} language={language} ready={ready} readGame={() => progress.getSnapshot().game} dispatch={dispatch} onParty={() => setView('collection')} onWish={() => setView('summon')} />{guestInvitation}<FortressBriefing save={save} characters={characters} language={language} /><TravelRecord save={save} language={language} /><AchievementBadges save={save} language={language}/></> : <AdventureBattle arena={arena} save={save} characters={characters} language={language} ready={ready} dispatch={dispatch} reward={reward} />}
       </section>}
 
       <footer className={styles.footer}><span role="status" data-testid="starcat-save-status"><Shield size={13} />{saveLabel}</span><span>{tx(`課金なし · 全${characters.length}キャラ · 全${STAGES.length}ステージ`, `No purchases · ${characters.length} companions · ${STAGES.length} islands`)}</span></footer>

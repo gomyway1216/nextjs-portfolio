@@ -362,10 +362,10 @@
 
 .bluffSelect:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
 
-/* Native option lists ignore the translucent surface, so pin a readable pair. */
+/* Native option lists need an opaque background, so use the theme's solid surface. */
 .bluffSelect option {
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--games-route-surface-solid, #0f172a);
+  color: var(--games-route-fg, #e2e8f0);
 }
 
 .btnGhost {

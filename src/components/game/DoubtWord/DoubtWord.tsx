@@ -211,7 +211,7 @@ export const DoubtWord = () => {
   const selectWord = useCallback((word: string) => {
     const suggestion = makeClaim('player', word, true);
     setGame((prev) => {
-      if (!prev || prev.phase !== 'playerClaim') return prev;
+      if (!prev || prev.phase !== 'playerClaim' || word === prev.selectedWord) return prev;
       const collides = claimMatchesWord(word, prev.bluffFirst, prev.bluffLength);
       return {
         ...prev,

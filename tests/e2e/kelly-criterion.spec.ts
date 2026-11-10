@@ -143,6 +143,41 @@ test('the table asks for a stake, shows the Kelly stake on request, and starts o
   expect(await flipsOnPage(page)).toEqual([]);
 });
 
+test('a finished game goes on the list and stays there through a new game, until the list is cleared', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openGame(page);
+  const log = play(page).getByTestId('kelly-log');
+  const rows = log.locator('tbody tr');
+  await expect(log.getByTestId('kelly-log-empty')).toBeVisible();
+
+  // All in ends within four flips: at the first tails, or at the cap.
+  await chooseStake(page, 1);
+  await play(page).locator('[data-run="10"]').click();
+  await expect(flipButton(page)).toBeDisabled();
+  const flips = await flipsOnPage(page);
+  const bust = flips.includes(false);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toHaveAttribute('data-reason', bust ? 'bust' : 'cap');
+  await expect(rows.first().locator('[data-col="you"]')).toHaveText(bust ? '$0.00' : '$250.00');
+  const kelly = fixedFractionPath(SCENARIOS.coin60, 0.2, flips);
+  await expect(rows.first().locator('[data-col="kelly"]')).toHaveText(money(kelly[kelly.length - 1]));
+  await expect(log.locator('[data-tally="games"]')).toHaveText('1');
+
+  // A new game leaves the list alone, and the next finished game goes on top of it.
+  await play(page).getByRole('button', { name: 'New game' }).click();
+  await expect(flipCount(page)).toHaveText('0 / 300');
+  await expect(rows).toHaveCount(1);
+  await play(page).locator('[data-run="10"]').click();
+  await expect(flipButton(page)).toBeDisabled();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toHaveAttribute('data-game', '2');
+  await expect(log.locator('[data-tally="games"]')).toHaveText('2');
+
+  await log.getByRole('button', { name: 'Clear the list' }).click();
+  await expect(log.getByTestId('kelly-log-empty')).toBeVisible();
+  await expect(rows).toHaveCount(0);
+});
+
 test('switching tabs mid-game keeps the game', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openGame(page);

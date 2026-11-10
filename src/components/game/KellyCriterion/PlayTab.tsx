@@ -18,7 +18,9 @@ import {
   type ScenarioId,
 } from './engine';
 import { money, percent } from './format';
-import { getStrings, type FinishReason } from './i18n';
+import { GameLog } from './GameLog';
+import { getStrings } from './i18n';
+import { finishReason, recordOf, type GameRecord } from './record';
 import styles from './KellyCriterion.module.css';
 
 /** Animation pacing (ms): the coin's spin on a single flip, and the gap between flips in a run. */
@@ -62,6 +64,8 @@ export const PlayTab = () => {
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showKelly, setShowKelly] = useState(false);
+  // Finished games, oldest first. They outlive “New game” and a change of bet.
+  const [records, setRecords] = useState<GameRecord[]>([]);
 
   // Handlers and timers read the latest game from here; rendering reads `game`.
   const gameRef = useRef(game);
@@ -86,8 +90,8 @@ export const PlayTab = () => {
   const kelly = kellyFraction(wager);
   const bankroll = game.path[game.path.length - 1];
   const used = game.flips.length;
-  const finished = isFinished(bankroll, used);
-  const reason: FinishReason | null = !finished ? null : bankroll < MIN_STAKE ? 'bust' : bankroll >= CAP ? 'cap' : 'flips';
+  const reason = finishReason(bankroll, used);
+  const finished = reason !== null;
   const kellyPath = useMemo(() => fixedFractionPath(SCENARIOS[game.scenario], kellyFraction(SCENARIOS[game.scenario]), game.flips), [game.scenario, game.flips]);
   const kellyBankroll = kellyPath[kellyPath.length - 1];
 
@@ -100,8 +104,13 @@ export const PlayTab = () => {
     const stake = effectiveStake(before, stakeFraction);
     const won = Math.random() < bet.p;
     const after = settle(before, stake, won, bet.b);
-    commit({ ...g, flips: [...g.flips, won], path: [...g.path, after], fractions: [...g.fractions, stake / before], lastStake: stake });
-    return !isFinished(after, g.flips.length + 1);
+    const next: Game = { ...g, flips: [...g.flips, won], path: [...g.path, after], fractions: [...g.fractions, stake / before], lastStake: stake };
+    commit(next);
+    // The flip that ends a game puts it on the record; a finished game takes no more flips, so it goes on once.
+    const record = recordOf(next.scenario, next.flips, next.path, next.fractions);
+    if (record === null) return true;
+    setRecords((kept) => [...kept, record]);
+    return false;
   };
 
   const run = (count: number) => {
@@ -351,6 +360,8 @@ export const PlayTab = () => {
           ))}
         </ul>
       </div>
+
+      <GameLog records={records} onClear={() => setRecords([])} />
     </div>
   );
 };

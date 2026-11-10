@@ -60,6 +60,26 @@ export interface KellyStrings {
   statLargestStake: string;
   statKelly: (percent: string) => string;
   hint: string[];
+  // Finished games
+  logTitle: string;
+  logEmpty: (cap: string, flips: number) => string;
+  logRegion: string;
+  logGames: string;
+  logBust: string;
+  logCap: string;
+  logAhead: string;
+  logColGame: string;
+  logColBet: string;
+  logColEnded: string;
+  logColFlips: string;
+  logColAverage: string;
+  logColYou: string;
+  logColKelly: string;
+  /** A bet in a few characters: "60%, even money". */
+  logBet: (percent: string, odds: string) => string;
+  logReason: Record<FinishReason, string>;
+  logNote: string;
+  logClear: string;
   // Formula
   formulaTitle: string;
   formulaIntro: string;
@@ -195,6 +215,26 @@ const en: KellyStrings = {
     'Losing 50% takes a 100% gain to recover. That asymmetry is why bigger bets do not simply mean bigger growth.',
     'Many professionals stake half Kelly: about three quarters of the growth for far smaller swings.',
   ],
+  logTitle: 'Finished games',
+  logEmpty: (cap, flips) =>
+    `No finished game yet. A game is finished when you go bust, reach the ${cap} cap or use all ${flips} flips; it is then listed here beside what the Kelly stake made of the same flips. A game you leave with “New game” is not listed.`,
+  logRegion: 'Finished games, newest first',
+  logGames: 'Games',
+  logBust: 'Went bust',
+  logCap: 'Reached the cap',
+  logAhead: 'Ended ahead of Kelly',
+  logColGame: 'Game',
+  logColBet: 'Bet',
+  logColEnded: 'Ended',
+  logColFlips: 'Flips',
+  logColAverage: 'Average stake',
+  logColYou: 'You',
+  logColKelly: 'Kelly, same flips',
+  logBet: (percent, odds) => `${percent}, ${odds}`,
+  logReason: { bust: 'Bust', cap: 'Cap reached', flips: 'Out of flips' },
+  logNote:
+    '“Ended ahead of Kelly” counts the games that ended with more money than staking the Kelly fraction on every one of the same flips. The list is kept until you leave or reload the page.',
+  logClear: 'Clear the list',
   formulaTitle: 'How much to stake',
   formulaIntro:
     'A bet is two numbers: the chance it wins and what it pays. The Kelly stake is the edge divided by the odds, and it is the fraction that makes a bankroll grow fastest over many bets.',
@@ -342,6 +382,26 @@ const ja: KellyStrings = {
     '50%失うと、元に戻すには100%の利益が必要です。この非対称があるので、大きく賭ければその分だけ増える、とはなりません。',
     'プロの多くは「ケリーの半分」を賭けます。増え方は約4分の3を保ったまま、振れ幅はずっと小さくなります。',
   ],
+  logTitle: '終了したゲーム',
+  logEmpty: (cap, flips) =>
+    `まだ終了したゲームはありません。破産する、上限の${cap}に届く、${flips}回すべて投げる、のいずれかでゲームは終了し、同じ出目にケリーで賭けた場合の結果と並べてここに記録されます。途中で「新しいゲーム」を押したゲームは記録されません。`,
+  logRegion: '終了したゲーム（新しい順）',
+  logGames: 'ゲーム数',
+  logBust: '破産',
+  logCap: '上限に到達',
+  logAhead: 'ケリーを上回った',
+  logColGame: 'ゲーム',
+  logColBet: '賭け',
+  logColEnded: '結果',
+  logColFlips: '回数',
+  logColAverage: '賭けた割合の平均',
+  logColYou: 'あなた',
+  logColKelly: 'ケリー（同じ出目）',
+  logBet: (percent, odds) => `${percent}・${odds}`,
+  logReason: { bust: '破産', cap: '上限に到達', flips: '回数終了' },
+  logNote:
+    '「ケリーを上回った」は、同じ出目に毎回ケリーの割合で賭けた場合より多い所持金で終えたゲームの数です。記録はページを離れるか再読み込みするまで残ります。',
+  logClear: '記録を消す',
   formulaTitle: 'いくら賭けるか',
   formulaIntro:
     '賭けは2つの数字で決まります。勝つ確率と配当です。ケリーの賭け額は優位性をオッズで割ったもので、何度も賭けたときに所持金がもっとも速く増える割合です。',

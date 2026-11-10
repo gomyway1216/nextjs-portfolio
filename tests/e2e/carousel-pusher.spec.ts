@@ -78,6 +78,9 @@ test('a medal timed to a hole rolls the counter, and 7-7-7 tips the treasure dis
   await expect(page.getByTestId('cp-counter')).toHaveAttribute('data-result', 'jackpot');
   await expect(page.getByTestId('cp-counter')).toHaveAttribute('data-digits', '777');
   await expect(page.getByTestId('cp-history')).toContainText(`JP ${STOCK.start}`);
+  // The tally of what the counter stopped on has the one spin, under 7-7-7.
+  await expect(page.getByTestId('cp-tally')).toHaveAttribute('data-total', '1');
+  await expect(page.getByTestId('cp-tally').locator('tr[data-outcome="jackpot"]')).toHaveAttribute('data-count', '1');
   await expect(machine(page)).toHaveAttribute('data-stock', String(STOCK.start));
   // The stock lands on the field, and the carousel pushes medals off its front edge into the tray: they come back.
   for (let i = 0; i < 40 && (await medals(page)) <= WELCOME - LEND; i++) await page.clock.runFor(1_000);

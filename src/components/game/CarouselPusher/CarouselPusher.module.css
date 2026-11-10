@@ -794,6 +794,32 @@
   text-align: right;
 }
 
+/* The counter's tally: its number columns keep widths of their own, so no count changes where the names wrap. */
+.tallyTable {
+  table-layout: fixed;
+}
+.tallyTimes {
+  width: 4.5em;
+}
+.tallyPart {
+  width: 5em;
+}
+.tallyTable tfoot th,
+.tallyTable tfoot td {
+  font-weight: 800;
+  border-bottom: 0;
+}
+.tallyNote {
+  margin-top: 0.5rem;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .tallyNote {
+    word-break: auto-phrase;
+  }
+}
+
 /* ---------- The Odds tab ---------- */
 .odds {
   display: grid;

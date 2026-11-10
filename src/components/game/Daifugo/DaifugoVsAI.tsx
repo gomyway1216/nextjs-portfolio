@@ -18,7 +18,9 @@ import {
 import { daifugoErrorMessage, formatDaifugoLogCards } from './errorMessages';
 import { decideDaifugoAction } from './DaifugoAI';
 import type { DaifugoDifficulty } from './DaifugoAI';
-import { rankToLabel } from './types';
+import { getDaifugoHint } from './hint';
+import type { DaifugoHint } from './hint';
+import { cardToShortLabel, rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import {
@@ -132,6 +134,8 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
   const [selectedGiveCardIds, setSelectedGiveCardIds] = useState<string[]>([]);
   const [selectedDiscardCardIds, setSelectedDiscardCardIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  // A hint only describes the position it was computed for.
+  const [hintState, setHintState] = useState<{ forState: DaifugoNetworkState; hint: DaifugoHint } | null>(null);
 
   const [humanId] = useState(() => createLocalId('human'));
   const [players, setPlayers] = useState<Record<string, LocalPlayerMeta>>({});
@@ -479,6 +483,32 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     }
     setGameState(result.state);
   };
+
+  const activeHint = hintState && hintState.forState === gameState ? hintState.hint : null;
+
+  const handleHint = () => {
+    if (!gameState || !isMyTurn) return;
+    const hint = getDaifugoHint(gameState, humanId);
+    if (!hint) return;
+
+    setLocalError(null);
+    setHintState({ forState: gameState, hint });
+    if (hint.type === 'play') {
+      setSelectedCardIds(hint.cards.map(c => c.id));
+      setSelectedGiveCardIds(hint.giveCards.map(c => c.id));
+      setSelectedDiscardCardIds(hint.discardCards.map(c => c.id));
+    } else {
+      setSelectedCardIds([]);
+      setSelectedGiveCardIds([]);
+      setSelectedDiscardCardIds([]);
+    }
+  };
+
+  const hintStillSelected = activeHint?.type === 'play'
+    && activeHint.cards.length === effectiveSelectedCardIds.length
+    && activeHint.cards.every(c => effectiveSelectedCardIds.includes(c.id));
+
+  const hintCardsLabel = (cards: Card[]) => cards.map(cardToShortLabel).join(' ');
 
   const logLines = useMemo(() => {
     const log: DaifugoLogEntry[] = gameState?.log ?? [];
@@ -884,6 +914,22 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                         {d.clear}
                       </button>
 
+                      <button
+                        onClick={handleHint}
+                        disabled={!isMyTurn}
+                        style={{
+                          padding: '0.6rem 1.25rem',
+                          borderRadius: '0.75rem',
+                          border: '1px solid rgba(55, 65, 81, 1)',
+                          backgroundColor: isMyTurn ? '#7c3aed' : '#374151',
+                          color: '#fff',
+                          fontWeight: 900,
+                          cursor: isMyTurn ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        {translate('games.daifugo.ui.hint.button')}
+                      </button>
+
                       {/* Show why play is disabled */}
                       {!canPlaySelected.ok && canPlaySelected.error && effectiveSelectedCardIds.length > 0 && (
                         <div style={{
@@ -949,6 +995,40 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                      {localError}
 	                    </div>
 	                  )}
+
+                  {activeHint && (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      style={{
+                        background: 'rgba(124, 58, 237, 0.14)',
+                        border: '1px solid rgba(167, 139, 250, 0.45)',
+                        borderRadius: '0.75rem',
+                        padding: '0.6rem 0.85rem',
+                        color: '#e5e7eb',
+                        fontSize: '0.85rem',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <div style={{ color: '#c4b5fd', fontWeight: 900 }}>
+                        {activeHint.type === 'play'
+                          ? translate('games.daifugo.ui.hint.play', { cards: hintCardsLabel(activeHint.cards) })
+                          : translate('games.daifugo.ui.hint.pass')}
+                      </div>
+                      <div>{translate(`games.daifugo.ui.hint.reasons.${activeHint.reason}`)}</div>
+                      {activeHint.type === 'play' && activeHint.giveCards.length > 0 && (
+                        <div>{d.sevenGive} — {translate('games.daifugo.ui.hint.give', { cards: hintCardsLabel(activeHint.giveCards) })}</div>
+                      )}
+                      {activeHint.type === 'play' && activeHint.discardCards.length > 0 && (
+                        <div>{d.tenDiscard} — {translate('games.daifugo.ui.hint.discard', { cards: hintCardsLabel(activeHint.discardCards) })}</div>
+                      )}
+                      {hintStillSelected && (
+                        <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+                          {translate('games.daifugo.ui.hint.selected')}
+                        </div>
+                      )}
+                    </div>
+                  )}
 	                </div>
 
                 {/* Hand */}

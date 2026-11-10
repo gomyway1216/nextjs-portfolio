@@ -172,7 +172,7 @@ export function BluffReport({ history, playerOrder, humanId, nameOf, strings: t,
 
       {showClaims && (
         rows.length === 0 ? (
-          <div style={{ color: '#6b7280', fontStyle: 'italic', marginTop: '0.5rem' }}>{t.reportNoBluffs}</div>
+          <div style={{ color: '#9ca3af', fontStyle: 'italic', marginTop: '0.5rem' }}>{t.reportNoBluffs}</div>
         ) : (
           <ol style={{
             listStyle: 'none',
@@ -202,7 +202,7 @@ export function BluffReport({ history, playerOrder, humanId, nameOf, strings: t,
                     color: '#e5e7eb',
                   }}
                 >
-                  <span style={{ color: '#6b7280', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', minWidth: '2rem' }}>
+                  <span style={{ color: '#9ca3af', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', minWidth: '2rem' }}>
                     {turn}.
                   </span>
                   <span>

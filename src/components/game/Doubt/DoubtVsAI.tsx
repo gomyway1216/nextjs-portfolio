@@ -211,15 +211,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
     setSelectedCardIds([]);
     setDraggingCardId(null);
 
-    setGame((prev) => {
-      if (!prev) return prev;
-      const result = applyTrackedAction(prev, action);
-      if (!result.ok) {
-        setLocalError(t.errorGeneric);
-        return prev;
-      }
-      return result.game;
-    });
+    if (!game) return;
+    const result = applyTrackedAction(game, action);
+    if (!result.ok) {
+      setLocalError(t.errorGeneric);
+      return;
+    }
+    setGame(result.game);
   };
 
   const acceptClaim = () => {
@@ -234,15 +232,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       timestamp: Date.now(),
     };
 
-    setGame((prev) => {
-      if (!prev) return prev;
-      const result = applyTrackedAction(prev, action);
-      if (!result.ok) {
-        setLocalError(t.errorGeneric);
-        return prev;
-      }
-      return result.game;
-    });
+    if (!game) return;
+    const result = applyTrackedAction(game, action);
+    if (!result.ok) {
+      setLocalError(t.errorGeneric);
+      return;
+    }
+    setGame(result.game);
   };
 
   // Reveal the challenged cards briefly before the pile is swept up.
@@ -276,15 +272,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       timestamp: Date.now(),
     };
 
-    setGame((prev) => {
-      if (!prev) return prev;
-      const result = applyTrackedAction(prev, action);
-      if (!result.ok) {
-        setLocalError(t.errorGeneric);
-        return prev;
-      }
-      return result.game;
-    });
+    if (!game) return;
+    const result = applyTrackedAction(game, action);
+    if (!result.ok) {
+      setLocalError(t.errorGeneric);
+      return;
+    }
+    setGame(result.game);
   };
 
   // AI turn processing
@@ -579,7 +573,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
           )}
 
           {gameState && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
               <div style={{
                 background: panel,
                 border: '2px solid rgba(14, 165, 233, 0.35)',

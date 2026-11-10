@@ -98,6 +98,18 @@ export interface ThreeCardPokerStrings {
   dealerQualified: string;
   winsPushesLosses: string;
   agreement: string;
+  // The session's hands, looked over
+  historyTitle: string;
+  historyKept: (kept: number) => string;
+  historyEmpty: string;
+  historyAria: string;
+  /** What the hand came to, for a screen reader: the medals it won less those it cost. */
+  historyNet: (net: number) => string;
+  historyBets: (ante: number, pairPlus: number) => string;
+  /** The decision made against the best one; `cost` is the medals it was expected to give up, already formatted. */
+  historyVerdict: (decision: Decision, best: Decision, cost: string) => string;
+  historySummary: (mistakes: number, hands: number, cost: string) => string;
+  historyNote: (dealerHands: string) => string;
   hint: string[];
   // Odds
   oddsIntro: (hands: string, dealerHands: string, total: string) => string;
@@ -289,6 +301,21 @@ const en: ThreeCardPokerStrings = {
   dealerQualified: 'Dealer qualified',
   winsPushesLosses: 'Won / even / lost',
   agreement: 'Agreed with the strategy',
+  historyTitle: 'Hands this session',
+  historyKept: (kept) => `newest first, the last ${kept}`,
+  historyEmpty: 'Each hand you finish is listed here, with what the best decision was.',
+  historyAria: 'Hands played this session, newest first',
+  historyNet: (net) => (net > 0 ? `won ${net}` : net < 0 ? `lost ${-net}` : 'even'),
+  historyBets: (ante, pairPlus) => (pairPlus > 0 ? `Ante ${ante}, Pair Plus ${pairPlus}` : `Ante ${ante}`),
+  historyVerdict: (decision, best, cost) => {
+    const did = decision === 'play' ? 'Played' : 'Folded';
+    if (decision === best) return `${did} — the best decision`;
+    return `${did} — ${best === 'play' ? 'playing' : 'folding'} was better by ${cost} medals on average`;
+  },
+  historySummary: (mistakes, hands, cost) =>
+    `Not the best decision in ${mistakes} of ${hands} ${hands === 1 ? 'hand' : 'hands'} · ${cost} medals given up on average`,
+  historyNote: (dealerHands) =>
+    `“On average” is over the ${dealerHands} hands the dealer could hold, before the dealer’s cards are seen. It counts the Ante, the Play bet and the Ante Bonus, and the Pair Plus bet with its winnings when a fold throws them away. It is not what the hand went on to win or lose.`,
   hint: [
     'Play Q-6-4 or better, fold anything worse — that one rule is the whole optimal strategy.',
     'Folding costs exactly the Ante. Playing a weak hand risks two antes, but it still wins one whenever the dealer fails to qualify — about three hands in ten.',
@@ -493,6 +520,20 @@ const ja: ThreeCardPokerStrings = {
   dealerQualified: 'ディーラーがクオリファイ',
   winsPushesLosses: '勝ち／±0／負け',
   agreement: '戦略どおりだった割合',
+  historyTitle: 'このセッションのハンド',
+  historyKept: (kept) => `新しい順・直近${kept}回`,
+  historyEmpty: '終わったハンドが、最善の判断と一緒にここに並びます。',
+  historyAria: 'このセッションでプレイしたハンド（新しい順）',
+  historyNet: (net) => (net > 0 ? `${net}枚獲得` : net < 0 ? `${-net}枚の負け` : '増減なし'),
+  historyBets: (ante, pairPlus) => (pairPlus > 0 ? `アンティ${ante}、ペアプラス${pairPlus}` : `アンティ${ante}`),
+  historyVerdict: (decision, best, cost) => {
+    const did = decision === 'play' ? 'プレイ' : 'フォールド';
+    if (decision === best) return `${did}（最善の判断）`;
+    return `${did}（${best === 'play' ? 'プレイ' : 'フォールド'}のほうが平均${cost}枚有利）`;
+  },
+  historySummary: (mistakes, hands, cost) => `最善でなかった判断：${hands}回中${mistakes}回・平均で計${cost}枚の損`,
+  historyNote: (dealerHands) =>
+    `「平均」は、ディーラーの手札を見る前に、ディーラーがとり得る${dealerHands}通りの手すべてについて計算した値です。アンティ、プレイ、アンティボーナスに加え、フォールドで捨てることになるペアプラスの賭けとその配当も含みます。実際にそのハンドで勝った・負けた枚数ではありません。`,
   hint: [
     'Q-6-4以上ならプレイ、それ未満はフォールド。最適戦略はこのルール1つだけです。',
     'フォールドの損はアンティちょうど1つ分。弱い手でプレイするとアンティ2つ分を危険にさらしますが、ディーラーがクオリファイしなければ（約3割）1つ分勝てます。',

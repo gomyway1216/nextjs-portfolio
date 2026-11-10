@@ -31,6 +31,8 @@ import {
   type Settlement,
 } from './engine';
 import { HoleCard, PlayingCard, rankLabel } from './Cards';
+import { HandHistory } from './HandHistory';
+import { EMPTY_HISTORY, addHand, reviewHand, type History } from './history';
 import { getStrings, type ThreeCardPokerStrings } from './i18n';
 import {
   BET_STEPS,
@@ -250,6 +252,7 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const warn = (text: string) => setMessage({ text, tone: 'warn' });
   const [showHint, setShowHint] = useState(true);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  const [history, setHistory] = useState<History>(EMPTY_HISTORY);
   // The floor's machine sounds (MedalCenter/machineSounds.ts): off on every visit, on with the switch in the felt's corner.
   const sound = useMachineSound();
   const { play, tick } = sound;
@@ -263,6 +266,9 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const phaseRef = useRef<Phase>('idle');
   const roundRef = useRef<Round | null>(null);
   const statsRef = useRef<Stats>(EMPTY_STATS);
+  const historyRef = useRef<History>(EMPTY_HISTORY);
+  /** The list of the session's hands, which scrolls: the table's keys are left alone while it has the focus. */
+  const historyList = useRef<HTMLDivElement | null>(null);
   const undoStack = useRef<{ spot: Spot; amount: number }[]>([]);
   const lastBets = useRef<Bets>(NO_BETS);
   const roundId = useRef(0);
@@ -291,6 +297,10 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   const commitStats = (next: Stats) => {
     statsRef.current = next;
     setStats(next);
+  };
+  const commitHistory = (next: History) => {
+    historyRef.current = next;
+    setHistory(next);
   };
   /** Updates the round a timer was scheduled for — a no-op if another round has replaced it. */
   const patchRound = (id: number, patch: (r: Round) => Partial<Round>) => {
@@ -343,6 +353,7 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
       agreed: s.agreed + (decide('optimal', hand.player) === settlement.decision ? 1 : 0),
       net: s.net + settlement.net,
     });
+    commitHistory(addHand(historyRef.current, reviewHand(hand, settlement)));
     commitPhase('idle');
     // A fanfare as the medals run in: a bigger one for the Ante Bonus or a Pair Plus of a straight or better.
     const big = settlement.lines.some((l) => l.id === 'anteBonus' || (l.id === 'pairPlus' && l.outcome === 'win' && l.profit >= 3 * l.stake));
@@ -368,6 +379,7 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
     show(null);
     lastBets.current = NO_BETS;
     commitStats(EMPTY_STATS);
+    commitHistory(EMPTY_HISTORY);
     setMessage(say ? { text: strings.sayCenterReset, tone: 'info' } : null);
   };
 
@@ -579,6 +591,8 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
   // is dealt, R puts the last hand's bets back and U takes the last one off. Each does just what its button does, and
   // nothing when that button could not be pressed.
   useMachineKeys(active, (key) => {
+    // In the list of hands the keys are the list's own: Space scrolls it.
+    if (historyList.current?.contains(document.activeElement)) return false;
     if (key === ' ' || key === 'Enter') deal();
     else if (key === 'a') place('ante');
     else if (key === 'p') act('play');
@@ -1069,6 +1083,8 @@ export const PlayTab = ({ active = true }: PlayTabProps) => {
               <dd>{stats.hands > 0 ? `${Math.round((stats.agreed / stats.hands) * 100)}%` : '–'}</dd>
             </div>
           </dl>
+
+          <HandHistory ref={historyList} history={history} t={t} locale={locale} />
         </div>
       </div>
     </div>

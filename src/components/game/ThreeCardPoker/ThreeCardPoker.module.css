@@ -628,6 +628,91 @@
   }
 }
 
+/* ---------- The session's hands ---------- */
+.history {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--games-route-border);
+  padding-top: 0.75rem;
+}
+.historySummary {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.historyScroll {
+  max-height: 17rem;
+  overflow-y: auto;
+  border: 1px solid var(--games-route-border);
+  border-radius: 10px;
+}
+.historyScroll:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.historyItem {
+  /* Holds the screen-reader text of the result, which is taken out of the flow, inside the scrolling list. */
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.15rem 0.5rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.historyItem + .historyItem {
+  border-top: 1px dashed var(--games-route-border);
+}
+.historyNumber {
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+}
+.historyHands {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.historyWho {
+  color: var(--games-route-muted);
+  font-weight: 700;
+}
+.historyCards {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.historyCards span + span {
+  margin-left: 0.3em;
+}
+.historyCards [data-red='true'] {
+  color: var(--tcp-lose-text);
+}
+.historyNet {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.historyVerdict {
+  grid-column: 2 / -1;
+  overflow-wrap: anywhere;
+}
+.historyItem[data-agreed='true'] .historyVerdict {
+  color: var(--tcp-win-text);
+}
+.historyItem[data-agreed='false'] .historyVerdict {
+  color: var(--tcp-lose-text);
+  font-weight: 700;
+}
+.historyBets {
+  color: var(--games-route-muted);
+  font-weight: 400;
+}
+
 /* ---------- Bankroll & chips ---------- */
 .pillRow {
   display: flex;

@@ -501,7 +501,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   // roll started from, with the face it rolled marked once the die has landed.
   const aheadFrom = running ? running.play.from : (standingSquare ?? START);
   const ahead = aheadOf(aheadFrom);
-  const rolledFace = running && !scene.rolling ? running.play.draw.roll : null;
+  // Only the first tumble hides it: the die tumbles again for the whale's free rolls and the JP final (scene.ts).
+  const rolledFace = running && !(scene.phase === 'roll' && scene.rolling) ? running.play.draw.roll : null;
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;
   const won = !running && outcome !== null && !outcome.earlier && outcome.won > 0;

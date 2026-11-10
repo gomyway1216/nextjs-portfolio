@@ -1216,6 +1216,89 @@
   color: var(--games-route-fg);
 }
 
+/* ---------- What the bets on the felt pay, pocket by pocket ---------- */
+.payout {
+  margin-top: 0.9rem;
+}
+.payoutEmpty {
+  margin: 0;
+  color: var(--games-route-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.payoutFacts {
+  list-style: none;
+  margin: 0 0 0.55rem;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.payoutFacts b {
+  font-weight: 800;
+}
+/* As many pockets a row as fit: seven or so at a phone's width. A cell never grows past its track. */
+.payoutCells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(2.6rem, 1fr));
+  gap: 0.25rem;
+}
+.payoutCell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0.1rem;
+  border: 1px solid var(--games-route-border);
+  border-radius: 8px;
+  line-height: 1;
+}
+/* A pocket that leaves the player ahead is ringed, as well as signed and coloured. */
+.payoutCell[data-net='ahead'] {
+  border-color: var(--rl-win-text);
+  box-shadow: inset 0 0 0 1px var(--rl-win-text);
+}
+.payoutNum {
+  min-width: 1.5rem;
+  padding: 0.14rem 0.2rem;
+  border-radius: 5px;
+  text-align: center;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.payoutNum[data-color='red'] {
+  background: var(--rl-red);
+}
+.payoutNum[data-color='black'] {
+  background: #2b2b31;
+}
+.payoutNum[data-color='green'] {
+  background: var(--rl-green);
+}
+.payoutNet {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--games-route-fg);
+}
+.payoutCell[data-net='ahead'] .payoutNet {
+  color: var(--rl-win-text);
+}
+.payoutCell[data-net='behind'] .payoutNet {
+  color: var(--rl-lose-text);
+}
+
 /* ---------- Bet history table ---------- */
 .histWrap {
   margin-top: 0.9rem;

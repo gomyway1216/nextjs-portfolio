@@ -16,6 +16,8 @@ export const SecretaryProblem = () => {
   const [tab, setTab] = useState<Tab>('play');
   const [infoOpen, setInfoOpen] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  // Kept beside the stats so both survive a tab switch and reset together.
+  const [ruleWins, setRuleWins] = useState(0);
 
   return (
     <div className={styles.root}>
@@ -60,7 +62,15 @@ export const SecretaryProblem = () => {
           aria-labelledby="sp-tab-play"
           hidden={tab !== 'play'}
         >
-          {tab === 'play' && <PlayTab t={t} stats={stats} setStats={setStats} />}
+          {tab === 'play' && (
+            <PlayTab
+              t={t}
+              stats={stats}
+              setStats={setStats}
+              ruleWins={ruleWins}
+              setRuleWins={setRuleWins}
+            />
+          )}
         </div>
         <div
           role="tabpanel"

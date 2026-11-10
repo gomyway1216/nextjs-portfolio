@@ -46,6 +46,24 @@ export interface SecretaryStrings {
   recommendHire: string;
   recommendPass: string;
 
+  // Round review
+  ruleWins: string;
+  ruleWinRate: string;
+  legendReview: string;
+  markBest: string;
+  markRulePick: string;
+  reviewHeading: string;
+  reviewBest: (position: number, n: number, score: number) => string;
+  reviewBestInObservation: (skip: number) => string;
+  reviewBestInDecision: string;
+  reviewRulePick: (skip: number, position: number, score: number) => string;
+  reviewRuleForced: (skip: number, position: number, score: number) => string;
+  reviewRuleHit: string;
+  reviewRuleMiss: string;
+  reviewSame: string;
+  reviewEarlier: (yours: number, rules: number) => string;
+  reviewLater: (yours: number, rules: number) => string;
+
   // Sim tab
   simIntroTitle: string;
   simIntroBody: string;
@@ -118,6 +136,26 @@ const en: SecretaryStrings = {
   idlePrompt: 'Press Start to interview candidates.',
   recommendHire: 'Optimal strategy suggests hiring',
   recommendPass: 'Optimal strategy suggests passing',
+
+  ruleWins: '37% rule wins (same rounds)',
+  ruleWinRate: '37% rule win rate',
+  legendReview: '★ = the actual best. Ring = the 37% rule’s pick. Dashed = never interviewed.',
+  markBest: 'actual best',
+  markRulePick: '37% rule’s pick',
+  reviewHeading: 'Round review',
+  reviewBest: (pos, n, s) => `The best candidate (score ${s}) was #${pos} of ${n}.`,
+  reviewBestInObservation: (skip) =>
+    `That is inside the first ${skip} the 37% rule always passes, so the rule could not have hired them.`,
+  reviewBestInDecision: 'That is after the observation phase, so the rule had a chance.',
+  reviewRulePick: (skip, pos, s) =>
+    `On this same order the 37% rule (pass the first ${skip}, then hire the first candidate better than everyone before) would have hired #${pos} (score ${s}).`,
+  reviewRuleForced: (skip, pos, s) =>
+    `On this same order the 37% rule (pass the first ${skip}, then hire the first candidate better than everyone before) would have found nobody to hire and been left with the last candidate, #${pos} (score ${s}).`,
+  reviewRuleHit: 'The rule wins this round.',
+  reviewRuleMiss: 'The rule misses this round.',
+  reviewSame: 'You hired the same candidate the rule would have.',
+  reviewEarlier: (yours, rules) => `You hired earlier than the rule: #${yours} instead of #${rules}.`,
+  reviewLater: (yours, rules) => `You held out longer than the rule: #${yours} instead of #${rules}.`,
 
   simIntroTitle: 'This tab',
   simIntroBody:
@@ -195,6 +233,26 @@ const ja: SecretaryStrings = {
   idlePrompt: '「面接開始」で候補者を面接します。',
   recommendHire: '最適戦略は採用を推奨',
   recommendPass: '最適戦略は見送りを推奨',
+
+  ruleWins: '37%ルールの正解数 (同じラウンド)',
+  ruleWinRate: '37%ルールの正解率',
+  legendReview: '★ = 実際の最高。枠線 = 37%ルールの採用。点線 = 面接しなかった候補。',
+  markBest: '実際の最高',
+  markRulePick: '37%ルールの採用',
+  reviewHeading: 'ラウンドの振り返り',
+  reviewBest: (pos, n, s) => `最高の候補 (スコア ${s}) は ${n} 人中 ${pos} 人目でした。`,
+  reviewBestInObservation: (skip) =>
+    `37%ルールが必ず見送る最初の ${skip} 人の中にいたので、ルールでは採用できませんでした。`,
+  reviewBestInDecision: '観測期より後だったので、ルールにもチャンスがありました。',
+  reviewRulePick: (skip, pos, s) =>
+    `同じ並び順で37%ルール (最初の ${skip} 人を見送り、以後それまでの全員より良い最初の候補を採用) なら、${pos} 人目 (スコア ${s}) を採用していました。`,
+  reviewRuleForced: (skip, pos, s) =>
+    `同じ並び順で37%ルール (最初の ${skip} 人を見送り、以後それまでの全員より良い最初の候補を採用) なら、採用できる候補が現れず、最後の ${pos} 人目 (スコア ${s}) になっていました。`,
+  reviewRuleHit: 'このラウンドはルールの正解。',
+  reviewRuleMiss: 'このラウンドはルールのハズレ。',
+  reviewSame: 'あなたはルールと同じ候補を採用しました。',
+  reviewEarlier: (yours, rules) => `あなたはルールより早く採用しました (${rules} 人目ではなく ${yours} 人目)。`,
+  reviewLater: (yours, rules) => `あなたはルールより長く待ちました (${rules} 人目ではなく ${yours} 人目)。`,
 
   simIntroTitle: 'このタブ',
   simIntroBody:

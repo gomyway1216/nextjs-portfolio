@@ -1,5 +1,6 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { HandCategoryName, Street } from './engine';
+import type { HandOutcome } from './history';
 
 export interface HoldemStrings {
   title: string;
@@ -77,6 +78,23 @@ export interface HoldemStrings {
     raises: string;
     street: string;
     collects: string;
+  };
+  history: {
+    title: string;
+    empty: string;
+    latest: string;
+    noFlop: string;
+    shownHands: string;
+    outcomes: Record<HandOutcome, string>;
+    stats: {
+      hands: string;
+      net: string;
+      bbPer100: string;
+      won: string;
+      vpip: string;
+      vpipHint: string;
+      biggestPot: string;
+    };
   };
 }
 
@@ -173,6 +191,23 @@ const en: HoldemStrings = {
     street: '{{street}} dealt',
     collects: '{{player}} collects {{amount}}',
   },
+  history: {
+    title: 'Table history',
+    empty: 'Every finished hand is kept here with its full action log and your running results.',
+    latest: 'Latest {{amount}} hands',
+    noFlop: 'No flop',
+    shownHands: 'Shown at showdown',
+    outcomes: { won: 'Won', split: 'Split', lost: 'Lost', folded: 'Folded' },
+    stats: {
+      hands: 'Hands',
+      net: 'Net chips',
+      bbPer100: 'bb / 100',
+      won: 'Hands won',
+      vpip: 'VPIP',
+      vpipHint: 'Share of hands where you called or raised before the flop',
+      biggestPot: 'Biggest pot won',
+    },
+  },
 };
 
 const ja: HoldemStrings = {
@@ -267,6 +302,23 @@ const ja: HoldemStrings = {
     raises: '{{player}} が {{amount}} へレイズ',
     street: '{{street}}を公開',
     collects: '{{player}} が {{amount}} を獲得',
+  },
+  history: {
+    title: 'このテーブルの履歴',
+    empty: '終了したハンドは、全アクションの記録と通算成績と一緒にここに残ります。',
+    latest: '直近{{amount}}ハンド',
+    noFlop: 'フロップなし',
+    shownHands: 'ショーダウンの手札',
+    outcomes: { won: '勝ち', split: '引き分け', lost: '負け', folded: 'フォールド' },
+    stats: {
+      hands: 'ハンド数',
+      net: 'チップ収支',
+      bbPer100: 'bb / 100',
+      won: '勝ったハンド',
+      vpip: 'VPIP',
+      vpipHint: 'プリフロップでコールまたはレイズして参加したハンドの割合',
+      biggestPot: '最大獲得ポット',
+    },
   },
 };
 

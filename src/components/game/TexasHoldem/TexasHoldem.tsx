@@ -13,10 +13,12 @@ import {
   startNextHand,
   totalPot,
   type GameState,
-  type LogEntry,
   type PlayerState,
   type PokerAction,
 } from './engine';
+import { chips, formatLog, playerName } from './format';
+import { appendRecord, recordHand, type HandRecord } from './history';
+import { HistoryPanel } from './HistoryPanel';
 import { getHoldemStrings, type HoldemStrings } from './i18n';
 import { PlayingCard } from './PlayingCard';
 import { playPokerSound, unlockPokerAudio } from './sounds';
@@ -28,35 +30,6 @@ const RUNOUT_CARD_DELAY_MS = 1400;
 const RUNOUT_SHOWDOWN_DELAY_MS = 1700;
 const CPU_ACTION_DELAY_MIN_MS = 900;
 const CPU_ACTION_DELAY_JITTER_MS = 500;
-
-const chips = (amount: number): string => amount.toLocaleString('en-US');
-
-function fill(template: string, values: Record<string, string | number>): string {
-  return Object.entries(values).reduce((result, [key, value]) => result.replace(`{{${key}}}`, String(value)), template);
-}
-
-function playerName(player: PlayerState, strings: HoldemStrings): string {
-  return player.isHuman ? strings.table.you : player.name;
-}
-
-function formatLog(entry: LogEntry, state: GameState, strings: HoldemStrings): string {
-  const name = entry.seatIndex === undefined ? '' : playerName(state.players[entry.seatIndex], strings);
-  if (entry.type === 'hand') return fill(strings.log.hand, { amount: entry.amount ?? 0 });
-  if (entry.type === 'blind') {
-    return fill(strings.log.posts, {
-      player: name,
-      blind: entry.detail === 'small' ? 'SB' : 'BB',
-      amount: chips(entry.amount ?? 0),
-    });
-  }
-  if (entry.type === 'street') return fill(strings.log.street, { street: strings.streets[entry.street ?? 'flop'] });
-  if (entry.type === 'result') return fill(strings.log.collects, { player: name, amount: chips(entry.amount ?? 0) });
-  if (entry.action === 'fold') return fill(strings.log.folds, { player: name });
-  if (entry.action === 'check') return fill(strings.log.checks, { player: name });
-  if (entry.action === 'call') return fill(strings.log.calls, { player: name, amount: chips(entry.amount ?? 0) });
-  if (entry.detail === 'bet') return fill(strings.log.bets, { player: name, amount: chips(entry.amount ?? 0) });
-  return fill(strings.log.raises, { player: name, amount: chips(entry.amount ?? 0) });
-}
 
 function seatStyle(index: number, count: number): SeatStyle {
   const angle = (90 + (index * 360) / count) * (Math.PI / 180);
@@ -244,8 +217,9 @@ function ResultPanel({ state, strings, onNext }: { state: GameState; strings: Ho
   );
 }
 
-function GameTable({ state, strings, onAction, onNext }: {
+function GameTable({ state, records, strings, onAction, onNext }: {
   state: GameState;
+  records: readonly HandRecord[];
   strings: HoldemStrings;
   onAction: (action: PokerAction) => void;
   onNext: () => void;
@@ -281,10 +255,11 @@ function GameTable({ state, strings, onAction, onNext }: {
         <div className={styles.logPanel}>
           <div className={styles.logHeading}><span><ShieldCheck size={16} aria-hidden="true" />{strings.table.actionLog}</span><small>{strings.table.hand} #{state.handNumber}</small></div>
           <ol>
-            {[...state.log].reverse().map((entry) => <li key={entry.id}>{formatLog(entry, state, strings)}</li>)}
+            {[...state.log].reverse().map((entry) => <li key={entry.id}>{formatLog(entry, state.players, strings)}</li>)}
           </ol>
         </div>
       </aside>
+      <HistoryPanel records={records} bigBlind={state.bigBlind} strings={strings} />
     </div>
   );
 }
@@ -293,6 +268,10 @@ function TexasHoldemInner() {
   const { language } = useGameLanguage();
   const strings = useMemo(() => getHoldemStrings(language), [language]);
   const [game, setGame] = useState<GameState | null>(null);
+  const [history, setHistory] = useState<HandRecord[]>([]);
+  // The hand on the table joins the list as soon as it ends; it is committed
+  // to state when the next hand is dealt and the engine drops its log.
+  const records = useMemo(() => appendRecord(history, game ? recordHand(game) : null), [history, game]);
   const [infoOpen, setInfoOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const previousSoundState = useRef<{ board: number; hand: number; logId: number; street: GameState['street'] } | null>(null);
@@ -367,17 +346,19 @@ function TexasHoldemInner() {
               {soundEnabled ? strings.actions.soundOn : strings.actions.soundOff}
             </button>
             <button type="button" onClick={() => setInfoOpen(true)}><CircleHelp size={17} aria-hidden="true" />{strings.actions.rules}</button>
-            {game && <button type="button" onClick={() => setGame(null)}><RotateCcw size={16} aria-hidden="true" />{strings.actions.newTable}</button>}
+            {game && <button type="button" onClick={() => { setGame(null); setHistory([]); }}><RotateCcw size={16} aria-hidden="true" />{strings.actions.newTable}</button>}
           </div>
         </header>
 
         {game
-          ? <GameTable state={game} strings={strings} onAction={act} onNext={() => {
+          ? <GameTable state={game} records={records} strings={strings} onAction={act} onNext={() => {
             void unlockPokerAudio().then(() => playPokerSound('deal', soundEnabled));
+            setHistory(records);
             setGame((current) => current ? startNextHand(current) : current);
           }} />
           : <Setup strings={strings} onStart={(count) => {
             void unlockPokerAudio().then(() => playPokerSound('deal', soundEnabled));
+            setHistory([]);
             setGame(createGame(count));
           }} />}
       </div>

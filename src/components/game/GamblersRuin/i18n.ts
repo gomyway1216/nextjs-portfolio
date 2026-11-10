@@ -38,6 +38,52 @@ const STRINGS = {
   reachedMsg: { ja: '目標達成 — {steps} ステップで ${target}', en: 'Reached ${target} in {steps} steps' },
   cappedMsg: { ja: '未決着 — {steps} ステップの上限に到達', en: 'Undecided — stopped after {steps} steps (cap reached)' },
 
+  // play: live odds, run review, session log
+  liveHeading: { ja: 'ここからの見込み', en: 'Odds from here' },
+  liveRuin: { ja: 'ここから破産', en: 'Ruin from here' },
+  liveReach: { ja: 'ここから達成', en: 'Reach from here' },
+  liveSteps: { ja: '残り期待ステップ', en: 'Expected steps left' },
+  liveBarLabel: {
+    ja: '現在の資金 ${bankroll} からの見込み: 破産 {ruin}、達成 {reach}',
+    en: 'From the current bankroll of ${bankroll}: ruin {ruin}, reach {reach}',
+  },
+  liveShift: { ja: '達成確率: 開始時 {from} → 現在 {to}', en: 'Reach chance: {from} at the start → {to} now' },
+  liveNote: {
+    ja: '同じ公式に、開始資金 a の代わりに現在の資金を入れた理論値（過去の勝ち負けは影響しない）。',
+    en: 'The same formulas with your current bankroll in place of a — past wins and losses do not matter.',
+  },
+  reviewPlaceholder: {
+    ja: '決着すると、ここにこの回の振り返りが出ます。',
+    en: 'When the run ends, a short review of it appears here.',
+  },
+  reviewPeak: {
+    ja: '最高は ${peak}（{step} ステップ目）。その時点の達成確率は {chance} だった。',
+    en: 'Peak ${peak} at step {step} — the chance of reaching the target stood at {chance} there.',
+  },
+  reviewPeakAtStart: {
+    ja: '開始時の ${peak} を一度も上回らなかった（開始時の達成確率は {chance}）。',
+    en: 'Never rose above the starting ${peak} (reach chance at the start: {chance}).',
+  },
+  reviewLow: {
+    ja: '最低は ${low}（{step} ステップ目）。その時点の破産確率は {chance} だった。',
+    en: 'Low ${low} at step {step} — the chance of ruin stood at {chance} there.',
+  },
+  reviewLowAtStart: {
+    ja: '開始時の ${low} を一度も下回らなかった（開始時の破産確率は {chance}）。',
+    en: 'Never dropped below the starting ${low} (ruin chance at the start: {chance}).',
+  },
+  reviewLuck: {
+    ja: '勝ち {wins} 回 / 負け {losses} 回。この長さなら p={p} での平均は勝ち {expected} 回。',
+    en: 'Won {wins}, lost {losses}. A run this long averages {expected} wins at p={p}.',
+  },
+  logHeading: { ja: 'このセッションの記録（直近 {n} 回）', en: 'This session (last {n} runs)' },
+  logEmpty: { ja: 'まだ決着した回はありません。', en: 'No finished runs yet.' },
+  logClear: { ja: '記録を消す', en: 'Clear record' },
+  logRegionLabel: { ja: 'このセッションの記録', en: 'Runs this session' },
+  logSteps: { ja: '{steps} ステップ', en: '{steps} steps' },
+  logRange: { ja: '最高 ${peak} / 最低 ${low}', en: 'peak ${peak} / low ${low}' },
+  logSettings: { ja: 'a={a}, N={n}, p={p}', en: 'a={a}, N={n}, p={p}' },
+
   // sim
   run: { ja: 'シミュレーション実行', en: 'Run simulation' },
   running: { ja: '実行中', en: 'Running' },

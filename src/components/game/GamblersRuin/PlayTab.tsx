@@ -1,8 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { TrajectoryChart } from './charts';
-import { RuinConfig, RunResult, expectedDuration, runRuin, theoreticalRuinProb } from './engine';
+import { Outcome, RuinConfig, RunResult, expectedDuration, theoreticalRuinProb } from './engine';
+import {
+  EMPTY_SESSION,
+  PlaySession,
+  RUN_LOG_LIMIT,
+  RunReview,
+  continueRun,
+  formatChance,
+  oddsFrom,
+  recordRun,
+  reviewRun,
+} from './liveOdds';
 import type { TFn } from './i18n';
 import styles from './GamblersRuin.module.css';
 
@@ -11,23 +22,27 @@ const PLAY_MAX_STEPS = 5000;
 
 const defaultConfig: RuinConfig = { start: 10, target: 20, winProb: 0.5 };
 
-interface SessionStats {
-  ruined: number;
-  reached: number;
+interface PlayTabProps {
+  t: TFn;
+  /** Owned by the parent so the record survives a visit to the Simulate tab. */
+  session: PlaySession;
+  onSessionChange: Dispatch<SetStateAction<PlaySession>>;
 }
 
-export const PlayTab = ({ t }: { t: TFn }) => {
+export const PlayTab = ({ t, session, onSessionChange }: PlayTabProps) => {
   const [config, setConfig] = useState<RuinConfig>(defaultConfig);
   const [bankroll, setBankroll] = useState(defaultConfig.start);
   const [steps, setSteps] = useState(0);
   const [running, setRunning] = useState(false);
   const [trajectory, setTrajectory] = useState<number[]>([defaultConfig.start]);
-  const [sessionStats, setSessionStats] = useState<SessionStats>({ ruined: 0, reached: 0 });
   const [result, setResult] = useState<RunResult | null>(null);
+  const [review, setReview] = useState<RunReview | null>(null);
 
   const runningRef = useRef(false);
   const cancelledRef = useRef(false);
   const timerRef = useRef<number | null>(null);
+  // Mirrors `trajectory` so a finished run can be reviewed from inside a timer callback.
+  const trajRef = useRef<number[]>([defaultConfig.start]);
 
   useEffect(() => () => {
     cancelledRef.current = true;
@@ -41,10 +56,26 @@ export const PlayTab = ({ t }: { t: TFn }) => {
     const cfg = next ?? config;
     setBankroll(cfg.start);
     setSteps(0);
-    setTrajectory([cfg.start]);
+    trajRef.current = [cfg.start];
+    setTrajectory(trajRef.current);
     setResult(null);
+    setReview(null);
     setRunning(false);
   };
+
+  const pushPoint = (v: number) => {
+    trajRef.current = [...trajRef.current, v];
+    setTrajectory(trajRef.current);
+  };
+
+  const finishRun = (outcome: Outcome, finalBankroll: number) => {
+    const done = reviewRun(config, trajRef.current, outcome);
+    setResult({ outcome, steps: done.steps, finalBankroll, trajectory: [] });
+    setReview(done);
+    onSessionChange((s) => recordRun(s, config, done));
+  };
+
+  const clearSession = () => onSessionChange(EMPTY_SESSION);
 
   const updateConfig = <K extends keyof RuinConfig>(key: K, value: RuinConfig[K]) => {
     const next: RuinConfig = { ...config, [key]: value };
@@ -64,24 +95,21 @@ export const PlayTab = ({ t }: { t: TFn }) => {
     const won = Math.random() < config.winProb;
     const nextBankroll = won ? bankroll + 1 : bankroll - 1;
     setBankroll(nextBankroll);
-    setTrajectory((tj) => [...tj, nextBankroll]);
+    pushPoint(nextBankroll);
     setSteps((s) => s + 1);
     if (nextBankroll <= 0 || nextBankroll >= config.target) {
-      const outcome = nextBankroll <= 0 ? 'ruined' : 'reached';
-      setResult({ outcome, steps: steps + 1, finalBankroll: nextBankroll, trajectory: [] });
-      setSessionStats((s) => ({
-        ruined: s.ruined + (outcome === 'ruined' ? 1 : 0),
-        reached: s.reached + (outcome === 'reached' ? 1 : 0),
-      }));
+      finishRun(nextBankroll <= 0 ? 'ruined' : 'reached', nextBankroll);
     }
   };
 
   const autoPlay = () => {
-    if (runningRef.current) return;
+    if (runningRef.current || result) return;
     runningRef.current = true;
     cancelledRef.current = false;
     setRunning(true);
-    const full = runRuin(config, PLAY_MAX_STEPS);
+    // Carry on from the current bankroll, so steps already played (by hand or
+    // before a Stop) stay part of this run.
+    const full = continueRun(config, bankroll, steps, PLAY_MAX_STEPS);
     const trail = full.trajectory;
     let i = 1;
     const tick = () => {
@@ -90,26 +118,24 @@ export const PlayTab = ({ t }: { t: TFn }) => {
         setRunning(false);
         return;
       }
+      if (i < trail.length) {
+        const v = trail[i];
+        setBankroll(v);
+        pushPoint(v);
+        setSteps((s) => s + 1);
+        i++;
+      }
+      // Settle in the same tick as the last point, so a Stop can never land
+      // between the bankroll hitting a boundary and the run being recorded.
       if (i >= trail.length) {
+        timerRef.current = null;
         runningRef.current = false;
         setRunning(false);
-        setResult(full);
-        setSessionStats((s) => ({
-          ruined: s.ruined + (full.outcome === 'ruined' ? 1 : 0),
-          reached: s.reached + (full.outcome === 'reached' ? 1 : 0),
-        }));
+        finishRun(full.outcome, full.finalBankroll);
         return;
       }
-      const v = trail[i];
-      setBankroll(v);
-      setTrajectory((tj) => [...tj, v]);
-      setSteps((s) => s + 1);
-      i++;
       timerRef.current = window.setTimeout(tick, STEP_INTERVAL_MS);
     };
-    setBankroll(full.trajectory[0]);
-    setSteps(0);
-    setTrajectory([full.trajectory[0]]);
     tick();
   };
 
@@ -123,6 +149,11 @@ export const PlayTab = ({ t }: { t: TFn }) => {
 
   const theoreticalRuin = theoreticalRuinProb(config);
   const expDur = expectedDuration(config);
+  const live = oddsFrom(config, bankroll);
+  const liveRuinText = formatChance(live.ruinProb, live.settled);
+  const liveReachText = formatChance(live.reachProb, live.settled);
+  const outcomeLabel = (o: Outcome) =>
+    o === 'ruined' ? t('legendRuin') : o === 'reached' ? t('legendReach') : t('legendCap');
   const bankrollColor = result?.outcome === 'ruined'
     ? 'var(--gr-ruin)'
     : result?.outcome === 'reached'
@@ -153,34 +184,86 @@ export const PlayTab = ({ t }: { t: TFn }) => {
           <Stat label={t('stepsLabel')} value={`${steps}`} color="var(--gr-purple)" />
         </div>
 
-        {result && (
-          <div
-            className={`${styles.banner} ${
-              result.outcome === 'ruined'
-                ? styles.bannerRuin
+        <h4 className={`${styles.subHeading} ${styles.liveHeading}`}>{t('liveHeading')}</h4>
+        <div
+          className={styles.liveBar}
+          role="img"
+          aria-label={t('liveBarLabel', { bankroll, ruin: liveRuinText, reach: liveReachText })}
+        >
+          <div className={styles.liveBarReach} style={{ width: `${live.reachProb * 100}%` }} />
+        </div>
+        <div className={styles.liveStats}>
+          <Stat label={t('liveRuin')} value={liveRuinText} color="var(--gr-ruin)" />
+          <Stat label={t('liveReach')} value={liveReachText} color="var(--gr-reach)" />
+          <Stat label={t('liveSteps')} value={live.expectedSteps.toFixed(1)} color="var(--gr-accent-strong)" />
+        </div>
+        <p className={`${styles.caption} ${styles.liveShift}`}>
+          {t('liveShift', { from: formatChance(1 - theoreticalRuin), to: liveReachText })}
+          <br />
+          {t('liveNote')}
+        </p>
+
+        <div className={styles.resultArea}>
+          {!result && <p className={styles.resultPlaceholder}>{t('reviewPlaceholder')}</p>}
+          {result && (
+            <div
+              className={`${styles.banner} ${
+                result.outcome === 'ruined'
+                  ? styles.bannerRuin
+                  : result.outcome === 'reached'
+                    ? styles.bannerReach
+                    : styles.bannerCap
+              }`}
+              role="status"
+            >
+              {result.outcome === 'ruined'
+                ? `💥 ${t('ruinedMsg', { steps })}`
                 : result.outcome === 'reached'
-                  ? styles.bannerReach
-                  : styles.bannerCap
-            }`}
-            role="status"
-          >
-            {result.outcome === 'ruined'
-              ? `💥 ${t('ruinedMsg', { steps })}`
-              : result.outcome === 'reached'
-                ? `🏆 ${t('reachedMsg', { steps, target: config.target })}`
-                : `⏱️ ${t('cappedMsg', { steps })}`}
-          </div>
-        )}
+                  ? `🏆 ${t('reachedMsg', { steps, target: config.target })}`
+                  : `⏱️ ${t('cappedMsg', { steps })}`}
+            </div>
+          )}
+          {review && (
+            <ul className={styles.reviewList}>
+              {review.outcome !== 'reached' && (
+                <li>
+                  {t(review.peakStep === 0 ? 'reviewPeakAtStart' : 'reviewPeak', {
+                    peak: review.peak,
+                    step: review.peakStep,
+                    chance: formatChance(review.reachProbAtPeak),
+                  })}
+                </li>
+              )}
+              {review.outcome !== 'ruined' && (
+                <li>
+                  {t(review.lowStep === 0 ? 'reviewLowAtStart' : 'reviewLow', {
+                    low: review.low,
+                    step: review.lowStep,
+                    chance: formatChance(review.ruinProbAtLow),
+                  })}
+                </li>
+              )}
+              <li>
+                {t('reviewLuck', {
+                  wins: review.wins,
+                  losses: review.losses,
+                  expected: review.expectedWins.toFixed(1),
+                  p: config.winProb.toFixed(2),
+                })}
+              </li>
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className={styles.panel}>
         <h3 className={styles.sectionHeading}>{t('theoryHeading')}</h3>
         <div className={styles.statGridWide}>
-          <Stat label={t('theoRuin')} value={`${(theoreticalRuin * 100).toFixed(2)}%`} color="var(--gr-ruin)" />
-          <Stat label={t('theoReach')} value={`${((1 - theoreticalRuin) * 100).toFixed(2)}%`} color="var(--gr-reach)" />
+          <Stat label={t('theoRuin')} value={formatChance(theoreticalRuin)} color="var(--gr-ruin)" />
+          <Stat label={t('theoReach')} value={formatChance(1 - theoreticalRuin)} color="var(--gr-reach)" />
           <Stat label={t('expDuration')} value={expDur.toFixed(1)} color="var(--gr-accent-strong)" />
-          <Stat label={t('sessionRuined')} value={`${sessionStats.ruined}`} color="var(--gr-ruin)" />
-          <Stat label={t('sessionReached')} value={`${sessionStats.reached}`} color="var(--gr-reach)" />
+          <Stat label={t('sessionRuined')} value={`${session.ruined}`} color="var(--gr-ruin)" />
+          <Stat label={t('sessionReached')} value={`${session.reached}`} color="var(--gr-reach)" />
         </div>
 
         <h4 className={styles.subHeading} style={{ marginTop: '0.9rem' }}>{t('bankrollTrend')}</h4>
@@ -188,6 +271,53 @@ export const PlayTab = ({ t }: { t: TFn }) => {
         <p className={styles.caption}>
           <strong style={{ color: 'var(--gr-text)' }}>{t('title')}:</strong> {t('introBody')}
         </p>
+
+        <div className={styles.logHeader}>
+          <h4 className={styles.subHeading}>{t('logHeading', { n: RUN_LOG_LIMIT })}</h4>
+          <button
+            type="button"
+            onClick={clearSession}
+            disabled={session.runCount === 0}
+            className={`${styles.btn} ${styles.btnGhost} ${styles.btnSmall}`}
+          >
+            {t('logClear')}
+          </button>
+        </div>
+        {session.log.length === 0 ? (
+          <p className={`${styles.caption} ${styles.logEmpty}`}>{t('logEmpty')}</p>
+        ) : (
+          <div className={styles.logScroll} role="region" aria-label={t('logRegionLabel')} tabIndex={0}>
+            <ol className={styles.logList}>
+              {session.log.map((entry) => (
+                <li key={entry.id} className={styles.logRow}>
+                  <span
+                    className={`${styles.logOutcome} ${
+                      entry.review.outcome === 'ruined'
+                        ? styles.logRuin
+                        : entry.review.outcome === 'reached'
+                          ? styles.logReach
+                          : styles.logCap
+                    }`}
+                  >
+                    #{entry.id} {outcomeLabel(entry.review.outcome)}
+                  </span>
+                  <span className={styles.logDetail}>
+                    {t('logSteps', { steps: entry.review.steps })}
+                    {' · '}
+                    {t('logRange', { peak: entry.review.peak, low: entry.review.low })}
+                  </span>
+                  <span className={styles.logSettings}>
+                    {t('logSettings', {
+                      a: entry.config.start,
+                      n: entry.config.target,
+                      p: entry.config.winProb.toFixed(2),
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </div>
     </div>
   );

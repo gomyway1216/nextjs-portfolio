@@ -9,6 +9,8 @@ import { GameTopBar, InfoModal, GameStats, DifficultySelector } from '../common'
 import type { Difficulty, DifficultyOption } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { applyAction, createInitialDoubtState } from './gameLogic';
+import { applyTrackedAction, createTrackedGame, type TrackedDoubtGame } from './claimHistory';
+import { BluffReport } from './BluffReport';
 import { decideDoubtAIDecision, type DoubtDifficulty } from './DoubtAI';
 import { rankToLabel } from './types';
 import type { Card } from './types';
@@ -89,7 +91,9 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
 
   const [humanId] = useState(() => createLocalId('human'));
   const [players, setPlayers] = useState<Record<string, LocalPlayerMeta>>({});
-  const [gameState, setGameState] = useState<DoubtNetworkState | null>(null);
+  // The rules state plus the real cards behind every claim (for the post-game report).
+  const [game, setGame] = useState<TrackedDoubtGame | null>(null);
+  const gameState = game?.state ?? null;
 
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,7 +153,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
     setDraggingCardId(null);
     setLocalError(null);
     setRevealPile(null);
-    setGameState(null);
+    setGame(null);
     setPlayers({});
     clearTimers();
     onBackToMenu();
@@ -173,7 +177,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
     aiIds.forEach((id, idx) => { nextPlayers[id] = { name: `AI ${idx + 1}`, isAI: true, difficulty: tier }; });
 
     setPlayers(nextPlayers);
-    setGameState(initial);
+    setGame(createTrackedGame(initial));
     setSelectedCardIds([]);
     setDraggingCardId(null);
   }, [aiCount, playerName, difficulty, humanId, clearTimers, t.yourNamePlaceholder]);
@@ -207,15 +211,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
     setSelectedCardIds([]);
     setDraggingCardId(null);
 
-    setGameState((prev) => {
-      if (!prev) return prev;
-      const result = applyAction(prev, action);
-      if (!result.ok) {
-        setLocalError(t.errorGeneric);
-        return prev;
-      }
-      return result.state;
-    });
+    if (!game) return;
+    const result = applyTrackedAction(game, action);
+    if (!result.ok) {
+      setLocalError(t.errorGeneric);
+      return;
+    }
+    setGame(result.game);
   };
 
   const acceptClaim = () => {
@@ -230,15 +232,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       timestamp: Date.now(),
     };
 
-    setGameState((prev) => {
-      if (!prev) return prev;
-      const result = applyAction(prev, action);
-      if (!result.ok) {
-        setLocalError(t.errorGeneric);
-        return prev;
-      }
-      return result.state;
-    });
+    if (!game) return;
+    const result = applyTrackedAction(game, action);
+    if (!result.ok) {
+      setLocalError(t.errorGeneric);
+      return;
+    }
+    setGame(result.game);
   };
 
   // Reveal the challenged cards briefly before the pile is swept up.
@@ -272,15 +272,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       timestamp: Date.now(),
     };
 
-    setGameState((prev) => {
-      if (!prev) return prev;
-      const result = applyAction(prev, action);
-      if (!result.ok) {
-        setLocalError(t.errorGeneric);
-        return prev;
-      }
-      return result.state;
-    });
+    if (!game) return;
+    const result = applyTrackedAction(game, action);
+    if (!result.ok) {
+      setLocalError(t.errorGeneric);
+      return;
+    }
+    setGame(result.game);
   };
 
   // AI turn processing
@@ -295,9 +293,11 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
 
     aiTimeoutRef.current = setTimeout(() => {
       aiTimeoutRef.current = null;
-      setGameState((prev) => {
-        if (!prev || prev.finished) return prev;
-        if (prev.currentTurnPlayerId !== currentPlayerId) return prev;
+      setGame((tracked) => {
+        if (!tracked) return tracked;
+        const prev = tracked.state;
+        if (prev.finished) return tracked;
+        if (prev.currentTurnPlayerId !== currentPlayerId) return tracked;
 
         const decision = decideDoubtAIDecision(prev, currentPlayerId, currentMeta.difficulty);
 
@@ -328,9 +328,9 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
             timestamp: Date.now(),
           };
 
-        const result = applyAction(prev, action);
-        if (!result.ok) return prev;
-        return result.state;
+        const result = applyTrackedAction(tracked, action);
+        if (!result.ok) return tracked;
+        return result.game;
       });
     }, 720);
 
@@ -573,7 +573,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
           )}
 
           {gameState && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
               <div style={{
                 background: panel,
                 border: '2px solid rgba(14, 165, 233, 0.35)',
@@ -666,6 +666,16 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
                         ))}
                     </div>
                   </div>
+                )}
+
+                {gameState.finished && game && (
+                  <BluffReport
+                    history={game.history}
+                    playerOrder={gameState.playerOrder}
+                    humanId={humanId}
+                    nameOf={playerNameOf}
+                    strings={t}
+                  />
                 )}
 
                 {/* Pile / table */}

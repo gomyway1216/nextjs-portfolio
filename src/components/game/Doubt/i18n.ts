@@ -99,6 +99,31 @@ export interface DoubtStrings {
   youSuffix: string;
   verdictTruth: string;
   verdictBluff: string;
+
+  // post-game bluff report
+  reportTitle: string;
+  reportIntro: string;
+  reportYourBluffs: string;
+  reportBluffsValue: (passed: number, caught: number) => string;
+  reportYourDoubts: string;
+  reportDoubtsValue: (right: number, wrong: number) => string;
+  reportMissed: string;
+  reportMissedValue: (n: number) => string;
+  reportColPlayer: string;
+  reportColClaims: string;
+  reportColBluffs: string;
+  reportColCaught: string;
+  reportColDoubts: string;
+  reportColPickedUp: string;
+  reportShowClaims: (n: number) => string;
+  reportHideClaims: string;
+  reportBluffsOnly: string;
+  reportNoBluffs: string;
+  reportClaimed: (count: number, rank: string) => string;
+  reportActualCards: string;
+  reportAcceptedBy: (name: string) => string;
+  reportDoubtedBy: (doubter: string, taker: string, count: number) => string;
+  reportUnchallenged: string;
 }
 
 const en: DoubtStrings = {
@@ -185,6 +210,30 @@ const en: DoubtStrings = {
   youSuffix: ' (You)',
   verdictTruth: 'TRUTH',
   verdictBluff: 'BLUFF',
+
+  reportTitle: 'Bluff report',
+  reportIntro: 'Every face-down claim of the game, turned face-up.',
+  reportYourBluffs: 'Your bluffs',
+  reportBluffsValue: (passed, caught) => `${passed} got through · ${caught} caught`,
+  reportYourDoubts: 'Your doubts',
+  reportDoubtsValue: (right, wrong) => `${right} right · ${wrong} wrong`,
+  reportMissed: 'Bluffs you let through',
+  reportMissedValue: (n) => `${n}`,
+  reportColPlayer: 'Player',
+  reportColClaims: 'Claims',
+  reportColBluffs: 'Bluffs',
+  reportColCaught: 'Caught',
+  reportColDoubts: 'Doubts right',
+  reportColPickedUp: 'Cards picked up',
+  reportShowClaims: (n) => `Show all ${n} claims`,
+  reportHideClaims: 'Hide claims',
+  reportBluffsOnly: 'Bluffs only',
+  reportNoBluffs: 'Nobody bluffed this game.',
+  reportClaimed: (count, rank) => `claimed ${count} × ${rank}`,
+  reportActualCards: 'Actual cards',
+  reportAcceptedBy: (name) => `Accepted by ${name}`,
+  reportDoubtedBy: (doubter, taker, count) => `Doubted by ${doubter} — ${taker} picked up ${count}`,
+  reportUnchallenged: 'Nobody left to challenge',
 };
 
 const ja: DoubtStrings = {
@@ -271,6 +320,30 @@ const ja: DoubtStrings = {
   youSuffix: '（あなた）',
   verdictTruth: '本物',
   verdictBluff: 'ブラフ',
+
+  reportTitle: 'ブラフの答え合わせ',
+  reportIntro: 'このゲームで裏向きに出された札を、すべて表にしました。',
+  reportYourBluffs: 'あなたのブラフ',
+  reportBluffsValue: (passed, caught) => `成功 ${passed} 回 · 見破られた ${caught} 回`,
+  reportYourDoubts: 'あなたのダウト',
+  reportDoubtsValue: (right, wrong) => `的中 ${right} 回 · 外れ ${wrong} 回`,
+  reportMissed: '見逃したブラフ',
+  reportMissedValue: (n) => `${n} 回`,
+  reportColPlayer: 'プレイヤー',
+  reportColClaims: '宣言',
+  reportColBluffs: 'ブラフ',
+  reportColCaught: '見破られた',
+  reportColDoubts: 'ダウト的中',
+  reportColPickedUp: '引き取った枚数',
+  reportShowClaims: (n) => `全 ${n} 回の宣言を見る`,
+  reportHideClaims: '宣言を閉じる',
+  reportBluffsOnly: 'ブラフのみ',
+  reportNoBluffs: 'このゲームでは誰もブラフしませんでした。',
+  reportClaimed: (count, rank) => `${rank} を ${count} 枚と宣言`,
+  reportActualCards: '実際の札',
+  reportAcceptedBy: (name) => `${name} が受け入れた`,
+  reportDoubtedBy: (doubter, taker, count) => `${doubter} がダウト — ${taker} が ${count} 枚引き取り`,
+  reportUnchallenged: '判定する相手なし',
 };
 
 export function getDoubtStrings(language: GameLanguage): DoubtStrings {

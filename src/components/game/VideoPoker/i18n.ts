@@ -88,6 +88,20 @@ export interface VideoPokerStrings {
   statReturn: string;
   statPerfect: string;
   statMistakeCost: string;
+  // The hands of the session (history.ts)
+  historyTitle: string;
+  historyNote: (limit: number) => string;
+  historyEmpty: string;
+  historyMistakesOnly: (count: number) => string;
+  historyNoMistakes: string;
+  historyNo: (n: number) => string;
+  /** For screen readers: the cards dealt and the ones held (null when none was). */
+  historyCardsAria: (dealt: string, held: string | null) => string;
+  historyWin: (hand: string, amount: string) => string;
+  historyBet: (coins: number, payId: string) => string;
+  historyGood: string;
+  historyBetter: string;
+  historyCost: (cost: string) => string;
   hint: string[];
   // Odds
   oddsIntro: string;
@@ -249,6 +263,19 @@ const en: VideoPokerStrings = {
   statReturn: 'Returned',
   statPerfect: 'Best plays',
   statMistakeCost: 'Given up by other holds',
+  historyTitle: 'Recent hands',
+  historyNote: (limit) =>
+    `The last ${limit} hands drawn on this page, newest first. Solid cards were held, dashed ones thrown away. Each hold is compared with the exact best play for the bet and pay table it was dealt with; double-ups are not counted.`,
+  historyEmpty: 'Hands you draw are listed here.',
+  historyMistakesOnly: (count) => `Only holds that were not the best (${count})`,
+  historyNoMistakes: 'No hold in the list was judged worse than the best play.',
+  historyNo: (n) => `#${n}`,
+  historyCardsAria: (dealt, held) => `Dealt ${dealt}. ${held ? `Held ${held}.` : 'Held nothing.'}`,
+  historyWin: (hand, amount) => `${hand} +${amount}`,
+  historyBet: (coins, payId) => `Bet ${coins} · ${payId}`,
+  historyGood: '✓ Best play',
+  historyBetter: 'Best:',
+  historyCost: (cost) => `gave up ${cost} × bet on average`,
   hint: [
     'The meters are in medals. Betting five medals is what unlocks the 4,000-medal royal.',
     'Never hold a kicker with a pair, and almost never break a paying pair — the panel shows why.',
@@ -429,6 +456,19 @@ const ja: VideoPokerStrings = {
   statReturn: '還元率',
   statPerfect: '最善手の回数',
   statMistakeCost: '最善手以外で失った期待値',
+  historyTitle: '最近のハンド',
+  historyNote: (limit) =>
+    `このページでドローした直近${limit}ハンド（新しい順）。塗りのカードが残したカード、点線が捨てたカードです。残し方は、配られたときのベットと配当表での厳密な最善手と比べています。ダブルアップは含みません。`,
+  historyEmpty: 'ドローしたハンドがここに並びます。',
+  historyMistakesOnly: (count) => `最善手でなかったものだけ（${count}）`,
+  historyNoMistakes: '一覧に、最善手より悪いと判定された残し方はありません。',
+  historyNo: (n) => `${n}回目`,
+  historyCardsAria: (dealt, held) => `配札 ${dealt}。${held ? `ホールド ${held}。` : 'ホールドなし。'}`,
+  historyWin: (hand, amount) => `${hand} +${amount}`,
+  historyBet: (coins, payId) => `${coins}枚ベット・${payId}`,
+  historyGood: '✓ 最善手',
+  historyBetter: '最善手：',
+  historyCost: (cost) => `平均でベットの${cost}倍の損`,
   hint: [
     'メーターの単位はメダル（枚）です。4,000枚のロイヤルは5枚ベットのときだけです。',
     'ペアにキッカーは付けない、当たりのペアはまず崩さない。パネルの数字が理由です。',

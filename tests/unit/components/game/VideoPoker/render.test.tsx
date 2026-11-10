@@ -1,15 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { VideoPoker } from '@/components/game/VideoPoker';
 import { MiniCard, PlayingCard } from '@/components/game/VideoPoker/Cards';
+import { HandHistory, keepSpace } from '@/components/game/VideoPoker/HandHistory';
 import { OddsTab } from '@/components/game/VideoPoker/OddsTab';
 import { EMPTY_STATS, MEDAL_PLACES, PlayTab, effectivePays, judgePlay } from '@/components/game/VideoPoker/PlayTab';
 import { SimTab } from '@/components/game/VideoPoker/SimTab';
 import { analyzeHand } from '@/components/game/VideoPoker/analysis';
 import { NetHistogram, histogramBins } from '@/components/game/VideoPoker/charts';
 import { PAY_TABLES } from '@/components/game/VideoPoker/engine';
+import { judgeHold, type HandRecord } from '@/components/game/VideoPoker/history';
 import { getStrings } from '@/components/game/VideoPoker/i18n';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
 import { createI18nInstance } from '@/lib/i18n';
@@ -55,6 +57,16 @@ describe('PlayTab', () => {
     expect(markup).toContain('9/6 · 99.54%');
   });
 
+  it('opens with an empty list of recent hands and a filter for the holds that were not the best', () => {
+    const markup = render(<PlayTab />);
+    expect(markup).toMatch(/<h3[^>]*>Recent hands<\/h3>/);
+    expect(markup).toContain('data-testid="vp-history-empty">Hands you draw are listed here.<');
+    expect(markup).toMatch(/<input type="checkbox" data-testid="vp-history-filter"\/>Only holds that were not the best \(0\)</);
+    expect(markup).toContain('The last 30 hands drawn on this page, newest first.');
+    expect(markup).not.toContain('data-testid="vp-history"');
+    expect(render(<PlayTab />, 'ja')).toContain('data-testid="vp-history-empty">ドローしたハンドがここに並びます。<');
+  });
+
   it('is localized', () => {
     const markup = render(<PlayTab />, 'ja');
     expect(markup).toContain('>メダル<');
@@ -98,6 +110,74 @@ describe('PlayTab', () => {
     expect(effectivePays(PAY_TABLES['9/6'], 5)[9]).toBe(800);
     expect(effectivePays(PAY_TABLES['9/6'], 4)[9]).toBe(250);
     expect(effectivePays(PAY_TABLES['9/6'], 4)[6]).toBe(9);
+  });
+});
+
+describe('HandHistory', () => {
+  const c = (text: string) => '♠♥♦♣'.indexOf(text[1]) * 13 + '23456789TJQKA'.indexOf(text[0]);
+  const pays = PAY_TABLES['9/6'];
+  const flush = ['A♠', 'K♠', 'Q♠', 'J♠', '9♠'].map(c);
+  const log: HandRecord[] = [
+    // Not judged yet: the tables were still being built.
+    { no: 3, dealt: ['2♠', '7♥', 'J♦', '4♣', '9♠'].map(c), held: 0, payId: '9/6', coins: 5, pays, rank: 0, won: 0, verdict: null },
+    // The flush kept, where four to the royal is the best play.
+    { no: 2, dealt: flush, held: 0b11111, payId: '9/6', coins: 5, pays, rank: 5, won: 30, verdict: judgeHold(flush, 0b11111, pays) },
+    { no: 1, dealt: flush, held: 0b01111, payId: '9/6', coins: 5, pays, rank: 0, won: 0, verdict: judgeHold(flush, 0b01111, pays) },
+  ];
+
+  it('lists each hand with what was held, what it won and how the hold compares with the best play', () => {
+    const markup = render(<HandHistory log={log} />);
+    expect(markup).toMatch(/<div[^>]*role="region" aria-label="Recent hands" tabindex="0" data-testid="vp-history">/);
+    expect(markup.match(/<li /g)).toHaveLength(3);
+    expect(markup.indexOf('data-no="3"')).toBeLessThan(markup.indexOf('data-no="1"'));
+    expect(markup).toContain('Only holds that were not the best (1)');
+    const item = (no: number) => markup.match(new RegExp(`<li[^>]*data-no="${no}"[\\s\\S]*?</li>`))![0];
+    // The mistake: the best hold is named, and what the hold gave up.
+    expect(item(2)).toContain('data-good="false"');
+    expect(item(2)).toContain('Dealt A♠ K♠ Q♠ J♠ 9♠. Held A♠ K♠ Q♠ J♠ 9♠.');
+    expect(item(2)).toContain('>Flush +30<');
+    expect(item(2)).toContain('>Bet 5 · 9/6<');
+    expect(item(2)).toMatch(/>Best:<\/span>(<span[^>]*>[AKQJ]♠<\/span>){4}<\/span>/);
+    expect(item(2)).toContain('>gave up 12.426 × bet on average<');
+    // The best play, which lost: its thrown-away card is marked.
+    expect(item(1)).toContain('data-good="true"');
+    expect(item(1)).toContain('>✓ Best play<');
+    expect(item(1)).toContain('>No win.<');
+    expect(item(1).match(/data-held="true"/g)).toHaveLength(4);
+    expect(item(1).match(/data-held="false"/g)).toHaveLength(1);
+    // Not judged yet.
+    expect(item(3)).not.toContain('data-good');
+    expect(item(3)).toContain('Dealt 2♠ 7♥ J♦ 4♣ 9♠. Held nothing.');
+    expect(item(3)).toContain('>Calculating every draw…<');
+  });
+
+  it('keeps Space on the focused list from the machine, which would deal or draw with it, and no other key', () => {
+    const space = { key: ' ', stopPropagation: vi.fn() };
+    keepSpace(space);
+    expect(space.stopPropagation).toHaveBeenCalledTimes(1);
+    for (const key of ['Enter', '1', 'd', 'ArrowDown']) {
+      const other = { key, stopPropagation: vi.fn() };
+      keepSpace(other);
+      expect(other.stopPropagation).not.toHaveBeenCalled();
+    }
+  });
+
+  it('can show only the holds that were not the best, and says so when there are none', () => {
+    const filtered = render(<HandHistory log={log} startFiltered />);
+    expect(filtered.match(/<li /g)).toHaveLength(1);
+    expect(filtered).toContain('data-no="2"');
+    const none = render(<HandHistory log={[log[2]]} startFiltered />);
+    expect(none).toContain('data-testid="vp-history-empty">No hold in the list was judged worse than the best play.<');
+  });
+
+  it('is localized', () => {
+    const markup = render(<HandHistory log={log} />, 'ja');
+    expect(markup).toContain('aria-label="最近のハンド"');
+    expect(markup).toContain('>2回目<');
+    expect(markup).toContain('配札 2♠ 7♥ J♦ 4♣ 9♠。ホールドなし。');
+    expect(markup).toContain('>フラッシュ +30<');
+    expect(markup).toContain('>平均でベットの12.426倍の損<');
+    expect(markup).toContain('>✓ 最善手<');
   });
 });
 

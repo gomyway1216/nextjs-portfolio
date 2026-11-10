@@ -216,9 +216,11 @@ export class UpcardAnalysis {
    * Splitting a pair of `v`s, with resplits up to `maxHands` and double after
    * split if allowed. Split aces get one card each and can't be resplit.
    * Hands are independent in expectation, so the total is the expected sum of
-   * each hand's value, with the resplit decision made optimally.
+   * each hand's value, with the resplit decision made optimally. `hands` is
+   * how many hands the split leaves on the table: two for a first split, more
+   * when a split pair is split again.
    */
-  split(v: Value): number {
+  split(v: Value, hands = 2): number {
     const pair = P[v];
     const start: Total = { total: v, soft: v === 11 };
     if (v === 11) {
@@ -247,7 +249,7 @@ export class UpcardAnalysis {
       memo.set(key, ev);
       return ev;
     };
-    return value(2, 2);
+    return value(Math.max(2, hands), 2);
   }
 
   /** Every option for the first two cards (values c1, c2). */

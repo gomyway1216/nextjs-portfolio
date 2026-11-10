@@ -36,6 +36,17 @@ export interface TimedButtonCopy {
   proTipsTitle: string;
   proTips: string[];
   controlsHint: string;
+  /** e.g. "24 ms early" — `ms` is a whole number of at least 1. */
+  timingEarly: (ms: number) => string;
+  timingLate: (ms: number) => string;
+  timingOnTime: string;
+  timingReviewTitle: string;
+  tendencyEarly: (ms: number) => string;
+  tendencyLate: (ms: number) => string;
+  tendencyBalanced: (thresholdMs: number) => string;
+  timingCounts: (early: number, late: number, onTime: number) => string;
+  timingNote: (taps: number) => string;
+  roundLabel: (n: number) => string;
 }
 
 const en: TimedButtonCopy = {
@@ -75,6 +86,7 @@ const en: TimedButtonCopy = {
     { title: 'Scoring', description: 'Score scales with precision — a dead-centre PERFECT is worth far more than a hit near the edge. Higher difficulties multiply your points.' },
     { title: 'Rounds', description: 'Each run is several rounds. The target position and zone change every round. Your total across all rounds is your run score.' },
     { title: 'Controls', description: 'Tap the button, or press Space / Enter. Everything is keyboard and touch friendly.' },
+    { title: 'Timing review', description: 'After each tap you see how many milliseconds early or late it was. The run summary lists every round and tells you whether you lean early or late.' },
   ],
   proTipsTitle: 'Pro tips',
   proTips: [
@@ -83,6 +95,19 @@ const en: TimedButtonCopy = {
     'On Master the zone is tiny; aim for the exact centre, not just "inside".',
   ],
   controlsHint: 'Space / Enter or tap',
+  timingEarly: (ms) => `${ms} ms early`,
+  timingLate: (ms) => `${ms} ms late`,
+  timingOnTime: 'Dead on',
+  timingReviewTitle: 'Timing review',
+  tendencyEarly: (ms) => `You tend to tap about ${ms} ms early — wait a touch longer.`,
+  tendencyLate: (ms) => `You tend to tap about ${ms} ms late — go a touch sooner.`,
+  tendencyBalanced: (thresholdMs) =>
+    `No early or late lean — your median tap was within ${thresholdMs} ms of the centre line.`,
+  timingCounts: (early, late, onTime) =>
+    `${early} early · ${late} late${onTime > 0 ? ` · ${onTime} dead on` : ''}`,
+  timingNote: (taps) =>
+    `The lean is the median of your ${taps} taps (misses included). Each tap is measured against the nearest moment the marker crossed the centre line.`,
+  roundLabel: (n) => `Round ${n}`,
 };
 
 const ja: TimedButtonCopy = {
@@ -122,6 +147,7 @@ const ja: TimedButtonCopy = {
     { title: 'スコア', description: 'スコアは精度に比例します。中心ちょうどのパーフェクトは端すれすれよりずっと高得点。高難易度ほど倍率が上がります。' },
     { title: 'ラウンド', description: '1プレイは複数ラウンド。ラウンドごとにターゲット位置とゾーンが変わります。合計が最終スコアです。' },
     { title: '操作', description: 'ボタンをタップ、またはスペース／エンターキー。キーボードにもタッチにも対応しています。' },
+    { title: 'タイミングの振り返り', description: 'タップするたびに、何ミリ秒早かったか・遅かったかを表示します。プレイ後のまとめでは全ラウンドの結果と、早め・遅めの傾向がわかります。' },
   ],
   proTipsTitle: 'コツ',
   proTips: [
@@ -130,6 +156,19 @@ const ja: TimedButtonCopy = {
     'マスターはゾーンが極小。「中に入れる」ではなく中心ちょうどを狙おう。',
   ],
   controlsHint: 'スペース／エンター・タップ',
+  timingEarly: (ms) => `${ms}ミリ秒早い`,
+  timingLate: (ms) => `${ms}ミリ秒遅い`,
+  timingOnTime: 'ぴったり',
+  timingReviewTitle: 'タイミングの振り返り',
+  tendencyEarly: (ms) => `約${ms}ミリ秒早く押す傾向があります。ほんの少し待ってみよう。`,
+  tendencyLate: (ms) => `約${ms}ミリ秒遅く押す傾向があります。ほんの少し早く押してみよう。`,
+  tendencyBalanced: (thresholdMs) =>
+    `早い・遅いの偏りなし。タップの中央値は中心線から${thresholdMs}ミリ秒以内でした。`,
+  timingCounts: (early, late, onTime) =>
+    `早い ${early}回・遅い ${late}回${onTime > 0 ? `・ぴったり ${onTime}回` : ''}`,
+  timingNote: (taps) =>
+    `傾向は${taps}回のタップ（ミスを含む）の中央値です。各タップは、マーカーが中心線を通過した最も近い瞬間とのずれで測っています。`,
+  roundLabel: (n) => `ラウンド${n}`,
 };
 
 export const getTimedButtonCopy = (language: GameLanguage): TimedButtonCopy =>

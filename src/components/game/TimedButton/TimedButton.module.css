@@ -354,6 +354,18 @@
   font-weight: 600;
 }
 
+/* Always rendered (a non-breaking space before the first tap) so the line's
+   height is reserved and the button below never jumps. */
+.feedbackTiming {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--games-route-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Action button ---------- */
 .actionButton {
   width: 100%;
@@ -462,6 +474,149 @@
   color: var(--games-route-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ---------- Timing review (run summary) ---------- */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem clamp(0.7rem, 3vw, 1rem);
+  border: 1px solid var(--games-route-border);
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  text-align: left;
+}
+
+.reviewTitle {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--games-route-muted);
+}
+
+.reviewTendency {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--games-route-fg);
+}
+
+.reviewNote {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviewRow {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--games-route-border);
+}
+
+.reviewRound {
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reviewBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.miniTrack {
+  position: relative;
+  height: 14px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--games-route-fg) 8%, var(--games-route-bg));
+  border: 1px solid var(--games-route-border);
+  overflow: hidden;
+}
+
+.miniZone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--tb-target) 32%, transparent);
+}
+
+.miniCenter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--tb-target-strong);
+}
+
+.miniMarker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transform: translateX(-1.5px);
+  border-radius: 2px;
+  background: var(--games-route-fg);
+}
+
+.miniMarker[data-rating='miss'] {
+  background: var(--tb-miss);
+}
+
+.reviewText {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.reviewRating {
+  font-weight: 800;
+  color: var(--games-route-fg);
+}
+
+.reviewTiming {
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reviewScore {
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--games-route-fg);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .summaryActions {

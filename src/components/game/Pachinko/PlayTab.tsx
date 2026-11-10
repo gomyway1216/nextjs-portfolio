@@ -15,6 +15,7 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { valueOf } from './analysis';
 import { Board } from './Board';
+import { EMPTY_COUNTER, barOf, counted, landed, shareOf } from './dataCounter';
 import { drawMoving, drawStill, type BoardLook } from './draw';
 import {
   BALLS_PER_MEDAL,
@@ -48,7 +49,6 @@ export const MEDAL_PLACES = 7;
 export const BALL_PLACES = 6;
 /** How long the machine waits for the card before it says the medals are in another tab, in ms. */
 export const CARD_WAIT = 1_500;
-const HISTORY_LIMIT = 12;
 /** Where the handle's strength is kept on this device between visits. */
 export const STRENGTH_KEY = 'pachinko-handle-v1';
 
@@ -226,7 +226,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [held, setHeld] = useState(false);
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
-  const [history, setHistory] = useState<{ id: number; kind: HitKind }[]>([]);
+  const [counter, setCounter] = useState(EMPTY_COUNTER);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   const [canSkip, setCanSkip] = useState(false);
   const [credit, setCredit] = useState(false);
@@ -252,7 +252,6 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   /** The frame loop as it stands now (`frame`), called by each frame it asks for. */
   const loop = useRef<() => void>(() => undefined);
   const ballCount = useRef(0);
-  const historyId = useRef(0);
   const tulipAt = useRef(-Infinity);
   const windmill = useRef(0);
   const lastPaint = useRef(0);
@@ -286,11 +285,26 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const meter = useCountUp(medalsShown, chirp);
   const { pay: payMedals } = meter;
 
+  /** Writes a slot down in this visit's figures and its data counter, as it is shown (or dropped unshown: `showNow`). */
+  const tally = useCallback((d: Due) => {
+    const paid = d.ball?.fired.paid ?? 0;
+    let spins = 0;
+    let hits = 0;
+    for (const tk of d.ticks) {
+      if (tk.type === 'start') spins += 1;
+      else if (tk.type === 'stop' && tk.kind) hits += 1;
+    }
+    if (paid > 0 || spins > 0 || hits > 0) setStats((st) => ({ ...st, paid: st.paid + paid, spins: st.spins + spins, hits: st.hits + hits }));
+    if (d.ball || d.ticks.length > 0) setCounter((c) => counted(c, d.ball?.fired ?? null, d.ticks));
+  }, []);
+
   /** The tray as shown: the balls in it now, less those still on their way to a pocket that pays. */
   const showTray = useCallback(() => setTray(Math.max(0, (session.current?.tray ?? 0) - inFlight.current)), []);
 
   /** Shows the machine as it stands now, every flight cut short: after a skip, a page given back the card, a reset. */
   const showNow = useCallback(() => {
+    // What was still on its way to the screen has happened all the same: it is written down, though never shown.
+    for (const d of due.current) tally(d);
     flying.current = [];
     due.current = [];
     inFlight.current = 0;
@@ -301,7 +315,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setShown(next);
     setCanSkip(m ? skippable(m) : false);
     showTray();
-  }, [showTray]);
+  }, [showTray, tally]);
 
   // ── Painting the board ──
   const paint = useCallback(
@@ -364,13 +378,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         const s = POCKET_SOUND[d.ball.fired.pocket];
         if (s) play(s);
         if (d.ball.fired.pocket === 'denchu') tulipAt.current = clock.now();
-        if (d.ball.fired.paid > 0) setStats((st) => ({ ...st, paid: st.paid + d.ball!.fired.paid }));
       }
+      tally(d);
       let won: HitKind | null = wonRef.current;
       for (const tk of d.ticks) {
         if (tk.type === 'start') {
           won = null;
-          setStats((st) => ({ ...st, spins: st.spins + 1 }));
         } else if (tk.type === 'phase' && tk.spin.kind !== 'plain' && tk.spin.phase === 1) {
           const hit = tk.spin.hit ? hitKindOf(tk.spin.from, tk.spin.hold.split) : null;
           const [l, , r] = reelFaces(tk.spin.hold.seed, hit, true);
@@ -384,10 +397,6 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             const kind = tk.kind;
             play('fanfare');
             setAnnouncement(words.sayHit(kind));
-            setStats((st) => ({ ...st, hits: st.hits + 1 }));
-            historyId.current += 1;
-            const id = historyId.current;
-            setHistory((h) => [{ id, kind }, ...h].slice(0, HISTORY_LIMIT));
           } else play('reel');
         } else if (tk.type === 'open') play('bell');
         else if (tk.type === 'end') play('win');
@@ -401,7 +410,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setCanSkip(skippable(d.machine));
       showTray();
     },
-    [clock, play, showTray],
+    [clock, play, showTray, tally],
   );
 
   /** One slot of the machine at machine time `at`: the ball (if the handle is held), then the machine. Written down first. */
@@ -615,12 +624,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const startOver = useCallback(
     (said: boolean) => {
       letGo();
+      // Nothing of the session reset is written down: what was on its way to the screen goes with it.
+      due.current = [];
       table.current?.clear();
       session.current = null;
       nextSlot.current = null;
       facesRef.current = REST_FACES;
       wonRef.current = null;
-      setHistory([]);
+      setCounter(EMPTY_COUNTER);
       setStats(EMPTY_STATS);
       setMessage('');
       showNow();
@@ -870,6 +881,19 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const reels: { face: number; spinning: boolean }[] = [0, 1, 2].map((i) => ({ face: shown.faces[i], spinning: spinning && (!reach || i === 1) }));
   const where = t.holdLamps(shown.h1, shown.h2) + '. ' + t.modeWords(shown.mode, shown.left) + '.';
   const observed = stats.fired > 0 ? stats.paid / stats.fired : null;
+  const ballsLanded = landed(counter);
+  const shareText = (part: number) => {
+    const share = shareOf(part, ballsLanded);
+    return share ? ` (${t.share(share.value.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), share.bound)})` : '';
+  };
+  const pocketRows: { key: string; label: string; balls: number }[] = [
+    { key: 'heso', label: t.colHeso, balls: counter.pockets.heso },
+    { key: 'overflow', label: t.overflow, balls: counter.overflow },
+    { key: 'side', label: t.colSide, balls: counter.pockets.side },
+    { key: 'denchu', label: t.colTulip, balls: counter.pockets.denchu },
+    { key: 'attacker', label: t.colAttacker, balls: counter.pockets.attacker },
+    { key: 'out', label: t.colOut, balls: counter.pockets.out },
+  ];
 
   return (
     <div
@@ -1052,21 +1076,39 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
-        <section className={styles.panel} aria-labelledby="pk-history-title">
-          <h2 id="pk-history-title" className={styles.panelTitle}>
-            {t.historyTitle}
+        <section className={styles.panel} aria-labelledby="pk-data-title" data-testid="pk-data">
+          <h2 id="pk-data-title" className={styles.panelTitle}>
+            {t.dataTitle}
           </h2>
-          {history.length === 0 ? (
-            <p className={styles.muted}>{t.historyEmpty}</p>
-          ) : (
-            <ol className={styles.historyList} data-testid="pk-history">
-              {history.map((entry) => (
-                <li key={entry.id} className={styles.historyChip} data-rounds={entry.kind.rounds} data-after={entry.kind.after} title={t.historyEntryLabel(entry.kind)}>
-                  {t.historyEntry(entry.kind)}
-                </li>
-              ))}
-            </ol>
-          )}
+          <p className={styles.dataSince}>
+            <span className={styles.dataSinceLabel}>{t.dataSince}</span>
+            <span className={styles.dataSinceValue} data-testid="pk-data-since">
+              {fmt(counter.since)}
+            </span>
+          </p>
+          <dl className={styles.statList}>
+            <div>
+              <dt>{t.dataLongest}</dt>
+              <dd data-testid="pk-data-longest">{counter.longest > 0 ? t.spinsCount(counter.longest) : '—'}</dd>
+            </div>
+            <div>
+              <dt>{t.dataBestRun}</dt>
+              <dd data-testid="pk-data-run">{counter.bestRun > 0 ? t.hitsCount(counter.bestRun) : '—'}</dd>
+            </div>
+          </dl>
+          <h3 className={styles.panelSub}>{t.pocketsTitle}</h3>
+          <dl className={`${styles.statList} ${styles.pocketList}`} data-testid="pk-data-pockets">
+            {pocketRows.map((row) => (
+              <div key={row.key} data-pocket={row.key}>
+                <dt>{row.label}</dt>
+                <dd>
+                  {fmt(row.balls)}
+                  {shareText(row.balls)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className={`${styles.muted} ${styles.dataNote}`}>{t.dataNote}</p>
         </section>
 
         <section className={styles.panel} aria-labelledby="pk-session-title">
@@ -1107,6 +1149,32 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               <dd>{pct(valueOf(odds.perfect.back), 2)}</dd>
             </div>
           </dl>
+        </section>
+
+        <section className={styles.panel} aria-labelledby="pk-history-title">
+          <h2 id="pk-history-title" className={styles.panelTitle}>
+            {t.historyTitle}
+          </h2>
+          {counter.log.length === 0 ? (
+            <p className={styles.muted}>{t.historyEmpty}</p>
+          ) : (
+            <ol className={styles.hitLog} data-testid="pk-history">
+              {counter.log.map((entry) => (
+                <li key={entry.id} className={styles.hitRow} data-rounds={entry.kind.rounds} data-after={entry.kind.after} data-spins={entry.spins}>
+                  <span className={styles.hitSpins}>{t.spinsCount(entry.spins)}</span>
+                  <span className={styles.hitBar} aria-hidden="true">
+                    <span className={styles.hitBarFill} style={{ width: `${barOf(entry.spins) * 100}%` }} />
+                  </span>
+                  <span className={styles.historyChip} data-rounds={entry.kind.rounds} title={t.historyEntryLabel(entry.kind)}>
+                    {t.historyEntry(entry.kind)}
+                  </span>
+                  <span className={styles.hitRun} title={entry.run > 1 ? t.hitRunLabel(entry.run) : undefined}>
+                    {entry.run > 1 ? t.hitRun(entry.run) : ''}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
       </div>
 

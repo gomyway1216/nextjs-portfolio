@@ -5,6 +5,7 @@
 .actionBtn:focus-visible,
 .smallBtn:focus-visible,
 .itemRow:focus-visible,
+.sightToggle:focus-visible,
 .diffBtn:focus-visible,
 .startBtn:focus-visible,
 .ghostBtn:focus-visible {
@@ -178,6 +179,145 @@
 @keyframes maGlow {
   0%, 100% { filter: drop-shadow(0 0 1px currentColor); }
   50% { filter: drop-shadow(0 0 5px currentColor); }
+}
+
+/* ---- Enemies in sight ---- */
+.sight {
+  background: var(--ma-panel);
+  border: 1px solid var(--ma-border);
+  border-radius: 0.7rem;
+  overflow: hidden;
+}
+
+.sightToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.3rem 0.75rem;
+  background: transparent;
+  border: 0;
+  color: var(--ma-text);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sightToggle:focus-visible { outline-offset: -2px; }
+
+.sightTitle {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sightCount {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ma-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Room for SIGHT_MAX_ROWS (3) rows. Rows have a fixed height and never wrap, so this holds at any width. */
+.sightBody {
+  --ma-sight-row: 1.7rem;
+  box-sizing: content-box;
+  height: calc(3 * var(--ma-sight-row));
+  padding: 0.25rem 0.75rem 0.4rem;
+  border-top: 1px solid var(--ma-border);
+  overflow: hidden;
+}
+
+.sightEmpty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ma-muted);
+  font-size: 0.8rem;
+}
+
+.sightList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sightRow {
+  display: grid;
+  grid-template-columns: 1.3rem minmax(0, 1fr) 8.5rem minmax(0, 2.2fr);
+  align-items: center;
+  column-gap: 0.5rem;
+  height: var(--ma-sight-row);
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.sightGlyph {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sightNameCell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.sightName,
+.sightStats {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sightName { font-weight: 600; }
+
+.sightStatus {
+  flex: 0 0 auto;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 171, 252, 0.4);
+  color: #f0abfc;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.sightHp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sightHpNum {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sightStats { color: var(--ma-muted); }
+
+/* Narrow screens: the damage line drops under the name, and rows are two lines tall. */
+@media (max-width: 600px) {
+  .sightBody { --ma-sight-row: 2.5rem; }
+
+  .sightRow {
+    grid-template-columns: 1.3rem minmax(0, 1fr) 7.5rem;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .sightStats {
+    grid-column: 1 / -1;
+    font-size: 0.74rem;
+  }
 }
 
 /* ---- Messages ---- */

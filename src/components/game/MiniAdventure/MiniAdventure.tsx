@@ -20,6 +20,8 @@ import {
 } from './GameEngine';
 import { getMiniAdventureStrings } from './i18n';
 import { getItemChar, getItemColor } from './Items';
+import { describeSight } from './Sight';
+import { SightPanel } from './SightPanel';
 import {
   ActionType, Direction, GameState, ItemType, MAX_FLOORS, MiniAdventureDifficulty,
   MAP_HEIGHT, MAP_WIDTH, StatusEffect, TileType, TORCH_MAX,
@@ -42,6 +44,17 @@ const TILE_COLORS: Record<TileType, string> = {
 
 const DIFFICULTIES: MiniAdventureDifficulty[] = ['easy', 'normal', 'hard'];
 
+// Whether the "in sight" panel is expanded: a per-browser convenience, so storage failures are ignored.
+const SIGHT_OPEN_KEY = 'mini-adventure:sight-open';
+
+function readSightOpen(): boolean {
+  try {
+    return typeof window === 'undefined' || window.localStorage.getItem(SIGHT_OPEN_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
 const MiniAdventure: React.FC = () => {
   useFeatureLifecycle('game.mini-adventure');
   const { language } = useGameLanguage();
@@ -54,6 +67,7 @@ const MiniAdventure: React.FC = () => {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [showStartScreen, setShowStartScreen] = useState(true);
   const [difficulty, setDifficulty] = useState<MiniAdventureDifficulty>('normal');
+  const [showSight, setShowSight] = useState(readSightOpen);
   const gameContainerRef = useRef<HTMLDivElement>(null);
 
   // gameStateRef mirrors gameState synchronously so rapid dispatches (key
@@ -73,6 +87,16 @@ const MiniAdventure: React.FC = () => {
     setShowInventory(false);
     setSelectedItemIndex(null);
   }, [difficulty]);
+
+  const toggleSight = useCallback(() => {
+    const next = !showSight;
+    setShowSight(next);
+    try {
+      window.localStorage.setItem(SIGHT_OPEN_KEY, next ? '1' : '0');
+    } catch {
+      // Private mode or blocked storage: the choice just lasts for this visit.
+    }
+  }, [showSight]);
 
   const returnToMenu = useCallback(() => {
     gameStateRef.current = null;
@@ -127,6 +151,9 @@ const MiniAdventure: React.FC = () => {
   // ---- Keyboard input ----
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!gameState || gameState.gameOver || showStartScreen) return;
+
+    // Space/Enter on the focused "in sight" toggle must only toggle it, not also wait or take the stairs.
+    if ((e.key === ' ' || e.key === 'Enter') && e.target instanceof Element && e.target.closest('[data-ma-sight]')) return;
 
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'g', '.', '>', 'i', 'p', ' ', 'Escape'].includes(e.key)) {
       e.preventDefault();
@@ -563,6 +590,15 @@ const MiniAdventure: React.FC = () => {
           {renderInventory()}
           {renderGameOver()}
         </div>
+
+        {gameState && (
+          <SightPanel
+            enemies={describeSight(gameState)}
+            open={showSight}
+            onToggle={toggleSight}
+            t={t}
+          />
+        )}
 
         {renderMessages()}
         {renderControls()}

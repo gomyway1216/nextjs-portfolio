@@ -69,7 +69,9 @@ export function counted(counter: DataCounter, ball: Fired | null, ticks: readonl
       longest = Math.max(longest, since);
     } else if (t.type === 'stop' && t.kind) {
       hits += 1;
-      run += 1;
+      // A hit in normal play begins a run, whatever was written down before: the machine may have come back to normal
+      // play where this page never saw it (played on in another tab).
+      run = t.spin.mode === 'normal' ? 1 : run + 1;
       bestRun = Math.max(bestRun, run);
       // A spin already going as the visit began was never counted as it started: the hit still took that one spin.
       const spins = Math.max(1, since);

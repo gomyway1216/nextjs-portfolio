@@ -92,6 +92,18 @@ describe('the data counter', () => {
     expect(landed(t.counter())).toBe(pockets.heso + pockets.side + pockets.denchu + pockets.attacker + pockets.out);
   });
 
+  it('begins a run at a hit in normal play even where it never saw normal play come back', () => {
+    const spin = (mode: 'normal' | 'st') => ({ from: 1 as const, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode, hit: true, kind: 'plain' as const, phase: 0, age: 1 });
+    const hit = (mode: 'normal' | 'st'): Tick[] => [{ type: 'stop', spin: spin(mode), kind: { rounds: 4, after: 'st' } }];
+    let counter = counted(EMPTY_COUNTER, null, hit('normal'));
+    counter = counted(counter, null, hit('st'));
+    expect(counter).toMatchObject({ run: 2, bestRun: 2 });
+    // The machine went back to normal play in another tab: no `mode` tick came to this page.
+    counter = counted(counter, null, hit('normal'));
+    expect(counter).toMatchObject({ hits: 3, run: 1, bestRun: 2 });
+    expect(counter.log.map((entry) => entry.run)).toEqual([1, 2, 1]);
+  });
+
   it('counts a hit whose spin was already going as the visit began as one spin', () => {
     const m = newMachine();
     fire(m, BEST_LEFT, ball(0, 0, 0));
@@ -116,8 +128,8 @@ describe('the data counter', () => {
 
   it('keeps the last hits only, the latest first, and leaves the counter it was given as it was', () => {
     const hit: Tick[] = [
-      { type: 'start', spin: { from: 1, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode: 'normal', hit: true, kind: 'plain', phase: 0, age: 0 } },
-      { type: 'stop', spin: { from: 1, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode: 'normal', hit: true, kind: 'plain', phase: 0, age: 1 }, kind: { rounds: 4, after: 'st' } },
+      { type: 'start', spin: { from: 1, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode: 'st', hit: true, kind: 'plain', phase: 0, age: 0 } },
+      { type: 'stop', spin: { from: 1, hold: { lot: 0, split: 0, show: 0, seed: 0 }, mode: 'st', hit: true, kind: 'plain', phase: 0, age: 1 }, kind: { rounds: 4, after: 'st' } },
     ];
     let counter = EMPTY_COUNTER;
     for (let i = 0; i < HIT_LOG + 3; i++) {

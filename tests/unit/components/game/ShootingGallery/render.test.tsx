@@ -202,9 +202,11 @@ function everyString(t: ShootingGalleryStrings): { key: string; text: string }[]
     }
     if (key === 'outcome' || key === 'historyEntry' || key === 'historyEntryLabel') for (const play of PLAYS) add(key, (value as (p: (typeof PLAYS)[number]) => unknown)(play));
     else if (key === 'infoBody') add(key, t.infoBody('91.95%', '65.23%', '31.11%'));
+    else if (key === 'shotOutcome') for (const o of outcomes) for (const kind of KIND_IDS) add(`${key}(${o},${kind})`, t.shotOutcome(o, kind));
+    else if (key === 'shotSay') for (const o of outcomes) for (const kind of KIND_IDS) for (let band = 0; band < BANDS; band++) for (const blind of [false, true]) add(`${key}(${o},${kind},${band},${blind})`, t.shotSay(band, kind, band, o, blind));
     else if (key === 'sayMoment') for (const o of outcomes) for (const kind of KIND_IDS) add(`${key}(${o},${kind})`, t.sayMoment(o, kind));
     else if (key === 'figureAria') for (let target = 0; target < TARGETS; target++) for (const position of [-1, 0, 1, 2]) add(`${key}(${target},${position})`, KINDS[SHELF[target]].rows.length > position ? t.figureAria(target, position, position === 0) : '');
-    else if (key === 'kindName' || key === 'kindHeading' || key === 'flash' || key === 'whereAim') for (const kind of KIND_IDS) add(`${key}(${kind})`, (value as (...a: unknown[]) => unknown)(...(key === 'whereAim' ? [2, kind] : [kind])));
+    else if (key === 'kindName' || key === 'shotFigure' || key === 'kindHeading' || key === 'flash' || key === 'whereAim') for (const kind of KIND_IDS) add(`${key}(${kind})`, (value as (...a: unknown[]) => unknown)(...(key === 'whereAim' ? [2, kind] : [kind])));
     else if (key === 'placeHeading') for (const position of [0, 1, 2]) add(`${key}(${position})`, t.placeHeading(position));
     else if (key === 'bandLabel' || key === 'bandName') for (let band = 0; band < BANDS; band++) add(`${key}(${band})`, (value as (b: number) => string)(band));
     else {

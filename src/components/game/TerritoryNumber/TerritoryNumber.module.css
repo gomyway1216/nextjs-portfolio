@@ -587,7 +587,7 @@
 .reviewPraise {
   font-size: 0.9rem;
   font-weight: 800;
-  color: #16a34a;
+  color: var(--games-route-fg);
 }
 .reviewBoardWrap {
   display: flex;
@@ -689,15 +689,12 @@
 }
 .gradeBest {
   --grade-color: #15803d;
-  --grade-text: #16a34a;
 }
 .gradeInaccuracy {
   --grade-color: #b45309;
-  --grade-text: #d97706;
 }
 .gradeMistake {
   --grade-color: #b91c1c;
-  --grade-text: #ef4444;
 }
 .reviewNav {
   display: flex;
@@ -765,12 +762,9 @@
   font-size: 0.7rem;
   font-weight: 800;
   line-height: 1.1;
-  color: var(--games-route-muted);
-}
-.reviewMoveChipGrade.gradeBest,
-.reviewMoveChipGrade.gradeInaccuracy,
-.reviewMoveChipGrade.gradeMistake {
-  color: var(--grade-text);
+  /* The mark itself (✓ or −n) carries the grade; tinted grade colours were
+     under 4.5:1 on the chip. */
+  color: var(--games-route-fg);
 }
 
 @media (prefers-reduced-motion: reduce) {

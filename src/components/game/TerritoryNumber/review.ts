@@ -215,10 +215,16 @@ export function boardsFromMoves(moves: readonly MoveRecord[]): Board[] {
 }
 
 /**
- * Every match starts from the same empty board, and the game is symmetric in
- * the two colours, so the costliest solve of a review is done once per session.
+ * Every match starts from the same empty board and the game is symmetric in
+ * the two colours, so the opening's solution is a constant: 9 in the centre
+ * wins by 3 lines. Kept as a literal to spare each review its costliest solve;
+ * the unit tests check it against the solver.
  */
-let openingBest: (Placement & { margin: number }) | null = null;
+export const OPENING_BEST: Readonly<Placement & { margin: number }> = {
+  card: 9,
+  cellIndex: 4,
+  margin: 3,
+};
 
 /** Review a single move played from `before`. */
 export function reviewMove(before: Board, move: MoveRecord): MoveReview {
@@ -227,13 +233,7 @@ export function reviewMove(before: Board, move: MoveRecord): MoveReview {
   }
   const solver = new Solver(before);
   const sign = signOf(move.slot);
-  let top: Placement & { margin: number };
-  if (before.every(c => c.value === null)) {
-    openingBest ??= solver.bestMove(sign);
-    top = openingBest;
-  } else {
-    top = solver.bestMove(sign);
-  }
+  const top = before.every(c => c.value === null) ? OPENING_BEST : solver.bestMove(sign);
   const playedMargin = solver.marginAfter(move.cellIndex, move.card, sign);
   const loss = top.margin - playedMargin;
   return {

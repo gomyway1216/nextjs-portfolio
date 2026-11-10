@@ -3,6 +3,7 @@ import {
   biggestMistakeIndex,
   boardsFromMoves,
   gradeForLoss,
+  OPENING_BEST,
   reviewGame,
   reviewMove,
   solveBestMove,
@@ -130,6 +131,13 @@ describe('solveBestMove', () => {
   it('throws on a full board', () => {
     const board = boardsFromMoves(randomMoves(9, 'p1', lcg(1)))[9];
     expect(() => solveBestMove(board, 'p1')).toThrow();
+  });
+});
+
+describe('OPENING_BEST', () => {
+  it('is what the solver finds on the empty board, for either colour', () => {
+    expect(solveBestMove(emptyBoard(), 'p1')).toEqual(OPENING_BEST);
+    expect(solveBestMove(emptyBoard(), 'p2')).toEqual(OPENING_BEST);
   });
 });
 

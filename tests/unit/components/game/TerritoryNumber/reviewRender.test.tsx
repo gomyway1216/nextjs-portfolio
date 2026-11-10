@@ -32,6 +32,10 @@ describe('TerritoryNumberReview (first paint, before any move is solved)', () =>
       expect(markup).toContain(s.moveOf(1, 9));
       expect(markup).toContain(s.movePlaced(s.you, 9, s.cellName(2, 2)));
       expect(markup).toContain(s.analysing);
+      // Every cell of the position is named for a screen reader, not just the last move.
+      expect(markup.match(/role="img"/g)).toHaveLength(9);
+      expect(markup.replace(/&#x27;/g, "'")).toContain(`aria-label="${s.cellName(2, 2)}: ${s.filledCell(9, s.you)}"`);
+      expect(markup).toContain(`aria-label="${s.emptyCell(1, 1)}"`);
       expect(markup.match(/aria-pressed="(true|false)"/g)).toHaveLength(9);
       expect(markup.match(/aria-pressed="true"/g)).toHaveLength(1);
       // At move 1 there is a move to step back to and eight to step forward to.

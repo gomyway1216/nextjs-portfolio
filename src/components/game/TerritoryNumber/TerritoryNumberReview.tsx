@@ -143,23 +143,22 @@ export function TerritoryNumberReview({
         <div className={styles.reviewBoardWrap}>
           <div
             className={`${styles.board} ${styles.reviewBoard}`}
-            role="img"
-            aria-label={
-              current === null
-                ? s.startPosition
-                : `${s.moveOf(step, total)} — ${s.movePlaced(
-                    labelFor(current.slot), current.card, cellName(current.cellIndex)
-                  )}`
-            }
+            role="group"
+            aria-label={step === 0 ? s.startPosition : s.moveOf(step, total)}
           >
             {board.map((cell, idx) => {
               const empty = cell.value === null || cell.owner === null;
               const acc = cell.owner ? accent(cell.owner) : null;
               const isLast = current !== null && current.cellIndex === idx;
               const isBest = showBest !== null && showBest.cellIndex === idx;
+              const cellLabel = cell.value === null || cell.owner === null
+                ? s.emptyCell(Math.floor(idx / 3) + 1, (idx % 3) + 1)
+                : `${cellName(idx)}: ${s.filledCell(cell.value, labelFor(cell.owner))}`;
               return (
                 <div
                   key={idx}
+                  role="img"
+                  aria-label={isBest && showBest ? `${cellLabel} (${s.bestMarker(showBest.card)})` : cellLabel}
                   className={[
                     styles.cell,
                     styles.reviewCell,
@@ -284,7 +283,7 @@ export function TerritoryNumberReview({
                 } as React.CSSProperties}
               >
                 <span className={styles.reviewMoveChipCard}>{move.card}</span>
-                <span className={`${styles.reviewMoveChipGrade} ${review ? GRADE_CLASS[review.grade] : ''}`}>
+                <span className={styles.reviewMoveChipGrade}>
                   {review ? (review.loss === 0 ? '✓' : `−${review.loss}`) : '…'}
                 </span>
               </button>

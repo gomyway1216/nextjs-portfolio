@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Info, Pause, Play } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
@@ -8,6 +8,7 @@ import { useHighScore } from '@/hooks/useHighScore';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { InfoModal } from '../common';
 import { getStrings } from './i18n';
+import { RevealBar, RunSummary } from './PostGame';
 import styles from './GhostTetris.module.css';
 import {
   BOARD_H,
@@ -16,6 +17,7 @@ import {
   type GameState,
   type Phase,
   SHAPES,
+  buriedGaps,
   createGame,
   dropIntervalMs,
   dropY,
@@ -54,7 +56,23 @@ export const GhostTetris = () => {
     phaseRef.current = game.phase;
   }, [game.phase]);
 
+  // After a run ends the player can look at the stack with every block solid
+  // again. Only ever on once the run is over, so it gives nothing away in play.
+  const [revealed, setRevealed] = useState(false);
+  const revealNoteId = useId();
+  const revealBtnRef = useRef<HTMLButtonElement>(null);
+  const backBtnRef = useRef<HTMLButtonElement>(null);
+  const wasRevealedRef = useRef(false);
+  // Each of the two buttons replaces the other, so hand focus across instead
+  // of letting it fall back to the page.
+  useEffect(() => {
+    if (revealed) backBtnRef.current?.focus();
+    else if (wasRevealedRef.current) revealBtnRef.current?.focus();
+    wasRevealedRef.current = revealed;
+  }, [revealed]);
+
   const start = useCallback(() => {
+    setRevealed(false);
     setGame({ ...createGame(), phase: 'playing' });
   }, []);
 
@@ -198,6 +216,9 @@ export const GhostTetris = () => {
     }
   }
 
+  const showRevealed = revealed && game.phase === 'gameover';
+  const gapCells = new Set<number>(showRevealed ? buriedGaps(game.board) : []);
+
   const cells: React.ReactNode[] = [];
   for (let y = 0; y < BOARD_H; y += 1) {
     for (let x = 0; x < BOARD_W; x += 1) {
@@ -212,13 +233,14 @@ export const GhostTetris = () => {
         cellId = activeId;
       } else if (locked) {
         cellId = locked;
-        opacity = ghostOpacity(game.lockedAt[y][x], now);
+        opacity = showRevealed ? 1 : ghostOpacity(game.lockedAt[y][x], now);
       }
 
       const className = [
         styles.cell,
         cellId === 0 && !isShadow ? styles.empty : '',
         isShadow ? styles.ghostShadow : '',
+        gapCells.has(idx) ? styles.gap : '',
       ]
         .filter(Boolean)
         .join(' ');
@@ -257,27 +279,51 @@ export const GhostTetris = () => {
         </header>
 
         <div className={styles.layout}>
-          <div
-            className={styles.boardWrap}
-            role="img"
-            aria-label={`${t.title} — ${t.score} ${game.score}, ${t.lines} ${game.lines}`}
-          >
-            <div className={styles.board}>{cells}</div>
+          <div className={styles.boardWrap}>
+            <div
+              className={styles.board}
+              role="img"
+              aria-label={
+                `${t.title} — ${t.score} ${game.score}, ${t.lines} ${game.lines}` +
+                (showRevealed ? `, ${t.buriedGaps} ${gapCells.size}` : '')
+              }
+            >
+              {cells}
+            </div>
             {clearFlash > 0 && (
               <div key={clearFlash} className={styles.boardFlash} aria-hidden />
             )}
 
-            {game.phase === 'gameover' && (
+            {game.phase === 'gameover' && !revealed && (
               <div className={styles.overlay} role="alertdialog" aria-label={t.gameOver}>
                 <p className={styles.overlayTitle}>{t.gameOver}</p>
                 <p className={styles.overlayText}>{t.gameOverReason}</p>
                 <p className={styles.overlayScore}>
                   {t.score}: {game.score} · {t.lines}: {game.lines}
                 </p>
+                <RunSummary stats={game.stats} t={t} />
                 <button type="button" className={styles.overlayBtn} onClick={start}>
                   {t.playAgain}
                 </button>
+                <button
+                  type="button"
+                  ref={revealBtnRef}
+                  className={styles.overlayGhostBtn}
+                  onClick={() => setRevealed(true)}
+                >
+                  {t.reveal}
+                </button>
               </div>
+            )}
+
+            {showRevealed && (
+              <RevealBar
+                gaps={gapCells.size}
+                t={t}
+                noteId={revealNoteId}
+                backRef={backBtnRef}
+                onBack={() => setRevealed(false)}
+              />
             )}
 
             {game.phase === 'paused' && (

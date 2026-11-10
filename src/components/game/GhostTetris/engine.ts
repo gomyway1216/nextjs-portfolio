@@ -34,6 +34,16 @@ export interface Piece {
 
 export type Phase = 'menu' | 'playing' | 'paused' | 'gameover';
 
+/** What a run did, kept for the summary shown when it ends. */
+export interface RunStats {
+  /** pieces locked onto the board, including the one that ended the run */
+  pieces: number;
+  /** locks that cleared 1, 2, 3 and 4 lines, in that order */
+  clears: [number, number, number, number];
+}
+
+export const emptyStats = (): RunStats => ({ pieces: 0, clears: [0, 0, 0, 0] });
+
 export interface GameState {
   phase: Phase;
   board: Board;
@@ -47,6 +57,7 @@ export interface GameState {
   level: number;
   /** rows that were just cleared this tick — for the flash animation */
   clearing: number[];
+  stats: RunStats;
 }
 
 /**
@@ -276,6 +287,23 @@ export const ghostOpacity = (lockedAt: number, now: number): number => {
   return Math.max(GHOST_MIN_OPACITY, 1 - t * (1 - GHOST_MIN_OPACITY));
 };
 
+/**
+ * Empty cells that have a locked block somewhere above them in the same
+ * column, as board indices (y * BOARD_W + x). These are the holes a faded
+ * stack hides; the post-game reveal marks them.
+ */
+export const buriedGaps = (board: Board): number[] => {
+  const gaps: number[] = [];
+  const covered = Array<boolean>(BOARD_W).fill(false);
+  for (let y = 0; y < BOARD_H; y += 1) {
+    for (let x = 0; x < BOARD_W; x += 1) {
+      if (board[y][x] !== 0) covered[x] = true;
+      else if (covered[x]) gaps.push(y * BOARD_W + x);
+    }
+  }
+  return gaps;
+};
+
 /** Merge the current piece into the board + lockedAt grids (mutates clones). */
 const stampPiece = (
   board: Board,
@@ -312,6 +340,9 @@ export const lockCurrent = (
   const lines = state.lines + cleared;
   const level = levelForLines(lines);
   const score = state.score + lineScore(cleared, state.level);
+  const clears: RunStats['clears'] = [...state.stats.clears];
+  if (cleared > 0) clears[cleared - 1] += 1;
+  const stats: RunStats = { pieces: state.stats.pieces + 1, clears };
 
   const current = makePiece(state.next.id);
   const { id: nextId, bag } = drawFromBag(state.bag, rng);
@@ -326,6 +357,7 @@ export const lockCurrent = (
       lines,
       level,
       clearing: rows,
+      stats,
       phase: 'gameover',
     };
   }
@@ -341,6 +373,7 @@ export const lockCurrent = (
     lines,
     level,
     clearing: rows,
+    stats,
   };
 };
 
@@ -407,5 +440,6 @@ export const createGame = (rng: () => number = Math.random): GameState => {
     lines: 0,
     level: 0,
     clearing: [],
+    stats: emptyStats(),
   };
 };

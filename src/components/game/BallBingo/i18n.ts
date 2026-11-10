@@ -96,6 +96,17 @@ export interface BingoStrings {
   biggest: string;
   recentTitle: string;
   recentLine: (lines: number, medals: number) => string;
+  /** What a game in the list says it does when pressed: its balls are listed in the record. */
+  recentShow: (line: string) => string;
+  // The record of a game's balls
+  recordTitle: string;
+  recordTitleEarlier: string;
+  recordListLabel: string;
+  recordEmpty: string;
+  /** A ball of the record, for a screen reader: its place, its pocket, the lines it finished and the balls it gave. */
+  recordBall: (ball: number, pocket: string, linesMade: number, gave: number) => string;
+  recordTally: (shots: number, numbers: number, outs: number, frees: number, chance: boolean) => string;
+  recordLegend: string;
   // Odds
   oddsTitle: string;
   oddsIntro: string[];
@@ -220,6 +231,16 @@ const EN: BingoStrings = {
   biggest: 'Biggest win',
   recentTitle: 'Last games',
   recentLine: (lines, medals) => (lines === 0 ? 'no line' : `${lines === 8 ? 'full card' : lines === 1 ? '1 line' : `${lines} lines`} · +${medals}`),
+  recentShow: (line) => `${line}: list this game's balls`,
+  recordTitle: "This game's balls",
+  recordTitleEarlier: "An earlier game's balls",
+  recordListLabel: 'The balls in the order they were shot',
+  recordEmpty: 'Each ball is listed here as it lands.',
+  recordBall: (ball, pocket, linesMade, gave) =>
+    `Ball ${ball}: ${pocket}${linesMade === 1 ? ', finished a line' : linesMade > 1 ? `, finished ${linesMade} lines` : ''}${gave === 1 ? ', 1 more ball' : gave > 1 ? `, ${gave} more balls` : ''}`,
+  recordTally: (shots, numbers, outs, frees, chance) =>
+    `${shots === 1 ? '1 ball' : `${shots} balls`} shot: ${numbers === 1 ? '1 number' : `${numbers} numbers`}, ${outs} OUT, ${frees} FREE${chance ? ', CHANCE' : ''}`,
+  recordLegend: '★ finished a line. Press a game under “Last games” to list its balls; press it again to come back.',
   oddsTitle: 'The exact odds',
   oddsIntro: [
     `Every pocket has a published weight out of ${WEIGHT_TOTAL}. Each ball goes into one of the pockets open at that moment, with a chance of its weight over the weights of all the open ones. A number with a ball in it is closed for the rest of the game; the FREE pockets close once they have given ${FREE_MOST} free balls; CHANCE closes once it holds its ball; OUT never closes.`,
@@ -361,6 +382,14 @@ const JA: BingoStrings = {
   biggest: '最大の当たり',
   recentTitle: '最近のゲーム',
   recentLine: (lines, medals) => (lines === 0 ? 'ラインなし' : `${lines === 8 ? 'パーフェクト' : `${lines}ライン`}・+${medals}`),
+  recentShow: (line) => `${line}：このゲームのボールを表示`,
+  recordTitle: 'このゲームのボール',
+  recordTitleEarlier: '前のゲームのボール',
+  recordListLabel: '打った順のボール',
+  recordEmpty: 'ボールが入るたびに、ここに並びます。',
+  recordBall: (ball, pocket, linesMade, gave) => `${ball}球目：${pocket}${linesMade > 0 ? `、${linesMade}ライン完成` : ''}${gave > 0 ? `、ボール${gave}球追加` : ''}`,
+  recordTally: (shots, numbers, outs, frees, chance) => `${shots}球：数字${numbers}、OUT ${outs}、FREE ${frees}${chance ? '、CHANCE' : ''}`,
+  recordLegend: '★はラインを完成させたボール。「最近のゲーム」のゲームを押すとそのボールを表示し、もう一度押すと戻ります。',
   oddsTitle: '正確な確率',
   oddsIntro: [
     `ポケットにはそれぞれ公開した重み（全体で${WEIGHT_TOTAL}）があります。各ボールは、そのとき開いているポケットのどれかに、その重み÷開いているポケットの重みの合計の確率で入ります。ボールが入った数字はゲームの終わりまで閉じ、FREEは${FREE_MOST}回出すと閉じ、CHANCEはボールが入ると閉じます。OUTは閉じません。`,

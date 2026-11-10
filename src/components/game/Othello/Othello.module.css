@@ -258,6 +258,14 @@
   background: rgba(255, 255, 255, 0.55);
 }
 
+.hint.suggested,
+.cell.playable:hover .hint.suggested {
+  width: 46%;
+  height: 46%;
+  background: var(--last-ring);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), 0 0 14px 4px var(--last-ring);
+}
+
 @keyframes hintPulse {
   0%,
   100% {
@@ -377,6 +385,13 @@
 .btnGhost:hover {
   background: var(--accent-soft);
   border-color: var(--accent);
+}
+
+.btnGhost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
 }
 
 /* ---------- Move history ---------- */

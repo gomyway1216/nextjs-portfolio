@@ -118,6 +118,9 @@ export const GAME_CONSTANTS = {
   LOCK_DELAY: 500, // ms
   MAX_LOCK_RESETS: 15,
   NEXT_QUEUE_SIZE: 5,
+  MOVE_REPEAT_DELAY: 170, // ms a direction is held before it starts repeating
+  MOVE_REPEAT_INTERVAL: 40, // ms between repeats after that
+  MAX_FRAME_DT: 100, // ms; longest step one frame may simulate (e.g. after a hidden tab)
 } as const;
 
 /**

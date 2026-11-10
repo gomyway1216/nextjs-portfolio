@@ -1,7 +1,8 @@
 /**
  * Tetris game component — modern guideline mechanics:
  * SRS rotation + wall kicks, 7-bag randomizer, hold, 5-piece next queue,
- * ghost piece, soft/hard drop, lock delay, line-clear animation.
+ * ghost piece, soft/hard drop, lock delay, line-clear animation,
+ * hold-to-repeat movement for keys and touch buttons.
  */
 
 'use client';
@@ -50,9 +51,24 @@ import {
   TOTAL_HEIGHT,
 } from './types';
 import { getTetrisStrings } from './i18n';
+import {
+  HeldDirection,
+  MoveDirection,
+  activeDirection,
+  pressDirection,
+  releaseDirection,
+  repeatsBetween,
+} from './inputRepeat';
 import styles from './Tetris.module.css';
 
-const { LOCK_DELAY, MAX_LOCK_RESETS, NEXT_QUEUE_SIZE } = GAME_CONSTANTS;
+const {
+  LOCK_DELAY,
+  MAX_FRAME_DT,
+  MAX_LOCK_RESETS,
+  MOVE_REPEAT_DELAY,
+  MOVE_REPEAT_INTERVAL,
+  NEXT_QUEUE_SIZE,
+} = GAME_CONSTANTS;
 
 interface RunningState {
   board: Board;
@@ -89,7 +105,11 @@ const Tetris = () => {
   const lastTsRef = useRef(0);
   const lockTimerRef = useRef(0);
   const lockResetsRef = useRef(0);
-  const softDropRef = useRef(false);
+  // Held inputs. Each entry names its source (a key or an on-screen button) so
+  // releasing one never cancels another that is still down.
+  const heldDirsRef = useRef<HeldDirection[]>([]);
+  const dirHeldMsRef = useRef(0);
+  const softDropHoldersRef = useRef<Set<string>>(new Set());
   const pausedRef = useRef(false);
   const difficultyRef = useRef<Difficulty>('medium');
   const animatingRef = useRef(false);
@@ -284,14 +304,55 @@ const Tetris = () => {
     sync();
   }, [spawnFromQueue, sync]);
 
-  // Stable pointer-down handlers for the on-screen touch controls.
-  const touchLeft = useCallback((e: React.PointerEvent) => { e.preventDefault(); move(-1); }, [move]);
-  const touchRight = useCallback((e: React.PointerEvent) => { e.preventDefault(); move(1); }, [move]);
+  // --- Held inputs ----------------------------------------------------------
+  // A direction moves once on press; the frame loop then repeats it while it
+  // stays held (see `tick`).
+  const pressDir = useCallback(
+    (id: string, dir: MoveDirection) => {
+      heldDirsRef.current = pressDirection(heldDirsRef.current, id, dir);
+      dirHeldMsRef.current = 0;
+      move(dir);
+    },
+    [move]
+  );
+
+  const releaseDir = useCallback((id: string) => {
+    const before = activeDirection(heldDirsRef.current);
+    heldDirsRef.current = releaseDirection(heldDirsRef.current, id);
+    if (activeDirection(heldDirsRef.current) !== before) dirHeldMsRef.current = 0;
+  }, []);
+
+  const pressSoftDrop = useCallback(
+    (id: string) => {
+      softDropHoldersRef.current.add(id);
+      softDropStep();
+    },
+    [softDropStep]
+  );
+
+  const releaseSoftDrop = useCallback((id: string) => {
+    softDropHoldersRef.current.delete(id);
+  }, []);
+
+  const releaseAllHeld = useCallback(() => {
+    heldDirsRef.current = [];
+    dirHeldMsRef.current = 0;
+    softDropHoldersRef.current.clear();
+  }, []);
+
+  // Stable pointer handlers for the on-screen touch controls.
+  const touchLeft = useCallback((e: React.PointerEvent) => { e.preventDefault(); pressDir('touch-left', -1); }, [pressDir]);
+  const touchLeftEnd = useCallback(() => releaseDir('touch-left'), [releaseDir]);
+  const touchRight = useCallback((e: React.PointerEvent) => { e.preventDefault(); pressDir('touch-right', 1); }, [pressDir]);
+  const touchRightEnd = useCallback(() => releaseDir('touch-right'), [releaseDir]);
   const touchRotateCw = useCallback((e: React.PointerEvent) => { e.preventDefault(); rotate(1); }, [rotate]);
   const touchRotateCcw = useCallback((e: React.PointerEvent) => { e.preventDefault(); rotate(-1); }, [rotate]);
-  const touchSoft = useCallback((e: React.PointerEvent) => { e.preventDefault(); softDropStep(); }, [softDropStep]);
+  const touchSoft = useCallback((e: React.PointerEvent) => { e.preventDefault(); pressSoftDrop('touch-soft'); }, [pressSoftDrop]);
+  const touchSoftEnd = useCallback(() => releaseSoftDrop('touch-soft'), [releaseSoftDrop]);
   const touchHard = useCallback((e: React.PointerEvent) => { e.preventDefault(); hardDrop(); }, [hardDrop]);
   const touchHold = useCallback((e: React.PointerEvent) => { e.preventDefault(); holdPiece(); }, [holdPiece]);
+  // A long press must not open the browser's context menu over a held button.
+  const suppressContextMenu = useCallback((e: React.MouseEvent) => e.preventDefault(), []);
 
   // --- Game loop ------------------------------------------------------------
   // Keep the latest tick logic in a ref so the RAF callback never goes stale
@@ -307,9 +368,28 @@ const Tetris = () => {
       if (!s || s.gameOver) return;
 
       if (!pausedRef.current && !animatingRef.current) {
-        const dt = lastTsRef.current ? ts - lastTsRef.current : 0;
+        // Clamp the step so a long gap between frames (a hidden tab, a stall)
+        // can't lock the piece or fling it sideways in a single frame.
+        const dt = lastTsRef.current
+          ? Math.min(Math.max(ts - lastTsRef.current, 0), MAX_FRAME_DT)
+          : 0;
+
+        const dir = activeDirection(heldDirsRef.current);
+        if (dir !== 0) {
+          const heldBefore = dirHeldMsRef.current;
+          dirHeldMsRef.current = heldBefore + dt;
+          const repeats = repeatsBetween(
+            heldBefore,
+            dirHeldMsRef.current,
+            MOVE_REPEAT_DELAY,
+            MOVE_REPEAT_INTERVAL
+          );
+          for (let i = 0; i < repeats; i++) move(dir);
+        }
+
+        const softDropping = softDropHoldersRef.current.size > 0;
         const baseInterval = getDropInterval(difficultyRef.current, s.level);
-        const interval = softDropRef.current ? Math.min(baseInterval, 45) : baseInterval;
+        const interval = softDropping ? Math.min(baseInterval, 45) : baseInterval;
         dropAccRef.current += dt;
 
         const grounded = !isValidPosition(s.board, {
@@ -326,7 +406,7 @@ const Tetris = () => {
         } else if (dropAccRef.current >= interval) {
           dropAccRef.current = 0;
           s.current = { ...s.current, position: { ...s.current.position, y: s.current.position.y + 1 } };
-          if (softDropRef.current) s.score += GAME_CONSTANTS.SOFT_DROP_POINTS;
+          if (softDropping) s.score += GAME_CONSTANTS.SOFT_DROP_POINTS;
           lockTimerRef.current = 0;
           sync();
         }
@@ -334,7 +414,7 @@ const Tetris = () => {
 
       lastTsRef.current = ts;
     },
-    [commitLock, sync]
+    [commitLock, move, sync]
   );
 
   useEffect(() => {
@@ -372,13 +452,13 @@ const Tetris = () => {
     stateRef.current = s;
     lockTimerRef.current = 0;
     lockResetsRef.current = 0;
-    softDropRef.current = false;
+    releaseAllHeld();
     setClearingRows([]);
     pausedRef.current = false;
     setIsPaused(false);
     setView({ ...s });
     startLoop();
-  }, [startLoop, cancelClearTimer]);
+  }, [startLoop, cancelClearTimer, releaseAllHeld]);
 
   const togglePause = useCallback(() => {
     const s = stateRef.current;
@@ -401,16 +481,18 @@ const Tetris = () => {
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault();
-          move(-1);
+          // The frame loop repeats a held direction, so the OS key repeat is ignored.
+          if (!held.has(e.key)) pressDir('key-left', -1);
+          held.add(e.key);
           return;
         case 'ArrowRight':
           e.preventDefault();
-          move(1);
+          if (!held.has(e.key)) pressDir('key-right', 1);
+          held.add(e.key);
           return;
         case 'ArrowDown':
           e.preventDefault();
-          softDropRef.current = true;
-          if (!held.has(e.key)) softDropStep();
+          if (!held.has(e.key)) pressSoftDrop('key-soft');
           held.add(e.key);
           return;
         case 'ArrowUp':
@@ -446,16 +528,34 @@ const Tetris = () => {
     };
     const onKeyUp = (e: KeyboardEvent) => {
       held.delete(e.key);
-      if (e.key === 'ArrowDown') softDropRef.current = false;
+      if (e.key === 'ArrowLeft') releaseDir('key-left');
+      else if (e.key === 'ArrowRight') releaseDir('key-right');
+      else if (e.key === 'ArrowDown') releaseSoftDrop('key-soft');
+    };
+    // No keyup/pointerup arrives once the window loses focus or the tab is
+    // hidden, so drop everything that is held rather than let it stick.
+    const onBlur = () => {
+      held.clear();
+      releaseAllHeld();
+    };
+    const onVisibility = () => {
+      if (document.hidden) onBlur();
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
+      releaseDir('key-left');
+      releaseDir('key-right');
+      releaseSoftDrop('key-soft');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showDifficultySelect, move, rotate, softDropStep, hardDrop, holdPiece]);
+  }, [showDifficultySelect, pressDir, releaseDir, pressSoftDrop, releaseSoftDrop, releaseAllHeld, rotate, hardDrop, holdPiece]);
 
   // Keep difficulty ref in sync.
   useEffect(() => {
@@ -482,6 +582,7 @@ const Tetris = () => {
   const backToMenu = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     cancelClearTimer();
+    releaseAllHeld();
     stateRef.current = null;
     setClearingRows([]);
     setView(null);
@@ -675,7 +776,16 @@ const Tetris = () => {
 
               {/* Touch controls (mobile only) */}
               <div className={styles.touch} role="group" aria-label={t.controls}>
-                <button type="button" className={styles.touchBtn} onPointerDown={touchLeft} aria-label={t.move}>
+                <button
+                  type="button"
+                  className={styles.touchBtn}
+                  onPointerDown={touchLeft}
+                  onPointerUp={touchLeftEnd}
+                  onPointerCancel={touchLeftEnd}
+                  onPointerLeave={touchLeftEnd}
+                  onContextMenu={suppressContextMenu}
+                  aria-label={t.moveLeft}
+                >
                   <ArrowLeft size={22} />
                 </button>
                 <button type="button" className={styles.touchBtn} onPointerDown={touchRotateCcw} aria-label={t.rotateCcw}>
@@ -684,13 +794,31 @@ const Tetris = () => {
                 <button type="button" className={styles.touchBtn} onPointerDown={touchRotateCw} aria-label={t.rotate}>
                   <RotateCw size={22} />
                 </button>
-                <button type="button" className={styles.touchBtn} onPointerDown={touchRight} aria-label={t.move}>
+                <button
+                  type="button"
+                  className={styles.touchBtn}
+                  onPointerDown={touchRight}
+                  onPointerUp={touchRightEnd}
+                  onPointerCancel={touchRightEnd}
+                  onPointerLeave={touchRightEnd}
+                  onContextMenu={suppressContextMenu}
+                  aria-label={t.moveRight}
+                >
                   <ArrowRight size={22} />
                 </button>
                 <button type="button" className={styles.touchBtn} onPointerDown={touchHold} aria-label={t.hold}>
                   <Square size={20} />
                 </button>
-                <button type="button" className={styles.touchBtn} onPointerDown={touchSoft} aria-label={t.softDrop}>
+                <button
+                  type="button"
+                  className={styles.touchBtn}
+                  onPointerDown={touchSoft}
+                  onPointerUp={touchSoftEnd}
+                  onPointerCancel={touchSoftEnd}
+                  onPointerLeave={touchSoftEnd}
+                  onContextMenu={suppressContextMenu}
+                  aria-label={t.softDrop}
+                >
                   <ArrowDown size={22} />
                 </button>
                 <button
@@ -784,6 +912,7 @@ const Tetris = () => {
               <li>{t.tip2}</li>
               <li>{t.tip3}</li>
               <li>{t.tip4}</li>
+              <li>{t.tip5}</li>
             </ul>
           </div>
         </div>

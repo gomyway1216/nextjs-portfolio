@@ -4,14 +4,17 @@ import {
   DIFFICULTY_ORDER,
   DIFFICULTY_TIERS,
   buildMaze,
+  computeScoreBreakdown,
   computeStageScore,
   findShortestPath,
   generateMaze,
   getStageConfig,
   isSolvable,
   OPEN,
+  reviewRoute,
   WALL,
   type Grid,
+  type Maze,
 } from '@/components/game/MemoryMaze/engine';
 
 // Small seedable PRNG (mulberry32) for deterministic maze tests.
@@ -229,5 +232,115 @@ describe('computeStageScore', () => {
     const early = computeStageScore({ ...base, stage: 1 });
     const late = computeStageScore({ ...base, stage: 10 });
     expect(late).toBeGreaterThan(early);
+  });
+});
+
+describe('computeScoreBreakdown', () => {
+  const input = {
+    difficulty: 'medium' as const,
+    stage: 3,
+    optimalLength: 9,
+    moves: 12,
+    timeLeftSec: 10,
+    livesLeft: 2,
+  };
+
+  it('splits the stage score into its parts', () => {
+    expect(computeScoreBreakdown(input)).toEqual({
+      base: 160,
+      // 8 optimal steps, 4 extra: round(80 * 8 / 12).
+      efficiency: 53,
+      timeBonus: 40,
+      livesBonus: 50,
+      multiplier: 1.5,
+      total: Math.round((160 + 53 + 40 + 50) * 1.5),
+    });
+  });
+
+  it('always totals to computeStageScore', () => {
+    for (const difficulty of DIFFICULTY_ORDER) {
+      for (const moves of [8, 9, 20, 500]) {
+        const parts = computeScoreBreakdown({ ...input, difficulty, moves });
+        expect(parts.total).toBe(computeStageScore({ ...input, difficulty, moves }));
+        expect(parts.total).toBe(
+          Math.round((parts.base + parts.efficiency + parts.timeBonus + parts.livesBonus) * parts.multiplier),
+        );
+      }
+    }
+  });
+});
+
+describe('reviewRoute', () => {
+  // S . .
+  // # # .
+  // . . G
+  const grid: Grid = [
+    [OPEN, OPEN, OPEN],
+    [WALL, WALL, OPEN],
+    [OPEN, OPEN, OPEN],
+  ];
+  const start = { x: 0, y: 0 };
+  const goal = { x: 2, y: 2 };
+  const maze: Maze = { grid, start, goal, size: 3, solution: findShortestPath(grid, start, goal)! };
+  const visitedOf = (cells: Array<[number, number]>) => {
+    const visited = grid.map((row) => row.map(() => false));
+    for (const [x, y] of cells) visited[y][x] = true;
+    return visited;
+  };
+
+  it('reports a clear along the shortest route', () => {
+    const review = reviewRoute({
+      maze,
+      player: goal,
+      moves: 4,
+      visited: visitedOf([[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]]),
+      wallHits: [],
+    });
+    expect(review).toEqual({
+      reachedGoal: true,
+      steps: 4,
+      shortestSteps: 4,
+      extraSteps: 0,
+      repeatedSteps: 0,
+      wallHits: 0,
+      wallsHit: 0,
+      stepsFromGoal: 0,
+    });
+  });
+
+  it('counts extra and repeated steps, and repeated bumps into the same wall', () => {
+    // right, left, right, right, down, down: two steps land on cells already visited.
+    const review = reviewRoute({
+      maze,
+      player: goal,
+      moves: 6,
+      visited: visitedOf([[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]]),
+      wallHits: [{ x: 1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }],
+    });
+    expect(review.reachedGoal).toBe(true);
+    expect(review.extraSteps).toBe(2);
+    expect(review.repeatedSteps).toBe(2);
+    expect(review.wallHits).toBe(3);
+    expect(review.wallsHit).toBe(2);
+  });
+
+  it('measures how far a lost run stopped from the goal, with no extra steps', () => {
+    const review = reviewRoute({
+      maze,
+      player: { x: 1, y: 0 },
+      moves: 1,
+      visited: visitedOf([[0, 0], [1, 0]]),
+      wallHits: [{ x: 1, y: 1 }],
+    });
+    expect(review.reachedGoal).toBe(false);
+    expect(review.stepsFromGoal).toBe(3);
+    expect(review.extraSteps).toBe(0);
+    expect(review.repeatedSteps).toBe(0);
+  });
+
+  it('never reports negative steps for a run that has not moved', () => {
+    const review = reviewRoute({ maze, player: start, moves: 0, visited: visitedOf([[0, 0]]), wallHits: [] });
+    expect(review.repeatedSteps).toBe(0);
+    expect(review.stepsFromGoal).toBe(4);
   });
 });

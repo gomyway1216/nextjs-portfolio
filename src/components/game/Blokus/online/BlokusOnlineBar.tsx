@@ -5,7 +5,7 @@
 
 'use client';
 
-import { LogOut, RotateCcw } from 'lucide-react';
+import { LogOut, RotateCcw, ScrollText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useGameLanguage } from '../../contexts/GameLanguageContext';
 import { getBlokusStrings } from '../i18n';
@@ -25,7 +25,7 @@ const useSecondsLeft = (deadline: number | null): number | null => {
   return deadline === null ? null : Math.max(0, Math.ceil((deadline - now) / 1000));
 };
 
-export const BlokusOnlineBar = ({ online }: { online: UseBlokusOnlineReturn }) => {
+export const BlokusOnlineBar = ({ online, onRecord }: { online: UseBlokusOnlineReturn; onRecord?: () => void }) => {
   const { language } = useGameLanguage();
   const t = getBlokusOnlineStrings(language);
   const { seating, game, mode, mySeat, currentSeat, leftSeats, winners, presence, playerId, isHost, isMyTurn, turnDeadline, roomId, lobbyState } = online;
@@ -34,7 +34,8 @@ export const BlokusOnlineBar = ({ online }: { online: UseBlokusOnlineReturn }) =
 
   if (!seating || !game || !mode || (lobbyState !== 'playing' && lobbyState !== 'finished')) return null;
 
-  const colorNames = getBlokusStrings(language).colors[mode];
+  const strings = getBlokusStrings(language);
+  const colorNames = strings.colors[mode];
   const finished = lobbyState === 'finished';
   const scores = seatScores(seating, game);
   const nameOf = (seat: number): string => {
@@ -112,6 +113,12 @@ export const BlokusOnlineBar = ({ online }: { online: UseBlokusOnlineReturn }) =
             </button>
           ) : (
             <p className={styles.muted}>{t.rematchWait}</p>
+          )}
+          {onRecord && (
+            <button type="button" className={styles.secondary} data-testid="blokus-record-open" onClick={onRecord}>
+              <ScrollText className={styles.icon} aria-hidden="true" />
+              {strings.record.open}
+            </button>
           )}
         </div>
       )}

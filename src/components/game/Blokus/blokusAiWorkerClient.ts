@@ -8,39 +8,35 @@
  * the fallback is only slower to paint, never a different rule.
  */
 
-import type { Difficulty } from '../common/types';
-import type { View } from './ai';
-import { handleRequest, type BlokusAiResponse } from './blokus-ai.worker';
-import type { GameState } from './engine';
+import type { MoveReview } from './ai';
+import { handleRequest, type BlokusAiRequestBody, type BlokusAiResponse, type BlokusMoveRequest, type BlokusReviewRequest } from './blokus-ai.worker';
 
 /** Longer than the slowest level's time limit, with room for a busy phone. */
 export const WORKER_TIMEOUT_MS = 6_000;
 
-export interface MoveRequest {
-  state: GameState;
-  level: Difficulty;
-  seed: number;
-  view?: View;
-  views?: readonly View[];
-}
+export type MoveRequest = Omit<BlokusMoveRequest, 'kind'>;
+export type ReviewRequest = Omit<BlokusReviewRequest, 'kind'>;
 
 export interface BlokusAiClient {
   requestMove(request: MoveRequest): Promise<number>;
+  requestReview(request: ReviewRequest): Promise<MoveReview>;
   terminate(): void;
 }
 
-const answerInProcess = (request: MoveRequest): number => {
-  const response = handleRequest({ requestId: 0, ...request });
-  if (response.move === undefined) throw new Error(response.error ?? 'Blokus AI returned no move');
-  return response.move;
-};
+const answerInProcess = (request: BlokusAiRequestBody): BlokusAiResponse => handleRequest({ requestId: 0, ...request });
 
 interface Pending {
-  request: MoveRequest;
-  resolve: (move: number) => void;
+  request: BlokusAiRequestBody;
+  resolve: (response: BlokusAiResponse) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }
+
+/** The answer a request wanted, or the error that came instead. */
+const take = <T>(response: BlokusAiResponse, value: T | undefined): T => {
+  if (value === undefined) throw new Error(response.error ?? 'Blokus AI returned no answer');
+  return value;
+};
 
 export function createBlokusAiClient(): BlokusAiClient {
   let worker: Worker | null = null;
@@ -72,13 +68,11 @@ export function createBlokusAiClient(): BlokusAiClient {
     try {
       const created = new Worker(new URL('./blokus-ai.worker.ts', import.meta.url), { type: 'module' });
       created.onmessage = (event: MessageEvent<BlokusAiResponse>) => {
-        const { requestId, move, error } = event.data;
-        const entry = pending.get(requestId);
+        const entry = pending.get(event.data.requestId);
         if (!entry) return;
-        pending.delete(requestId);
+        pending.delete(event.data.requestId);
         clearTimeout(entry.timer);
-        if (move === undefined) entry.reject(new Error(error ?? 'Blokus AI returned no move'));
-        else entry.resolve(move);
+        entry.resolve(event.data);
       };
       created.onerror = giveUp;
       worker = created;
@@ -89,26 +83,29 @@ export function createBlokusAiClient(): BlokusAiClient {
     }
   };
 
-  return {
-    requestMove(request) {
-      const active = ensureWorker();
-      if (!active) {
-        return new Promise((resolve, reject) => {
-          try {
-            resolve(answerInProcess(request));
-          } catch (error) {
-            reject(error instanceof Error ? error : new Error(String(error)));
-          }
-        });
-      }
-      const requestId = nextId;
-      nextId += 1;
+  const ask = (request: BlokusAiRequestBody): Promise<BlokusAiResponse> => {
+    const active = ensureWorker();
+    if (!active) {
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(giveUp, WORKER_TIMEOUT_MS);
-        pending.set(requestId, { request, resolve, reject, timer });
-        active.postMessage({ requestId, ...request });
+        try {
+          resolve(answerInProcess(request));
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
       });
-    },
+    }
+    const requestId = nextId;
+    nextId += 1;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(giveUp, WORKER_TIMEOUT_MS);
+      pending.set(requestId, { request, resolve, reject, timer });
+      active.postMessage({ requestId, ...request });
+    });
+  };
+
+  return {
+    requestMove: (request) => ask(request).then((response) => take(response, response.move)),
+    requestReview: (request) => ask({ kind: 'review', ...request }).then((response) => take(response, response.review)),
     terminate() {
       givenUp = true;
       worker?.terminate();

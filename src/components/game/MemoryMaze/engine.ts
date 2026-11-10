@@ -278,13 +278,25 @@ export interface ScoreInput {
   livesLeft: number;
 }
 
+export interface ScoreBreakdown {
+  /** Points for clearing the stage. */
+  base: number;
+  /** Points for routing close to the shortest path. */
+  efficiency: number;
+  timeBonus: number;
+  livesBonus: number;
+  /** Difficulty multiplier applied to the sum of the four parts above. */
+  multiplier: number;
+  total: number;
+}
+
 /**
- * Deterministic stage score.
+ * Deterministic stage score, split into its parts.
  *
  * Rewards: clearing (base), efficient routing (fewer extra moves), speed
  * (time remaining), and surviving (lives kept). Scaled by difficulty.
  */
-export const computeStageScore = (input: ScoreInput): number => {
+export const computeScoreBreakdown = (input: ScoreInput): ScoreBreakdown => {
   const tier = DIFFICULTY_TIERS[input.difficulty];
   const optimal = Math.max(1, input.optimalLength - 1); // moves along optimal path
   const base = 100 + input.stage * 20;
@@ -297,5 +309,68 @@ export const computeStageScore = (input: ScoreInput): number => {
   const livesBonus = Math.max(0, input.livesLeft) * 25;
 
   const raw = base + efficiency + timeBonus + livesBonus;
-  return Math.round(raw * tier.scoreMultiplier);
+  return {
+    base,
+    efficiency,
+    timeBonus,
+    livesBonus,
+    multiplier: tier.scoreMultiplier,
+    total: Math.round(raw * tier.scoreMultiplier),
+  };
+};
+
+export const computeStageScore = (input: ScoreInput): number => computeScoreBreakdown(input).total;
+
+// ---------------------------------------------------------------------------
+// Post-stage route review
+// ---------------------------------------------------------------------------
+
+export interface RouteReviewInput {
+  maze: Maze;
+  /** Where the player stood when the stage ended. */
+  player: Position;
+  /** Successful steps taken (wall bumps are not steps). */
+  moves: number;
+  /** Cells the player stood on, indexed [y][x]; includes the start. */
+  visited: boolean[][];
+  /** Every wall bump in order; the same wall can appear more than once. */
+  wallHits: Position[];
+}
+
+export interface RouteReview {
+  reachedGoal: boolean;
+  steps: number;
+  /** Steps along the shortest start -> goal path. */
+  shortestSteps: number;
+  /** Steps beyond the shortest path; 0 unless the goal was reached. */
+  extraSteps: number;
+  /** Steps that landed on a cell the player had already stood on. */
+  repeatedSteps: number;
+  wallHits: number;
+  /** Distinct wall cells among the bumps. */
+  wallsHit: number;
+  /** Shortest number of steps from where the player ended to the goal. */
+  stepsFromGoal: number;
+}
+
+export const reviewRoute = (input: RouteReviewInput): RouteReview => {
+  const { maze, player, moves, visited, wallHits } = input;
+  const reachedGoal = player.x === maze.goal.x && player.y === maze.goal.y;
+  const shortestSteps = Math.max(0, maze.solution.length - 1);
+  const visitedCells = visited.reduce(
+    (sum, row) => sum + row.reduce((rowSum, seen) => rowSum + (seen ? 1 : 0), 0),
+    0,
+  );
+  const remaining = findShortestPath(maze.grid, player, maze.goal);
+  return {
+    reachedGoal,
+    steps: moves,
+    shortestSteps,
+    extraSteps: reachedGoal ? Math.max(0, moves - shortestSteps) : 0,
+    // Every step either reaches a new cell or repeats one; the start is visited without a step.
+    repeatedSteps: Math.max(0, moves - Math.max(0, visitedCells - 1)),
+    wallHits: wallHits.length,
+    wallsHit: new Set(wallHits.map((hit) => `${hit.x},${hit.y}`)).size,
+    stepsFromGoal: remaining ? remaining.length - 1 : 0,
+  };
 };

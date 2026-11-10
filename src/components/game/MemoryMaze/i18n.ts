@@ -44,6 +44,40 @@ export interface MemoryMazeStrings {
   cellGoal: string;
   cellWall: string;
   cellPath: string;
+  cellWallHit: string;
+  cellShortest: string;
+  cellYourRoute: string;
+  // Post-stage route review
+  reviewOpen: string;
+  reviewBack: string;
+  reviewTitle: string;
+  reviewMatched: string;
+  reviewLonger: (extra: number) => string;
+  reviewStopped: (stepsFromGoal: number) => string;
+  reviewSteps: string;
+  reviewShortest: string;
+  reviewRepeated: string;
+  reviewWallHits: string;
+  reviewWallHitsValue: (hits: number, walls: number) => string;
+  reviewScoreTitle: string;
+  reviewBase: string;
+  reviewEfficiency: string;
+  reviewTimeBonus: string;
+  reviewLivesBonus: string;
+  reviewMultiplier: string;
+  reviewStageScore: string;
+  reviewLegend: string;
+  legendYourRoute: string;
+  legendShortest: string;
+  legendWallHit: string;
+  legendYou: string;
+  legendGoal: string;
+  reviewNote: string;
+  dpad: string;
+  dirUp: string;
+  dirDown: string;
+  dirLeft: string;
+  dirRight: string;
 }
 
 const en: MemoryMazeStrings = {
@@ -90,6 +124,41 @@ const en: MemoryMazeStrings = {
   cellGoal: 'goal',
   cellWall: 'wall',
   cellPath: 'path',
+  cellWallHit: 'wall you hit',
+  cellShortest: 'shortest route',
+  cellYourRoute: 'your route',
+  reviewOpen: 'Review route',
+  reviewBack: 'Back to result',
+  reviewTitle: 'Route review',
+  reviewMatched: 'You matched the shortest route.',
+  reviewLonger: (extra) =>
+    extra === 1 ? '1 step longer than the shortest route.' : `${extra} steps longer than the shortest route.`,
+  reviewStopped: (stepsFromGoal) =>
+    stepsFromGoal === 1 ? 'You stopped 1 step from the goal.' : `You stopped ${stepsFromGoal} steps from the goal.`,
+  reviewSteps: 'Your steps',
+  reviewShortest: 'Shortest route',
+  reviewRepeated: 'Steps onto cells you had already visited',
+  reviewWallHits: 'Wall hits',
+  reviewWallHitsValue: (hits, walls) => (hits === walls ? `${hits}` : `${hits} (${walls} different walls)`),
+  reviewScoreTitle: 'Stage score',
+  reviewBase: 'Stage clear',
+  reviewEfficiency: 'Route efficiency',
+  reviewTimeBonus: 'Time left',
+  reviewLivesBonus: 'Lives kept',
+  reviewMultiplier: 'Difficulty multiplier',
+  reviewStageScore: 'Total',
+  reviewLegend: 'Legend',
+  legendYourRoute: 'Cells you visited',
+  legendShortest: 'Shortest route',
+  legendWallHit: 'Wall you hit',
+  legendYou: 'You',
+  legendGoal: 'Goal',
+  reviewNote: 'The dots mark the shortest route that glowed at the start. Other routes of the same length may exist.',
+  dpad: 'Direction pad',
+  dirUp: 'Up',
+  dirDown: 'Down',
+  dirLeft: 'Left',
+  dirRight: 'Right',
 };
 
 const ja: MemoryMazeStrings = {
@@ -136,6 +205,39 @@ const ja: MemoryMazeStrings = {
   cellGoal: 'ゴール',
   cellWall: '壁',
   cellPath: '通路',
+  cellWallHit: 'ぶつかった壁',
+  cellShortest: '最短経路',
+  cellYourRoute: '通ったマス',
+  reviewOpen: 'ルートを振り返る',
+  reviewBack: '結果に戻る',
+  reviewTitle: 'ルートの振り返り',
+  reviewMatched: '最短経路と同じ歩数でゴール！',
+  reviewLonger: (extra) => `最短経路より${extra}歩多くかかりました。`,
+  reviewStopped: (stepsFromGoal) => `ゴールまであと${stepsFromGoal}歩でした。`,
+  reviewSteps: '歩いた歩数',
+  reviewShortest: '最短経路',
+  reviewRepeated: '一度通ったマスに戻った歩数',
+  reviewWallHits: '壁にぶつかった回数',
+  reviewWallHitsValue: (hits, walls) => (hits === walls ? `${hits}` : `${hits}（壁${walls}か所）`),
+  reviewScoreTitle: 'ステージスコア',
+  reviewBase: 'ステージクリア',
+  reviewEfficiency: '経路の効率',
+  reviewTimeBonus: '残り時間',
+  reviewLivesBonus: '残ったライフ',
+  reviewMultiplier: '難易度倍率',
+  reviewStageScore: '合計',
+  reviewLegend: '凡例',
+  legendYourRoute: '通ったマス',
+  legendShortest: '最短経路',
+  legendWallHit: 'ぶつかった壁',
+  legendYou: 'あなた',
+  legendGoal: 'ゴール',
+  reviewNote: '点は最初に光った最短経路です。同じ歩数の別ルートがある場合もあります。',
+  dpad: '十字キー',
+  dirUp: '上',
+  dirDown: '下',
+  dirLeft: '左',
+  dirRight: '右',
 };
 
 export const getStrings = (language: GameLanguage): MemoryMazeStrings =>

@@ -16,13 +16,16 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import {
   DIFFICULTY_ORDER,
   buildMaze,
+  computeScoreBreakdown,
   computeStageScore,
   getStageConfig,
+  reviewRoute,
   type Maze,
   type Position,
 } from './engine';
 import { getStrings } from './i18n';
 import styles from './MemoryMaze.module.css';
+import { RouteReview } from './RouteReview';
 
 type Phase = 'menu' | 'preview' | 'playing' | 'won' | 'lost';
 
@@ -46,6 +49,8 @@ interface RunState {
   message: string;
   tone: 'neutral' | 'good' | 'bad';
   bump: Position | null;
+  /** Every wall bump this stage, in order, for the post-stage review. */
+  wallHits: Position[];
   lossReason: 'time' | 'lives' | null;
 }
 
@@ -84,10 +89,11 @@ const applyMove = (prev: RunState, dx: number, dy: number, msg: Messages): RunSt
   // Hit a wall -> lose a life.
   if (prev.maze.grid[ny][nx] === 1) {
     const lives = prev.lives - 1;
+    const wallHits = [...prev.wallHits, { x: nx, y: ny }];
     if (lives <= 0) {
-      return { ...prev, lives: 0, phase: 'lost', lossReason: 'lives', message: msg.outOfLives, tone: 'bad', bump: { x: nx, y: ny } };
+      return { ...prev, lives: 0, phase: 'lost', lossReason: 'lives', message: msg.outOfLives, tone: 'bad', bump: { x: nx, y: ny }, wallHits };
     }
-    return { ...prev, lives, message: msg.wall, tone: 'bad', bump: { x: nx, y: ny } };
+    return { ...prev, lives, message: msg.wall, tone: 'bad', bump: { x: nx, y: ny }, wallHits };
   }
 
   const visited = prev.visited.map((row) => [...row]);
@@ -139,6 +145,12 @@ export const MemoryMaze = () => {
   const [best, setBest] = useState(0);
   const [totalStats, setTotalStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [run, setRun] = useState<RunState | null>(null);
+  // The stage whose route review is open. Keyed by runId so that starting any
+  // other stage (or leaving to the menu) closes the review without a reset.
+  const [reviewRunId, setReviewRunId] = useState<number | null>(null);
+  const reviewButtonRef = useRef<HTMLButtonElement>(null);
+  const reviewBackRef = useRef<HTMLButtonElement>(null);
+  const reviewToggledRef = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const runIdRef = useRef(0);
@@ -151,6 +163,38 @@ export const MemoryMaze = () => {
   }, [run]);
 
   const phase: Phase = run?.phase ?? 'menu';
+  const ended = phase === 'won' || phase === 'lost';
+  const reviewing = ended && run !== null && reviewRunId === run.runId;
+
+  const toggleReview = useCallback((open: boolean) => {
+    reviewToggledRef.current = true;
+    setReviewRunId(open ? (runRef.current?.runId ?? null) : null);
+  }, []);
+
+  // The button that was pressed unmounts with its panel, so hand focus to its counterpart.
+  useEffect(() => {
+    if (!reviewToggledRef.current) return;
+    reviewToggledRef.current = false;
+    (reviewing ? reviewBackRef : reviewButtonRef).current?.focus();
+  }, [reviewing]);
+
+  const review = useMemo(() => {
+    if (!run || !reviewing) return null;
+    return {
+      route: reviewRoute(run),
+      breakdown:
+        run.phase === 'won'
+          ? computeScoreBreakdown({
+              difficulty: run.difficulty,
+              stage: run.stage,
+              optimalLength: run.maze.solution.length,
+              moves: run.moves,
+              timeLeftSec: run.timeSec,
+              livesLeft: run.lives,
+            })
+          : null,
+    };
+  }, [run, reviewing]);
 
   const messages: Messages = useMemo(
     () => ({
@@ -208,6 +252,7 @@ export const MemoryMaze = () => {
         message: t.memorize,
         tone: 'neutral',
         bump: null,
+        wallHits: [],
         lossReason: null,
       });
     },
@@ -327,6 +372,7 @@ export const MemoryMaze = () => {
   const renderBoard = (r: RunState) => {
     const revealAll = r.phase === 'preview' || r.phase === 'won' || r.phase === 'lost';
     const solutionSet = new Set(r.maze.solution.map((p) => `${p.x},${p.y}`));
+    const hitSet = new Set(r.wallHits.map((p) => `${p.x},${p.y}`));
 
     return (
       <div
@@ -362,6 +408,10 @@ export const MemoryMaze = () => {
               if (isGoal) classes.push(styles.cellGoal);
               if (isPlayer) classes.push(styles.cellPlayer);
               if (isBump) classes.push(styles.cellBump);
+              const isHit = reviewing && isWall && hitSet.has(`${x},${y}`);
+              const isShortest = reviewing && !isWall && onSolution && !isPlayer && !isGoal;
+              if (isHit) classes.push(styles.cellHit);
+              if (isShortest) classes.push(styles.cellShortest);
 
               return (
                 <div
@@ -374,9 +424,15 @@ export const MemoryMaze = () => {
                       ? t.cellPlayer
                       : isGoal
                         ? t.cellGoal
-                        : isWall && wallVisible
-                          ? t.cellWall
-                          : t.cellPath
+                        : isHit
+                          ? t.cellWallHit
+                          : isWall && wallVisible
+                            ? t.cellWall
+                            : isShortest
+                              ? t.cellShortest
+                              : reviewing && isVisited
+                                ? t.cellYourRoute
+                                : t.cellPath
                   }
                 />
               );
@@ -384,7 +440,7 @@ export const MemoryMaze = () => {
           )}
         </div>
 
-        {(r.phase === 'won' || r.phase === 'lost') && (
+        {(r.phase === 'won' || r.phase === 'lost') && !reviewing && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle} data-tone={r.phase === 'won' ? 'win' : 'lose'}>
               {r.phase === 'won'
@@ -506,12 +562,35 @@ export const MemoryMaze = () => {
           {renderBoard(run)}
 
           {run.phase === 'playing' && (
-            <div className={styles.dpad} aria-label="direction pad">
-              <button type="button" className={`${styles.dpadBtn} ${styles.dpadUp}`} onClick={() => move(0, -1)} aria-label="up">↑</button>
-              <button type="button" className={`${styles.dpadBtn} ${styles.dpadLeft}`} onClick={() => move(-1, 0)} aria-label="left">←</button>
-              <button type="button" className={`${styles.dpadBtn} ${styles.dpadRight}`} onClick={() => move(1, 0)} aria-label="right">→</button>
-              <button type="button" className={`${styles.dpadBtn} ${styles.dpadDown}`} onClick={() => move(0, 1)} aria-label="down">↓</button>
+            <div className={styles.dpad} role="group" aria-label={t.dpad}>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadUp}`} onClick={() => move(0, -1)} aria-label={t.dirUp}>↑</button>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadLeft}`} onClick={() => move(-1, 0)} aria-label={t.dirLeft}>←</button>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadRight}`} onClick={() => move(1, 0)} aria-label={t.dirRight}>→</button>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadDown}`} onClick={() => move(0, 1)} aria-label={t.dirDown}>↓</button>
             </div>
+          )}
+
+          {ended && !reviewing && (
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnGhost}`}
+                onClick={() => toggleReview(true)}
+                ref={reviewButtonRef}
+              >
+                {t.reviewOpen}
+              </button>
+            </div>
+          )}
+
+          {review && (
+            <RouteReview
+              t={t}
+              review={review.route}
+              breakdown={review.breakdown}
+              onBack={() => toggleReview(false)}
+              backButtonRef={reviewBackRef}
+            />
           )}
 
           <p className={styles.hint}>{t.controlsDetail}</p>

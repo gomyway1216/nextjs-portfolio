@@ -69,7 +69,7 @@ export function hasCollision(birthdays: number[]): boolean {
 }
 
 // Day-of-year (0-364) → "M/D" for a non-leap year.
-const MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+export const MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 export function dayLabel(dayOfYear: number): string {
   let d = dayOfYear;
   for (let m = 0; m < 12; m++) {
@@ -77,6 +77,41 @@ export function dayLabel(dayOfYear: number): string {
     d -= MONTH_LENGTHS[m];
   }
   return '?';
+}
+
+export interface SharedBirthday {
+  day: number;
+  /** Indices (ascending) of everyone born on `day`; always two or more. */
+  indices: number[];
+}
+
+/** Every day that two or more people share, ordered by day of year. */
+export function findSharedBirthdays(birthdays: number[]): SharedBirthday[] {
+  const byDay = new Map<number, number[]>();
+  for (let i = 0; i < birthdays.length; i++) {
+    const existing = byDay.get(birthdays[i]);
+    if (existing) existing.push(i);
+    else byDay.set(birthdays[i], [i]);
+  }
+  const shared: SharedBirthday[] = [];
+  byDay.forEach((indices, day) => {
+    if (indices.length >= 2) shared.push({ day, indices });
+  });
+  return shared.sort((a, b) => a.day - b.day);
+}
+
+/** How many people were born on each day of the year (length DAYS_IN_YEAR). */
+export function countByDay(birthdays: number[]): number[] {
+  const counts = new Array<number>(DAYS_IN_YEAR).fill(0);
+  for (const d of birthdays) {
+    if (d >= 0 && d < DAYS_IN_YEAR) counts[d]++;
+  }
+  return counts;
+}
+
+/** Number of distinct pairs among `n` people: n(n-1)/2. */
+export function pairCount(n: number): number {
+  return n < 2 ? 0 : (n * (n - 1)) / 2;
 }
 
 // ---------- Simulation ----------

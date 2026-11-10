@@ -16,6 +16,8 @@ import { getStrings } from './i18n';
 import { MedalIcon } from './MedalIcon';
 import { BET_OPTIONS, browserStorage, createTable, randomName, tabName, type Bet, type Round, type Table } from './medals';
 import { Reels } from './Reels';
+import { EMPTY_LOG, recordSpin, type SessionLog } from './sessionLog';
+import { SessionRecord } from './SessionRecord';
 import { SlotSymbol } from './Symbols';
 import styles from './SlotMachine.module.css';
 
@@ -100,6 +102,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
   const [lastResumed, setLastResumed] = useState(false);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   const [recent, setRecent] = useState<RecentSpin[]>([]);
+  const [log, setLog] = useState<SessionLog>(EMPTY_LOG);
   const [autoLeft, setAutoLeft] = useState(0);
   const [bigWin, setBigWin] = useState(false);
   const [announcement, setAnnouncement] = useState('');
@@ -191,6 +194,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     }));
     const entry = { id: recentId.current++, result };
     setRecent((r) => [entry, ...r].slice(0, RECENT_LIMIT));
+    setLog((l) => recordSpin(l, result));
     if (pending.resumed) setAnnouncement(live.current.t.resumed);
   }, [payMedals, payWin, play]);
 
@@ -217,6 +221,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
           setHiddenWin(0);
           setStats(EMPTY_STATS);
           setRecent([]);
+          setLog(EMPTY_LOG);
           setLast(null);
           setLastResumed(false);
           setBigWin(false);
@@ -522,6 +527,8 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
             {stats.spins > 0 && <p className={styles.note}>{t.rtpGapNote(stats.spins, fmt(ODDS.spinsForOnePercent))}</p>}
           </div>
         </section>
+
+        <SessionRecord log={log} odds={ODDS} language={language} />
 
         <section className={styles.panel} aria-labelledby="slot-paytable-title">
           <h2 id="slot-paytable-title" className={styles.panelTitle}>

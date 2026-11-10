@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import { MEDAL_CENTER_PATH } from '@/components/game/MedalCenter/paths';
 import { NOT_MONEY } from '@/components/game/MedalCenter/strings';
-import { REELS, analyzeMachine } from '@/components/game/SlotMachine/engine';
+import { PAY_RULES, REELS, analyzeMachine } from '@/components/game/SlotMachine/engine';
+import { EMPTY_LOG, recordSpin, type SessionLog } from '@/components/game/SlotMachine/sessionLog';
+import { SessionRecord } from '@/components/game/SlotMachine/SessionRecord';
 import { getStrings, type SlotStrings } from '@/components/game/SlotMachine/i18n';
 import { OddsTab } from '@/components/game/SlotMachine/OddsTab';
 import { BET_PLACES, MEDAL_PLACES, PlayTab, WIN_PLACES } from '@/components/game/SlotMachine/PlayTab';
@@ -68,6 +70,50 @@ describe('PlayTab', () => {
     expect(markup).toContain('レバーを引いて回す');
     expect(markup).toContain('配当表');
     expect(markup).toContain(getStrings('ja').notMoney);
+  });
+});
+
+describe('SessionRecord', () => {
+  const played = (): SessionLog => {
+    let log = EMPTY_LOG;
+    for (let i = 0; i < 19; i++) log = recordSpin(log, { bet: 1, win: 0, rule: null });
+    const cherry = PAY_RULES.find((rule) => rule.id === 'cherry2')!;
+    return recordSpin(log, { bet: 1, win: cherry.pays, rule: cherry });
+  };
+
+  it('is on the play tab before the first spin, with an empty chart that says how to start it and a tally of noughts', () => {
+    const markup = render(<PlayTab />);
+    expect(markup).toContain('data-testid="slot-session-chart"');
+    expect(markup).toContain(`aria-label="${getStrings('en').chartEmpty}"`);
+    expect(markup).not.toContain('<polyline');
+    expect(markup.match(/data-testid="slot-tally-[a-z0-9]+">0</g)).toHaveLength(PAY_RULES.length);
+    expect(markup).toContain('data-testid="slot-chart-net">0<');
+    expect(markup).toContain('data-testid="slot-chart-average">0.00<');
+  });
+
+  it('draws the net medals and the average line, and counts each line beside its average', () => {
+    const markup = render(<SessionRecord log={played()} odds={ODDS} language="en" />);
+    expect(markup.match(/<polyline/g)).toHaveLength(2);
+    expect(markup).toContain('data-points="21"');
+    // 19 lost at 1 medal, then 6 for 1: −14 net; on average 20 × the house edge are gone.
+    expect(markup).toContain('data-testid="slot-chart-net">−14<');
+    expect(markup).toContain(`data-testid="slot-chart-average">−${(20 * ODDS.houseEdge).toFixed(2)}<`);
+    expect(markup).toContain('Net medals over 20 spins: now −14.');
+    expect(markup).toContain('data-testid="slot-tally-cherry2">1<');
+    expect(markup).toContain('data-testid="slot-tally-seven3">0<');
+    // Three 7s in 20 spins: far too rare for one decimal, and not said to be none.
+    expect(markup).toContain('&lt;0.1');
+    const cherry1 = ODDS.rules.find((r) => r.rule.id === 'cherry1')!;
+    expect(markup).toContain(`>${(20 * cherry1.probability).toFixed(1)}<`);
+    expect(markup).toContain(`(−${(ODDS.houseEdge * 100).toFixed(2)}% of the medals bet)`);
+  });
+
+  it('is localized, the chart’s description included', () => {
+    const t = getStrings('ja');
+    const markup = render(<SessionRecord log={played()} odds={ODDS} language="ja" />);
+    for (const text of [t.recordTitle, t.chartNet, t.tallyTitle, t.tallyYours, t.tallyExpected, t.tallyNote('20')]) expect(markup).toContain(text);
+    expect(markup).toContain(`aria-label="${t.chartAria('20', '−14', `−${(20 * ODDS.houseEdge).toFixed(2)}`)}"`);
+    expect(markup).not.toContain('Net medals');
   });
 });
 

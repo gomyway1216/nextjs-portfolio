@@ -69,6 +69,18 @@ export interface SlotStrings {
   payColLine: string;
   payColBet: (bet: number) => string;
   recentSpins: string;
+  // The session's chart and tally
+  recordTitle: string;
+  chartNet: string;
+  /** The line of what the medals bet come to on average; `edge` is the house edge as a percentage. */
+  chartAverage: (edge: string) => string;
+  chartEmpty: string;
+  /** The chart read out: the spins, the net medals and the average for the medals bet, each already formatted. */
+  chartAria: (spins: string, net: string, average: string) => string;
+  tallyTitle: string;
+  tallyYours: string;
+  tallyExpected: string;
+  tallyNote: (spins: string) => string;
   // Odds
   oddsIntro: string[];
   rtp: string;
@@ -195,6 +207,16 @@ const EN: SlotStrings = {
   payColLine: 'Line',
   payColBet: (bet) => `BET ${bet}`,
   recentSpins: 'Recent spins',
+  recordTitle: 'Session chart',
+  chartNet: 'Your net medals',
+  chartAverage: (edge) => `Long-run average (−${edge} of the medals bet)`,
+  chartEmpty: 'Spin to start the chart.',
+  chartAria: (spins, net, average) =>
+    `Net medals over ${spins} spins: now ${net}. The long-run average for the medals bet so far is ${average}.`,
+  tallyTitle: 'Wins by line',
+  tallyYours: 'Yours',
+  tallyExpected: 'Average',
+  tallyNote: (spins) => `Average = each line’s exact chance × the ${spins} spins of this session.`,
   oddsIntro: [
     'Each reel has 22 physical stops, but the random number generator picks one of 64 virtual stops that map onto them. Counting every combination of virtual stops (64³ = 262,144) gives the exact odds below.',
   ],
@@ -326,6 +348,15 @@ const JA: SlotStrings = {
   payColLine: '役',
   payColBet: (bet) => `${bet}枚`,
   recentSpins: '最近のスピン',
+  recordTitle: 'セッションのグラフ',
+  chartNet: 'あなたの差枚数',
+  chartAverage: (edge) => `長期の平均（ベット枚数の −${edge}）`,
+  chartEmpty: 'スピンするとグラフが始まります。',
+  chartAria: (spins, net, average) => `${spins} 回のスピンの差枚数：現在 ${net} 枚。ここまでのベット枚数に対する長期の平均は ${average} 枚です。`,
+  tallyTitle: '役ごとの当たり回数',
+  tallyYours: 'あなた',
+  tallyExpected: '平均',
+  tallyNote: (spins) => `平均 = 各役の正確な確率 × このセッションのスピン数（${spins} 回）。`,
   oddsIntro: [
     '各リールの物理的なコマは 22 個ですが、乱数は 64 個のバーチャルストップから 1 つを選び、それが物理的なコマに対応します。バーチャルストップの組み合わせ（64³ = 262,144 通り）をすべて数えると、下の厳密な確率になります。',
   ],

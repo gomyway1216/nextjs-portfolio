@@ -411,6 +411,22 @@
 .playBtn { background: linear-gradient(120deg, #16a34a, #15803d); }
 .passBtn { background: linear-gradient(120deg, #d97706, #b45309); }
 .clearBtn { background: rgba(71, 85, 105, 0.9); }
+.hintBtn { background: linear-gradient(120deg, #7c3aed, #6d28d9); }
+
+.hintLine {
+  color: #ddd6fe;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.hintLine:not(:empty) {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  background: rgba(124, 58, 237, 0.16);
+}
 
 .errorText {
   color: #fca5a5;

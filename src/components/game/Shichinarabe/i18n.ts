@@ -5,6 +5,7 @@
 
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { ShichinarabeAIDifficulty } from './ShichinarabeAI';
+import type { ShichinarabeHintReason } from './ShichinarabeHint';
 
 export interface ShichinarabeStrings {
   title: string;
@@ -44,6 +45,10 @@ export interface ShichinarabeStrings {
   selectCardFirst: string;
   playerCountError: string;
   aiThinking: (name: string) => string;
+  hint: string;
+  hintPlay: (card: string) => string;
+  hintPass: string;
+  hintReasons: Record<ShichinarabeHintReason, (ownCardsBehind: number) => string>;
   // Log verbs
   logPlayed: (name: string, card: string) => string;
   logPassed: (name: string, used: number, max: number) => string;
@@ -109,6 +114,18 @@ export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
     selectCardFirst: 'Select a card',
     playerCountError: 'Total players must be between 3 and 6.',
     aiThinking: (name) => `${name} is thinking…`,
+    hint: 'Hint',
+    hintPlay: (card) => `Hint: play ${card}.`,
+    hintPass: 'Hint: pass.',
+    hintReasons: {
+      forcedPass: () => 'None of your cards fits the table.',
+      hold: () => 'Every card you could play would hand an opponent their next move, and you have passes to spare.',
+      onlyMove: () => 'It is your only legal card, and playing beats spending a pass.',
+      unblocksOwn: (n) => `It opens the way for ${n} more of your own ${n === 1 ? 'card' : 'cards'} in that suit.`,
+      deadEnd: () => 'It ends that row, so nobody gains a new place to play.',
+      safe: () => 'No opponent is likely to hold the card that follows it.',
+      leastHarm: () => 'Every option opens a slot for an opponent; this one costs you the least.',
+    },
     logPlayed: (name, card) => `${name} played ${card}`,
     logPassed: (name, used, max) => `${name} passed (${used}/${max})`,
     logEliminated: (name) => `${name} was eliminated`,
@@ -182,6 +199,18 @@ export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
     selectCardFirst: 'カードを選んでください',
     playerCountError: '合計人数は3〜6人にしてください。',
     aiThinking: (name) => `${name} が考えています…`,
+    hint: 'ヒント',
+    hintPlay: (card) => `ヒント：${card} を出しましょう。`,
+    hintPass: 'ヒント：パスしましょう。',
+    hintReasons: {
+      forcedPass: () => '場に出せるカードがありません。',
+      hold: () => 'どのカードを出しても相手の次の一手を助けてしまいます。パスにはまだ余裕があります。',
+      onlyMove: () => '出せるのはこの1枚だけです。パスを使うより出すほうが得です。',
+      unblocksOwn: (n) => `同じスートの自分のカードがあと ${n} 枚、出せるようになっていきます。`,
+      deadEnd: () => 'その列はここで終わるので、誰にも新しい出し場所を与えません。',
+      safe: () => '次に続くカードを相手が持っている可能性は低いです。',
+      leastHarm: () => 'どれを出しても相手に出し場所を与えますが、これがいちばん損が少ない手です。',
+    },
     logPlayed: (name, card) => `${name} が ${card} を出しました`,
     logPassed: (name, used, max) => `${name} がパス（${used}/${max}）`,
     logEliminated: (name) => `${name} が脱落しました`,

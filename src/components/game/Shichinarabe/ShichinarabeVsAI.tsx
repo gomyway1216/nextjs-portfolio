@@ -12,6 +12,7 @@ import { GameTopBar, InfoModal, GameStats, getDifficultyColor } from '../common'
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { applyAction, createInitialShichinarabeState, getPlayableCardsForPlayer } from './gameLogic';
 import { decideShichinarabeAction, ShichinarabeAIDifficulty } from './ShichinarabeAI';
+import { getShichinarabeHint, type ShichinarabeHint } from './ShichinarabeHint';
 import { cardToShortLabel, rankToLabel, SUITS, SUIT_SYMBOL } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { getShichinarabeStrings, DIFFICULTY_ORDER } from './i18n';
@@ -58,6 +59,11 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
   // The difficulty the current game is being played at (locked in at start).
   const [activeDifficulty, setActiveDifficulty] = useState<ShichinarabeAIDifficulty>('hard');
   const difficultyRef = useRef<ShichinarabeAIDifficulty>('hard');
+
+  // A hint is tied to the exact position it was computed for, so it disappears
+  // by itself as soon as anyone moves.
+  const [hintRecord, setHintRecord] = useState<{ state: ShichinarabeNetworkState; hint: ShichinarabeHint } | null>(null);
+  const hint = hintRecord && hintRecord.state === gameState ? hintRecord.hint : null;
 
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -286,6 +292,19 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
     }
     setGameState(result.state);
   };
+
+  const handleHint = () => {
+    if (!gameState || !isMyTurn) return;
+    const next = getShichinarabeHint(gameState, humanId);
+    if (!next) return;
+    setLocalError(null);
+    setHintRecord({ state: gameState, hint: next });
+    setSelectedCardId(next.card ? next.card.id : null);
+  };
+
+  const hintText = hint
+    ? `${hint.card ? t.hintPlay(cardToShortLabel(hint.card)) : t.hintPass} ${t.hintReasons[hint.reason](hint.ownCardsBehind)}`
+    : null;
 
   const handleNewGame = () => {
     if (!gameState) return;
@@ -634,10 +653,18 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                   >
                     {t.clear}
                   </button>
+                  <button
+                    className={`${styles.actionBtn} ${styles.hintBtn}`}
+                    onClick={handleHint}
+                    disabled={!isMyTurn || gameState.finished}
+                  >
+                    {t.hint}
+                  </button>
                   <span className={styles.hint} style={{ marginLeft: 'auto' }}>
                     {iHaveNoLegalMove ? t.noLegalMove : isMyTurn ? t.legalHint : ''}
                   </span>
                 </div>
+                <div className={styles.hintLine} role="status" aria-live="polite">{hintText}</div>
                 {localError && <div className={styles.errorText} style={{ marginTop: '0.6rem' }}>{localError}</div>}
               </div>
 

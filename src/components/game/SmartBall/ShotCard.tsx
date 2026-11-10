@@ -12,6 +12,8 @@ export interface ShotCardProps {
   marbles: readonly MarblePlay[];
   /** The marble on the plunger or on its way, while a play is under way. */
   now: number | null;
+  /** How many of the marbles the player shot, for a play that was finished blind; left out where they shot them all. */
+  own?: number;
 }
 
 /**
@@ -19,8 +21,8 @@ export interface ShotCardProps {
  * (or OUT), with the marbles that completed a line marked. Its ten places are there from the start, so nothing moves
  * as they fill.
  */
-export const ShotCard = ({ t, marbles, now }: ShotCardProps) => {
-  const cells = useMemo(() => cellsOf(cardOf(marbles)), [marbles]);
+export const ShotCard = ({ t, marbles, now, own }: ShotCardProps) => {
+  const cells = useMemo(() => cellsOf(cardOf(marbles, own)), [marbles, own]);
   return (
     <section className={styles.panel} aria-labelledby="smb-card-title">
       <h2 id="smb-card-title" className={styles.panelTitle}>

@@ -82,6 +82,8 @@ interface Ended {
   play: Play;
   /** The last play from before this page opened, or one finished from before. */
   earlier: boolean;
+  /** How many of its marbles the player shot, where the rest were shot blind as it was finished (`PlayRecord.own`). */
+  own?: number;
 }
 
 interface SessionStats {
@@ -293,7 +295,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         payWin();
       }
       setShownLit(ended.lit);
-      const entry: Ended = { id: staked.record.id, play: ended, earlier: how === 'resumed' };
+      const entry: Ended = { id: staked.record.id, play: ended, earlier: how === 'resumed', own: staked.record.own };
       setOutcome(entry);
       setHistory((list) => [entry, ...list.filter((e) => e.id !== entry.id)].slice(0, HISTORY_LIMIT));
       if (how !== 'resumed') {
@@ -579,7 +581,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           setKnown(true);
           if (record && record.paid && shownLast.current !== record.id) {
             shownLast.current = record.id;
-            const ended: Ended = { id: record.id, play: playOfRecord(record), earlier: true };
+            const ended: Ended = { id: record.id, play: playOfRecord(record), earlier: true, own: record.own };
             setShownLit(ended.play.lit);
             setOutcome(ended);
             setHistory((before) => (before.some((entry) => entry.id === ended.id) ? before : [ended, ...before].slice(0, HISTORY_LIMIT)));
@@ -1031,7 +1033,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
-        <ShotCard t={t} marbles={cardMarbles} now={running ? marble : null} />
+        <ShotCard t={t} marbles={cardMarbles} now={running ? marble : null} own={running ? undefined : outcome?.own} />
 
         <section className={styles.panel} aria-labelledby="smb-history-title">
           <h2 id="smb-history-title" className={styles.panelTitle}>

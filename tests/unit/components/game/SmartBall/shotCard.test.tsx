@@ -2,8 +2,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
 
-import { MARBLES, drawPlay, playOf, seeded, slotFor, type Draw, type Entry } from '@/components/game/SmartBall/engine';
+import { MARBLES, drawPlay, finishedShots, playOf, seeded, slotFor, type Draw, type Entry } from '@/components/game/SmartBall/engine';
 import { getStrings } from '@/components/game/SmartBall/i18n';
+import { parsePlay, playId, playOfRecord, serializePlay, type PlayRecord } from '@/components/game/SmartBall/medalTable';
 import { PlayTab } from '@/components/game/SmartBall/PlayTab';
 import { ShotCard } from '@/components/game/SmartBall/ShotCard';
 import { cardOf, cellsOf } from '@/components/game/SmartBall/shotCard';
@@ -78,6 +79,25 @@ describe('the shot card', () => {
     expect(markup).toContain('>10個目：強さ4（目をつぶって打った）、OUT。<');
     expect(markup).toContain('>7個目：強さ4（目をつぶって打った）、13番の穴、1列そろった。<');
     expect(getStrings('en').cardSay(9, 0, null, 0, true)).toBe('Marble 10: strength 1, shot blind, OUT.');
+  });
+
+  it('marks the blind marbles of a play on record as finished blind, whose shots are all written down', () => {
+    // As the table settles a play left after three shots (medalTable.ts): every shot written down, the rest the blind
+    // ones drawn, and `own` saying three were the player's. Read back as the next page reads it.
+    const settled: PlayRecord = { v: 1, id: playId(1, () => 0.5), owner: null, ledger: 'device1', era: 0, draw: TWO_LINES, shots: finishedShots(TWO_LINES, [3, 3, 3]), paid: true, own: 3 };
+    const record = parsePlay(serializePlay(settled));
+    if (!record) throw new Error('the settled play did not read back');
+    expect(record).toMatchObject({ paid: true, own: 3 });
+    expect(record.shots).toHaveLength(MARBLES);
+    const play = playOfRecord(record);
+    // The play itself no longer says which marbles were blind; the card does, from `own`.
+    expect(play.marbles.some((marble) => marble.blind)).toBe(false);
+    expect(cardOf(play.marbles, record.own).map((row) => row.blind)).toEqual([false, false, false, true, true, true, true, true, true, true]);
+    expect(cardOf(play.marbles).some((row) => row.blind)).toBe(false);
+    const markup = render(<ShotCard t={getStrings('en')} marbles={play.marbles} now={null} own={record.own} />);
+    expect(markup.match(/data-blind="true"/g)).toHaveLength(MARBLES - 3);
+    expect(markup).toContain('>Marble 3: strength 4, hole 3.<');
+    expect(markup).toContain('>Marble 4: strength 4, shot blind, hole 4, completing 1 line.<');
   });
 
   it('stands empty on the machine before a play, all ten places waiting', () => {

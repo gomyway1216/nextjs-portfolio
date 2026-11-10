@@ -18,13 +18,17 @@ export interface ShotRow {
   lines: number;
 }
 
-/** The marbles shot so far, in order, each with the lines it completed as it dropped in. */
-export function cardOf(marbles: readonly MarblePlay[]): ShotRow[] {
+/**
+ * The marbles shot so far, in order, each with the lines it completed as it dropped in. `own` is how many of them the
+ * player shot, for a play on record as finished blind (`PlayRecord.own`, medalTable.ts): such a play has all its
+ * shots written down, so its marbles no longer say which were blind, and the ones from `own` on are marked here.
+ */
+export function cardOf(marbles: readonly MarblePlay[], own?: number): ShotRow[] {
   let lit = 0;
   return marbles.map(({ marble, window, blind, hole }) => {
     const before = linesOf(lit).length;
     if (hole !== null) lit |= 1 << hole;
-    return { marble, window, blind, hole, lines: linesOf(lit).length - before };
+    return { marble, window, blind: blind || (own !== undefined && marble >= own), hole, lines: linesOf(lit).length - before };
   });
 }
 

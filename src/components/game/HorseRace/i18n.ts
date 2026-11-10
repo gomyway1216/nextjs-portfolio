@@ -86,6 +86,15 @@ export interface HorseStrings {
   historyRace: string;
   historyResult: string;
   historyNet: string;
+  historyTotals: (races: number, hits: number, net: string) => string;
+  details: string;
+  detailsAria: (race: number) => string;
+  detailOrder: string;
+  detailMarginNote: string;
+  detailTickets: string;
+  detailStake: (medals: number, odds: number) => string;
+  detailBack: (medals: number) => string;
+  detailMiss: string;
   keysHint: string;
   infoBody: string[];
 }
@@ -203,6 +212,15 @@ const en: HorseStrings = {
   historyRace: 'Race',
   historyResult: '1st–2nd',
   historyNet: 'Net',
+  historyTotals: (races, hits, net) => `${races} race${races === 1 ? '' : 's'} this visit · a winning ticket in ${hits} · net ${net}`,
+  details: 'Details',
+  detailsAria: (race) => `Details of race ${race}`,
+  detailOrder: 'Order of finish',
+  detailMarginNote: 'Each margin is to the horse in front.',
+  detailTickets: 'Your tickets',
+  detailStake: (medals, odds) => `${medalsEn(medals)} at ×${odds}`,
+  detailBack: (medals) => `Back: ${medals.toLocaleString('en-US')}`,
+  detailMiss: 'Missed',
   keysHint: 'Keys: Space or Enter starts · 1–6 a win ticket · S skips · R same tickets · U undo',
   infoBody: [
     'Six horses run each race. Before the off, put your medals on tickets: a WIN ticket on one horse wins if it finishes first; a QUINELLA ticket on two horses wins if they finish first and second, in either order.',
@@ -320,6 +338,15 @@ const ja: HorseStrings = {
   historyRace: 'レース',
   historyResult: '1着-2着',
   historyNet: '差し引き',
+  historyTotals: (races, hits, net) => `今回 ${races}レース・的中 ${hits}レース・差し引き ${net}`,
+  details: '詳細',
+  detailsAria: (race) => `第${race}レースの詳細`,
+  detailOrder: '着順',
+  detailMarginNote: '着差は前の馬との差です。',
+  detailTickets: '買った馬券',
+  detailStake: (medals, odds) => `${medals}枚・${odds}倍`,
+  detailBack: (medals) => `戻り ${medals.toLocaleString('ja-JP')}枚`,
+  detailMiss: 'はずれ',
   keysHint: 'キー：Space か Enter でスタート・1〜6 で単勝・S で飛ばす・R で同じ買い方・U で1つ戻す',
   infoBody: [
     '1レースに6頭が走ります。発走前に持ちメダルを馬券に置きます。単勝は1頭を選び、その馬が1着なら当たり。連複は2頭を選び、その2頭が1着と2着なら（順番はどちらでも）当たりです。',

@@ -120,6 +120,7 @@
 .quinellaTicket:focus-visible,
 .stepButton:focus-visible,
 .refill:focus-visible,
+.detailButton:focus-visible,
 .cardAwayButton:focus-visible {
   outline: 3px solid #4da3ff;
   outline-offset: 2px;
@@ -786,6 +787,91 @@
 .historyTable th:first-child,
 .historyTable td:first-child {
   text-align: left;
+}
+.historyTotals {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.historyTable tr[data-open='true'] td {
+  background: var(--games-route-surface-raised);
+}
+.detailButton {
+  appearance: none;
+  min-width: 44px;
+  min-height: 2.25rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--games-route-border);
+  border-radius: 8px;
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detailButton[aria-expanded='true'] {
+  border-color: var(--games-route-fg);
+}
+/* One race of the visit looked back on, under the table: the whole order of finish and the player's tickets. */
+.detail {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--games-route-border);
+  border-radius: 12px;
+  background: var(--games-route-surface);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.detailTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+.detailHead {
+  margin: 0.5rem 0 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+.detailList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+}
+.detailList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.45rem;
+  min-width: 0;
+}
+.detailPlace {
+  flex: none;
+  width: 2.2rem;
+  font-weight: 800;
+}
+.detailName {
+  flex: 1 1 6rem;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.detailStake {
+  color: var(--games-route-muted);
+  white-space: nowrap;
+}
+.detailEnd {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.detailMiss {
+  color: var(--games-route-muted);
+}
+.detailLine {
+  margin: 0.5rem 0 0;
+  font-weight: 800;
 }
 .pos {
   color: var(--hr-win-text);

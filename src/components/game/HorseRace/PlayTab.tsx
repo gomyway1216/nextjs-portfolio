@@ -29,6 +29,7 @@ import {
   type Table,
 } from './medalTable';
 import { planRace, planSeed, type MarginId, type RacePlan } from './race';
+import { NO_RACES, addRace, reviewRace, signed, type RaceReview } from './raceReview';
 import { shownCard } from './shownCard';
 import { GATE_COLOURS, STABLE, horseById, type Horse } from './stable';
 import { GATE_SECONDS, Track, type TrackRun } from './Track';
@@ -90,15 +91,6 @@ function paysOf(record: RaceRecord, card: RaceCard | null): Outcome['pays'] {
   return { win: odds(win), quinella: odds(quinella) };
 }
 
-interface HistoryEntry {
-  id: string;
-  race: number;
-  first: number;
-  second: number;
-  wagered: number;
-  net: number;
-}
-
 const horsesOf = (ids: readonly string[]): Horse[] => ids.map((id) => horseById(id) ?? STABLE[0]);
 /** The field shown in the gate before the player's medals (and so their next race) are known. */
 const WAITING_FIELD: readonly Horse[] = STABLE.slice(0, FIELD);
@@ -140,7 +132,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [trackField, setTrackField] = useState<readonly Horse[] | null>(null);
   const [skipped, setSkipped] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<RaceReview[]>([]);
+  // The visit's races added up: all of them, though the table keeps only the last thirty.
+  const [totals, setTotals] = useState(NO_RACES);
+  const [openedId, setOpenedId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [lastBets, setLastBets] = useState<{ key: string; amount: number }[]>([]);
@@ -330,7 +325,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       if (!flight.paid) table.current?.settle(flight);
       if (record.won > 0) play(record.won >= BIG_WIN ? 'big' : 'win', 0.1);
       setOutcome({ race: record.race, field: horsesOf(record.field), order: record.order, margin: flight.plan.margins[1], pays: paysOf(record, flight.card), won: record.won, wagered: record.wagered, earlier: false });
-      setHistory((before) => [{ id: record.id, race: record.race, first: record.order[0], second: record.order[1], wagered: record.wagered, net: record.won - record.wagered }, ...before].slice(0, 30));
+      const review = reviewRace(record, flight.plan.margins);
+      setHistory((before) => [review, ...before].slice(0, 30));
+      setTotals((before) => addRace(before, review));
       const { t: words } = live.current;
       const field = horsesOf(record.field);
       const name = (gate: number) => `${gate} ${field[gate - 1].name[language]}`;
@@ -368,6 +365,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setHoldRace(null);
       setOutcome(null);
       setHistory([]);
+      setTotals(NO_RACES);
+      setOpenedId(null);
       setMessage('');
       setRaceNo(1);
       rememberBets([]);
@@ -524,6 +523,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const boardField = shownRecord ? horsesOf(shownRecord.field) : (card?.field ?? null);
   const winsShown = outcome && !running ? outcome.won : 0;
   const nameOf = (field: readonly Horse[], gate: number) => field[gate - 1]?.name[language] ?? '';
+  const opened = history.find((entry) => entry.id === openedId) ?? null;
 
   return (
     <div className={styles.machine} data-testid="hr-machine" data-phase={phase} data-playable={canBet ? 'true' : 'false'} data-race={raceShown}>
@@ -725,28 +725,54 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           {history.length === 0 ? (
             <p className={styles.muted}>{t.historyEmpty}</p>
           ) : (
-            <table className={styles.historyTable} data-testid="hr-history">
-              <thead>
-                <tr>
-                  <th>{t.historyRace}</th>
-                  <th>{t.historyResult}</th>
-                  <th>{t.bet}</th>
-                  <th>{t.historyNet}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>{entry.race}</td>
-                    <td>
-                      {entry.first}-{entry.second}
-                    </td>
-                    <td>{entry.wagered}</td>
-                    <td className={entry.net > 0 ? styles.pos : entry.net < 0 ? styles.neg : ''}>{entry.net > 0 ? `+${entry.net}` : entry.net < 0 ? `−${-entry.net}` : '±0'}</td>
+            <>
+              <p className={styles.historyTotals} data-testid="hr-history-totals" data-races={totals.races} data-hits={totals.hits} data-net={totals.won - totals.wagered}>
+                {t.historyTotals(totals.races, totals.hits, signed(totals.won - totals.wagered))}
+              </p>
+              <table className={styles.historyTable} data-testid="hr-history">
+                <thead>
+                  <tr>
+                    <th>{t.historyRace}</th>
+                    <th>{t.historyResult}</th>
+                    <th>{t.bet}</th>
+                    <th>{t.historyNet}</th>
+                    <th>
+                      <span className={styles.srOnly}>{t.details}</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {history.map((entry) => {
+                    const net = entry.won - entry.wagered;
+                    const open = entry.id === opened?.id;
+                    return (
+                      <tr key={entry.id} data-open={open ? 'true' : undefined}>
+                        <td>{entry.race}</td>
+                        <td>
+                          {entry.order[0]}-{entry.order[1]}
+                        </td>
+                        <td>{entry.wagered}</td>
+                        <td className={net > 0 ? styles.pos : net < 0 ? styles.neg : ''}>{signed(net)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.detailButton}
+                            data-testid={`hr-details-${entry.race}`}
+                            aria-expanded={open}
+                            aria-controls={open ? 'hr-race-detail' : undefined}
+                            aria-label={t.detailsAria(entry.race)}
+                            onClick={() => setOpenedId(open ? null : entry.id)}
+                          >
+                            {t.details}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {opened && <RaceDetail review={opened} t={t} language={language} />}
+            </>
           )}
         </section>
       </div>
@@ -859,6 +885,45 @@ function ResultPanel({
       <p className={styles.resultLine} data-testid="hr-result-line" data-net={net}>
         {outcome.won > 0 ? t.paid(outcome.won, net) : t.lost(outcome.wagered)}
       </p>
+    </section>
+  );
+}
+
+/** One race of the visit looked back on: the whole order of finish with its margins, and each of the player's tickets. */
+export function RaceDetail({ review, t, language }: { review: RaceReview; t: HorseStrings; language: 'en' | 'ja' }) {
+  const field = horsesOf(review.field);
+  const name = (gate: number) => field[gate - 1]?.name[language] ?? '';
+  return (
+    <section id="hr-race-detail" className={styles.detail} data-testid="hr-race-detail" data-race={review.race} aria-labelledby="hr-race-detail-title">
+      <h3 id="hr-race-detail-title" className={styles.detailTitle}>
+        {t.resultTitle(review.race)}
+      </h3>
+      <h4 className={styles.detailHead}>
+        {t.detailOrder} <span className={styles.ticketsHelp}>{t.detailMarginNote}</span>
+      </h4>
+      <ol className={styles.detailList} data-testid="hr-race-detail-order">
+        {review.order.map((gate, i) => (
+          <li key={gate}>
+            <span className={styles.detailPlace}>{t.place(i + 1)}</span>
+            <span className={styles.gateBadge} style={{ background: GATE_COLOURS[gate - 1]?.cloth, color: GATE_COLOURS[gate - 1]?.number }}>
+              {gate}
+            </span>
+            <span className={styles.detailName}>{name(gate)}</span>
+            {i > 0 && review.margins[i] && <span className={styles.detailEnd}>{t.margin[review.margins[i]]}</span>}
+          </li>
+        ))}
+      </ol>
+      <h4 className={styles.detailHead}>{t.detailTickets}</h4>
+      <ul className={styles.detailList} data-testid="hr-race-detail-tickets">
+        {review.tickets.map(({ key, ticket, amount, odds, hit, back }) => (
+          <li key={key} data-hit={hit ? 'true' : 'false'}>
+            <span className={styles.detailName}>{ticket.kind === 'win' ? `${t.win} ${ticket.gate} ${name(ticket.gate)}` : `${t.quinella} ${ticket.gates[0]}-${ticket.gates[1]}`}</span>
+            <span className={styles.detailStake}>{t.detailStake(amount, odds)}</span>
+            <span className={`${styles.detailEnd} ${hit ? styles.pos : styles.detailMiss}`}>{hit ? t.detailBack(back) : t.detailMiss}</span>
+          </li>
+        ))}
+      </ul>
+      <p className={styles.detailLine}>{review.won > 0 ? t.paid(review.won, review.won - review.wagered) : t.lost(review.wagered)}</p>
     </section>
   );
 }

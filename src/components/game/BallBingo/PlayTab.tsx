@@ -12,6 +12,7 @@ import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { fieldOf, startPlan, type Flight, type Planner } from './ballPath';
+import { BallRecord } from './BallRecord';
 import { Board } from './Board';
 import { Card } from './Card';
 import {
@@ -32,6 +33,7 @@ import {
 } from './engine';
 import { getStrings } from './i18n';
 import { PUBLISHED_ODDS } from './odds';
+import { earlierOf, type ChosenGame } from './record';
 import { SPEED_KEY, browserStorage, createTable, randomName, tabName, winOf, type Round, type Table } from './medals';
 import styles from './BallBingo.module.css';
 
@@ -119,6 +121,8 @@ interface Recent {
   id: string;
   lines: number;
   win: number;
+  /** The pockets its balls went into, for the record of its balls. */
+  draws: readonly number[];
 }
 
 /** A seed for a ball's flight, from its round and its place in the game: the same game shows much the same flights. */
@@ -136,8 +140,26 @@ const subscribeToMotion = (listener: () => void): (() => void) => {
   return () => query?.removeEventListener('change', listener);
 };
 
-/** The panel beside the cabinet: the pay glass at every bet, and this visit's games. Drawn again only when a game ends or the bet changes. */
-const SidePanel = memo(function SidePanel({ language, stats, recent, bet, resultLines }: { language: 'en' | 'ja'; stats: Stats; recent: readonly Recent[]; bet: number; resultLines: number | null }) {
+interface SidePanelProps {
+  language: 'en' | 'ja';
+  stats: Stats;
+  recent: readonly Recent[];
+  bet: number;
+  resultLines: number | null;
+  /** The game on the machine: its id, the pockets drawn for it and how many of its balls have landed. */
+  gameId: string | null;
+  draws: readonly number[] | null;
+  shown: number;
+}
+
+/**
+ * The panel beside the cabinet: the pay glass at every bet, the balls of the game on the machine (or of an earlier game
+ * chosen from the list), and this visit's games. Drawn again only when a ball lands, a game ends or the bet changes.
+ */
+const SidePanel = memo(function SidePanel({ language, stats, recent, bet, resultLines, gameId, draws, shown }: SidePanelProps) {
+  // The earlier game whose balls are listed, chosen while `during` was on the machine: the next game takes the record back.
+  const [chosen, setChosen] = useState<ChosenGame | null>(null);
+  const earlier = earlierOf(chosen, gameId, recent);
   const t = getStrings(language);
   const locale = language === 'ja' ? 'ja-JP' : 'en-US';
   const fmt = (n: number) => n.toLocaleString(locale);
@@ -176,6 +198,8 @@ const SidePanel = memo(function SidePanel({ language, stats, recent, bet, result
           </tbody>
         </table>
       </section>
+
+      <BallRecord language={language} draws={earlier ? earlier.draws : draws} shown={earlier ? earlier.draws.length : shown} earlier={earlier !== null} />
 
       <section className={styles.panel} aria-labelledby="bingo-session-title">
         <h2 id="bingo-session-title" className={styles.panelTitle}>
@@ -220,7 +244,15 @@ const SidePanel = memo(function SidePanel({ language, stats, recent, bet, result
             <ol className={styles.recentList} data-testid="bingo-recent">
               {recent.map((entry) => (
                 <li key={entry.id} data-win={entry.win > 0}>
-                  {t.recentLine(entry.lines, entry.win)}
+                  <button
+                    type="button"
+                    className={styles.recentButton}
+                    aria-pressed={earlier?.id === entry.id}
+                    aria-label={t.recentShow(t.recentLine(entry.lines, entry.win))}
+                    onClick={() => setChosen(earlier?.id === entry.id ? null : { id: entry.id, during: gameId })}
+                  >
+                    {t.recentLine(entry.lines, entry.win)}
+                  </button>
                 </li>
               ))}
             </ol>
@@ -328,7 +360,7 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
     setDropping(false);
     if (win > 0) play(lines >= 4 ? 'big' : 'win');
     setStats((s) => ({ games: s.games + 1, played: s.played + round.bet, won: s.won + win, biggest: Math.max(s.biggest, win) }));
-    setRecent((r) => [{ id: round.id, lines, win }, ...r].slice(0, RECENT_LIMIT));
+    setRecent((r) => [{ id: round.id, lines, win, draws: round.draws }, ...r].slice(0, RECENT_LIMIT));
     setAnnouncement(live.current.t.sayEnd(lines, win));
   }, [payMedals, play]);
 
@@ -812,7 +844,16 @@ export const PlayTab = ({ player = GUEST_PLAYER, active = true }: PlayTabProps) 
         )}
       </div>
 
-      <SidePanel language={language} stats={stats} recent={recent} bet={shownBet} resultLines={result?.lines ?? null} />
+      <SidePanel
+        language={language}
+        stats={stats}
+        recent={recent}
+        bet={shownBet}
+        resultLines={result?.lines ?? null}
+        gameId={game?.round.id ?? null}
+        draws={game?.round.draws ?? null}
+        shown={shown}
+      />
 
       <p className={styles.srOnly} aria-live="polite" data-testid="bingo-announcement">
         {announcement}

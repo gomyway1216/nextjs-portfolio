@@ -37,7 +37,7 @@ export const PlayReview = ({ t, history, chosen, onChoose }: PlayReviewProps) =>
         {t.historyTitle}
       </h2>
       {history.length === 0 ? (
-        <p className={styles.muted}>{t.historyEmpty}</p>
+        <p className={`${styles.muted} ${styles.historyEmpty}`}>{t.historyEmpty}</p>
       ) : (
         <ol className={styles.historyList} data-testid="sht-history">
           {history.map((entry) => (

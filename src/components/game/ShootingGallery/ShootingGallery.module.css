@@ -984,10 +984,19 @@
   flex-wrap: wrap;
   gap: 0.3rem;
 }
+/* The line that stands where the first chip will: as tall as a chip, so nothing under it moves as the first play ends. */
+.historyEmpty {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+/* A chip is a button: 44 px each way to tap, however few its words. */
 .historyChip {
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0 0.55rem;
   border-radius: 8px;
   font-size: 0.8rem;
@@ -1019,20 +1028,23 @@
   color: #2a1600;
 }
 
-/* A play cork by cork. Its room is kept from the start (a title, a line, six rows), so the panel under it stays put. */
+/* A play cork by cork. Its room is kept from the start: a title, two lines for the play's own line (a long one wraps on
+   a narrow phone), and six rows each tall enough for two lines and the blind mark; so the panel under it stays put. */
 .shotCard {
   margin-top: 0.9rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--games-route-border);
-  min-height: 17.5rem;
+  min-height: 22rem;
 }
 .shotCardTitle {
   margin: 0 0 0.2rem;
   font-size: 0.92rem;
+  line-height: 1.3;
   font-weight: 850;
 }
 .shotCardNote {
   margin: 0 0 0.4rem;
+  min-height: 3em;
   font-size: 0.8rem;
   line-height: 1.5;
   color: var(--games-route-muted);
@@ -1048,7 +1060,7 @@
   grid-template-columns: 1.3rem minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1.05fr);
   align-items: center;
   gap: 0.4rem;
-  min-height: 2.2rem;
+  min-height: 2.75rem;
   padding: 0.15rem 0;
   font-size: 0.8rem;
   line-height: 1.25;

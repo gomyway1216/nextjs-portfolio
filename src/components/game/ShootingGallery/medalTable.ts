@@ -123,8 +123,17 @@ export type StakeOutcome =
  */
 export type ShotOutcome = 'kept' | 'gone' | 'unsaved' | 'away';
 
-/** A play on record, played as far as its corks go; finished (every cork still to come fired blind) once it is paid. */
-export const playOfRecord = (record: PlayRecord): Play => playOf(record.draw, record.shots, record.paid);
+/**
+ * A play on record, played as far as its corks go; finished (every cork still to come fired blind) once it is paid.
+ * A play the page finished has every cork among its shots, and says how many were the player's (`own`): the corks
+ * after those are marked blind here, for whoever lists them. Only that mark differs; what fell and what it pays do not.
+ */
+export const playOfRecord = (record: PlayRecord): Play => {
+  const play = playOf(record.draw, record.shots, record.paid);
+  const { own } = record;
+  if (own === undefined) return play;
+  return { ...play, corks: play.corks.map((cork) => (cork.cork >= own && !cork.blind ? { ...cork, blind: true } : cork)) };
+};
 
 // ── Reading a play back ─────────────────────────────────────────────────────
 

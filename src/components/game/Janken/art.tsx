@@ -15,6 +15,9 @@ import type { Hand } from './engine';
 // ── The hands on the buttons ────────────────────────────────────────────────
 
 /** A person's hand as a button shows it: a fist, two fingers in a V, or five spread. */
+/** The colour a lamp's value is lit in. */
+export const LAMP_TONE: Readonly<Record<number, string>> = { 1: 'one', 2: 'two', 3: 'three', 5: 'five', 10: 'ten' };
+
 export const HandIcon = ({ hand, className }: { hand: Hand; className?: string }) => (
   <svg className={className} viewBox="0 0 64 64" aria-hidden focusable="false">
     <g fill="#fff7ec" stroke="#2a1d14" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round">

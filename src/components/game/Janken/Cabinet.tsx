@@ -8,11 +8,13 @@ import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
-import { CatFace, CatPaw, HandIcon, MedalIcon, type CatMood } from './art';
+import { CatFace, CatPaw, HandIcon, LAMP_TONE, MedalIcon, type CatMood } from './art';
 import { HANDS, LAMPS, analyzeMachine, type Hand, type Outcome } from './engine';
 import { getStrings } from './i18n';
 import { keyAction, type KeyAction } from './keys';
 import { createMachine, type Happening, type Machine, type MachineView, type RoundStorage, type Throw } from './machine';
+import { cleared, emptyRecord, noted, type PlayRecord } from './record';
+import { RecordCard } from './RecordCard';
 import { canDouble } from './round';
 import { createSpeaker, type JankenSound, type Speaker } from './sounds';
 import styles from './Janken.module.css';
@@ -74,9 +76,6 @@ export const lampAt = (i: number, centre = 200, radius = 180) => {
   return { x: round(centre + radius * Math.cos(angle)), y: round(centre + radius * Math.sin(angle)) };
 };
 
-/** The colour a lamp's value is lit in. */
-const LAMP_TONE: Readonly<Record<number, string>> = { 1: 'one', 2: 'two', 3: 'three', 5: 'five', 10: 'ten' };
-
 export interface CabinetProps {
   /** Whether the machine's tab is the one shown: its keys work only then. */
   active: boolean;
@@ -112,6 +111,10 @@ export const Cabinet = ({ active }: CabinetProps) => {
   const [tray, setTray] = useState<{ medals: number; key: number } | null>(null);
   const [said, setSaid] = useState<'lose' | { paid: number } | null>(null);
   const [longWait, setLongWait] = useState(false);
+  // The record of the sitting. What is shown of it waits while a throw is being acted out, so that it never says how
+  // a throw came out before the hands and the outcome lamp have.
+  const [record, setRecord] = useState<PlayRecord>(emptyRecord);
+  const [recordShown, setRecordShown] = useState(record);
   const timers = useRef(new Set<number>());
   const spinningNow = useRef(false);
   const litNow = useRef<number | null>(null);
@@ -213,6 +216,8 @@ export const Cabinet = ({ active }: CabinetProps) => {
     if (!machine) return;
     return machine.hear((happening: Happening) => {
       const { t: words, calm: still } = live.current;
+      const roundId = machine.view().round?.id;
+      setRecord((before) => noted(before, happening, roundId));
       const handName = (hand: Hand) => words.hands[hand];
       switch (happening.type) {
         case 'inserted':
@@ -282,6 +287,16 @@ export const Cabinet = ({ active }: CabinetProps) => {
     });
   }, [machine, later, light, play, spin, stopActing, payMedals]);
 
+  // The medal center's reset starts the record over, whether or not a round was in play (the machine tells of a reset
+  // only when it had one).
+  useEffect(
+    () =>
+      medalBank().listen((event) => {
+        if (event.type === 'reset') setRecord(emptyRecord());
+      }),
+    [],
+  );
+
   // Another tab's machine has the card: said a moment after, since the card goes away for a moment now and then.
   useEffect(() => {
     if (medals.card !== 'asking') return;
@@ -295,6 +310,7 @@ export const Cabinet = ({ active }: CabinetProps) => {
 
   const phase = round?.phase ?? 'idle';
   const busy = acting !== null || spinning;
+  if (acting === null && recordShown !== record) setRecordShown(record);
   const canInsert = view.ready && round === null && !busy && medals.balance >= 1;
   const canThrow = view.ready && phase === 'calling' && !busy;
   const canTake = view.holding && phase === 'offer' && !busy;
@@ -618,7 +634,10 @@ export const Cabinet = ({ active }: CabinetProps) => {
         {announcement}
       </p>
     </div>
-    <Plate />
+    <div className={styles.side}>
+      <Plate />
+      <RecordCard record={recordShown} onClear={() => setRecord(cleared)} />
+    </div>
     </div>
   );
 };

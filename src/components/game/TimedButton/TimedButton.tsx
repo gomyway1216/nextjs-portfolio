@@ -11,16 +11,17 @@ import { getUITranslation } from '../constants/gameTranslations';
 import { InfoModal } from '../common/InfoModal';
 import { getDifficultyColor } from '../common/utils';
 import { getTimedButtonCopy } from './i18n';
+import { TimingReview, timingText } from './TimingReview';
 import {
   DIFFICULTY_ORDER,
   DIFFICULTY_TUNING,
   markerPosition,
   pickTargetCenter,
-  scoreRound,
+  recordRound,
   summarizeRun,
   type Difficulty,
   type HitRating,
-  type RoundResult,
+  type RoundRecord,
 } from './gameLogic';
 import styles from './TimedButton.module.css';
 
@@ -47,8 +48,8 @@ export const TimedButton = () => {
   const [showInfo, setShowInfo] = useState(false);
 
   const [round, setRound] = useState<RoundState | null>(null);
-  const [results, setResults] = useState<RoundResult[]>([]);
-  const [lastResult, setLastResult] = useState<RoundResult | null>(null);
+  const [results, setResults] = useState<RoundRecord[]>([]);
+  const [lastResult, setLastResult] = useState<RoundRecord | null>(null);
   const [markerPos, setMarkerPos] = useState(0.5);
   const [runScore, setRunScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
@@ -56,7 +57,7 @@ export const TimedButton = () => {
   const rafRef = useRef<number | null>(null);
   const roundRef = useRef<RoundState | null>(null);
   const phaseRef = useRef<Phase>('setup');
-  const resultsRef = useRef<RoundResult[]>([]);
+  const resultsRef = useRef<RoundRecord[]>([]);
   const timeoutRef = useRef<number | null>(null);
 
   const tuning = DIFFICULTY_TUNING[difficulty];
@@ -145,10 +146,8 @@ export const TimedButton = () => {
     }
 
     const elapsed = performance.now() - r.startTime;
-    const pos = markerPosition(elapsed, tuning.periodMs);
-    setMarkerPos(pos);
-
-    const result = scoreRound(pos, r.targetCenter, tuning);
+    const result = recordRound(elapsed, r.targetCenter, tuning);
+    setMarkerPos(result.markerPos);
     setLastResult(result);
 
     // Derive the updated results from a ref (no side effects inside a state
@@ -399,6 +398,8 @@ export const TimedButton = () => {
               </div>
             </div>
 
+            <TimingReview records={results} targetHalfWidth={tuning.targetHalfWidth} copy={copy} />
+
             <div className={styles.summaryActions}>
               <button type="button" className={styles.primaryButton} onClick={startRun}>
                 {copy.playAgain}
@@ -474,6 +475,9 @@ export const TimedButton = () => {
             ) : (
               <span className={styles.feedbackHint}>{copy.hitTheTarget}</span>
             )}
+            <span className={styles.feedbackTiming}>
+              {lastResult ? timingText(lastResult.offsetMs, copy) : '\u00a0'}
+            </span>
           </div>
 
           <button

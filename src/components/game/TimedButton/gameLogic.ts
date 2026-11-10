@@ -161,3 +161,99 @@ export const summarizeRun = (results: RoundResult[]): RunSummary => {
   summary.averagePrecision = precisionSum / results.length;
   return summary;
 };
+
+// ---- Timing: how early or late a tap was, in milliseconds ----
+
+/** +1 while the marker travels right (first half of the period), -1 while it travels left. */
+export const markerDirection = (elapsedMs: number, periodMs: number): 1 | -1 => {
+  if (periodMs <= 0) return 1;
+  const phase = ((elapsedMs % periodMs) + periodMs) % periodMs / periodMs;
+  return phase < 0.5 ? 1 : -1;
+};
+
+/**
+ * Signed time between a tap and the marker crossing the target centre on the
+ * pass it was on: negative = tapped before reaching the centre (early),
+ * positive = tapped after passing it (late). Because the marker moves at a
+ * constant speed, that crossing is also the one nearest in time to the tap.
+ */
+export const timingOffsetMs = (elapsedMs: number, targetCenter: number, periodMs: number): number => {
+  if (periodMs <= 0) return 0;
+  const pos = markerPosition(elapsedMs, periodMs);
+  const direction = markerDirection(elapsedMs, periodMs);
+  // The marker covers the track twice per period: speed = 2 / periodMs per ms.
+  const offset = (direction * (pos - targetCenter) * periodMs) / 2;
+  return offset === 0 ? 0 : offset; // never -0
+};
+
+/** One finished round: the score plus where and when the marker was stopped. */
+export interface RoundRecord extends RoundResult {
+  markerPos: number;
+  targetCenter: number;
+  offsetMs: number;
+}
+
+/** Score a tap made `elapsedMs` after the round's marker started sweeping. */
+export const recordRound = (
+  elapsedMs: number,
+  targetCenter: number,
+  tuning: DifficultyTuning
+): RoundRecord => {
+  const markerPos = markerPosition(elapsedMs, tuning.periodMs);
+  return {
+    ...scoreRound(markerPos, targetCenter, tuning),
+    markerPos,
+    targetCenter,
+    offsetMs: timingOffsetMs(elapsedMs, targetCenter, tuning.periodMs),
+  };
+};
+
+export type TimingSide = 'early' | 'late' | 'onTime';
+
+/** Which side a tap fell on, at the whole-millisecond resolution it is displayed in. */
+export const timingSide = (offsetMs: number): TimingSide => {
+  const rounded = Math.round(offsetMs);
+  if (rounded < 0) return 'early';
+  if (rounded > 0) return 'late';
+  return 'onTime';
+};
+
+/** A median offset closer to zero than this is reported as no early/late lean. */
+export const TENDENCY_THRESHOLD_MS = 10;
+
+export interface TimingSummary {
+  taps: number;
+  early: number;
+  late: number;
+  onTime: number;
+  /** Median signed offset of all taps (misses included); 0 for an empty run. */
+  medianOffsetMs: number;
+  tendency: TimingSide;
+}
+
+export const summarizeTiming = (offsets: number[]): TimingSummary => {
+  const summary: TimingSummary = {
+    taps: offsets.length,
+    early: 0,
+    late: 0,
+    onTime: 0,
+    medianOffsetMs: 0,
+    tendency: 'onTime',
+  };
+  if (offsets.length === 0) return summary;
+
+  for (const offset of offsets) {
+    const side = timingSide(offset);
+    if (side === 'early') summary.early += 1;
+    else if (side === 'late') summary.late += 1;
+    else summary.onTime += 1;
+  }
+
+  const sorted = [...offsets].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  summary.medianOffsetMs = sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  if (Math.abs(summary.medianOffsetMs) >= TENDENCY_THRESHOLD_MS) {
+    summary.tendency = summary.medianOffsetMs < 0 ? 'early' : 'late';
+  }
+  return summary;
+};

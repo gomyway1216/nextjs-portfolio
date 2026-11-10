@@ -75,6 +75,23 @@ export interface RecordStrings {
   topChestRow: (medals: number) => string;
   none: string;
 
+  // The calendar of days played
+  calendarTitle: string;
+  calendarLead: string;
+  calendarMonth: (year: number, month: number) => string;
+  calendarPrev: string;
+  calendarNext: string;
+  /** The days of the week, Sunday first, as the sheet heads its columns and in full. */
+  weekdays: readonly string[];
+  weekdaysFull: readonly string[];
+  calendarCaption: (month: string) => string;
+  /** What is said of a day after its number, to someone who cannot see its marks. */
+  calendarMark: (played: boolean, today: boolean) => string;
+  calendarPlayed: string;
+  calendarToday: string;
+  calendarCount: (days: number | string) => string;
+  calendarNote: (months: number) => string;
+
   // The achievements
   sheetTitle: string;
   sheetCount: (earned: number, all: number) => string;
@@ -110,6 +127,7 @@ export interface RecordStrings {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** A day's year, month and day of the month. It is read off the text itself, so no time zone comes into it. */
 const parts = (day: Day): [number, number, number] => [Number(day.slice(0, 4)), Number(day.slice(5, 7)), Number(day.slice(8, 10))];
 
@@ -195,6 +213,21 @@ const en: RecordStrings = {
   daysCount: (count) => `${count}`,
   topChestRow: (medals) => `Chests that held ${medals}`,
   none: '—',
+
+  calendarTitle: 'Play calendar',
+  calendarLead: 'The days you played at this cabinet, a month at a time.',
+  calendarMonth: (year, month) => `${MONTHS_FULL[month - 1] ?? '?'} ${year}`,
+  calendarPrev: 'Previous month',
+  calendarNext: 'Next month',
+  weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  weekdaysFull: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  calendarCaption: (month) => `Days played in ${month}`,
+  calendarMark: (played, today) => [played ? ', played' : '', today ? ', today' : ''].join(''),
+  calendarPlayed: 'Played',
+  calendarToday: 'Today',
+  calendarCount: (days) => `Days played this month: ${days}`,
+  calendarNote: (months) =>
+    `A day is marked once a medal has been fed on it, or the daily bonus taken at this cabinet. Days go by this device’s clock. The book remembers the latest ${months} months that have a day in them, and clearing the records clears the calendar too.`,
 
   sheetTitle: 'Achievement stamps',
   sheetCount: (earned, all) => `${earned} of ${all} stamped`,
@@ -328,6 +361,21 @@ const ja: RecordStrings = {
   daysCount: (count) => `${count}日`,
   topChestRow: (medals) => `${medals}枚入りの宝箱`,
   none: '—',
+
+  calendarTitle: 'プレイカレンダー',
+  calendarLead: 'この台で遊んだ日を、月ごとに見られます。',
+  calendarMonth: (year, month) => `${year}年${month}月`,
+  calendarPrev: '前の月',
+  calendarNext: '次の月',
+  weekdays: ['日', '月', '火', '水', '木', '金', '土'],
+  weekdaysFull: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+  calendarCaption: (month) => `${month}に遊んだ日`,
+  calendarMark: (played, today) => [played ? '、遊んだ日' : '', today ? '、今日' : ''].join(''),
+  calendarPlayed: '遊んだ日',
+  calendarToday: '今日',
+  calendarCount: (days) => `この月に遊んだ日：${days}日`,
+  calendarNote: (months) =>
+    `メダルを投入した日と、この台でデイリーボーナスを受け取った日に印がつきます。日付はこの端末の時計によります。記録に残るのは、遊んだ日のある直近${months}か月分です。記録を消去すると、このカレンダーも消えます。`,
 
   sheetTitle: '実績スタンプ',
   sheetCount: (earned, all) => `${all}個中${earned}個`,

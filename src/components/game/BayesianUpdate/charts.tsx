@@ -1,6 +1,7 @@
 'use client';
 
 import { Posterior, betaPdf } from './engine';
+import type { BeliefPoint } from './trace';
 
 interface PosteriorChartProps {
   posterior: Posterior;
@@ -277,6 +278,125 @@ export const MultiTrajectoryChart = ({
       <text x={width - padding.right} y={height - 6} textAnchor="end" fill="var(--muted-foreground)" fontSize="10">
         {endLabel ?? (T - 1).toLocaleString()}
       </text>
+      {axisLabel && (
+        <text x={padding.left + 4} y={padding.top + 12} fill="var(--muted-foreground)" fontSize="10">
+          {axisLabel}
+        </text>
+      )}
+    </svg>
+  );
+};
+
+interface BeliefTraceProps {
+  /** Posterior mean and credible interval from the prior (n = 0) to the latest flip. */
+  path: BeliefPoint[];
+  /** Optional truth marker. */
+  trueP?: number | null;
+  axisLabel?: string;
+  startLabel?: string;
+  endLabel?: string;
+  /** Localized accessible label for the chart. */
+  ariaLabel: string;
+  width?: number;
+  height?: number;
+}
+
+/** Plot one run's posterior mean and credible band against the number of flips. */
+export const BeliefTraceChart = ({
+  path,
+  trueP,
+  axisLabel,
+  startLabel,
+  endLabel,
+  ariaLabel,
+  width = 720,
+  height = 200,
+}: BeliefTraceProps) => {
+  const padding = { top: 16, right: 16, bottom: 28, left: 48 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+  const total = path.length > 0 ? path[path.length - 1].n : 0;
+  const xScale = (n: number) => padding.left + (n / Math.max(1, total)) * innerW;
+  const yScale = (v: number) => padding.top + innerH - v * innerH;
+  const pt = (n: number, v: number) => `${xScale(n).toFixed(1)},${yScale(v).toFixed(1)}`;
+  const hasData = total > 0;
+
+  const band = hasData
+    ? `M ${path.map((p) => pt(p.n, p.hi)).join(' L ')} L ${path
+        .slice()
+        .reverse()
+        .map((p) => pt(p.n, p.lo))
+        .join(' L ')} Z`
+    : null;
+
+  return (
+    <svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={ariaLabel}
+      style={{ background: 'var(--muted)', borderRadius: 12, border: '1px solid var(--border)' }}
+    >
+      {[0, 0.25, 0.5, 0.75, 1].map((p) => (
+        <g key={p}>
+          <line
+            x1={padding.left}
+            x2={width - padding.right}
+            y1={yScale(p)}
+            y2={yScale(p)}
+            stroke="var(--border)"
+            strokeDasharray="2 4"
+          />
+          <text x={padding.left - 6} y={yScale(p) + 4} textAnchor="end" fill="var(--muted-foreground)" fontSize="10">
+            {p.toFixed(2)}
+          </text>
+        </g>
+      ))}
+
+      {band && <path d={band} fill="var(--primary)" opacity={0.16} />}
+      {hasData && (
+        <polyline
+          points={path.map((p) => pt(p.n, p.mean)).join(' ')}
+          fill="none"
+          stroke="var(--primary)"
+          strokeWidth={2}
+          strokeLinejoin="round"
+        />
+      )}
+
+      {trueP !== null && trueP !== undefined && (
+        <>
+          <line
+            x1={padding.left}
+            x2={width - padding.right}
+            y1={yScale(trueP)}
+            y2={yScale(trueP)}
+            stroke="#f59e0b"
+            strokeWidth={2}
+            strokeDasharray="4 4"
+          />
+          <text
+            x={width - padding.right - 4}
+            y={yScale(trueP) + (trueP > 0.85 ? 14 : -6)}
+            textAnchor="end"
+            fill="#f59e0b"
+            fontSize="11"
+            fontWeight={700}
+          >
+            p = {trueP.toFixed(2)}
+          </text>
+        </>
+      )}
+
+      <text x={padding.left} y={height - 6} fill="var(--muted-foreground)" fontSize="10">
+        {startLabel ?? '0'}
+      </text>
+      {hasData && (
+        <text x={width - padding.right} y={height - 6} textAnchor="end" fill="var(--muted-foreground)" fontSize="10">
+          {endLabel ?? total.toLocaleString()}
+        </text>
+      )}
       {axisLabel && (
         <text x={padding.left + 4} y={padding.top + 12} fill="var(--muted-foreground)" fontSize="10">
           {axisLabel}

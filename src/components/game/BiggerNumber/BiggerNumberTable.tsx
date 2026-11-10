@@ -7,10 +7,11 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { CardValue } from './types';
 import { cardLabel, isDragon } from './gameLogic';
 import { getStrings } from './i18n';
+import { summarizeMatch, trackTiles, type RoundRecord } from './roundHistory';
 import styles from './BiggerNumberTable.module.css';
 
 export type RoundPhase =
@@ -30,6 +31,12 @@ interface BiggerNumberTableProps {
   // Hands
   yourHand: CardValue[];
   opponentHandCount: number;
+  /** The opponent's remaining tiles (public information — every tile is used
+   *  once). When given, the opponent row becomes a tile tracker. */
+  opponentHand?: CardValue[];
+  /** Resolved reveals so far, oldest first. When given, a round log is shown
+   *  and the finished screen gets a match summary. */
+  history?: RoundRecord[];
   // Score & round
   yourWins: number;
   opponentWins: number;
@@ -149,6 +156,8 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
     opponentLabel,
     yourHand,
     opponentHandCount,
+    opponentHand,
+    history,
     yourWins,
     opponentWins,
     round,
@@ -182,6 +191,19 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
           : '';
 
   const opponentCards = Array.from({ length: opponentHandCount });
+  const tileLabel = (card: CardValue) => (isDragon(card) ? t.dragonCard : t.cardN(card));
+
+  // Keep the newest round in view when the log grows past its max height.
+  const logRef = useRef<HTMLDivElement>(null);
+  const historyLength = history?.length ?? 0;
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [historyLength]);
+
+  const summary =
+    phase === 'finished' && history && history.length > 0 ? summarizeMatch(history) : null;
+  const formatMargin = (value: number | null) => (value == null ? '—' : value.toFixed(1));
 
   return (
     <div className={styles.root}>
@@ -211,14 +233,40 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
             <span className={styles.lockedTag}>✓ {t.locking}</span>
           )}
         </div>
-        <div className={styles.oppHand}>
-          {opponentCards.map((_, idx) => (
-            <CardFace key={idx} card={0} opts={{ facedown: true, size: 'small' }} />
-          ))}
-          {opponentHandCount === 0 && (
-            <span className={styles.roundMetaSub}>{t.noCardsLeft}</span>
-          )}
-        </div>
+        {opponentHand ? (
+          <>
+            <ul className={styles.tracker} aria-label={t.opponentTiles}>
+              {trackTiles(opponentHand).map(({ card, inHand }) => (
+                <li key={isDragon(card) ? 'dragon' : `n${card}`}>
+                  <span className={styles.srOnly}>
+                    {inHand ? t.tileInHand(tileLabel(card)) : t.tilePlayed(tileLabel(card))}
+                  </span>
+                  {inHand ? (
+                    <div aria-hidden="true">
+                      <CardFace card={card} opts={{ size: 'small' }} />
+                    </div>
+                  ) : (
+                    <div className={styles.trackerUsed} aria-hidden="true">
+                      {cardLabel(card)}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <span className={styles.roundMetaSub}>
+              {opponentHand.length === 0 ? t.noCardsLeft : t.opponentTiles}
+            </span>
+          </>
+        ) : (
+          <div className={styles.oppHand}>
+            {opponentCards.map((_, idx) => (
+              <CardFace key={idx} card={0} opts={{ facedown: true, size: 'small' }} />
+            ))}
+            {opponentHandCount === 0 && (
+              <span className={styles.roundMetaSub}>{t.noCardsLeft}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Center stage */}
@@ -280,6 +328,75 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
             <span className={styles.statusFinal}>{finalMessage}</span>
           )}
         </div>
+
+        {summary && (
+          <div className={styles.summary} role="group" aria-label={t.summaryHeading}>
+            <div className={styles.summaryHeading}>{t.summaryHeading}</div>
+            <div className={styles.summaryRecord}>
+              {t.summaryRecord(summary.yourWins, summary.opponentWins, summary.ties)}
+            </div>
+            <div className={styles.summaryMetric}>
+              <span>{t.avgMargin}</span>
+              <span className={styles.summaryValues}>
+                <span>
+                  {youLabel}: {formatMargin(summary.yourAvgMargin)}
+                </span>
+                <span>
+                  {opponentLabel}: {formatMargin(summary.opponentAvgMargin)}
+                </span>
+              </span>
+            </div>
+            <div className={styles.summaryHint}>{t.avgMarginHint}</div>
+          </div>
+        )}
+
+        {history && history.length > 0 && (
+          <div className={styles.log}>
+            <div className={styles.logHeading}>
+              {t.roundLog} <span className={styles.logOrder}>({t.roundLogOrder})</span>
+            </div>
+            <div
+              ref={logRef}
+              className={styles.logScroll}
+              role="region"
+              aria-label={t.roundLog}
+              tabIndex={0}
+            >
+              <ol className={styles.logList}>
+                {history.map((r, i) => (
+                  <li
+                    key={i}
+                    className={`${styles.logChip} ${
+                      r.winner === 'you'
+                        ? styles.logChipWin
+                        : r.winner === 'opponent'
+                          ? styles.logChipLose
+                          : styles.logChipTie
+                    }`}
+                  >
+                    <span className={styles.srOnly}>
+                      {t.roundLogEntry(
+                        r.round,
+                        tileLabel(r.yourCard),
+                        tileLabel(r.opponentCard),
+                        r.winner,
+                        r.cardsReturnedToHand,
+                      )}
+                    </span>
+                    <span className={styles.logRound} aria-hidden="true">{r.round}</span>
+                    <span aria-hidden="true">
+                      {cardLabel(r.yourCard)} – {cardLabel(r.opponentCard)}
+                    </span>
+                    <span className={styles.logMark} aria-hidden="true">
+                      {t.resultMark[r.winner]}
+                      {r.cardsReturnedToHand ? ' ↩' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Your hand */}

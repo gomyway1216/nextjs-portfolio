@@ -16,6 +16,7 @@ import { useBiggerNumberMultiplayer } from './useBiggerNumberMultiplayer';
 import { BiggerNumberMultiplayerLobby } from './BiggerNumberMultiplayerLobby';
 import { BiggerNumberTable, type RoundPhase } from './BiggerNumberTable';
 import { cardLabel } from './gameLogic';
+import { historyFromLog } from './roundHistory';
 import type { CardValue } from './types';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
@@ -188,6 +189,8 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
       opponentLabel={otherPlayerName ?? (ja ? '相手' : 'Opponent')}
       yourHand={myHand}
       opponentHandCount={opponentHand.length}
+      opponentHand={opponentHand}
+      history={historyFromLog(gameState.log, myId, opponentId)}
       yourWins={myWins}
       opponentWins={opponentWins}
       round={gameState.round}

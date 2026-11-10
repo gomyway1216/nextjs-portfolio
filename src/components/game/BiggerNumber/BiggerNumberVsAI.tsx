@@ -25,6 +25,7 @@ import type { AIDifficulty, BiggerNumberRules, CardValue } from './types';
 import { DEFAULT_RULES } from './types';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
+import type { RoundRecord } from './roundHistory';
 import styles from './BiggerNumberVsAI.module.css';
 
 interface BiggerNumberVsAIProps {
@@ -81,6 +82,7 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
   const [revealWinner, setRevealWinner] = useState<RevealWinner>(null);
   const [lastResultText, setLastResultText] = useState<string | null>(null);
   const [finalMessage, setFinalMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<RoundRecord[]>([]);
 
   // The master AI's opponent model. It describes the human, not the AI tier,
   // so it persists across matches and difficulty changes for as long as the
@@ -112,6 +114,7 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
     setRevealWinner(null);
     setLastResultText(null);
     setFinalMessage(null);
+    setHistory([]);
   }, [clearPendingTimeouts]);
 
   const handleStart = useCallback(() => {
@@ -173,6 +176,17 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
           : removeCard(aiHand, aiDecision.card);
 
         const roundsPlayed = result.cardsReturnedToHand ? round - 1 : round;
+
+        setHistory((prev) => [
+          ...prev,
+          {
+            round,
+            yourCard: card,
+            opponentCard: aiDecision.card,
+            winner: winnerId === HUMAN_ID ? 'you' : winnerId === AI_ID ? 'opponent' : 'tie',
+            cardsReturnedToHand: result.cardsReturnedToHand,
+          },
+        ]);
 
         setLastResultText(
           describeResult(language, {
@@ -303,6 +317,8 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
       opponentLabel={`AI · ${t.difficultyLabels[difficulty]}`}
       yourHand={youHand}
       opponentHandCount={aiHand.length}
+      opponentHand={aiHand}
+      history={history}
       yourWins={youWins}
       opponentWins={aiWins}
       round={round}

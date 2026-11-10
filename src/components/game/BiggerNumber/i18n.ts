@@ -6,6 +6,7 @@
  */
 
 import type { AIDifficulty } from './types';
+import type { RoundWinner } from './roundHistory';
 
 export interface BiggerNumberStrings {
   vsAi: string;
@@ -43,6 +44,23 @@ export interface BiggerNumberStrings {
   rulesHeading: string;
   ruleLines: string[];
   cardsPlayed: string;
+  opponentTiles: string;
+  tileInHand: (label: string) => string;
+  tilePlayed: (label: string) => string;
+  roundLog: string;
+  roundLogOrder: string;
+  resultMark: Record<RoundWinner, string>;
+  roundLogEntry: (
+    round: number,
+    you: string,
+    opponent: string,
+    winner: RoundWinner,
+    returned: boolean,
+  ) => string;
+  summaryHeading: string;
+  summaryRecord: (wins: number, losses: number, ties: number) => string;
+  avgMargin: string;
+  avgMarginHint: string;
 }
 
 export function getStrings(language: 'ja' | 'en'): BiggerNumberStrings {
@@ -98,6 +116,7 @@ export function getStrings(language: 'ja' | 'en'): BiggerNumberStrings {
           '龍タイルは1にだけ負け、他のすべてに勝ちます（設定変更可）。',
           '先に規定数を勝ち取った方が試合の勝者。',
           '強い札をいつ切るか——読み合いが鍵。',
+          '札は1回ずつしか使えません。相手の残り札とラウンド履歴は対戦中いつでも確認できます。',
         ]
       : [
           'Each round, secretly pick one tile; both reveal at once.',
@@ -105,7 +124,40 @@ export function getStrings(language: 'ja' | 'en'): BiggerNumberStrings {
           'The Dragon loses only to 1 and beats everything else (configurable).',
           'First to the target number of round wins takes the match.',
           'Timing your strong tiles is everything.',
+          "Each tile can be used once. The opponent's remaining tiles and the round log stay visible during the match.",
         ],
     cardsPlayed: ja ? '出した札' : 'Played',
+    opponentTiles: ja ? '相手の残り札' : "Opponent's remaining tiles",
+    tileInHand: (label: string) => (ja ? `${label}（手札にあり）` : `${label} (in hand)`),
+    tilePlayed: (label: string) => (ja ? `${label}（使用済み）` : `${label} (played)`),
+    roundLog: ja ? 'ラウンド履歴' : 'Round log',
+    roundLogOrder: ja ? 'あなた – 相手' : 'you – opponent',
+    resultMark: {
+      you: ja ? '勝' : 'W',
+      opponent: ja ? '負' : 'L',
+      tie: ja ? '分' : 'T',
+    },
+    roundLogEntry: (round, you, opponent, winner, returned) => {
+      const result =
+        winner === 'you'
+          ? ja ? 'あなたの勝ち' : 'you won'
+          : winner === 'opponent'
+            ? ja ? '相手の勝ち' : 'opponent won'
+            : returned
+              ? ja ? '引き分け（札は手札に戻る）' : 'tie, tiles returned'
+              : ja ? '引き分け' : 'tie';
+      return ja
+        ? `ラウンド${round}：あなた ${you}、相手 ${opponent}、${result}`
+        : `Round ${round}: you ${you}, opponent ${opponent}, ${result}`;
+    },
+    summaryHeading: ja ? '試合のまとめ' : 'Match summary',
+    summaryRecord: (wins, losses, ties) =>
+      ja ? `${wins}勝 ${losses}敗 ${ties}分` : `${wins}W – ${losses}L – ${ties}T`,
+    avgMargin: ja
+      ? '平均勝ち幅（数字同士のラウンド）'
+      : 'Avg. winning margin (number-vs-number rounds)',
+    avgMarginHint: ja
+      ? '勝ったラウンドでの2枚の数字の差の平均です。小さいほど、少ない差で勝っています。'
+      : 'Mean gap between the two numbers in the rounds that side won. Smaller means winning with less to spare.',
   };
 }

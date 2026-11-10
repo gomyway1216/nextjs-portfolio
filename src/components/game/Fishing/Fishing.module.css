@@ -1238,6 +1238,28 @@
 
 /* The catch log: the fish board's table again, with a fish not yet landed drawn as its silhouette (the words keep
    their own colours, so nothing loses contrast). */
+/* Its three counts keep columns of a set width and the fish's name takes what is left, wrapping (inside a word if it
+   must) rather than widening the table: on a 320 px phone the table is never wider than its panel. */
+.log {
+  table-layout: fixed;
+}
+.log thead th:nth-child(n + 2) {
+  box-sizing: border-box;
+  width: 3.3rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.log thead th:last-child {
+  width: 3.6rem;
+}
+.log td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.log .boardFish > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .log tbody td {
   font-weight: 700;
 }
@@ -1268,6 +1290,23 @@
   .log td {
     padding-left: 0.15rem;
     padding-right: 0.15rem;
+  }
+  .log thead th:nth-child(n + 2) {
+    width: 3.1rem;
+    letter-spacing: 0;
+  }
+  .log thead th:last-child {
+    width: 3.4rem;
+  }
+  .log .logArt {
+    width: 1.6rem;
+    height: 1.05rem;
+  }
+}
+/* On the narrowest phones the name has the fish's place too: the row's tint still tells a fish landed from one not. */
+@media (max-width: 340px) {
+  .log .logArt {
+    display: none;
   }
 }
 

@@ -504,6 +504,10 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     }
   };
 
+  const hintStillSelected = activeHint?.type === 'play'
+    && activeHint.cards.length === effectiveSelectedCardIds.length
+    && activeHint.cards.every(c => effectiveSelectedCardIds.includes(c.id));
+
   const hintCardsLabel = (cards: Card[]) => cards.map(cardToShortLabel).join(' ');
 
   const logLines = useMemo(() => {
@@ -1018,7 +1022,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                       {activeHint.type === 'play' && activeHint.discardCards.length > 0 && (
                         <div>{d.tenDiscard} — {translate('games.daifugo.ui.hint.discard', { cards: hintCardsLabel(activeHint.discardCards) })}</div>
                       )}
-                      {activeHint.type === 'play' && (
+                      {hintStillSelected && (
                         <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
                           {translate('games.daifugo.ui.hint.selected')}
                         </div>

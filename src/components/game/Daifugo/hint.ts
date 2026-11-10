@@ -14,6 +14,7 @@ import type { Card } from './types';
 
 export type DaifugoHintReason =
   | 'finish'
+  | 'forbiddenFinish'
   | 'eightCut'
   | 'revolution'
   | 'lead'
@@ -65,11 +66,13 @@ export function getDaifugoHint(state: DaifugoNetworkState, playerId: string): Da
   if (!result.ok) return null;
 
   const after = result.state;
-  const wentOut = (after.hands[playerId] ?? []).length === 0
-    && !after.forbiddenFinishers.includes(playerId);
+  const emptiesHand = (after.hands[playerId] ?? []).length === 0;
+  // あがり禁止: going out on a joker / 2 / 8 (3 under revolution) ranks the player last.
+  const penalized = emptiesHand && after.forbiddenFinishers.includes(playerId);
 
   let reason: Extract<DaifugoHint, { type: 'play' }>['reason'];
-  if (wentOut) reason = 'finish';
+  if (penalized) reason = 'forbiddenFinish';
+  else if (emptiesHand) reason = 'finish';
   else if (after.revolution !== state.revolution) reason = 'revolution';
   else if (shape.containsEight && !after.pile) reason = 'eightCut';
   else reason = state.pile ? 'beat' : 'lead';

@@ -52,6 +52,21 @@ describe('getDaifugoHint', () => {
     expect(hint.cards.map(c => c.id).sort()).toEqual(['a', 'b']);
   });
 
+  it('warns about the penalty instead of promising the lead when a lone 8 is the last card', () => {
+    const state = baseState({
+      hands: { p1: [card('eight', 'S', 8)], p2: filler('x', 5), p3: filler('y', 5) },
+    });
+    const hint = getDaifugoHint(state, 'p1');
+    expect(hint).toMatchObject({ type: 'play', reason: 'forbiddenFinish' });
+
+    const result = applyAction(state, {
+      actionId: 't', type: 'play', playerId: 'p1', cardIds: ['eight'], timestamp: 0,
+    });
+    if (!result.ok) throw new Error('expected the engine to accept the play');
+    expect(result.state.forbiddenFinishers).toContain('p1');
+    expect(result.state.currentTurnPlayerId).not.toBe('p1');
+  });
+
   it('labels a lead on an empty table', () => {
     const state = baseState({
       hands: {
@@ -152,8 +167,9 @@ describe('getDaifugoHint', () => {
         expect(result.ok).toBe(true);
         if (!result.ok) break;
 
-        if (hint.type === 'play' && hint.reason === 'finish') {
+        if (hint.type === 'play' && (hint.reason === 'finish' || hint.reason === 'forbiddenFinish')) {
           expect(result.state.hands[pid] ?? []).toHaveLength(0);
+          expect(result.state.forbiddenFinishers.includes(pid)).toBe(hint.reason === 'forbiddenFinish');
         }
         if (hint.type === 'pass' && hint.reason === 'noLegalPlay') {
           expect(hasLegalDaifugoPlay(state, pid)).toBe(false);
@@ -166,7 +182,7 @@ describe('getDaifugoHint', () => {
 });
 
 describe('hint locale strings', () => {
-  const reasons = ['finish', 'eightCut', 'revolution', 'lead', 'beat', 'noLegalPlay', 'holdStrong'];
+  const reasons = ['finish', 'forbiddenFinish', 'eightCut', 'revolution', 'lead', 'beat', 'noLegalPlay', 'holdStrong'];
 
   it.each([['en', en], ['ja', ja]] as const)('%s has every hint string', (_lang, locale) => {
     const hint = locale.games.daifugo.ui.hint;

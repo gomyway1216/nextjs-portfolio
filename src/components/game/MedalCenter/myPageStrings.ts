@@ -73,6 +73,17 @@ export interface MyPageStrings {
   since: (date: string) => string;
   sinceUnknown: string;
   empty: string;
+  /** The history of one machine at a time: the choice's label, and the choice that lists everything. */
+  filterLabel: string;
+  filterAll: string;
+  /** A choice: what the entries are of, and how many of the history's entries are its. */
+  filterOption: (name: string, count: string) => string;
+  /** How many entries the history holds, with everything listed. */
+  filterHolds: (all: string) => string;
+  /** How many of the history's entries are the chosen machine's. */
+  filterSays: (name: string, shown: string, all: string) => string;
+  /** With one machine listed, once the history has let its oldest entries go. */
+  filterCut: string;
   centerName: string;
   round: (bet: string, won: string) => string;
   playVisit: (fed: string, won: string) => string;
@@ -163,6 +174,12 @@ const en: MyPageStrings = {
   since: (date) => `Your history begins on ${date}. What was played before then is not in it.`,
   sinceUnknown: 'What was played before this history began is not in it.',
   empty: 'Nothing yet. Play a machine, and what happens to your medals shows up here.',
+  filterLabel: 'Show',
+  filterAll: 'Everything',
+  filterOption: (name, count) => `${name} (${count})`,
+  filterHolds: (all) => `The history holds ${all} ${all === '1' ? 'entry' : 'entries'}.`,
+  filterSays: (name, shown, all) => `${name}: ${shown} of the history’s ${all} ${all === '1' ? 'entry' : 'entries'}.`,
+  filterCut: 'The history holds only its latest entries, so anything earlier is not counted here. Choose “Everything” to see each earlier day’s totals.',
   centerName: 'Medal Game Center',
   round: (bet, won) => `Bet ${bet} · won ${won}`,
   playVisit: (fed, won) => `Fed ${fed} · won ${won}`,
@@ -249,6 +266,12 @@ const ja: MyPageStrings = {
   since: (date) => `履歴は${date}から始まります。それより前に遊んだ分は入っていません。`,
   sinceUnknown: '履歴が始まる前に遊んだ分は入っていません。',
   empty: 'まだありません。マシンで遊ぶと、持ちメダルの動きがここに表示されます。',
+  filterLabel: '絞り込み',
+  filterAll: 'すべて',
+  filterOption: (name, count) => `${name}（${count}件）`,
+  filterHolds: (all) => `履歴は${all}件あります。`,
+  filterSays: (name, shown, all) => `${name}：履歴${all}件のうち${shown}件です。`,
+  filterCut: '履歴に残るのは新しい分だけで、それより前の分はここに含みません。「すべて」を選ぶと、前の日ごとの合計を見られます。',
   centerName: 'メダルゲームセンター',
   round: (bet, won) => `ベット${bet}枚・獲得${won}枚`,
   playVisit: (fed, won) => `投入${fed}枚・獲得${won}枚`,

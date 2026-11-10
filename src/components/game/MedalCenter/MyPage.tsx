@@ -10,6 +10,7 @@ import { useRecords, type RecordsState } from '../MedalPusher/recordsStore';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useBank, useMedalHistory, type BankState } from './bank';
 import { CENTER, FLOOR_JACKPOT, HISTORY_LIMITS, PUSHER_GAME, REPORTS_PLAY, dayTotals, medalsOverTime, recordsOf, returnOf, totalsOf, type Entry, type GameRecord, type History } from './history';
+import { EVERYTHING, chosenOf, listedIn, tallyOf } from './historyFilter';
 import type { HistoryState } from './historyStore';
 import { COUNTER_PLACES, FLOOR, MedalStack } from './MedalCenter';
 import { DottedParts } from './KeysHint';
@@ -56,6 +57,14 @@ export interface MyPageProps {
   presumedMember?: boolean;
 }
 
+interface MyPageViewProps extends MyPageProps {
+  bank: BankState;
+  history: HistoryState;
+  book: RecordsState;
+  /** What the history lists as the page opens: everything, unless a machine (or `CENTER`, or `FLOOR_JACKPOT`) is given. */
+  listing?: string;
+}
+
 /**
  * The player's own page at the medal center: their medals on the LED
  * counter, a chart of them over time, their records at every machine, the
@@ -67,7 +76,7 @@ export const MyPage = ({ signInHref, presumedMember }: MyPageProps) => (
 );
 
 /** The page for a given state of the medals, their history and the Medal Pusher's book. */
-export const MyPageView = ({ bank, history, book, signInHref, presumedMember = false }: { bank: BankState; history: HistoryState; book: RecordsState } & MyPageProps) => {
+export const MyPageView = ({ bank, history, book, signInHref, presumedMember = false, listing = EVERYTHING }: MyPageViewProps) => {
   const { language } = useGameLanguage();
   const { t: translate } = useTranslation();
   const t = getMyPageStrings(language);
@@ -151,7 +160,7 @@ export const MyPageView = ({ bank, history, book, signInHref, presumedMember = f
         <RecordsSection doc={doc} since={since} t={t} f={f} nameOf={nameOf} />
         <BookCard book={book} t={t} f={f} />
 
-        <HistorySection doc={doc} since={since} t={t} f={f} nameOf={nameOf} />
+        <HistorySection doc={doc} since={since} t={t} f={f} nameOf={nameOf} listing={listing} />
       </div>
     </div>
   );
@@ -454,7 +463,10 @@ function whatHappened(entry: Entry, t: MyPageStrings, f: Formats): string {
 /** The medals an entry left the player up or down, for a round or a visit; nothing to say for the rest. */
 const NetBadge = ({ entry, t, f }: { entry: Entry; t: MyPageStrings; f: Formats }) => {
   if (entry.k !== 'round' && entry.k !== 'play') return null;
-  const net = entry.won - entry.bet;
+  return <Net net={entry.won - entry.bet} t={t} f={f} />;
+};
+
+const Net = ({ net, t, f }: { net: number; t: MyPageStrings; f: Formats }) => {
   const sign = net > 0 ? 'up' : net < 0 ? 'down' : 'even';
   return (
     <span className={styles.net} data-net={sign}>
@@ -464,10 +476,19 @@ const NetBadge = ({ entry, t, f }: { entry: Entry; t: MyPageStrings; f: Formats 
   );
 };
 
-const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; since: string | null; t: MyPageStrings; f: Formats; nameOf: (game: string) => string }) => {
+const HistorySection = ({ doc, since, t, f, nameOf, listing }: { doc: History | null; since: string | null; t: MyPageStrings; f: Formats; nameOf: (game: string) => string; listing: string }) => {
   const [count, setCount] = useState(PAGE_SIZE);
+  const [picked, setPicked] = useState(listing);
+  const filterId = useId();
   const entries = doc ? doc.entries : [];
-  const listed = entries.slice(0, count);
+  // The history of one machine at a time, of those the list holds something of. What was picked stands only while the
+  // list still holds something of it (another tab's play may push its last entry out).
+  const machines = listedIn(entries);
+  const chosen = chosenOf(picked, machines);
+  const filtered = chosen !== EVERYTHING;
+  const matched = filtered ? entries.filter((entry) => entry.g === chosen) : entries;
+  const tally = filtered ? tallyOf(matched) : null;
+  const listed = matched.slice(0, count);
   // The entries, a day at a time, the latest day first.
   const groups: { day: string; entries: Entry[] }[] = [];
   for (const entry of listed) {
@@ -481,16 +502,55 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
   const older = totals.filter((total) => oldest !== null && total.day < oldest);
   // Once entries have been let go (only the latest are kept), the oldest day the list reaches may have lost its
   // earlier things: what it lists of that day is only the rest. So the whole day's totals are said under it.
-  const cut = oldest !== null && (entries.length >= HISTORY_LIMITS.entries || older.length > 0) ? (totals.find((total) => total.day === oldest) ?? null) : null;
+  const letGo = oldest !== null && (entries.length >= HISTORY_LIMITS.entries || older.length > 0);
+  const cut = letGo ? (totals.find((total) => total.day === oldest) ?? null) : null;
 
   return (
-    <section id="mypage-history" className={styles.history} aria-labelledby="mypage-history-title" data-testid="mypage-history" data-loaded={doc !== null} data-entries={entries.length}>
+    <section id="mypage-history" className={styles.history} aria-labelledby="mypage-history-title" data-testid="mypage-history" data-loaded={doc !== null} data-entries={entries.length} data-listing={chosen}>
       <h2 id="mypage-history-title" className={styles.sectionTitle}>
         {t.historyTitle}
       </h2>
       <p className={styles.sectionLead} data-testid="mypage-since">
         {since ? t.since(since) : t.sinceUnknown}
       </p>
+      {/* Always here, at the height it has with a history in it, so that nothing under it moves as the history is read. */}
+      <div className={styles.filter}>
+        <label htmlFor={filterId} className={styles.filterLabel}>
+          {t.filterLabel}
+        </label>
+        <select
+          id={filterId}
+          className={styles.filterSelect}
+          data-testid="mypage-filter"
+          value={chosen}
+          disabled={machines.length === 0}
+          onChange={(event) => {
+            setPicked(event.target.value);
+            setCount(PAGE_SIZE);
+          }}
+        >
+          <option value={EVERYTHING}>{t.filterAll}</option>
+          {machines.map(({ game, count: its }) => (
+            <option key={game} value={game}>
+              {t.filterOption(nameOf(game), f.n(its))}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className={styles.filterSaid} data-testid="mypage-filter-said" role="status">
+        <span>{!doc ? t.none : filtered ? t.filterSays(nameOf(chosen), f.n(matched.length), f.n(entries.length)) : t.filterHolds(f.n(entries.length))}</span>
+        {tally && tally.rounds + tally.visits > 0 && (
+          <>
+            {' '}
+            <span data-testid="mypage-filter-tally">{tally.rounds > 0 ? t.round(f.n(tally.bet), f.n(tally.won)) : t.playVisit(f.n(tally.bet), f.n(tally.won))}</span> <Net net={tally.won - tally.bet} t={t} f={f} />
+          </>
+        )}
+      </p>
+      {filtered && letGo && (
+        <p className={styles.sectionLead} data-testid="mypage-filter-cut">
+          {t.filterCut}
+        </p>
+      )}
       {doc && entries.length === 0 && (
         <p className={styles.empty} data-testid="mypage-empty">
           {t.empty}
@@ -517,7 +577,7 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
               </li>
             ))}
           </ol>
-          {cut && group.day === cut.day && listed.length === entries.length && (
+          {!filtered && cut && group.day === cut.day && listed.length === entries.length && (
             <p className={styles.dayCut} data-testid="mypage-day-cut">
               <span>{t.dayCut}</span>{' '}
               <span>
@@ -527,15 +587,15 @@ const HistorySection = ({ doc, since, t, f, nameOf }: { doc: History | null; sin
           )}
         </div>
       ))}
-      {entries.length > count && (
+      {matched.length > count && (
         <div className={styles.more}>
-          <p className={styles.sectionLead}>{t.shownOf(listed.length, entries.length)}</p>
+          <p className={styles.sectionLead}>{t.shownOf(listed.length, matched.length)}</p>
           <button type="button" className={styles.moreButton} data-testid="mypage-more" onClick={() => setCount((shown) => shown + PAGE_SIZE)}>
-            {t.showMore(Math.min(PAGE_SIZE, entries.length - count))}
+            {t.showMore(Math.min(PAGE_SIZE, matched.length - count))}
           </button>
         </div>
       )}
-      {older.length > 0 && (
+      {!filtered && older.length > 0 && (
         <div className={styles.older} data-testid="mypage-older">
           <h3 className={styles.cardTitle}>{t.olderTitle}</h3>
           <p className={styles.sectionLead}>{t.olderLead(HISTORY_LIMITS.days)}</p>

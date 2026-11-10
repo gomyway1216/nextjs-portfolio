@@ -187,6 +187,10 @@ export interface SoundEvents {
   enemyMarch: boolean;
   extraLife: boolean;
   marchPitch: number;
+  /** Type of the invader the local player's bullet destroyed this frame, if any. */
+  enemyHitType: EnemyType | null;
+  /** Bonus scored if the local player's bullet destroyed the UFO this frame, else 0. */
+  ufoHitPoints: number;
 }
 
 export function createSoundEvents(): SoundEvents {
@@ -202,6 +206,8 @@ export function createSoundEvents(): SoundEvents {
     enemyMarch: false,
     extraLife: false,
     marchPitch: 0,
+    enemyHitType: null,
+    ufoHitPoints: 0,
   };
 }
 
@@ -220,6 +226,7 @@ export interface GameState {
   nextExtraLifeAt: number;
   gameOver: boolean;
   isPaused: boolean;
+  /** Elapsed sim time in 60 Hz ticks (fractional: advances by elapsed time, not by frame count). */
   animationTick: number;
   marchCounter: number; // For enemy march sound timing
   /**

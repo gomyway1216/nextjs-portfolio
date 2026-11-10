@@ -8,17 +8,24 @@ import { useHighScore } from '@/hooks/useHighScore';
 import { InfoModal } from '../common/InfoModal';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getReverseJumpCopy } from './i18n';
+import { RunSummaryPanel } from './RunSummaryPanel';
 import styles from './ReverseJump.module.css';
 import {
+  advanceRunStats,
   ControlMode,
   createObstacle,
+  createRunStats,
   Difficulty,
   DIFFICULTY_CONFIG,
   intersects,
   Obstacle,
   playerBox,
+  recordCleared,
+  RunStats,
+  RunSummary,
   speedForScore,
   stepPlayer,
+  summarizeRun,
   WORLD,
 } from './gameLogic';
 
@@ -38,6 +45,7 @@ interface Runtime {
   duckHeld: boolean;
   /** accumulated ground-scroll offset (world units) for motion hatching */
   groundOffset: number;
+  stats: RunStats;
 }
 
 const FLIP_WARN_MS = 1600;
@@ -55,6 +63,7 @@ const createRuntime = (config = DIFFICULTY_CONFIG.medium): Runtime => ({
   wantJump: false,
   duckHeld: false,
   groundOffset: 0,
+  stats: createRunStats(),
 });
 
 export const ReverseJump = () => {
@@ -70,6 +79,7 @@ export const ReverseJump = () => {
   // HUD mirror state (updated at a throttled cadence from the loop).
   const [hud, setHud] = useState({ score: 0, mode: 'normal' as ControlMode, swapTimerMs: DIFFICULTY_CONFIG.medium.swapIntervalMs });
   const [isNewBest, setIsNewBest] = useState(false);
+  const [lastRun, setLastRun] = useState<RunSummary | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<Runtime>(createRuntime());
@@ -255,11 +265,16 @@ export const ReverseJump = () => {
       canvas.width = pw;
       canvas.height = ph;
     }
-    const sx = canvas.width / WORLD.width;
-    const sy = canvas.height / WORLD.height;
+    // One uniform scale with the world centred vertically: on narrow screens
+    // the stage is taller than the world's aspect ratio (so the overlays fit),
+    // and the extra room shows as sky above and ground below.
+    const scale = canvas.width / WORLD.width;
+    const offsetY = Math.max(0, (canvas.height - WORLD.height * scale) / 2);
+    const skyTop = -offsetY / scale;
 
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-    ctx.clearRect(0, 0, WORLD.width, WORLD.height);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(scale, 0, 0, scale, 0, offsetY);
 
     const rt = runtimeRef.current;
     const inverted = rt.mode === 'inverted';
@@ -302,7 +317,7 @@ export const ReverseJump = () => {
         ctx.strokeStyle = 'rgba(167,139,250,0.4)';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(obs.x + obs.width / 2, 0);
+        ctx.moveTo(obs.x + obs.width / 2, skyTop);
         ctx.lineTo(obs.x + obs.width / 2, obs.y);
         ctx.stroke();
       }
@@ -363,7 +378,8 @@ export const ReverseJump = () => {
 
       // Control flip timer
       rt.swapTimerMs -= dt * 1000;
-      if (rt.swapTimerMs <= 0) {
+      const flipped = rt.swapTimerMs <= 0;
+      if (flipped) {
         rt.mode = rt.mode === 'normal' ? 'inverted' : 'normal';
         rt.swapTimerMs = cfg.swapIntervalMs;
         // Clear held ducks so a stuck key doesn't carry the wrong action across a flip.
@@ -372,6 +388,7 @@ export const ReverseJump = () => {
 
       // Scroll + spawn
       const speed = speedForScore(rt.score, cfg);
+      advanceRunStats(rt.stats, dt * 1000, flipped, speed);
       // Advance the ground hatching in lockstep with the world scroll so the
       // motion visually matches the obstacle speed (40 = hatch pitch).
       rt.groundOffset = (rt.groundOffset + speed * dt) % 40;
@@ -391,16 +408,21 @@ export const ReverseJump = () => {
 
       // Scoring + collision
       const box = playerBox(rt.playerY, rt.ducking);
-      let dead = false;
+      let hitObstacle: Obstacle | null = null;
       for (const obs of rt.obstacles) {
         if (!obs.scored && obs.x + obs.width < WORLD.playerX) {
           obs.scored = true;
           rt.score += 1;
+          recordCleared(rt.stats, obs.type);
         }
-        if (intersects(box.x, box.y, box.w, box.h, obs.x, obs.y, obs.width, obs.height)) {
-          dead = true;
+        if (
+          !hitObstacle &&
+          intersects(box.x, box.y, box.w, box.h, obs.x, obs.y, obs.width, obs.height)
+        ) {
+          hitObstacle = obs;
         }
       }
+      const dead = hitObstacle !== null;
 
       draw();
 
@@ -411,7 +433,15 @@ export const ReverseJump = () => {
         setHud({ score: rt.score, mode: rt.mode, swapTimerMs: Math.max(0, rt.swapTimerMs) });
       }
 
-      if (dead) {
+      if (hitObstacle) {
+        setLastRun(
+          summarizeRun(rt.stats, difficultyRef.current, {
+            type: hitObstacle.type,
+            playerY: rt.playerY,
+            ducking: rt.ducking,
+            mode: rt.mode,
+          }),
+        );
         const finalScore = rt.score;
         if (finalScore > highScoreRef.current) {
           setIsNewBest(true);
@@ -588,6 +618,8 @@ export const ReverseJump = () => {
           </button>
         </div>
       </div>
+
+      <RunSummaryPanel summary={lastRun} copy={copy} />
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={copy.instrTitle}>
         <div className={styles.modalBody}>

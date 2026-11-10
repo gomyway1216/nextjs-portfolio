@@ -230,3 +230,100 @@ export const stepPlayer = (
 
   return { playerY: y, velocityY: vy, onGround };
 };
+
+// ---- Run summary (what ended the run, and how the run went) ----
+
+export type Pose = 'standing' | 'ducking' | 'airborne';
+
+/** Counters the loop keeps while a run is in progress. */
+export interface RunStats {
+  /** simulated time in ms; paused time is not counted */
+  elapsedMs: number;
+  lowCleared: number;
+  highCleared: number;
+  flips: number;
+  /** ms since the controls last flipped; null until the first flip */
+  msSinceFlip: number | null;
+  topSpeed: number;
+}
+
+export interface RunSummary {
+  difficulty: Difficulty;
+  score: number;
+  elapsedMs: number;
+  lowCleared: number;
+  highCleared: number;
+  flips: number;
+  /** fastest scroll speed reached, as a multiple of the starting speed */
+  topSpeedRatio: number;
+  hit: {
+    type: ObstacleType;
+    pose: Pose;
+    /** control mode in force at the moment of impact */
+    mode: ControlMode;
+    msSinceFlip: number | null;
+  };
+}
+
+export const createRunStats = (): RunStats => ({
+  elapsedMs: 0,
+  lowCleared: 0,
+  highCleared: 0,
+  flips: 0,
+  msSinceFlip: null,
+  topSpeed: 0,
+});
+
+/** The pose the collision box was built from. */
+export const poseOf = (playerY: number, ducking: boolean): Pose => {
+  if (playerY < WORLD.groundY) return 'airborne';
+  return ducking ? 'ducking' : 'standing';
+};
+
+/**
+ * Advance the run counters by one simulated frame. `flipped` is true on the
+ * frame the control mode changed, which restarts the since-flip clock.
+ */
+export const advanceRunStats = (
+  stats: RunStats,
+  dtMs: number,
+  flipped: boolean,
+  speed: number,
+): void => {
+  stats.elapsedMs += dtMs;
+  if (flipped) {
+    stats.flips += 1;
+    stats.msSinceFlip = 0;
+  } else if (stats.msSinceFlip !== null) {
+    stats.msSinceFlip += dtMs;
+  }
+  if (speed > stats.topSpeed) stats.topSpeed = speed;
+};
+
+export const recordCleared = (stats: RunStats, type: ObstacleType): void => {
+  if (type === 'high') stats.highCleared += 1;
+  else stats.lowCleared += 1;
+};
+
+export const summarizeRun = (
+  stats: RunStats,
+  difficulty: Difficulty,
+  hit: { type: ObstacleType; playerY: number; ducking: boolean; mode: ControlMode },
+): RunSummary => ({
+  difficulty,
+  score: stats.lowCleared + stats.highCleared,
+  elapsedMs: stats.elapsedMs,
+  lowCleared: stats.lowCleared,
+  highCleared: stats.highCleared,
+  flips: stats.flips,
+  topSpeedRatio: Math.max(1, stats.topSpeed / DIFFICULTY_CONFIG[difficulty].baseSpeed),
+  hit: {
+    type: hit.type,
+    pose: poseOf(hit.playerY, hit.ducking),
+    mode: hit.mode,
+    msSinceFlip: stats.msSinceFlip,
+  },
+});
+
+/** Seconds in whole tenths, rounded down so the figure never overstates. */
+export const tenthsOfSecond = (ms: number): number => Math.floor(Math.max(0, ms) / 100) / 10;

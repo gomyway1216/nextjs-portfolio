@@ -984,10 +984,19 @@
   flex-wrap: wrap;
   gap: 0.3rem;
 }
+/* The line that stands where the first chip will: as tall as a chip, so nothing under it moves as the first play ends. */
+.historyEmpty {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+/* A chip is a button: 44 px each way to tap, however few its words. */
 .historyChip {
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0 0.55rem;
   border-radius: 8px;
   font-size: 0.8rem;
@@ -997,6 +1006,18 @@
   color: var(--games-route-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-family: inherit;
+  cursor: pointer;
+}
+.historyChip:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+/* The play listed cork by cork below: ringed, whatever its own colours. */
+.historyChip[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--games-route-surface),
+    0 0 0 4px var(--games-route-fg);
 }
 .historyChip[data-won='true'] {
   color: var(--games-route-fg);
@@ -1005,6 +1026,90 @@
 .historyChip[data-cat='true'] {
   background: #f6c343;
   color: #2a1600;
+}
+
+/* A play cork by cork. Its room is kept from the start: a title, two lines for the play's own line (a long one wraps on
+   a narrow phone), and six rows each tall enough for two lines and the blind mark; so the panel under it stays put. */
+.shotCard {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--games-route-border);
+  min-height: 22rem;
+}
+.shotCardTitle {
+  margin: 0 0 0.2rem;
+  font-size: 0.92rem;
+  line-height: 1.3;
+  font-weight: 850;
+}
+.shotCardNote {
+  margin: 0 0 0.4rem;
+  min-height: 3em;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
+.shotList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.shotRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.3rem minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.15rem 0;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  border-bottom: 1px dotted var(--games-route-border);
+}
+.shotRow > span {
+  min-width: 0;
+}
+.shotNo {
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  color: var(--games-route-muted);
+  text-align: center;
+}
+.shotFigure {
+  font-weight: 700;
+}
+.shotBand {
+  color: var(--games-route-muted);
+}
+.shotResult {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.shotRow[data-outcome='fall'] .shotResult {
+  font-weight: 850;
+  color: var(--sht-ahead);
+}
+.shotRow[data-outcome='miss'] .shotResult {
+  font-weight: 500;
+  color: var(--games-route-muted);
+}
+.shotBlind {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--games-route-border);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+  white-space: nowrap;
+}
+@media (max-width: 390px) {
+  .shotRow {
+    gap: 0.3rem;
+    font-size: 0.76rem;
+  }
 }
 .statList {
   display: grid;
@@ -1189,6 +1294,8 @@
 .statLabel,
 .statNote,
 .statList dt,
+.shotCardNote,
+.shotRow > span,
 .ruleList li,
 .note,
 .intro p,
@@ -1203,6 +1310,8 @@
   .statLabel,
   .statNote,
   .statList dt,
+  .shotCardNote,
+  .shotRow > span,
   .ruleList li,
   .note,
   .intro p,

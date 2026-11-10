@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { CORKS, STAKE, finishedShots, playOf, type Draw, type Shot } from '@/components/game/ShootingGallery/engine';
-import { PLAY_KEY, SHOOTING_GALLERY_GAME, createTable, parsePlay, playId, playKey, serializePlay, type PlayRecord, type Staked } from '@/components/game/ShootingGallery/medalTable';
+import { PLAY_KEY, SHOOTING_GALLERY_GAME, createTable, parsePlay, playId, playKey, playOfRecord, serializePlay, type PlayRecord, type Staked } from '@/components/game/ShootingGallery/medalTable';
 import { BANK_KEY, ledgerKey, type Seat } from '@/components/game/MedalCenter/bank';
 import { WELCOME, balanceOf, createLedger, medalsOutAt, parseLedger, receiptsOf, serializeLedger, take } from '@/components/game/MedalCenter/ledger';
 import type { Player } from '@/components/game/MedalPusher/account';
@@ -180,7 +180,7 @@ describe('a play, once', () => {
     await quiet(browser);
     // Blind over the top from the third cork on: the two boxes the player knocked off, and nothing else.
     const drawn = drawFor(AIMS, ['fall', 'fall', 'fall', 'fall', 'fall', 'fall']);
-    machine.start({ ...drawn, bands: drawn.bands.map((band, c) => (c < 2 ? band : 0)) });
+    const staked = machine.start({ ...drawn, bands: drawn.bands.map((band, c) => (c < 2 ? band : 0)) })!;
     machine.shootMany(2);
     expect(machine.stop()).toBe('paid');
     // Two of the corks were the player's: the record says so, for the page that shows the play next.
@@ -189,6 +189,13 @@ describe('a play, once', () => {
     expect(shots.slice(0, 2)).toEqual(shotsAll(2));
     expect(shots.slice(2).map(([, band]) => band)).toEqual([0, 0, 0, 0]);
     expect(stored(browser)).toBe(WELCOME - STAKE + 2 + 2);
+    // Shown by the page that finished it (the play it holds, as settled) and by the page that reads it back after a
+    // reload: the player's two corks theirs, the four after them blind; what fell and what it paid as they were.
+    for (const shown of [playOfRecord({ ...staked.record, paid: true }), playOfRecord(record(browser)!)]) {
+      expect(shown.corks.map((cork) => cork.blind)).toEqual([false, false, true, true, true, true]);
+      expect(shown.corks.map((cork) => cork.outcome)).toEqual(['fall', 'fall', 'miss', 'miss', 'miss', 'miss']);
+      expect(shown).toMatchObject({ complete: true, won: 4, fallen: [6, 7] });
+    }
   });
 
   it('marks no shot blind on a play the player shot to its end', async () => {
@@ -200,6 +207,8 @@ describe('a play, once', () => {
     expect(machine.stop()).toBe('paid');
     expect(record(browser)).toMatchObject({ shots: shotsAll(CORKS), paid: true });
     expect(record(browser)).not.toHaveProperty('own');
+    expect(playOfRecord(record(browser)!)).toEqual(playOf(LINE_PLAY, shotsAll(CORKS)));
+    expect(playOfRecord(record(browser)!).corks.every((cork) => !cork.blind)).toBe(true);
   });
 
   it('takes nothing it should not: a draw it could not make, too few medals, a page without the card', async () => {

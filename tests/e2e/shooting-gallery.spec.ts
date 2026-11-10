@@ -263,6 +263,12 @@ test('shooting-gallery: a reload in the middle of a play finds the same play, fi
   await expect(page.getByTestId('sht-message')).toHaveText('The play was finished while you were away: the corks left were fired blind.');
   await expect(machine(page)).toHaveAttribute('data-result', 'down-6');
   await expect(page.getByTestId('sht-down')).toHaveText('6');
+  // Listed cork by cork: the one the player fired theirs, the five after it marked blind.
+  const rows = page.getByTestId('sht-shots').locator('li');
+  await expect(rows).toHaveCount(CORKS);
+  expect(await rows.evaluateAll((list) => list.map((row) => row.getAttribute('data-blind')))).toEqual(['false', 'true', 'true', 'true', 'true', 'true']);
+  await expect(rows.nth(0)).not.toContainText('blind');
+  await expect(rows.nth(1)).toContainText('blind');
   await page.waitForTimeout(1_000);
   expect(await bankBalance(page)).toBe(WELCOME - STAKE + SWEEP_WON);
   // And the next play goes on as ever: the figures stood up again, and the word cleared.
@@ -364,6 +370,9 @@ test('shooting-gallery fits 375 and 320 px phones in English and Japanese: the s
       );
     const before = await boxes();
     const seen = new Set<string>([JSON.stringify(before)]);
+    // The panel under the last plays: where it stands before any play has ended.
+    const sessionTop = () => page.locator('#sht-session-title').evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY));
+    const sessionBefore = await sessionTop();
     await start(page, SWEEP);
     const inView = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
@@ -384,6 +393,12 @@ test('shooting-gallery fits 375 and 320 px phones in English and Japanese: the s
     seen.add(JSON.stringify(await boxes()));
     expect([...seen], where).toEqual([JSON.stringify(before)]);
     await expect(machine(page)).toHaveAttribute('data-result', 'down-6');
+    // The play is listed cork by cork, its chip 44 px each way to tap, and the panel under it has not moved.
+    await expect(page.getByTestId('sht-shots').locator('li')).toHaveCount(CORKS);
+    const chip = await page.getByTestId('sht-history').locator('button').first().evaluate((el) => el.getBoundingClientRect());
+    expect(Math.min(chip.width, chip.height), `${where}: the play's chip`).toBeGreaterThanOrEqual(44);
+    expect(await sessionTop(), `${where}: the panel under the last plays`).toBe(sessionBefore);
+    expect(await sideways(), where).toBeLessThanOrEqual(width);
     // Everything the stall prints (its tags, the sight's band, the plaque) is at least 11 px: readable on the narrowest phone.
     const small = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('[data-testid="sht-stage"] span')].flatMap((el) => {

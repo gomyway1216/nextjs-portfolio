@@ -15,6 +15,7 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { BANDS, CORKS, FALLEN, PER_TIER, SET_UP, SHELF, STAKE, TARGETS, TIERS, drawPlay, playOf, tierOf, valueOf, type CorkPlay, type KindId, type Outcome, type Play } from './engine';
 import { getStrings } from './i18n';
+import { PlayReview } from './ShotCard';
 import { SHOOTING_GALLERY_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
 import { PUBLISHED_SHOOTING_GALLERY_ODDS } from './published';
 import {
@@ -270,6 +271,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [known, setKnown] = useState(false);
   const [outcome, setOutcome] = useState<Ended | null>(null);
   const [history, setHistory] = useState<Ended[]>([]);
+  // The play picked from the last plays to be listed cork by cork (null: the latest).
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
@@ -526,6 +529,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setResumed(false);
     setOutcome(null);
     setMoment(null);
+    // The play starting now is the one listed cork by cork as it ends.
+    setReviewing(null);
     // The keeper stands every figure up again for the new play.
     showShelf([...SET_UP]);
     const flight: Flight = { staked: staked.staked, cork: 0, phase: 'load', loadAt: clock.now(), shot: null, scene: null, sceneAt: 0, muzzle: muzzleAt(0), cues: [] };
@@ -561,6 +566,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setRoundId(null);
       setOutcome(null);
       setHistory([]);
+      setReviewing(null);
       setStats(EMPTY_STATS);
       setMessage('');
       setMoment(null);
@@ -894,8 +900,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;
   const won = !running && outcome !== null && !outcome.earlier && outcome.play.won > 0;
-  const catDown = (play: Play) => play.fallen.some((target) => SHELF[target] === 'cat');
-  const result = outcome ? (catDown(outcome.play) ? 'cat' : `down-${outcome.play.fallen.length}`) : '';
+  const result = outcome ? (outcome.play.fallen.some((target) => SHELF[target] === 'cat') ? 'cat' : `down-${outcome.play.fallen.length}`) : '';
   /** The badge over a play from before: one this page finished, or one simply shown again. */
   const badge = resumed ? t.resumed : outcome?.earlier && !running ? t.lastPlay : null;
 
@@ -1048,22 +1053,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
-        <section className={styles.panel} aria-labelledby="sht-history-title">
-          <h2 id="sht-history-title" className={styles.panelTitle}>
-            {t.historyTitle}
-          </h2>
-          {history.length === 0 ? (
-            <p className={styles.muted}>{t.historyEmpty}</p>
-          ) : (
-            <ol className={styles.historyList} data-testid="sht-history">
-              {history.map((entry) => (
-                <li key={entry.id} className={styles.historyChip} data-won={entry.play.won > 0 ? 'true' : 'false'} data-cat={catDown(entry.play) ? 'true' : 'false'} title={t.historyEntryLabel(entry.play)}>
-                  {t.historyEntry(entry.play)}
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+        <PlayReview t={t} history={history} chosen={reviewing} onChoose={setReviewing} />
 
         <section className={styles.panel} aria-labelledby="sht-session-title">
           <h2 id="sht-session-title" className={styles.panelTitle}>

@@ -32,6 +32,9 @@ const JA_KINDS: Readonly<Record<KindId, string>> = { box: 'お菓子の箱', dar
 const EN_BANDS: readonly string[] = ['TOO HIGH', 'TOP EDGE', 'UPPER', 'CENTRE', 'BASE'];
 const EN_BAND_WORDS: readonly string[] = ['over the top', 'the top edge', 'the upper half', 'the centre', 'the base'];
 const JA_BANDS: readonly string[] = ['上へ外れ', '上の角', '上半分', 'まん中', '足もと'];
+/** What a cork did, in a word or two for the list of a play's corks. */
+const EN_DID: Readonly<Record<Outcome, string>> = { fall: 'fell', slide: 'slid back', rock: 'rocked', miss: 'missed' };
+const JA_DID: Readonly<Record<Outcome, string>> = { fall: '落ちた', slide: '奥へずれた', rock: '揺れた', miss: '外れ' };
 /** Where a figure stands: as set up, slid back once, on the brink (slid back twice), off the shelf. */
 const EN_PLACES: readonly string[] = ['as set up', 'slid back a step', 'on the brink'];
 const JA_PLACES: readonly string[] = ['そのまま', '奥へずれた', '棚のふち'];
@@ -128,6 +131,17 @@ const en = {
   historyEmpty: 'No plays yet.',
   historyEntry: (play: Play) => (play.fallen.length === 0 ? 'none' : `${catDown(play) ? 'cat! ' : ''}${play.fallen.length} down +${play.won}`),
   historyEntryLabel: (play: Play) => (play.fallen.length === 0 ? 'Nothing off the shelf' : `${enFigures(play.fallen.length)} off the shelf${catDown(play) ? ', the cat among them' : ''}, ${enMedals(play.won)}`),
+  // ── A play's corks, one by one ──
+  shotCardTitle: 'Cork by cork',
+  shotCardEmpty: `When a play ends, its ${CORKS} corks are listed here: the figure each was fired at, where the sight was, and what the cork did.`,
+  shotFigure: (kind: KindId) => cap(EN_KINDS[kind]),
+  /** What a cork did, and the tag of a figure it knocked off. */
+  shotOutcome: (outcome: Outcome, kind: KindId) => (outcome === 'fall' ? `${EN_DID.fall} +${KINDS[kind].medals}` : EN_DID[outcome]),
+  /** The mark on a cork the machine fired blind, the page having gone mid-play. */
+  shotBlind: 'blind',
+  /** A cork of the list, as a sentence for a screen reader. */
+  shotSay: (cork: number, kind: KindId, band: number, outcome: Outcome, blind: boolean) =>
+    `Cork ${cork + 1}, ${blind ? 'fired blind ' : ''}at the ${EN_KINDS[kind]}, ${EN_BAND_WORDS[band]}: ${outcome === 'fall' ? `it fell, ${enMedals(KINDS[kind].medals)}` : outcome === 'slide' ? 'it slid back a step' : outcome === 'rock' ? 'it rocked and stayed up' : 'it missed'}.`,
   sessionTitle: 'This visit',
   plays: 'Plays',
   played: 'Medals played',
@@ -268,6 +282,13 @@ const ja: ShootingGalleryStrings = {
   historyEmpty: 'まだ遊んでいません。',
   historyEntry: (play: Play) => (play.fallen.length === 0 ? 'なし' : `${catDown(play) ? '招き猫！' : ''}${play.fallen.length}個 +${play.won}枚`),
   historyEntryLabel: (play: Play) => (play.fallen.length === 0 ? '落ちた的なし' : `${catDown(play) ? '招き猫をふくめ' : ''}${play.fallen.length}個が落ちて、${jaMedals(play.won)}`),
+  shotCardTitle: `1発ずつの${B}結果`,
+  shotCardEmpty: `プレイが終わると、${B}コルク${CORKS}発それぞれの${B}ねらった的、${B}照準のあった所、${B}結果が${B}ここに並びます。`,
+  shotFigure: (kind: KindId) => JA_KINDS[kind],
+  shotOutcome: (outcome: Outcome, kind: KindId) => (outcome === 'fall' ? `${JA_DID.fall} +${KINDS[kind].medals}枚` : JA_DID[outcome]),
+  shotBlind: '目をつぶって',
+  shotSay: (cork: number, kind: KindId, band: number, outcome: Outcome, blind: boolean) =>
+    `${cork + 1}発目、${blind ? '目をつぶって、' : ''}${JA_KINDS[kind]}（${JA_BANDS[band]}）：${outcome === 'fall' ? `落ちました。${jaMedals(KINDS[kind].medals)}` : outcome === 'slide' ? '奥へずれました' : outcome === 'rock' ? '揺れて止まりました' : '外れました'}。`,
   sessionTitle: '今回のプレイ',
   plays: `プレイ${B}回数`,
   played: `使った${B}メダル`,

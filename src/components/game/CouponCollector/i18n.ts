@@ -31,6 +31,20 @@ export interface CouponStrings {
   drawsAxisStart: string;
   drawsAxisEnd: (draws: string) => string;
   gridHint: string;
+  outlookHeading: string;
+  nextNewChance: string;
+  expectedRemaining: string;
+  projectedTotal: string;
+  dryStreak: string;
+  luckPending: string;
+  luckResult: (n: number, draws: string, chance: string) => string;
+  waitTitle: string;
+  waitAxis: string;
+  waitLegendActual: string;
+  waitLegendPending: string;
+  waitLegendExpected: string;
+  waitSummaryEmpty: string;
+  waitSummary: (longest: string, which: number, expected: string) => string;
   // Sim tab
   simSizeLabel: string;
   trialsLabel: string;
@@ -95,6 +109,23 @@ const en: CouponStrings = {
   drawsAxisStart: '0 draws',
   drawsAxisEnd: (draws) => `${draws} draws`,
   gridHint: 'Each cell is a coupon; the number below is how many copies you have drawn.',
+  outlookHeading: 'From here',
+  nextNewChance: 'Chance the next draw is new',
+  expectedRemaining: 'Expected draws still to go',
+  projectedTotal: 'Projected total draws',
+  dryStreak: 'Dry streak / expected wait',
+  luckPending: 'Complete the set to see the exact odds of finishing in that many draws.',
+  luckResult: (n, draws, chance) =>
+    `Exact odds: ${chance} of collections of ${n} are complete within ${draws} draws.`,
+  waitTitle: 'Wait for each new coupon',
+  waitAxis: 'k-th new coupon (1 → n)',
+  waitLegendActual: 'Your wait (draws)',
+  waitLegendPending: 'Wait in progress',
+  waitLegendExpected: 'Expected wait n/(n−k+1)',
+  waitSummaryEmpty:
+    'Draw to fill in the bars. The line is the expected wait for each new coupon; it reaches n for the last one.',
+  waitSummary: (longest, which, expected) =>
+    `Longest wait so far: ${longest} draws for new coupon #${which} (expected ${expected}).`,
   simSizeLabel: 'Collection size n',
   trialsLabel: 'Trials',
   runSim: 'Run simulation',
@@ -163,6 +194,23 @@ const ja: CouponStrings = {
   drawsAxisStart: '0 draws',
   drawsAxisEnd: (draws) => `${draws} draws`,
   gridHint: '各マスがクーポン。下の数字はそのクーポンを引いた枚数です。',
+  outlookHeading: 'ここからの見通し',
+  nextNewChance: '次の1回が新種である確率',
+  expectedRemaining: '残りの期待回数',
+  projectedTotal: '完成までの見込み合計回数',
+  dryStreak: '連続ダブり / 期待待ち回数',
+  luckPending: 'コンプすると、その回数以内に完成する厳密な確率が表示されます。',
+  luckResult: (n, draws, chance) =>
+    `厳密な確率：${n} 種のコレクションが ${draws} 回以内に完成する確率は ${chance} です。`,
+  waitTitle: '新種1枚ごとの待ち回数',
+  waitAxis: 'k 番目の新種（1 → n）',
+  waitLegendActual: '実際の待ち回数',
+  waitLegendPending: '待ち途中',
+  waitLegendExpected: '期待待ち回数 n/(n−k+1)',
+  waitSummaryEmpty:
+    '引くと棒が埋まっていきます。線は新種ごとの期待待ち回数で、最後の1種では n に達します。',
+  waitSummary: (longest, which, expected) =>
+    `これまでの最長待ち：${which} 番目の新種で ${longest} 回（期待値 ${expected}）。`,
   simSizeLabel: 'コレクションのサイズ n',
   trialsLabel: '試行回数',
   runSim: 'シミュレーション実行',

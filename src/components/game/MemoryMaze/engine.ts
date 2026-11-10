@@ -357,10 +357,7 @@ export const reviewRoute = (input: RouteReviewInput): RouteReview => {
   const { maze, player, moves, visited, wallHits } = input;
   const reachedGoal = player.x === maze.goal.x && player.y === maze.goal.y;
   const shortestSteps = Math.max(0, maze.solution.length - 1);
-  const visitedCells = visited.reduce(
-    (sum, row) => sum + row.reduce((rowSum, seen) => rowSum + (seen ? 1 : 0), 0),
-    0,
-  );
+  const visitedCells = visited.flat().filter(Boolean).length;
   const remaining = findShortestPath(maze.grid, player, maze.goal);
   return {
     reachedGoal,

@@ -23,7 +23,7 @@ import {
   type Maze,
   type Position,
 } from './engine';
-import { getStrings } from './i18n';
+import { getStrings, routeCellLabel } from './i18n';
 import styles from './MemoryMaze.module.css';
 import { RouteReview } from './RouteReview';
 
@@ -372,7 +372,7 @@ export const MemoryMaze = () => {
   const renderBoard = (r: RunState) => {
     const revealAll = r.phase === 'preview' || r.phase === 'won' || r.phase === 'lost';
     const solutionSet = new Set(r.maze.solution.map((p) => `${p.x},${p.y}`));
-    const hitSet = new Set(r.wallHits.map((p) => `${p.x},${p.y}`));
+    const hitSet = reviewing ? new Set(r.wallHits.map((p) => `${p.x},${p.y}`)) : null;
 
     return (
       <div
@@ -408,7 +408,7 @@ export const MemoryMaze = () => {
               if (isGoal) classes.push(styles.cellGoal);
               if (isPlayer) classes.push(styles.cellPlayer);
               if (isBump) classes.push(styles.cellBump);
-              const isHit = reviewing && isWall && hitSet.has(`${x},${y}`);
+              const isHit = isWall && hitSet !== null && hitSet.has(`${x},${y}`);
               const isShortest = reviewing && !isWall && onSolution && !isPlayer && !isGoal;
               if (isHit) classes.push(styles.cellHit);
               if (isShortest) classes.push(styles.cellShortest);
@@ -428,11 +428,9 @@ export const MemoryMaze = () => {
                           ? t.cellWallHit
                           : isWall && wallVisible
                             ? t.cellWall
-                            : isShortest
-                              ? t.cellShortest
-                              : reviewing && isVisited
-                                ? t.cellYourRoute
-                                : t.cellPath
+                            : reviewing
+                              ? routeCellLabel(t, Boolean(isVisited), isShortest)
+                              : t.cellPath
                   }
                 />
               );

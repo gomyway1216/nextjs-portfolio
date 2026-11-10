@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { RouteReview as RouteReviewData, ScoreBreakdown } from '@/components/game/MemoryMaze/engine';
-import { getStrings } from '@/components/game/MemoryMaze/i18n';
+import { getStrings, routeCellLabel } from '@/components/game/MemoryMaze/i18n';
 import { RouteReview } from '@/components/game/MemoryMaze/RouteReview';
 
 const cleared: RouteReviewData = {
@@ -19,6 +19,19 @@ const breakdown: ScoreBreakdown = { base: 120, efficiency: 64, timeBonus: 40, li
 
 const render = (lang: 'en' | 'ja', review: RouteReviewData, parts: ScoreBreakdown | null) =>
   renderToStaticMarkup(<RouteReview t={getStrings(lang)} review={review} breakdown={parts} onBack={() => {}} />);
+
+describe('routeCellLabel', () => {
+  it('names both routes where they overlap, in each language', () => {
+    const en = getStrings('en');
+    expect(routeCellLabel(en, true, true)).toBe('your route, on the shortest route');
+    expect(routeCellLabel(en, false, true)).toBe('shortest route');
+    expect(routeCellLabel(en, true, false)).toBe('your route');
+    expect(routeCellLabel(en, false, false)).toBe('path');
+    const ja = getStrings('ja');
+    expect(routeCellLabel(ja, true, true)).toBe('通ったマス（最短経路上）');
+    expect(routeCellLabel(ja, false, true)).toBe('最短経路');
+  });
+});
 
 describe('RouteReview', () => {
   it('shows the route figures and the score parts of a cleared stage', () => {

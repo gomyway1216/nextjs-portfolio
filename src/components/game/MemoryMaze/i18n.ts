@@ -47,6 +47,7 @@ export interface MemoryMazeStrings {
   cellWallHit: string;
   cellShortest: string;
   cellYourRoute: string;
+  cellYourRouteShortest: string;
   // Post-stage route review
   reviewOpen: string;
   reviewBack: string;
@@ -127,6 +128,7 @@ const en: MemoryMazeStrings = {
   cellWallHit: 'wall you hit',
   cellShortest: 'shortest route',
   cellYourRoute: 'your route',
+  cellYourRouteShortest: 'your route, on the shortest route',
   reviewOpen: 'Review route',
   reviewBack: 'Back to result',
   reviewTitle: 'Route review',
@@ -208,6 +210,7 @@ const ja: MemoryMazeStrings = {
   cellWallHit: 'ぶつかった壁',
   cellShortest: '最短経路',
   cellYourRoute: '通ったマス',
+  cellYourRouteShortest: '通ったマス（最短経路上）',
   reviewOpen: 'ルートを振り返る',
   reviewBack: '結果に戻る',
   reviewTitle: 'ルートの振り返り',
@@ -238,6 +241,13 @@ const ja: MemoryMazeStrings = {
   dirDown: '下',
   dirLeft: '左',
   dirRight: '右',
+};
+
+/** Screen-reader label of an open cell in the route review; the two routes can overlap. */
+export const routeCellLabel = (t: MemoryMazeStrings, visited: boolean, shortest: boolean): string => {
+  if (visited && shortest) return t.cellYourRouteShortest;
+  if (shortest) return t.cellShortest;
+  return visited ? t.cellYourRoute : t.cellPath;
 };
 
 export const getStrings = (language: GameLanguage): MemoryMazeStrings =>

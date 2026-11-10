@@ -820,6 +820,108 @@
   background: #f6c343;
   color: #2a1600;
 }
+/* The last play, flick by flick. Every row keeps its place and its height whether or not its gate was reached, so the
+   panel under it never moves as plays end. */
+.reviewLead {
+  min-height: 2.6em;
+  line-height: 1.3;
+}
+.reviewList {
+  list-style: none;
+  margin: 0.4rem 0 0.6rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+.reviewRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+.reviewGate {
+  font-weight: 800;
+  min-width: 0;
+}
+.reviewStrip {
+  display: grid;
+  grid-template-columns: repeat(8, 1.35rem);
+  gap: 2px;
+}
+.reviewCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.reviewCell[data-slot='shut'] {
+  color: var(--games-route-muted);
+}
+.reviewCell[data-slot='none'] {
+  border-style: dashed;
+}
+.reviewCell[data-flicked='true'] {
+  background: var(--games-route-fg);
+  border-color: var(--games-route-fg);
+  color: var(--games-route-surface);
+}
+.reviewLine {
+  grid-column: 1 / -1;
+  min-height: 2.6em;
+  line-height: 1.3;
+  font-weight: 700;
+  min-width: 0;
+}
+.reviewNone {
+  color: var(--games-route-muted);
+  font-weight: 400;
+}
+.reviewPins {
+  border-top: 1px dotted var(--games-route-border);
+  padding-top: 0.4rem;
+}
+.reviewPins .reviewLine {
+  min-height: 1.3em;
+}
+.reviewKey {
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+/* On a narrow phone the gate's name stands over its strip: beside it, it would break onto a second line. */
+@media (max-width: 380px) {
+  .reviewRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reviewStrip {
+    justify-self: start;
+  }
+}
+.reviewLead,
+.reviewGate,
+.reviewLine,
+.reviewKey {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+@supports (word-break: auto-phrase) {
+  .reviewLead,
+  .reviewGate,
+  .reviewLine,
+  .reviewKey {
+    word-break: auto-phrase;
+  }
+}
+
 .statList {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

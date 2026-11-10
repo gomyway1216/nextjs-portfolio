@@ -15,6 +15,7 @@ import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { GATE_PATTERNS, LIMIT_WINDOWS, OPENING, STAGES, STAKE, TIMEOUT, WINDOWS, WINDOW_MS, drawPlay, endOf, gateOf, passed, playOf, slotOf, valueOf, windowAt, type GateKind, type Play, type StageEnd } from './engine';
+import { FlickReview } from './FlickReview';
 import { getStrings } from './i18n';
 import { Maze, type MazeParts } from './Maze';
 import { COIN_MAZE_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
@@ -954,6 +955,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             </ol>
           )}
         </section>
+
+        {/* The last play that ended, looked back at: it stays up while the next one is played, and goes with the history. */}
+        <FlickReview t={t} play={history[0]?.play ?? null} />
 
         <section className={styles.panel} aria-labelledby="cm-session-title">
           <h2 id="cm-session-title" className={styles.panelTitle}>

@@ -6,11 +6,12 @@ import {
   advanceRunout,
   applyPlayerAction,
   createGame,
+  getLegalActions,
   startNextHand,
   type Card,
   type GameState,
 } from '@/components/game/TexasHoldem/engine';
-import { formatLog, signedChips } from '@/components/game/TexasHoldem/format';
+import { formatLog, signedChips, signedRate } from '@/components/game/TexasHoldem/format';
 import {
   appendRecord,
   cardsDealtOn,
@@ -57,6 +58,7 @@ const record = (overrides: Partial<HandRecord>): HandRecord => ({
   heroHole: cards('As Kd'),
   board: [],
   pot: 3,
+  potWon: 0,
   heroNet: 0,
   outcome: 'folded',
   vpip: false,
@@ -77,6 +79,7 @@ describe('Texas Hold’em hand history', () => {
     expect(hand.outcome).toBe('won');
     expect(hand.heroNet).toBe(200);
     expect(hand.pot).toBe(400);
+    expect(hand.potWon).toBe(400);
     expect(hand.vpip).toBe(true);
     expect(hand.showdown).toBe(true);
     expect(hand.board).toHaveLength(5);
@@ -91,10 +94,54 @@ describe('Texas Hold’em hand history', () => {
     const lost = recordHand(allInHand('Kd Kc', 'As Ah', '7s 8d 2h 3s 9c'))!;
     expect(lost.outcome).toBe('lost');
     expect(lost.heroNet).toBe(-200);
+    expect(lost.potWon).toBe(0);
 
     const chopped = recordHand(allInHand('2d 3c', '2h 3d', 'As Ks Qs Js Ts'))!;
     expect(chopped.outcome).toBe('split');
     expect(chopped.heroNet).toBe(0);
+    expect(chopped.potWon).toBe(200);
+  });
+
+  it('treats a main pot won outright as a win even when someone else takes the side pot', () => {
+    const game = createGame(3, { rng: () => 0.27 });
+    const burn = cards('2c')[0];
+    const [flop1, flop2, flop3, turn, river] = cards('7s 8d 2h 3s 9c');
+    const holes = ['As Ah', 'Kd Kc', 'Qd Qc'];
+    let state: GameState = {
+      ...game,
+      // The hero starts with 50 behind in total, the two CPUs with 100.
+      players: game.players.map((player, index) => ({
+        ...player,
+        hole: cards(holes[index]),
+        stack: (index === 0 ? 50 : 100) - player.totalContribution,
+      })),
+      deck: [burn, flop1, flop2, flop3, burn, turn, burn, river],
+    };
+    while (state.currentActor !== null) {
+      const actor = state.currentActor;
+      const legal = getLegalActions(state, actor);
+      state = applyPlayerAction(state, actor, legal.canRaise ? { type: 'raise', raiseTo: legal.maxRaiseTo } : { type: 'call' });
+    }
+    while (state.runout) state = advanceRunout(state);
+
+    expect(state.result!.winnerIndices).toEqual(expect.arrayContaining([0, 1]));
+    const hand = recordHand(state)!;
+    expect(hand.outcome).toBe('won');
+    expect(hand.heroNet).toBe(100);
+    expect(hand.pot).toBe(250);
+    expect(hand.potWon).toBe(150);
+    expect(summarizeSession([hand], 2).biggestPotWon).toBe(150);
+  });
+
+  it('leaves an uncalled raise out of the pot when everyone folds to it', () => {
+    const game = createGame(2, { rng: () => 0.27 });
+    const dealer = game.currentActor!;
+    let state = applyPlayerAction(game, dealer, { type: 'raise', raiseTo: 200 });
+    state = applyPlayerAction(state, 1 - dealer, { type: 'fold' });
+    const hand = recordHand(state)!;
+    expect(hand.pot).toBe(4);
+    expect(hand.potWon).toBe(dealer === 0 ? 4 : 0);
+    expect(hand.heroNet).toBe(dealer === 0 ? 2 : -2);
   });
 
   it('keeps folded opponents’ cards out of an uncontested hand', () => {
@@ -106,13 +153,16 @@ describe('Texas Hold’em hand history', () => {
     expect(folded.shownHands).toEqual([]);
     expect(folded.board).toEqual([]);
     expect(folded.vpip).toBe(false);
-    expect(folded.pot).toBe(3);
+    // The big blind's second chip was never matched, so it is not part of the pot.
+    expect(folded.pot).toBe(2);
     if (dealer === 0) {
       expect(folded.outcome).toBe('folded');
       expect(folded.heroNet).toBe(-1);
+      expect(folded.potWon).toBe(0);
     } else {
       expect(folded.outcome).toBe('won');
       expect(folded.heroNet).toBe(1);
+      expect(folded.potWon).toBe(2);
     }
   });
 
@@ -135,8 +185,10 @@ describe('Texas Hold’em hand history', () => {
   it('adds each finished hand to the history exactly once', () => {
     const first = record({ handNumber: 1 });
     const second = record({ handNumber: 2 });
-    expect(appendRecord([], null)).toEqual([]);
-    expect(appendRecord([first], first)).toEqual([first]);
+    const history = [first];
+    // Nothing to add must hand back the same array so memoised consumers stay stable.
+    expect(appendRecord(history, null)).toBe(history);
+    expect(appendRecord(history, first)).toBe(history);
     expect(appendRecord([first], second)).toEqual([first, second]);
   });
 
@@ -145,10 +197,10 @@ describe('Texas Hold’em hand history', () => {
       hands: 0, net: 0, bbPer100: 0, handsWon: 0, wonRate: 0, vpipRate: 0, biggestPotWon: 0,
     });
     const stats = summarizeSession([
-      record({ handNumber: 1, heroNet: 40, outcome: 'won', vpip: true, pot: 90 }),
+      record({ handNumber: 1, heroNet: 40, outcome: 'won', vpip: true, pot: 90, potWon: 90 }),
       record({ handNumber: 2, heroNet: -1, outcome: 'folded' }),
       record({ handNumber: 3, heroNet: -30, outcome: 'lost', vpip: true, pot: 300 }),
-      record({ handNumber: 4, heroNet: 0, outcome: 'split', vpip: true, pot: 12 }),
+      record({ handNumber: 4, heroNet: 0, outcome: 'split', vpip: true, pot: 12, potWon: 6 }),
     ], 2);
     expect(stats.hands).toBe(4);
     expect(stats.net).toBe(9);
@@ -171,7 +223,7 @@ describe('Texas Hold’em hand history', () => {
   it('keeps the recorded nets equal to the hero’s real stack change over a CPU-only session', () => {
     const rng = seededRng(0x51f15e);
     let game = createGame(6, { rng });
-    let history: HandRecord[] = [];
+    let history: readonly HandRecord[] = [];
     let expectedNet = 0;
     for (let hand = 0; hand < 25; hand += 1) {
       const stackBeforeBlinds = game.players[0].stack + game.players[0].totalContribution;
@@ -226,6 +278,19 @@ describe('Texas Hold’em history panel', () => {
     for (const text of [en.history.title, en.history.outcomes.won, en.history.shownHands, en.history.stats.net, 'You']) {
       expect(markup).not.toContain(`>${text}<`);
     }
+  });
+
+  it('shows bb/100 to one decimal and colours it by the value it displays', () => {
+    expect(signedRate(112.5)).toBe('+112.5');
+    expect(signedRate(-4.24)).toBe('−4.2');
+    expect(signedRate(3)).toBe('+3.0');
+    expect(signedRate(0.04)).toBe('0.0');
+    expect(signedRate(-0.04)).toBe('0.0');
+
+    // +1 chip over 400 hands at a big blind of 2 is +0.125 bb/100.
+    const hands = Array.from({ length: 400 }, (_, index) => record({ handNumber: index + 1, heroNet: index === 0 ? 1 : 0 }));
+    const markup = renderToStaticMarkup(<HistoryPanel records={hands} bigBlind={2} strings={en} />);
+    expect(markup).toContain('>+0.1</dd>');
   });
 
   it('renders only the latest hands of a long session but counts all of them', () => {

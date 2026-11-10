@@ -9,6 +9,13 @@ export const signedChips = (amount: number): string => (
   amount > 0 ? `+${chips(amount)}` : amount < 0 ? `−${chips(-amount)}` : '0'
 );
 
+/** A signed rate with one decimal place; a value that rounds to zero has no sign. */
+export function signedRate(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  if (rounded === 0) return '0.0';
+  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+}
+
 export function fill(template: string, values: Record<string, string | number>): string {
   return Object.entries(values).reduce((result, [key, value]) => result.replace(`{{${key}}}`, String(value)), template);
 }

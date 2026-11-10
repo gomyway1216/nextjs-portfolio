@@ -2,7 +2,7 @@
 
 import { History } from 'lucide-react';
 import type { Card } from './engine';
-import { chips, fill, formatLog, playerName, signedChips } from './format';
+import { chips, fill, formatLog, playerName, signedChips, signedRate } from './format';
 import { cardsDealtOn, summarizeSession, type HandOutcome, type HandRecord } from './history';
 import type { HoldemStrings } from './i18n';
 import styles from './texas-holdem.module.css';
@@ -98,7 +98,7 @@ export function HistoryPanel({ records, bigBlind, strings }: {
       <dl className={styles.historyStats}>
         <div><dt>{text.stats.hands}</dt><dd>{stats.hands}</dd></div>
         <div><dt>{text.stats.net}</dt><dd className={netClass(stats.net)}>{signedChips(stats.net)}</dd></div>
-        <div><dt>{text.stats.bbPer100}</dt><dd className={netClass(stats.net)}>{stats.hands ? signedChips(Math.round(stats.bbPer100)) : '–'}</dd></div>
+        <div><dt>{text.stats.bbPer100}</dt><dd className={netClass(Math.round(stats.bbPer100 * 10))}>{stats.hands ? signedRate(stats.bbPer100) : '–'}</dd></div>
         <div><dt>{text.stats.won}</dt><dd>{stats.hands ? `${stats.handsWon} · ${percent(stats.wonRate)}` : '–'}</dd></div>
         <div><dt title={text.stats.vpipHint}>{text.stats.vpip}</dt><dd>{stats.hands ? percent(stats.vpipRate) : '–'}</dd></div>
         <div><dt>{text.stats.biggestPot}</dt><dd>{stats.biggestPotWon ? chips(stats.biggestPotWon) : '–'}</dd></div>

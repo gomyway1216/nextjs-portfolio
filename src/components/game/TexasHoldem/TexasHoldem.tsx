@@ -268,7 +268,7 @@ function TexasHoldemInner() {
   const { language } = useGameLanguage();
   const strings = useMemo(() => getHoldemStrings(language), [language]);
   const [game, setGame] = useState<GameState | null>(null);
-  const [history, setHistory] = useState<HandRecord[]>([]);
+  const [history, setHistory] = useState<readonly HandRecord[]>([]);
   // The hand on the table joins the list as soon as it ends; it is committed
   // to state when the next hand is dealt and the engine drops its log.
   const records = useMemo(() => appendRecord(history, game ? recordHand(game) : null), [history, game]);

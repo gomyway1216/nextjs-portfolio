@@ -25,6 +25,8 @@ export interface HandRecord {
   board: Card[];
   /** Chips that were actually contested; an uncalled bet is not part of it. */
   pot: number;
+  /** What the hero collected from the contested chips, across main and side pots. */
+  potWon: number;
   /** Hero's payout minus everything the hero put in during the hand. */
   heroNet: number;
   outcome: HandOutcome;
@@ -52,10 +54,18 @@ export function recordHand(state: GameState): HandRecord | null {
   if (state.street !== 'complete' || !state.result) return null;
   const { result } = state;
   const hero = state.players[HERO];
-  const heroWins = result.winnerIndices.includes(HERO);
-  const outcome: HandOutcome = heroWins
-    ? (result.winnerIndices.length > 1 ? 'split' : 'won')
+  // Winners are collected across every pot, so several winners do not mean a
+  // tie: the hand is a split only when each pot the hero took was shared.
+  const heroPots = result.pots.filter((pot) => pot.winners.includes(HERO));
+  const outcome: HandOutcome = heroPots.length > 0
+    ? (heroPots.every((pot) => pot.winners.length > 1) ? 'split' : 'won')
     : hero.folded ? 'folded' : 'lost';
+
+  // Chips above the second-largest contribution were never called and simply
+  // go back to the player who put them in.
+  const contributions = state.players.map((player) => player.totalContribution);
+  const [largest = 0, secondLargest = 0] = [...contributions].sort((a, b) => b - a);
+  const heroUncalled = Math.max(0, hero.totalContribution - Math.max(0, ...contributions.slice(1)));
 
   const firstStreet = state.log.findIndex((entry) => entry.type === 'street');
   const preflop = firstStreet === -1 ? state.log : state.log.slice(0, firstStreet);
@@ -80,7 +90,8 @@ export function recordHand(state: GameState): HandRecord | null {
     players: state.players.map((player) => ({ name: player.name, isHuman: player.isHuman })),
     heroHole: [...hero.hole],
     board: [...state.board],
-    pot: result.pots.reduce((sum, pot) => sum + pot.amount, 0),
+    pot: contributions.reduce((sum, amount) => sum + amount, 0) - (largest - secondLargest),
+    potWon: (result.payouts[HERO] ?? 0) - heroUncalled,
     heroNet: (result.payouts[HERO] ?? 0) - hero.totalContribution,
     outcome,
     vpip,
@@ -91,8 +102,8 @@ export function recordHand(state: GameState): HandRecord | null {
 }
 
 /** Adds a finished hand to the history once, however often it is offered. */
-export function appendRecord(history: readonly HandRecord[], record: HandRecord | null): HandRecord[] {
-  if (!record || history.some((entry) => entry.handNumber === record.handNumber)) return [...history];
+export function appendRecord(history: readonly HandRecord[], record: HandRecord | null): readonly HandRecord[] {
+  if (!record || history.some((entry) => entry.handNumber === record.handNumber)) return history;
   return [...history, record];
 }
 
@@ -101,10 +112,7 @@ export function summarizeSession(records: readonly HandRecord[], bigBlind: numbe
   const net = records.reduce((sum, record) => sum + record.heroNet, 0);
   const handsWon = records.filter((record) => record.outcome === 'won' || record.outcome === 'split').length;
   const vpipHands = records.filter((record) => record.vpip).length;
-  const biggestPotWon = records.reduce(
-    (best, record) => (record.outcome === 'won' || record.outcome === 'split' ? Math.max(best, record.pot) : best),
-    0,
-  );
+  const biggestPotWon = records.reduce((best, record) => Math.max(best, record.potWon), 0);
   return {
     hands,
     net,

@@ -319,8 +319,9 @@
   .historyStats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .historyStats div:nth-child(4) { border-left: 0; }
   .historyStats div:nth-child(n + 4) { border-top: 1px solid var(--poker-line); }
-  .historyHand summary { grid-template-columns: 2.1rem auto minmax(0, 1fr) 3.6rem; gap: .4rem; padding-inline: .6rem; }
-  .historyOutcome { display: none; }
+  .historyHand summary { grid-template-columns: 2.1rem auto minmax(0, 1fr) auto; gap: .35rem .4rem; padding-inline: .6rem; }
+  .historyBoard { grid-column: 2 / -1; grid-row: 2; }
+  .historyOutcome { justify-self: start; }
   .miniCard { min-width: 1.5rem; font-size: .66rem; }
 }
 

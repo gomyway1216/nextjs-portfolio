@@ -17,6 +17,7 @@ import {
   Enemy,
   EnemyType,
   Difficulty,
+  ENEMY_CONFIGS,
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
   SHIELD_BLOCK_SIZE,
@@ -27,6 +28,18 @@ import {
 } from './types';
 import { createGameState, updateGame, updateJoinerGame } from './GameEngine';
 import { getSpaceInvadersStrings } from './i18n';
+import {
+  Effect,
+  PLAYER_BURST_MS,
+  captureFormation,
+  createFormationSnapshot,
+  destroyedSince,
+  effectProgress,
+  spawnBurst,
+  spawnPopup,
+  stepEffects,
+} from './effects';
+import { RunStats, accuracyPercent, createRunStats, formatDuration, recordFrame, totalKills } from './runStats';
 import { Sounds, initAudio } from './sounds';
 import { useMultiplayer } from './useMultiplayer';
 import { MultiplayerLobby } from './MultiplayerLobby';
@@ -201,7 +214,53 @@ function drawUFO(ctx: CanvasRenderingContext2D, x: number, y: number, width: num
   }
 }
 
+const UFO_EFFECT_COLOR = '#fca5a5';
+const BURST_RAYS = 8;
+
+// Draw the hit bursts and score pop-ups. With reduced motion the bursts are
+// skipped and the pop-ups fade in place instead of drifting.
+function drawEffects(ctx: CanvasRenderingContext2D, effects: Effect[], reducedMotion: boolean) {
+  for (const effect of effects) {
+    const p = effectProgress(effect);
+    if (effect.kind === 'burst') {
+      if (reducedMotion) continue;
+      const reach = effect.radius * (1 - (1 - p) * (1 - p));
+      const size = 1.5 + 3 * (1 - p);
+      ctx.globalAlpha = 1 - p;
+      ctx.fillStyle = effect.color;
+      for (let i = 0; i < BURST_RAYS; i++) {
+        const angle = (i / BURST_RAYS) * Math.PI * 2 + 0.4;
+        ctx.fillRect(
+          effect.x + Math.cos(angle) * reach - size / 2,
+          effect.y + Math.sin(angle) * reach - size / 2,
+          size,
+          size
+        );
+      }
+    } else {
+      ctx.globalAlpha = 1 - p * p;
+      ctx.font = 'bold 15px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const y = reducedMotion ? effect.y : effect.y - 22 * p;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(5, 6, 12, 0.85)';
+      ctx.strokeText(effect.text, effect.x, y);
+      ctx.fillStyle = effect.color;
+      ctx.fillText(effect.text, effect.x, y);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 type GameMode = 'menu' | 'single' | 'multi';
+
+interface RunSummary {
+  stats: RunStats;
+  level: number;
+}
+
+const DEBRIEF_ENEMIES = [EnemyType.SQUID, EnemyType.CRAB, EnemyType.OCTOPUS] as const;
 
 const SpaceInvaders: React.FC = () => {
   useFeatureLifecycle('game.space-invaders');
@@ -233,6 +292,13 @@ const SpaceInvaders: React.FC = () => {
   // beat (score strictly greater) from a tie or a run that never surpassed it.
   const runStartHighScoreRef = useRef<number>(0);
   const diffRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Hit feedback and the per-run tally live outside React: the frame loop
+  // mutates them and only the finished tally is copied into state.
+  const effectsRef = useRef<Effect[]>([]);
+  const formationSnapshotRef = useRef(createFormationSnapshot());
+  const runStatsRef = useRef<RunStats>(createRunStats());
+  const reducedMotionRef = useRef(false);
+  const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
   const [touchActive, setTouchActive] = useState({ left: false, right: false, shoot: false });
 
   // WAI-ARIA radio-group keyboard navigation for the difficulty selector:
@@ -280,6 +346,16 @@ const SpaceInvaders: React.FC = () => {
     if (score !== undefined) updateHighScore(score);
   }, [score, updateHighScore]);
 
+  const resetRunFeedback = useCallback(() => {
+    effectsRef.current.length = 0;
+    runStatsRef.current = createRunStats();
+    setRunSummary(null);
+    reducedMotionRef.current =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
   const beginGame = useCallback((mode: GameMode) => {
     initAudio();
     Sounds.startGame();
@@ -291,12 +367,13 @@ const SpaceInvaders: React.FC = () => {
     lastAppliedNetRef.current = 0;
     appliedUfoKillsRef.current = 0;
     runStartHighScoreRef.current = highScore;
+    resetRunFeedback();
     const newState = createGameState(1, 0, undefined, mode === 'multi' ? 'normal' : difficulty);
     setActiveGame(newState);
     setGameMode(mode);
     setShowStartScreen(false);
     return newState;
-  }, [difficulty, highScore, setActiveGame]);
+  }, [difficulty, highScore, resetRunFeedback, setActiveGame]);
 
   const startSinglePlayer = useCallback(() => {
     beginGame('single');
@@ -333,8 +410,9 @@ const SpaceInvaders: React.FC = () => {
     lastTimeRef.current = 0;
     lastSyncRef.current = 0;
     runStartHighScoreRef.current = highScore;
+    resetRunFeedback();
     setActiveGame(createGameState(1, 0, undefined, difficulty));
-  }, [difficulty, highScore, setActiveGame]);
+  }, [difficulty, highScore, resetRunFeedback, setActiveGame]);
 
   // Toggle pause. Disabled in multiplayer: there is no shared pause protocol,
   // and a locally-frozen sim would silently desync from the teammate.
@@ -353,10 +431,11 @@ const SpaceInvaders: React.FC = () => {
       // Leaving the game screen leaves the room (fire and forget).
       multiplayerRef.current.leaveRoom();
     }
+    resetRunFeedback();
     setActiveGame(null);
     setGameMode('menu');
     setShowStartScreen(true);
-  }, [setActiveGame]);
+  }, [resetRunFeedback, setActiveGame]);
 
   // Keyboard input
   useEffect(() => {
@@ -506,6 +585,8 @@ const SpaceInvaders: React.FC = () => {
       ctx.shadowBlur = 0;
     }
 
+    drawEffects(ctx, effectsRef.current, reducedMotionRef.current);
+
     // Team score (multiplayer)
     if (gameModeRef.current === 'multi' && otherPlayer) {
       ctx.fillStyle = '#fff';
@@ -606,6 +687,11 @@ const SpaceInvaders: React.FC = () => {
       if (!state.isPaused) {
         let soundEvents;
 
+        // Where things were before this frame, for the hit feedback below.
+        captureFormation(state, formationSnapshotRef.current);
+        const ufoBefore = state.ufo ? { x: state.ufo.x, y: state.ufo.y } : null;
+        const playerXBefore = state.player.x;
+
         if (isMulti && !mp.context.isHost) {
           // JOINER: apply the host's latest snapshot of the shared entities,
           // then run the local-only frame (own ship/bullets + extrapolation).
@@ -676,6 +762,32 @@ const SpaceInvaders: React.FC = () => {
         if (soundEvents.extraLife) Sounds.levelComplete();
         if (soundEvents.enemyMarch) Sounds.enemyMarch(soundEvents.marchPitch);
 
+        recordFrame(runStatsRef.current, soundEvents, deltaTime);
+
+        const effects = effectsRef.current;
+        stepEffects(effects, deltaTime);
+        for (const hit of destroyedSince(formationSnapshotRef.current, state)) {
+          const config = ENEMY_CONFIGS[hit.type];
+          spawnBurst(effects, hit.x, hit.y, config.accentColor);
+          spawnPopup(effects, hit.x, hit.y - 12, `+${config.points}`, config.accentColor);
+        }
+        if (soundEvents.ufoHitPoints > 0 && ufoBefore) {
+          const cx = ufoBefore.x + UFO_WIDTH / 2;
+          const cy = ufoBefore.y + UFO_HEIGHT / 2;
+          spawnBurst(effects, cx, cy, UFO_EFFECT_COLOR, 34);
+          spawnPopup(effects, cx, cy, `+${soundEvents.ufoHitPoints}`, UFO_EFFECT_COLOR);
+        }
+        if (soundEvents.playerHit) {
+          spawnBurst(
+            effects,
+            playerXBefore + PLAYER_WIDTH / 2,
+            state.player.y + PLAYER_HEIGHT / 2,
+            mp.myColor,
+            44,
+            PLAYER_BURST_MS
+          );
+        }
+
         if (isMulti) {
           // Publish own ship for the teammate's screen.
           const ownBullet = state.bullets.find(b => !b.isEnemy && !b.remote) ?? null;
@@ -697,6 +809,8 @@ const SpaceInvaders: React.FC = () => {
       } else if (!finishedRef.current) {
         finishedRef.current = true;
         setGameState({ ...state });
+        const tally = runStatsRef.current;
+        setRunSummary({ stats: { ...tally, kills: { ...tally.kills } }, level: state.level });
         // Endless waves — every run eventually ends in a loss (same as solo).
         setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
         if (gameModeRef.current === 'multi' && mp.context.isHost) {
@@ -811,6 +925,7 @@ const SpaceInvaders: React.FC = () => {
 
   // ---------- Game screen ----------
   const isOver = Boolean(gameState?.gameOver);
+  const debriefAccuracy = runSummary ? accuracyPercent(runSummary.stats) : null;
 
   return (
     <div className={styles.page}>
@@ -873,6 +988,56 @@ const SpaceInvaders: React.FC = () => {
             </>
           )}
         </div>
+
+        {isOver && runSummary && (
+          <section className={styles.debrief} aria-labelledby="space-invaders-debrief-title">
+            <h2 id="space-invaders-debrief-title" className={styles.debriefTitle}>{t.debriefTitle}</h2>
+            <dl className={styles.debriefGrid}>
+              <div className={styles.debriefCell}>
+                <dt>{t.debriefWave}</dt>
+                <dd>{runSummary.level}</dd>
+              </div>
+              <div className={styles.debriefCell}>
+                <dt>{t.debriefTime}</dt>
+                <dd>{formatDuration(runSummary.stats.activeMs)}</dd>
+              </div>
+              <div className={styles.debriefCell}>
+                <dt>{t.debriefShots}</dt>
+                <dd>{runSummary.stats.shots}</dd>
+              </div>
+              <div className={styles.debriefCell}>
+                <dt>{t.debriefAccuracy}</dt>
+                <dd>{debriefAccuracy === null ? t.debriefNoShots : `${debriefAccuracy}%`}</dd>
+              </div>
+              <div className={styles.debriefCell}>
+                <dt>{t.debriefInvaders}</dt>
+                <dd>{totalKills(runSummary.stats)}</dd>
+              </div>
+              <div className={styles.debriefCell}>
+                <dt>{t.debriefUfos}</dt>
+                <dd>
+                  {runSummary.stats.ufos}
+                  {runSummary.stats.ufos > 0 && (
+                    <span className={styles.debriefSub}>{t.debriefBonus(runSummary.stats.ufoPoints)}</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <ul className={styles.debriefKills} aria-label={t.debriefByType}>
+              {DEBRIEF_ENEMIES.map((type) => (
+                <li key={type}>
+                  <span className={styles.enemyDot} style={{ background: ENEMY_CONFIGS[type].color }} />
+                  {t.enemyNames[type]}
+                  <strong>{runSummary.stats.kills[type]}</strong>
+                </li>
+              ))}
+            </ul>
+            <p className={styles.debriefNote}>
+              {t.debriefAccuracyNote}
+              {gameMode === 'multi' ? ` ${t.debriefCoopNote}` : ''}
+            </p>
+          </section>
+        )}
 
         {/* On-screen touch controls */}
         {!isOver && (

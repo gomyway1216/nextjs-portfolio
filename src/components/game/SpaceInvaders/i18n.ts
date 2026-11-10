@@ -4,6 +4,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { EnemyType } from './types';
 import type { Difficulty } from './types';
 
 interface SpaceInvadersStrings {
@@ -47,6 +48,19 @@ interface SpaceInvadersStrings {
   topRow: string;
   midRows: string;
   botRows: string;
+  debriefTitle: string;
+  debriefWave: string;
+  debriefTime: string;
+  debriefShots: string;
+  debriefAccuracy: string;
+  debriefNoShots: string;
+  debriefInvaders: string;
+  debriefUfos: string;
+  debriefBonus: (points: number) => string;
+  debriefByType: string;
+  debriefAccuracyNote: string;
+  debriefCoopNote: string;
+  enemyNames: Record<EnemyType, string>;
 }
 
 const STRINGS: Record<GameLanguage, SpaceInvadersStrings> = {
@@ -95,6 +109,24 @@ const STRINGS: Record<GameLanguage, SpaceInvadersStrings> = {
     topRow: 'top row',
     midRows: 'middle rows',
     botRows: 'bottom rows',
+    debriefTitle: 'Run debrief',
+    debriefWave: 'Wave reached',
+    debriefTime: 'Play time',
+    debriefShots: 'Shots fired',
+    debriefAccuracy: 'Accuracy',
+    debriefNoShots: '—',
+    debriefInvaders: 'Invaders destroyed',
+    debriefUfos: 'UFOs shot down',
+    debriefBonus: (points) => `+${points} pts`,
+    debriefByType: 'Invaders destroyed by type',
+    debriefAccuracyNote:
+      'Accuracy is the share of your shots that destroyed an invader or a UFO; a shot that hit a shield or flew off screen counts as a miss. Play time excludes pauses.',
+    debriefCoopNote: 'These figures cover your own ship only.',
+    enemyNames: {
+      [EnemyType.SQUID]: 'Squid',
+      [EnemyType.CRAB]: 'Crab',
+      [EnemyType.OCTOPUS]: 'Octopus',
+    },
   },
   ja: {
     title: 'スペースインベーダー',
@@ -141,6 +173,24 @@ const STRINGS: Record<GameLanguage, SpaceInvadersStrings> = {
     topRow: '上段',
     midRows: '中段',
     botRows: '下段',
+    debriefTitle: '今回の戦績',
+    debriefWave: '到達ウェーブ',
+    debriefTime: 'プレイ時間',
+    debriefShots: '発射数',
+    debriefAccuracy: '命中率',
+    debriefNoShots: '—',
+    debriefInvaders: '撃破した敵',
+    debriefUfos: 'UFO撃墜',
+    debriefBonus: (points) => `+${points}点`,
+    debriefByType: '種類別の撃破数',
+    debriefAccuracyNote:
+      '命中率は、発射した弾のうち敵またはUFOを撃破した弾の割合です。シールドに当たった弾や画面外に出た弾は外れとして数えます。プレイ時間に一時停止中は含みません。',
+    debriefCoopNote: '数字は自機の分だけです。',
+    enemyNames: {
+      [EnemyType.SQUID]: 'イカ',
+      [EnemyType.CRAB]: 'カニ',
+      [EnemyType.OCTOPUS]: 'タコ',
+    },
   },
 };
 

@@ -89,6 +89,16 @@ export function marchIntervalForRemaining(remaining: number, total: number = TOT
   return Math.max(8, Math.round(48 - cleared * 38));
 }
 
+/**
+ * True when the tick counter passed a multiple of `interval` during this
+ * frame. One frame can cover a fraction of a tick (120 Hz) or several ticks
+ * (a slow frame), so the beat is detected by crossing rather than by equality.
+ */
+export function crossedMarchBeat(previousTick: number, tick: number, interval: number): boolean {
+  if (interval <= 0) return false;
+  return Math.floor(tick / interval) > Math.floor(previousTick / interval);
+}
+
 /** Base march speed for a given level and difficulty. */
 export function formationSpeedForLevel(level: number, difficulty: Difficulty): number {
   const base = INITIAL_ENEMY_SPEED + (level - 1) * ENEMY_SPEED_INCREASE;
@@ -303,7 +313,10 @@ export function updateGame(
   // Normalize to ~60fps and clamp so a long tab-switch stall can't teleport
   // objects through each other.
   const dt = Math.min(deltaTime / 16.67, 2.5);
-  state.animationTick++;
+  // Advance by elapsed time rather than by frame, so the march cadence and
+  // everything else keyed to this tick run at the same pace on any display.
+  const previousTick = state.animationTick;
+  state.animationTick += dt;
 
   // Move player
   if (playerActive && input.left) {
@@ -380,6 +393,7 @@ export function updateGame(
           state.score += pointsForEnemy(enemy.type);
           state.bullets.splice(i, 1);
           sounds.enemyHit = true;
+          sounds.enemyHitType = enemy.type;
           hit = true;
           break;
         }
@@ -396,6 +410,7 @@ export function updateGame(
           state.ufo.x, state.ufo.y, state.ufo.width, state.ufo.height
         )) {
           state.score += state.ufo.points;
+          sounds.ufoHitPoints = state.ufo.points;
           state.ufo.active = false;
           state.ufo = null;
           state.bullets.splice(i, 1);
@@ -483,7 +498,7 @@ export function updateGame(
 
   // Update animation frame and march sound; tempo increases as ranks thin.
   const marchInterval = marchIntervalForRemaining(activeEnemies.length);
-  if (state.animationTick % marchInterval === 0) {
+  if (crossedMarchBeat(previousTick, state.animationTick, marchInterval)) {
     for (const enemy of activeEnemies) {
       enemy.animFrame = (enemy.animFrame + 1) % 2;
     }
@@ -607,7 +622,7 @@ export function updateJoinerGame(
   const dt = Math.min(deltaTime / 16.67, 2.5);
   // Advance the tick locally for smooth star parallax; the host's
   // authoritative tick overwrites this on the next snapshot.
-  state.animationTick++;
+  state.animationTick += dt;
 
   const playerActive = state.lives > 0;
 
@@ -716,6 +731,7 @@ export function updateJoinerGame(
         events.kills.push(ei);
         state.bullets.splice(i, 1);
         sounds.enemyHit = true;
+        sounds.enemyHitType = enemy.type;
         hit = true;
         break;
       }
@@ -731,6 +747,7 @@ export function updateJoinerGame(
         state.ufo.x, state.ufo.y, state.ufo.width, state.ufo.height
       )) {
         state.score += state.ufo.points;
+        sounds.ufoHitPoints = state.ufo.points;
         state.ufo = null;
         events.ufoKilled = true;
         state.bullets.splice(i, 1);

@@ -43,12 +43,14 @@ test('result cards select every next game in the same room with one request', as
     host.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === path) sent.push(request.postDataJSON());
     });
-    for (const [index, gameType] of (['majority', 'identity', 'drawing', 'shiritori', 'minority', 'thermometer', 'wordwolf', 'bluff', 'ogiri'] satisfies GameType[]).entries()) {
+    const gameTypes = Object.keys(GAME_TITLES) as GameType[];
+    const nextGames = [...gameTypes.filter(type => type !== 'ogiri'), 'ogiri'] as const;
+    for (const [index, gameType] of nextGames.entries()) {
       await expect(chooser.getByRole('heading', { name: '次、なにやる？', exact: true })).toBeVisible();
-      await expect(chooser.getByRole('button')).toHaveCount(Object.keys(GAME_TITLES).length);
+      await expect(chooser.getByRole('button')).toHaveCount(gameTypes.length);
       await expect(chooser.getByRole('button').first().locator('small')).toHaveCSS('color', 'rgb(25, 22, 47)');
       await chooser.scrollIntoViewIfNeeded();
-      await expect.poll(() => chooser.locator('img').evaluateAll((images, cards) => images.length === cards && images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0), Object.keys(GAME_TITLES).length)).toBe(true);
+      await expect.poll(() => chooser.locator('img').evaluateAll((images, cards) => images.length === cards && images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0), gameTypes.length)).toBe(true);
       await expect(participant.getByRole('region', { name: '次のゲーム', exact: true })).toHaveCount(0);
       await expect(tv.getByRole('region', { name: '次のゲーム', exact: true })).toHaveCount(0);
       if (index === 0) {
@@ -69,6 +71,7 @@ test('result cards select every next game in the same room with one request', as
       expect(sent.slice(before)).toHaveLength(1);
       expect(sent.at(-1)).toMatchObject({ type: 'rematch', gameType });
       expect(room).toMatchObject({ code, phase: 'lobby', gameType });
+      await expect(host.getByRole('heading', { name: 'ただいま 3 人', exact: true })).toBeFocused();
       expect(room.players.map(player => ({ id: player.id, name: player.name, avatar: player.avatar, partyPoints: player.partyPoints }))).toEqual(members);
       expect((await host.request.post(path, { data: { type: 'rematch', gameType, turn: previousTurn } })).status()).toBe(409);
       expect(await (await host.request.get(`/api/ogiri/history/${history.id}`)).json()).toEqual(history);

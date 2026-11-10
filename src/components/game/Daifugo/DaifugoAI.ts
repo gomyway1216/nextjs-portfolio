@@ -299,6 +299,11 @@ function auxiliaryIds(state: DaifugoNetworkState, playerId: string, move: Scored
   return { giveCardIds, discardCardIds };
 }
 
+/** Whether the player holds any play the engine would accept on the current table. */
+export function hasLegalDaifugoPlay(state: DaifugoNetworkState, playerId: string): boolean {
+  return buildMoves(state, playerId).some(m => isLegalPlay(state, playerId, m));
+}
+
 // ---------------------------------------------------------------------------
 // Tactical helpers
 // ---------------------------------------------------------------------------

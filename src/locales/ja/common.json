@@ -1084,6 +1084,23 @@
           "selectGiveCount": "渡すカードを{{count}}枚選んでください",
           "giveCardNotInHand": "渡すカードが手札にありません"
         },
+        "hint": {
+          "button": "ヒント",
+          "play": "ヒント: {{cards}} を出す",
+          "pass": "ヒント: パスする",
+          "give": "渡す: {{cards}}",
+          "discard": "捨てる: {{cards}}",
+          "selected": "おすすめの札を選択しました。「出す」で確定します。",
+          "reasons": {
+            "finish": "これであがれます。",
+            "eightCut": "8切りで場を流し、親を取ります。",
+            "revolution": "革命で強さを逆転させます。",
+            "lead": "親番なので、弱い札や枚数の多い組から減らします。",
+            "beat": "場に勝って手札を減らします。",
+            "noLegalPlay": "場に出せる札がありません。",
+            "holdStrong": "出せる札はありますが、ここは温存してパスします。"
+          }
+        },
         "menu": {
           "chooseMode": "モードを選んでプレイ開始",
           "vsAIMode": "AI対戦 (3〜6人)",

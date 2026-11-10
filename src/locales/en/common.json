@@ -1101,6 +1101,23 @@
           "selectGiveCount": "Select {{count}} card(s) to give",
           "giveCardNotInHand": "A card to give is not in your hand"
         },
+        "hint": {
+          "button": "Hint",
+          "play": "Hint: play {{cards}}",
+          "pass": "Hint: pass",
+          "give": "Give: {{cards}}",
+          "discard": "Discard: {{cards}}",
+          "selected": "The suggested cards are selected — press Play to confirm.",
+          "reasons": {
+            "finish": "This empties your hand.",
+            "eightCut": "The 8 clears the table and gives you the lead.",
+            "revolution": "A revolution flips card strength.",
+            "lead": "You have the lead, so shed weak cards and big sets first.",
+            "beat": "This beats the table and thins your hand.",
+            "noLegalPlay": "Nothing in your hand can beat the table.",
+            "holdStrong": "You could play, but it is better to save those cards and pass."
+          }
+        },
         "menu": {
           "chooseMode": "Choose a mode to start playing.",
           "vsAIMode": "Play vs AI (3–6 players)",

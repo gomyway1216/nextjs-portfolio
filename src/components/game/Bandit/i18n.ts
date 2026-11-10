@@ -42,6 +42,20 @@ export interface BanditStrings {
   explainTitle: string;
   explainBody: string;
 
+  // Post-game review
+  reviewTitle: string;
+  reviewComputing: (trials: number) => string;
+  reviewFailed: string;
+  reviewYou: string;
+  reviewVerdict: (beaten: number, total: number) => string;
+  reviewBestArm: (arms: string, pulls: number, total: number) => string;
+  reviewColWho: string;
+  reviewColReward: string;
+  reviewColRegret: string;
+  reviewTableLabel: string;
+  reviewChartLabel: string;
+  reviewNote: (trials: number, pulls: number) => string;
+
   // Sim tab
   trueProbsInput: string;
   steps: string;
@@ -103,6 +117,20 @@ const ja: BanditStrings = {
   explainTitle: 'K本腕バンディットとは:',
   explainBody:
     '各アームには隠された当たり確率 p_i があり、毎回どれを引くか選びます。探索(explore)＝情報集め（どれが良いか確かめる）、活用(exploit)＝今のところベストっぽいものを引く。このバランスがすべて。シミュレーションタブで ε-greedy / UCB1 / Thompson Sampling を比較できます。',
+
+  reviewTitle: '振り返り: あなた vs 各戦略',
+  reviewComputing: (trials) => `同じアームで各戦略を ${trials} 回ずつシミュレーション中…`,
+  reviewFailed: '振り返りを計算できませんでした。',
+  reviewYou: 'あなた',
+  reviewVerdict: (beaten, total) => `${total} 戦略のうち ${beaten} 戦略の平均より regret が小さい選び方でした。`,
+  reviewBestArm: (arms, pulls, total) => `ベストアーム (${arms}) を引いたのは ${total} 回中 ${pulls} 回。`,
+  reviewColWho: 'プレイヤー / 戦略',
+  reviewColReward: '報酬',
+  reviewColRegret: '選択の regret',
+  reviewTableLabel: 'あなたと各戦略の報酬・regret の比較表',
+  reviewChartLabel: 'あなたと各戦略の累積 regret の推移グラフ',
+  reviewNote: (trials, pulls) =>
+    `各戦略の値は、今回と同じ真の確率のアームを ${pulls} 回引くシミュレーション ${trials} 回の平均です（計算のたびに少し変わります）。あなたの報酬は実際に当たった回数です。ここでの regret は「ベストアームの真の確率 − 選んだアームの真の確率」を全 pull で合計したもので、どのアームを選んだかだけで決まり、当たり外れの運は含みません。そのため上の「あなたとの差」（ベストアームの期待報酬 − 実際の報酬）とは一致しません。`,
 
   trueProbsInput: '真の p (カンマ区切り、2つ以上)',
   steps: 'ステップ数 T',
@@ -180,6 +208,20 @@ const en: BanditStrings = {
   explainTitle: 'K-armed Bandit:',
   explainBody:
     'Each arm has a hidden win probability p_i; every turn you choose which to pull. Explore = gather info (find out which is best); exploit = pull the current best-looking one. Balancing the two is the whole game. The Simulation tab compares ε-greedy / UCB1 / Thompson Sampling.',
+
+  reviewTitle: 'Review: you vs the strategies',
+  reviewComputing: (trials) => `Simulating each strategy ${trials} times on the same arms…`,
+  reviewFailed: 'The review could not be computed.',
+  reviewYou: 'You',
+  reviewVerdict: (beaten, total) => `Your choices cost less regret than the average of ${beaten} of the ${total} strategies.`,
+  reviewBestArm: (arms, pulls, total) => `You pulled the best arm (${arms}) on ${pulls} of ${total} pulls.`,
+  reviewColWho: 'Player / strategy',
+  reviewColReward: 'reward',
+  reviewColRegret: 'choice regret',
+  reviewTableLabel: 'Reward and regret: you compared with each strategy',
+  reviewChartLabel: 'Chart of cumulative regret per pull: you and each strategy',
+  reviewNote: (trials, pulls) =>
+    `Each strategy's figures are the mean of ${trials} simulated runs of ${pulls} pulls on arms with the same true odds as this game (they vary slightly each time they are computed). Your reward is what you actually won. Regret here is the best arm's true probability minus the chosen arm's, summed over every pull: it depends only on which arms were pulled, not on payout luck, so it differs from "your gap" above (the best arm's expected reward minus your actual reward).`,
 
   trueProbsInput: 'True p (comma-separated, 2+)',
   steps: 'Steps T',

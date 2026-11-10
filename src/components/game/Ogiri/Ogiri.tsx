@@ -666,7 +666,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       clearInterval(interval);
     };
   }, [code, tv, accept]);
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!view) return;
     const previous = lastLobbyTransition.current;
     lastLobbyTransition.current = { game: view.game, phase: view.phase };

@@ -36,6 +36,6 @@ export function LobbyActions({ code, game, missing, disconnected, disabled, star
     </div>
     {invite && <p role="status">{invite.copied ? '招待リンクをコピーしました。' : 'コピーできませんでした。下のURLを選んで共有してください。'}</p>}
     {invite && !invite.copied && <input aria-label="招待リンク" readOnly value={invite.url}
-      onFocus={event => event.target.select()} />}
+      onFocus={event => event.currentTarget.select()} />}
   </section>;
 }

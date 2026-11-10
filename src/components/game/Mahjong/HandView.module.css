@@ -63,6 +63,26 @@
   gap: 2px;
 }
 
+.countedTile {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.countedTile[data-empty='true'] > :first-child {
+  filter: grayscale(0.7);
+  opacity: 0.55;
+}
+
+.tileCount {
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: 0.66rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 .furiten {
   padding: 0.16rem 0.55rem;
   border-radius: 999px;
@@ -89,6 +109,35 @@
 .riichiToggle[data-armed='true'] {
   background: #0ea5e9;
   color: #fff;
+}
+
+.guideToggle {
+  min-height: 34px;
+  padding: 0.25rem 0.85rem;
+  border: 1px solid #15803d;
+  border-radius: 999px;
+  margin-left: auto;
+  background: transparent;
+  color: #15803d;
+  cursor: pointer;
+  font-size: clamp(0.72rem, 2.6vw, 0.85rem);
+  font-weight: 720;
+  transition: background 0.15s, color 0.15s;
+}
+
+.guideToggle[data-on='true'] {
+  background: #15803d;
+  color: #fff;
+}
+
+.guideToggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* The guide switch already pushed the pair to the right edge. */
+.guideToggle + .riichiToggle {
+  margin-left: 0;
 }
 
 /* ----------------------------------------------------------------- hand */
@@ -150,6 +199,108 @@
   padding-inline-start: 0.15rem;
 }
 
+/*
+ * The slot is rendered under every tile whenever the guide is on, filled or
+ * not, so the row does not change height as the turn comes and goes.
+ */
+.guideChip {
+  display: block;
+  min-width: 0;
+  margin-top: 2px;
+  border-radius: 999px;
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: clamp(0.6rem, 2.6vw, 0.74rem);
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.guideChip[data-best='true'] {
+  background: #15803d;
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- guide */
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+}
+
+.guideHeading {
+  margin: 0;
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: clamp(0.7rem, 2.5vw, 0.82rem);
+  font-weight: 720;
+}
+
+.guideList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.guideRow {
+  --mj-tile-width: clamp(16px, 4vw, 24px);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+}
+
+.guideRow[data-best='true'] {
+  border-color: #15803d;
+}
+
+.guideDiscard {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.guideDiscardLabel {
+  color: var(--games-route-muted, #5f5f64);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.guideBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.guideSummary {
+  color: var(--games-route-fg, #1d1d1f);
+  font-size: clamp(0.7rem, 2.5vw, 0.8rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.guideAccepts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.guideNote {
+  margin: 0;
+  color: var(--games-route-muted, #5f5f64);
+  font-size: clamp(0.66rem, 2.3vw, 0.76rem);
+  line-height: 1.45;
+}
+
 .hint {
   margin: 0;
   color: var(--games-route-muted, #6e6e73);
@@ -177,8 +328,24 @@
   color: #7dd3fc;
 }
 
+:global(html.dark) .guideToggle {
+  border-color: #4ade80;
+  color: #86efac;
+}
+
+:global(html.dark) .guideToggle[data-on='true'] {
+  border-color: #15803d;
+  background: #15803d;
+  color: #fff;
+}
+
+:global(html.dark) .guideRow[data-best='true'] {
+  border-color: #4ade80;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tileButton {
+  .tileButton,
+  .guideToggle {
     transition: none;
   }
 

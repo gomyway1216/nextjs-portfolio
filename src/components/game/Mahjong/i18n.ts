@@ -69,6 +69,15 @@ export interface MahjongCopy {
   armRiichi: string;
   cancelRiichi: string;
   riichiArmedHint: string;
+  guideToggle: string;
+  guideTitle: string;
+  guideIdle: string;
+  guideHeading: (shape: string) => string;
+  guideDiscardLabel: string;
+  guideSummary: (tiles: number, kinds: number) => string;
+  guideNote: string;
+  guideTileKeeps: (tile: string, tiles: number, best: boolean) => string;
+  guideTileSetsBack: (tile: string) => string;
 
   // -- Prompt -------------------------------------------------------------
   promptTitle: string;
@@ -277,6 +286,18 @@ const en: MahjongCopy = {
   armRiichi: 'Declare riichi',
   cancelRiichi: 'Cancel riichi',
   riichiArmedHint: 'Riichi armed — pick one of the highlighted discards.',
+  guideToggle: 'Discard guide',
+  guideTitle: 'Discard guide',
+  guideIdle: 'The guide appears when you have a discard to choose.',
+  guideHeading: (shape) => `Widest discards — leaves you: ${shape}`,
+  guideDiscardLabel: 'Cut',
+  guideSummary: (tiles, kinds) =>
+    `${tiles} ${tiles === 1 ? 'tile' : 'tiles'} · ${kinds} ${kinds === 1 ? 'kind' : 'kinds'}`,
+  guideNote:
+    'The number under a tile is how many unseen tiles would advance the hand after that discard (at tenpai: complete it). A playable tile without a number sets the hand back. Unseen means not in your hand, a discard pile, a meld or a dora indicator. Safety, yaku, furiten and hand value are not considered.',
+  guideTileKeeps: (tile, tiles, best) =>
+    `${tile} — ${tiles} useful ${tiles === 1 ? 'tile' : 'tiles'} unseen after discarding${best ? ' (widest)' : ''}`,
+  guideTileSetsBack: (tile) => `${tile} — discarding sets the hand back`,
 
   promptTitle: 'Your call',
   actionRon: 'Ron',
@@ -351,6 +372,7 @@ const en: MahjongCopy = {
     'Tap a tile in your hand to discard it — only legal discards respond.',
     'Turn on "Declare riichi" first to restrict the hand to riichi-legal discards.',
     'Claims (ron, pon, chi, kan) appear as buttons and never time out.',
+    'Turn on "Discard guide" to see, under each tile, how many unseen tiles would advance your hand after discarding it. It measures tile efficiency only.',
     'The drawn tile sits slightly apart on the right of your hand.',
   ],
   yakuId: (id) => YAKU_EN[id] ?? id,
@@ -405,6 +427,17 @@ const ja: MahjongCopy = {
   armRiichi: 'リーチする',
   cancelRiichi: 'リーチ取消',
   riichiArmedHint: 'リーチ宣言牌を選んでください。',
+  guideToggle: '打牌ガイド',
+  guideTitle: '打牌ガイド',
+  guideIdle: '切る牌を選べるときにガイドを表示します。',
+  guideHeading: (shape) => `受け入れの広い打牌（切ったあと：${shape}）`,
+  guideDiscardLabel: '打',
+  guideSummary: (tiles, kinds) => `${tiles}枚・${kinds}種`,
+  guideNote:
+    '牌の下の数字は、その牌を切ったあとに手が進む牌（テンパイなら和了牌）のうち、まだ見えていない枚数です。切れる牌で数字がないものは、切るとシャンテン数が戻ります。自分の手牌・河・副露・ドラ表示牌にある牌を「見えている」と数えます。安全度・役の有無・フリテン・打点は考慮しません。',
+  guideTileKeeps: (tile, tiles, best) =>
+    `${tile}（切ると有効牌は残り${tiles}枚${best ? '・最多' : ''}）`,
+  guideTileSetsBack: (tile) => `${tile}（切るとシャンテン数が戻ります）`,
 
   promptTitle: 'アクション',
   actionRon: 'ロン',
@@ -478,6 +511,7 @@ const ja: MahjongCopy = {
     '手牌の牌をタップすると打牌します（合法な牌だけ反応します）。',
     '先に「リーチする」を押すと、リーチ可能な打牌だけが選べます。',
     'ロン・ポン・チー・カンはボタンで宣言します。制限時間はありません。',
+    '「打牌ガイド」をオンにすると、各牌の下に「切ったあとに手が進む牌の見えていない枚数」を表示します。牌効率だけを見た目安です。',
     'ツモ牌は手牌の右側に少し離して表示されます。',
   ],
   yakuId: (id) => YAKU_JA[id] ?? YAKU_EN[id] ?? id,

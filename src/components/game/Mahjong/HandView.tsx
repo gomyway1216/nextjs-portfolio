@@ -14,6 +14,7 @@
 
 import type { JSX } from 'react';
 
+import { discardAdvice, unseenCounts, type DiscardAdvice } from './discardGuide';
 import { isFuriten } from './engine/furiten';
 import { isComplete, shanten as shantenOf, waits as waitsOf } from './engine/shanten';
 import { isRedFive, kindOf, tilesToCounts } from './engine/tiles';
@@ -25,6 +26,7 @@ import type {
   Seat,
   TileId,
   TileKind,
+  UkeireEntry,
 } from './engine/types';
 import type { MahjongCopy } from './i18n';
 import styles from './HandView.module.css';
@@ -133,6 +135,33 @@ export function handShape(player: PlayerState): HandShape {
 }
 
 // ---------------------------------------------------------------------------
+// Discard guide
+// ---------------------------------------------------------------------------
+
+/** Rows the guide panel spells out; the per-tile numbers cover the rest. */
+export const GUIDE_ROW_LIMIT = 3;
+
+/**
+ * The discards worth listing: those that keep the lowest reachable shanten,
+ * widest acceptance first, capped at {@link GUIDE_ROW_LIMIT}.
+ */
+export function guideRows(advice: readonly DiscardAdvice[]): DiscardAdvice[] {
+  if (advice.length === 0) return [];
+  const best = advice[0].shanten;
+  return advice.filter((entry) => entry.shanten === best).slice(0, GUIDE_ROW_LIMIT);
+}
+
+/** A small tile with the number of unseen copies underneath. */
+function CountedTile({ entry }: { entry: UkeireEntry }): JSX.Element {
+  return (
+    <span className={styles.countedTile} data-empty={entry.remaining === 0}>
+      <TileById tileId={entry.kind * 4} size="sm" red={false} />
+      <span className={styles.tileCount}>×{entry.remaining}</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -147,6 +176,10 @@ export interface HandViewProps {
   onDiscard: (action: DiscardAction) => void;
   /** False while an AI seat is being awaited, so the hand goes inert. */
   interactive: boolean;
+  /** Show what each discard leaves behind (tile efficiency only). */
+  guideEnabled?: boolean;
+  /** Omit to hide the guide switch altogether. */
+  onToggleGuide?: (next: boolean) => void;
 }
 
 export function HandView({
@@ -158,6 +191,8 @@ export function HandView({
   onToggleRiichi,
   onDiscard,
   interactive,
+  guideEnabled = false,
+  onToggleGuide,
 }: HandViewProps): JSX.Element {
   const player = state.players[seat];
   const drawn = player.drawn;
@@ -167,10 +202,31 @@ export function HandView({
   const riichiAvailable = canArmRiichi(actions);
   const shape = handShape(player);
   const furiten = isFuriten(player, state);
+  const waitEntries = unseenCounts(state, seat, shape.waits);
+
+  // A riichi hand has exactly one legal discard, so there is nothing to guide.
+  const guideActive = guideEnabled && interactive && player.riichi === null;
+  // One ukeire scan per kind held — a few hundred shanten lookups — so it is
+  // simply recomputed per render rather than cached.
+  const advice = guideActive
+    ? discardAdvice(
+        state,
+        seat,
+        new Set([...discardMap.values()].map((action) => kindOf(action.tile))),
+      )
+    : [];
+  const adviceByKind = new Map(advice.map((entry) => [entry.kind, entry]));
+  const bestShanten = advice.length > 0 ? advice[0].shanten : null;
+  const rows = guideRows(advice);
 
   const renderTile = (tile: TileId, isDrawn: boolean): JSX.Element => {
     const action = discardMap.get(discardGroupKey(tile, state.rules.redFives));
     const playable = interactive && action !== undefined;
+    const name = tileLabel(kindOf(tile), isRedFive(tile));
+    const tip = playable ? adviceByKind.get(kindOf(tile)) : undefined;
+    // Only discards that keep the best shanten get a number; the others set
+    // the hand back, and a count of what would undo that is not comparable.
+    const keeps = tip !== undefined && tip.shanten === bestShanten;
     return (
       <button
         key={tile}
@@ -179,7 +235,13 @@ export function HandView({
         data-playable={playable}
         data-drawn={isDrawn}
         disabled={!playable}
-        aria-label={tileLabel(kindOf(tile), isRedFive(tile))}
+        aria-label={
+          tip === undefined
+            ? name
+            : keeps
+              ? copy.guideTileKeeps(name, tip.total, tip.best)
+              : copy.guideTileSetsBack(name)
+        }
         /*
          * The action is submitted verbatim: `legalActions` names one physical
          * copy per interchangeable group and `isLegalAction` compares tile ids
@@ -192,6 +254,11 @@ export function HandView({
         }
       >
         <TileById tileId={tile} ariaLabel="" />
+        {guideEnabled && (
+          <span className={styles.guideChip} data-best={keeps && tip.best} aria-hidden="true">
+            {keeps ? tip.total : '\u00a0'}
+          </span>
+        )}
       </button>
     );
   };
@@ -213,13 +280,24 @@ export function HandView({
           <span className={styles.waits}>
             <span className={styles.waitsLabel}>{copy.waitsLabel}</span>
             <span className={styles.waitTiles}>
-              {shape.waits.map((kind) => (
-                <TileById key={kind} tileId={kind * 4} size="sm" red={false} />
+              {waitEntries.map((entry) => (
+                <CountedTile key={entry.kind} entry={entry} />
               ))}
             </span>
           </span>
         )}
         {furiten && <span className={styles.furiten}>{copy.furiten}</span>}
+        {onToggleGuide !== undefined && (
+          <button
+            type="button"
+            className={styles.guideToggle}
+            data-on={guideEnabled}
+            aria-pressed={guideEnabled}
+            onClick={() => onToggleGuide(!guideEnabled)}
+          >
+            {copy.guideToggle}
+          </button>
+        )}
         {riichiAvailable && (
           <button
             type="button"
@@ -249,6 +327,43 @@ export function HandView({
             ? copy.riichiLocked
             : copy.chooseDiscard}
       </p>
+
+      {guideEnabled && (
+        <div className={styles.guide} role="group" aria-label={copy.guideTitle}>
+          {rows.length === 0 ? (
+            <p className={styles.guideNote}>{copy.guideIdle}</p>
+          ) : (
+            <>
+              <p className={styles.guideHeading}>
+                {copy.guideHeading(
+                  rows[0].shanten <= 0 ? copy.tenpai : copy.shantenAway(rows[0].shanten),
+                )}
+              </p>
+              <ol className={styles.guideList}>
+                {rows.map((row) => (
+                  <li className={styles.guideRow} key={row.kind} data-best={row.best}>
+                    <span className={styles.guideDiscard}>
+                      <span className={styles.guideDiscardLabel}>{copy.guideDiscardLabel}</span>
+                      <TileById tileId={row.kind * 4} size="sm" red={false} />
+                    </span>
+                    <span className={styles.guideBody}>
+                      <span className={styles.guideSummary}>
+                        {copy.guideSummary(row.total, row.accepts.length)}
+                      </span>
+                      <span className={styles.guideAccepts}>
+                        {row.accepts.map((entry) => (
+                          <CountedTile key={entry.kind} entry={entry} />
+                        ))}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <p className={styles.guideNote}>{copy.guideNote}</p>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }

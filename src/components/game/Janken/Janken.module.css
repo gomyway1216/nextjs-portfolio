@@ -216,6 +216,215 @@
   line-height: 1.5;
   color: #4a3a22;
 }
+
+/* ---------- The record of the sitting, under the plate (the page's own colours, light and dark) ---------- */
+.side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  min-width: 0;
+}
+.record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface);
+  color: var(--games-route-fg);
+}
+.record .recordTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--jk-accent-text);
+}
+.recordIntro,
+.recordEmpty,
+.recordAverage,
+.recordSmall {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.recordIntro,
+.recordSmall {
+  color: var(--games-route-muted);
+}
+.recordSmall {
+  font-size: 0.8rem;
+}
+.recordSums {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.recordSums > div {
+  display: grid;
+  gap: 0.1rem;
+  align-content: start;
+  padding: 0.5rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  min-width: 0;
+}
+.recordSums dt,
+.recordFacts dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--games-route-muted);
+}
+.recordSums dd {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.recordSums dd[data-net='ahead'] {
+  color: var(--jk-ahead);
+}
+.recordSums dd[data-net='behind'] {
+  color: var(--jk-behind);
+}
+.recordFacts {
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+.recordFacts > div {
+  display: grid;
+  gap: 0.1rem;
+}
+.recordFacts dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.9rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.recordFact {
+  white-space: nowrap;
+}
+.record .recordSub {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--games-route-muted);
+}
+.recordRounds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.recordRound {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 9px;
+  border: 1px solid var(--games-route-border);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.recordNo {
+  color: var(--games-route-muted);
+  font-weight: 700;
+}
+.recordRun {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.recordMark {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.2em;
+  border-radius: 6px;
+  border: 1px solid var(--games-route-border);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+}
+/* White on these greens and reds is at least 5:1, whichever theme the page is in. */
+.recordMark[data-outcome='win'] {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+.recordMark[data-outcome='lose'] {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+.recordLamp {
+  font-size: 0.75rem;
+  margin-left: 0.15rem;
+}
+.recordTimes {
+  font-weight: 800;
+}
+.recordTag,
+.recordMore {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.recordTag {
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--games-route-border);
+}
+.recordGave {
+  font-weight: 850;
+  color: var(--games-route-muted);
+}
+.recordGave[data-gave='true'] {
+  color: var(--jk-ahead);
+}
+.recordClear {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 1rem;
+  border-radius: 11px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  color: var(--games-route-fg);
+  font-weight: 700;
+}
+.recordClear:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 2px;
+}
+@media (max-width: 390px) {
+  .record {
+    padding: 0.85rem 0.8rem 0.95rem;
+  }
+  .recordSums {
+    gap: 0.35rem;
+  }
+  .recordSums > div {
+    padding: 0.45rem 0.4rem;
+  }
+  .recordSums dd {
+    font-size: 1.15rem;
+  }
+}
 .cabinet {
   position: relative;
   padding: 10px 10px 14px;

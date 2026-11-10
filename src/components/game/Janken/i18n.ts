@@ -83,6 +83,34 @@ export interface JankenStrings {
   plateLamps: string;
   plateLampCount: (lamps: number) => string;
   plateReturn: string;
+  // The record of the sitting, under the plate
+  recordTitle: string;
+  recordIntro: string;
+  recordEmpty: string;
+  recordPlayed: string;
+  recordBack: string;
+  recordNet: string;
+  recordAverage: (played: number | string, back: number | string) => string;
+  recordThrows: string;
+  recordOutcomes: Record<Outcome, string>;
+  recordCat: string;
+  recordBest: string;
+  recordDoubles: string;
+  recordOf: (won: number, tried: number) => string;
+  recordLast: string;
+  /** One letter for a throw's outcome, in the list of rounds. */
+  recordMarks: Record<Outcome, string>;
+  recordThrow: (you: string, cat: string, outcome: string) => string;
+  recordRound: (n: number) => string;
+  recordLamp: (medals: number) => string;
+  recordDoubled: (times: number) => string;
+  recordPaid: (medals: number) => string;
+  recordLost: string;
+  recordCarried: string;
+  recordCarriedNote: string;
+  recordEarlier: (throws: number) => string;
+  recordClear: string;
+  recordNote: string;
   // How to play
   infoBody: string[];
   // The Odds tab
@@ -212,6 +240,33 @@ const en: JankenStrings = {
   plateLamps: 'THE LAMPS',
   plateLampCount: (lamps) => `${lamps} lamp${lamps === 1 ? '' : 's'}`,
   plateReturn: 'Exactly 90 medals of every 100 come back on average: see the Odds tab.',
+  recordTitle: 'YOUR RECORD',
+  recordIntro: 'The rounds that ended on this page since it was opened.',
+  recordEmpty: 'Nothing yet: a round is written here when it ends.',
+  recordPlayed: 'Medals played',
+  recordBack: 'Medals back',
+  recordNet: 'Ahead or behind',
+  recordAverage: (played, back) => `The machine’s average for ${played} medal${played === 1 ? '' : 's'} played is ${back} back.`,
+  recordThrows: 'Throws',
+  recordOutcomes: { win: 'won', draw: 'drawn', lose: 'lost' },
+  recordCat: 'The cat’s hands',
+  recordBest: 'Most from one medal',
+  recordDoubles: 'Double-ups won',
+  recordOf: (won, tried) => `${won} of ${tried}`,
+  recordLast: 'The last rounds',
+  recordMarks: { win: 'W', draw: 'D', lose: 'L' },
+  recordThrow: (you, cat, outcome) => `${you} against the cat’s ${cat}, ${outcome}`,
+  recordRound: (n) => `Round ${n}`,
+  recordLamp: (medals) => `the lamp of ${medals}`,
+  recordDoubled: (times) => `${times} double-up${times === 1 ? '' : 's'} won`,
+  recordPaid: (medals) => `${medals} medal${medals === 1 ? '' : 's'} taken`,
+  recordLost: 'no medals',
+  recordCarried: 'carried on',
+  recordCarriedNote: 'A round marked “carried on” had its medal put in before this record began (in another tab, or before the page was opened or the record cleared): it is listed, and its medals are not counted.',
+  recordEarlier: (throws) => `${throws} earlier`,
+  recordClear: 'Clear the record',
+  recordNote:
+    'A medal is counted when its round ends, lost or taken; one given back before its throw was decided is not. The record is this page’s only: it is gone when the page is closed or reloaded, and starts over when the medals are reset at the Medal Game Center.',
   infoBody: [
     'Press MEDAL IN (or the M key) to put one of your medals in. The cat calls “jan… ken…” and shakes its paw.',
     'Press Rock, Scissors or Paper (or 1, 2, 3). The cat shows its hand at the same moment. Its hand is drawn fairly when you press yours: rock, scissors and paper a third each, whatever you press and whatever happened before.',
@@ -354,6 +409,33 @@ const ja: JankenStrings = {
   plateLamps: 'ランプ',
   plateLampCount: (lamps) => `${lamps}個`,
   plateReturn: '平均すると、100枚につきちょうど90枚が戻ります。くわしくは「確率」タブへ。',
+  recordTitle: 'きろく',
+  recordIntro: 'このページを開いてから、ここで終わった回の記録です。',
+  recordEmpty: 'まだありません。1回終わると、ここに書かれます。',
+  recordPlayed: '使ったメダル',
+  recordBack: '戻ったメダル',
+  recordNet: '増減',
+  recordAverage: (played, back) => `${played}枚使ったときのマシンの平均は、${back}枚の戻りです。`,
+  recordThrows: '勝負',
+  recordOutcomes: { win: 'かち', draw: 'あいこ', lose: 'まけ' },
+  recordCat: 'ねこの出した手',
+  recordBest: '1枚で戻った最高',
+  recordDoubles: 'ダブルアップ成功',
+  recordOf: (won, tried) => `${tried}回中${won}回`,
+  recordLast: '最近の回',
+  recordMarks: { win: '勝', draw: 'あ', lose: '負' },
+  recordThrow: (you, cat, outcome) => `${you}とねこの${cat}で${outcome}`,
+  recordRound: (n) => `${n}回目`,
+  recordLamp: (medals) => `${medals}のランプ`,
+  recordDoubled: (times) => `ダブルアップ${times}回成功`,
+  recordPaid: (medals) => `${medals}枚うけとり`,
+  recordLost: 'メダルなし',
+  recordCarried: 'つづき',
+  recordCarriedNote: '「つづき」の回は、この記録が始まる前（別のタブや、ページを開く前、記録を消す前）にメダルを入れた回です。一覧には出ますが、枚数には数えません。',
+  recordEarlier: (throws) => `その前に${throws}回`,
+  recordClear: '記録を消す',
+  recordNote:
+    'メダルは、その回が終わったとき（まけ、またはうけとり）に数えます。勝負がつく前に戻ったメダルは数えません。この記録はこのページだけのもので、閉じたり再読み込みしたりすると消え、メダルゲームセンターでメダルをリセットすると最初からになります。',
   infoBody: [
     '「メダル投入」（Mキー）を押すと、持ちメダルが1枚入ります。ねこが「じゃーん、けーん…」と手をふります。',
     'グー・チョキ・パー（1・2・3キー）を押すと、同時にねこも手を出します。ねこの手は、あなたが押したときに公平に決まります。グー・チョキ・パーが3分の1ずつで、あなたの手にも、それまでの勝負にも左右されません。',

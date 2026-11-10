@@ -2,6 +2,7 @@ import {
   AVATARS,
   CATEGORIES,
   DEFAULT_SETTINGS,
+  isWrittenSideGame,
   maxRounds,
   roundsFor,
   type Action,
@@ -44,7 +45,7 @@ export function textInput(value: unknown, max: number): string {
 export function settingsInput(value: unknown): Settings {
   requireThat(value && typeof value === 'object', '設定が正しくありません。');
   const s = value as Settings;
-  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'drawing', 'shiritori', 'quiz', 'gesture', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
+  requireThat(s.gameType === undefined || ['ogiri', 'majority', 'identity', 'match', 'drawing', 'shiritori', 'quiz', 'gesture', 'minority', 'thermometer', 'wordwolf', 'bluff'].includes(s.gameType), 'ゲームを選んでください。');
   requireThat(
     Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= maxRounds(s.gameType),
     `ラウンド数は1〜${maxRounds(s.gameType)}です。`,
@@ -736,7 +737,7 @@ export function project(
       previousRank: p.previousRank,
       active: p.active,
       connected: now - p.lastSeen < OFFLINE_MS,
-      answered: side?.type === 'identity' ? Number(Boolean(side.answers[p.id])) : bluff ? Number(Boolean(bluff.fakes[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
+      answered: isWrittenSideGame(side?.type) ? Number(Boolean(side!.answers[p.id])) : bluff ? Number(Boolean(bluff.fakes[p.id])) : room.matches.filter((m) => m.answers[p.id]).length,
     })),
     assignments:
       me && room.players[me].active && room.phase === 'answering'

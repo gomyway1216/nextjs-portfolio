@@ -35,6 +35,8 @@ describe('original party audio', () => {
     expect(phaseSound(gesture(true, 1, 1), { ...gesture(true, 1, 1), phase: 'reveal', turn: 'next' } as RoomView)).toBe('buzzer');
     const quiz = (correct: number) => ({ ...view('reveal'), drawingGame: { quiz: { result: { correct: Array(correct).fill({ name: 'a', avatar: '' }) } } } }) as RoomView;
     expect(phaseSound(view('voting'), quiz(0))).toBe('buzzer');
+    const lonely = { ...view('reveal'), sideGame: { type: 'match', result: { awards: [] } } } as unknown as RoomView;
+    expect(phaseSound(view('answering'), lonely)).toBe('buzzer');
     expect(phaseSound(view('voting'), { ...quiz(1), players: [{ id: 'a', score: 100 }] } as RoomView)).toBe('count');
   });
   it('keeps existing open tabs able to preload the legacy sound URLs', () => {

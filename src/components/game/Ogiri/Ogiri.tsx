@@ -43,6 +43,7 @@ const phaseName = {
 const partyPhaseName = {
   majority: { ...phaseName, voting: '多数派に、まざれ。', reveal: 'そっちが多かったか。' },
   identity: { ...phaseName, answering: 'ひとこと、仕込み中。', voting: 'これ、だれが書いた？', reveal: '正体、こちら。' },
+  match: { ...phaseName, answering: 'せーので、答えて。', reveal: 'ハモった？' },
   drawing: { ...phaseName, answering: '絵とことばで、伝言中。', voting: '好きな絵に、一票。', reveal: 'その絵、そう来たか。' },
   shiritori: { ...phaseName, answering: '絵だけで、しりとり中。', voting: '好きな絵に、一票。', reveal: 'それ、その絵だったの？' },
   quiz: { ...phaseName, answering: 'お題、こっそり描き中。', voting: 'みんなで、当てっこ。', reveal: '答え合わせ。' },
@@ -483,7 +484,9 @@ function SettingsForm({
           ] as const
         ).filter(([key]) => (key !== 'answerSeconds' || !isChoiceGame(s.gameType)) && (key !== 'rounds' || !hasFixedTurns(s.gameType)) &&
           // A gesture turn is a fixed one-minute race with no vote.
-          (s.gameType !== 'gesture' || key === 'rounds')).map(([key, label, values]) => (
+          (s.gameType !== 'gesture' || key === 'rounds') &&
+          // せーので has no vote: the answers are shown and scored together.
+          (s.gameType !== 'match' || key !== 'voteSeconds')).map(([key, label, values]) => (
           <label key={key}>
             {label}
             <select
@@ -1119,7 +1122,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
-                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'shiritori' ? '1ゲーム1回のしりとり。4〜9人なら4手、3人と10〜12人なら3手。全員の絵がそろってから進みます。' : gameType === 'gesture' ? '全員が1回ずつ演じる番。演じる人だけがスマホでお題を見て、60秒で声と文字を使わずに伝えます。当たったら当てた人を選んで次のお題へ。' : gameType === 'quiz' ? '全員が同時にお題を1枚描き、そろったら1枚ずつ4択で当てっこ。描いた本人は自分の絵には答えません。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : gameType === 'bluff' ? `全${v.settings.rounds}問。全員がうその答えを1つ書き、本当の答えとまぜて1人1票。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
+                      <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'shiritori' ? '1ゲーム1回のしりとり。4〜9人なら4手、3人と10〜12人なら3手。全員の絵がそろってから進みます。' : gameType === 'gesture' ? '全員が1回ずつ演じる番。演じる人だけがスマホでお題を見て、60秒で声と文字を使わずに伝えます。当たったら当てた人を選んで次のお題へ。' : gameType === 'quiz' ? '全員が同時にお題を1枚描き、そろったら1枚ずつ4択で当てっこ。描いた本人は自分の絵には答えません。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : gameType === 'match' ? `全${v.settings.rounds}お題。全員が答えを1つ送り、同じ答えの人数で得点。` : gameType === 'bluff' ? `全${v.settings.rounds}問。全員がうその答えを1つ書き、本当の答えとまぜて1人1票。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
                       <p>同じルームでゲームを替えても、終了順位のパーティーポイントを通算します。</p>
                       <p>1位10pt・2位7pt・3位5pt・ほか3pt。同順位は同じpt。</p>
                     </section>

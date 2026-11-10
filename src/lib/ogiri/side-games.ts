@@ -1,14 +1,15 @@
 import { GameError } from './errors';
 import { MAJORITY_PROMPTS, IDENTITY_PROMPTS } from './side-prompts';
 import { MINORITY_PROMPTS, THERMOMETER_PROMPTS } from './choice-prompts';
+import { MATCH_PROMPTS } from './match-prompts';
 import { normalizePlayerText } from './text';
-import { isChoiceGame, type Action, type PartyGameResult, type PartyGameView, type Room, type SideGameRound } from './types';
+import { isChoiceGame, isWrittenSideGame, MATCH_MAX_LENGTH, type Action, type PartyGameResult, type PartyGameView, type Room, type SideGameRound } from './types';
 
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (ok, message, status = 400) => {
   if (!ok) throw new GameError(message, status);
 };
 export const currentSideRound = (room: Room) => room.sideRounds?.at(-1);
-export const isSideGame = (room: Room) => isChoiceGame(room.gameType) || room.gameType === 'identity';
+export const isSideGame = (room: Room) => isChoiceGame(room.gameType) || isWrittenSideGame(room.gameType);
 export const sidePlayers = (room: Room, round = currentSideRound(room)) => (round?.players ?? [])
   .filter(id => room.players[id]?.active && !room.players[id].kicked && !room.players[id].spectator);
 const shuffled = <T>(values: T[], rng: () => number) => {
@@ -30,12 +31,15 @@ const validChoice = (room: Room, round: SideGameRound, choice: unknown) => typeo
   round.type === 'thermometer' ? /^(?:100|[1-9]?\d)$/.test(choice) : options(room, round).some(option => option.id === choice));
 const POOLS = {
   majority: MAJORITY_PROMPTS, minority: MINORITY_PROMPTS, thermometer: THERMOMETER_PROMPTS, identity: IDENTITY_PROMPTS,
+  match: MATCH_PROMPTS,
 } as const;
 const THERMOMETER_AWARDS = [100, 50, 25];
+/** せーので同じ答え: 100 for each other player with the same answer, and a bonus when the whole room agrees. */
+export const MATCH_POINTS = 100, MATCH_ALL_BONUS = 100;
 
 export function beginSideRound(room: Room, now: number, rng: () => number) {
   const type = room.gameType;
-  requireThat(isChoiceGame(type) || type === 'identity', 'ゲームを選んでください。');
+  requireThat(isChoiceGame(type) || isWrittenSideGame(type), 'ゲームを選んでください。');
   const players = Object.values(room.players).filter(p => p.active && !p.kicked && !p.spectator);
   requireThat(players.length >= 3, '3人以上の参加者が必要です。', 409);
   const ranked = Object.values(room.players).filter(p => !p.kicked && !p.spectator);
@@ -56,7 +60,7 @@ export function beginSideRound(room: Room, now: number, rng: () => number) {
   const scale = type === 'thermometer' ? THERMOMETER_PROMPTS[index] : null;
   const round: SideGameRound = {
     round: ++room.round, type,
-    prompt: choice?.text ?? scale?.text ?? IDENTITY_PROMPTS[index],
+    prompt: choice?.text ?? scale?.text ?? (type === 'match' ? MATCH_PROMPTS[index] : IDENTITY_PROMPTS[index]),
     ...(scale ? { scale: { low: scale.low, high: scale.high } } : {}),
     players: players.map(p => p.id),
     options: choice ? choice.options.map((label, i) => ({ id: String(i), label })) : [],
@@ -64,8 +68,8 @@ export function beginSideRound(room: Room, now: number, rng: () => number) {
   };
   (room.sideRounds ??= []).push(round);
   room.matchIndex = 0;
-  room.phase = type === 'identity' ? 'answering' : 'voting';
-  room.deadline = now + (type === 'identity' ? room.settings.answerSeconds : room.settings.voteSeconds) * 1000;
+  room.phase = isWrittenSideGame(type) ? 'answering' : 'voting';
+  room.deadline = now + (isWrittenSideGame(type) ? room.settings.answerSeconds : room.settings.voteSeconds) * 1000;
 }
 
 function scoreSideQuestion(room: Room, round: SideGameRound) {
@@ -118,8 +122,47 @@ function scoreSideQuestion(room: Room, round: SideGameRound) {
   round.results.push({ index: room.matchIndex, author: validAuthor || null, text: validAuthor ? round.answers[validAuthor] : null, result });
 }
 
-/** A removed author's answer leaves the reveal, so the points for guessing it leave with it. */
+/** Answers that read the same once width, kana and spacing are set aside score together. */
+function scoreMatchRound(room: Room, round: SideGameRound) {
+  const participants = round.players.filter(id => room.players[id] && !room.players[id].kicked && !room.players[id].spectator);
+  const answered = participants.filter(id => round.answers[id]);
+  const groups = new Map<string, string[]>();
+  for (const id of answered) {
+    const key = normalizePlayerText(round.answers[id]).toLowerCase()
+      .replace(/[ァ-ヶヽヾ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+      .replace(/\s/gu, '');
+    groups.set(key, [...(groups.get(key) ?? []), id]);
+  }
+  const everyone = answered.length >= 3 && answered.length === participants.length && groups.size === 1;
+  const awards = new Map<string, number>();
+  for (const ids of groups.values()) if (ids.length > 1)
+    for (const id of ids) awards.set(id, (ids.length - 1) * MATCH_POINTS + (everyone ? MATCH_ALL_BONUS : 0));
+  const sorted = [...groups].sort(([, a], [, b]) => b.length - a.length);
+  const result: PartyGameResult = {
+    correctOption: null,
+    counts: Object.fromEntries(sorted.map(([key, ids]) => [key, ids.length])),
+    awards: [...awards].map(([id, points]) => ({ id, points })),
+    groups: sorted.map(([, ids]) => ({ label: round.answers[ids[0]], ids })),
+  };
+  for (const { id, points } of result.awards) {
+    room.players[id].score += points;
+    room.players[id].roundScore += points;
+  }
+  round.results = [{ index: 0, author: null, text: null, result }];
+}
+
+/** A removed author's answer leaves the reveal, so the points for guessing it leave with it. A removed
+ * player's answer leaves a せーので reveal too, and whoever matched only them loses those points. */
 export function voidSideResult(room: Room, author: string) {
+  const round = currentSideRound(room);
+  if (round?.type === 'match' && round.results.length && room.phase !== 'finished') {
+    for (const { id, points } of round.results[0].result.awards) {
+      room.players[id].score -= points;
+      room.players[id].roundScore -= points;
+    }
+    scoreMatchRound(room, round);
+    return;
+  }
   const entry = room.phase === 'reveal' ? currentSideRound(room)?.results
     .find(result => result.index === room.matchIndex && result.author === author) : undefined;
   if (!entry) return;
@@ -133,7 +176,11 @@ export function voidSideResult(room: Room, author: string) {
 export function advanceSideGame(room: Room, now: number, rng: () => number) {
   const round = currentSideRound(room);
   if (!round) return;
-  if (room.phase === 'answering') {
+  if (room.phase === 'answering' && round.type === 'match') {
+    scoreMatchRound(room, round);
+    room.phase = 'reveal';
+    room.deadline = now + 15000;
+  } else if (room.phase === 'answering') {
     round.order = shuffled(sidePlayers(room, round).filter(id => Boolean(round.answers[id])), rng);
     room.matchIndex = 0;
     room.phase = round.order.length ? 'voting' : 'ranking';
@@ -174,14 +221,15 @@ export function sideAction(room: Room, playerId: string, action: Action, now: nu
   const round = currentSideRound(room);
   requireThat(round && sidePlayers(room, round).includes(playerId), 'このゲームには参加できません。', 403);
   if (action.type === 'partyAnswer') {
-    requireThat(round.type === 'identity' && room.phase === 'answering', '回答の受付は終了しました。', 409);
+    requireThat(isWrittenSideGame(round.type) && room.phase === 'answering', '回答の受付は終了しました。', 409);
     requireThat(!room.players[playerId].answerReady, '「回答を直す」で確定を取り消してから修正してください。', 409);
     requireThat(typeof action.text === 'string', '文字で入力してください。');
     const text = normalizePlayerText(action.text);
-    requireThat([...text].length > 0 && [...text].length <= 100, '1〜100文字で入力してください。');
+    const max = round.type === 'match' ? MATCH_MAX_LENGTH : 100;
+    requireThat([...text].length > 0 && [...text].length <= max, `1〜${max}文字で入力してください。`);
     round.answers[playerId] = text;
   } else if (action.type === 'answerReady') {
-    requireThat(round.type === 'identity' && room.phase === 'answering', '今は回答を確定できません。', 409);
+    requireThat(isWrittenSideGame(round.type) && room.phase === 'answering', '今は回答を確定できません。', 409);
     requireThat(typeof action.ready === 'boolean', '確定するか選んでください。');
     requireThat(round.answers[playerId], '回答を送信してから確定してください。', 409);
     room.players[playerId].answerReady = action.ready;
@@ -205,8 +253,8 @@ export function projectSideGame(room: Room, me: string | null): PartyGameView | 
   return {
     type: round.type, prompt: round.prompt,
     ...(round.scale ? { scale: { ...round.scale } } : {}),
-    answer: me && round.type === 'identity' && room.phase === 'answering' ? round.answers[me] ?? '' : '',
-    answerRequired: Boolean(me && round.type === 'identity' && room.phase === 'answering' && participants.includes(me)),
+    answer: me && isWrittenSideGame(round.type) && room.phase === 'answering' ? round.answers[me] ?? '' : '',
+    answerRequired: Boolean(me && isWrittenSideGame(round.type) && room.phase === 'answering' && participants.includes(me)),
     readyCount: participants.filter(id => room.players[id].answerReady).length,
     answererCount: participants.length,
     revealText: showAnswer ? round.answers[author] ?? null : null,
@@ -220,6 +268,7 @@ export function projectSideGame(room: Room, me: string | null): PartyGameView | 
     total: round.type !== 'identity' ? room.settings.rounds : room.phase === 'answering' ? participants.length : round.order.length,
     result: stored ? { correctOption: stored.correctOption && !room.players[stored.correctOption]?.kicked ? stored.correctOption : null,
       counts: { ...stored.counts }, awards: stored.awards.filter(award => !room.players[award.id]?.kicked),
-      ...(stored.average === undefined ? {} : { average: stored.average }) } : null,
+      ...(stored.average === undefined ? {} : { average: stored.average }),
+      ...(stored.groups ? { groups: stored.groups.map(group => ({ ...group, ids: group.ids.filter(id => !room.players[id]?.kicked) })) } : {}) } : null,
   };
 }

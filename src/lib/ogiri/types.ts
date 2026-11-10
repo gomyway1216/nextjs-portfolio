@@ -18,16 +18,20 @@ export const AVATARS = [
   'rabbit', 'capybara', 'axolotl', 'hedgehog', 'redpanda', 'sloth', 'alien', 'pudding',
 ];
 export type Phase = 'lobby' | 'answering' | 'voting' | 'reveal' | 'ranking' | 'finished';
-export type GameType = 'ogiri' | 'majority' | 'identity' | 'drawing' | 'shiritori' | 'quiz' | 'gesture' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
+export type GameType = 'ogiri' | 'majority' | 'identity' | 'match' | 'drawing' | 'shiritori' | 'quiz' | 'gesture' | 'minority' | 'thermometer' | 'wordwolf' | 'bluff';
 export const GAME_TITLES: Record<GameType, string> = {
-  ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', drawing: 'おえかき伝言便',
+  ogiri: 'みんなの大喜利王', majority: 'みんなの多数決', identity: 'だれのひとこと？', match: 'せーので同じ答え', drawing: 'おえかき伝言便',
   shiritori: 'おえかきしりとり', quiz: 'おえかきクイズ', gesture: 'ジェスチャー早当て', minority: '少数派が勝ち', thermometer: 'みんなの温度計', wordwolf: 'ワードウルフ', bluff: 'うそ回答まぜ',
 };
 /** Everyone answers the same question at once; no written answers and no per-voter choices are public. */
 export type ChoiceGameType = 'majority' | 'minority' | 'thermometer';
 export const isChoiceGame = (type: GameType | undefined): type is ChoiceGameType =>
   type === 'majority' || type === 'minority' || type === 'thermometer';
-export type SideGameType = ChoiceGameType | 'identity';
+export type SideGameType = ChoiceGameType | 'identity' | 'match';
+/** Games where everyone writes one answer before anything is shown. */
+export const isWrittenSideGame = (type: GameType | undefined) => type === 'identity' || type === 'match';
+/** せーので同じ答え: one word or a short phrase is what matches. */
+export const MATCH_MAX_LENGTH = 20;
 /** Ogiri can run as a long evening and the other games stay short. Drawing modes play once and
  * ignore this, so the host's choice is still there for the next game in the room. */
 export const isDrawingType = (type: GameType | undefined) => type === 'drawing' || type === 'shiritori' || type === 'quiz';
@@ -196,6 +200,8 @@ export interface PartyGameResult {
   awards: { id: string; points: number }[];
   /** Thermometer only: room average of the valid ratings. */
   average?: number;
+  /** せーので同じ答え only: answers that matched, largest first, labelled with one player's spelling. */
+  groups?: { label: string; ids: string[] }[];
 }
 export interface PartyGameView {
   type: SideGameType;

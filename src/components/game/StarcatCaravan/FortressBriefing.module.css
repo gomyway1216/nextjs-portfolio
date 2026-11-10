@@ -1,0 +1,34 @@
+.briefing { border: 1px solid #d8c49a44; border-radius: 10px; background: #1a293a; margin: 0 0 22px; padding: 18px 20px; color: #f6efdf; }
+.briefing p { margin: 0; }
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px 20px; }
+.briefing .eyebrow { font-size: 10px; letter-spacing: .17em; color: #edd298; }
+.briefing .head h3 { margin: 2px 0 0; font-size: 16px; font-weight: 500; color: inherit; }
+.briefing .head > p { font-size: 12px; color: #b9cad8; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 12px; }
+.stats dt { font-size: 10px; color: #aab7c6; }
+.stats dd { margin: 2px 0 0; font-size: 20px; font-variant-numeric: tabular-nums; }
+.party { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.party li { display: grid; gap: 2px; min-width: 0; min-height: 52px; align-content: center; border: 1px solid #ffffff22; border-radius: 7px; padding: 6px 10px; font-size: 12px; }
+.party li span, .bench b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.party li b { font-size: 11px; font-weight: 500; color: #aab7c6; white-space: nowrap; }
+.party li[data-edge='true'] { border-color: #a6e8c588; background: #a6e8c50d; }
+.party li[data-edge='true'] b { color: #a6e8c5; }
+.party li[data-empty='true'] { color: #aab7c6; border-style: dashed; }
+.briefing .bench { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin-top: 10px; font-size: 12px; }
+.bench span { font-size: 10px; color: #aab7c6; }
+.bench b { min-width: 0; font-weight: 500; }
+.foes { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 14px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.foes caption { text-align: left; font-size: 10px; color: #aab7c6; padding-bottom: 4px; }
+.foes th, .foes td { padding: 6px 4px; border-top: 1px solid #ffffff16; text-align: right; font-weight: 400; overflow-wrap: anywhere; }
+.foes thead th { font-size: 10px; color: #aab7c6; }
+.foes tbody th { text-align: left; color: #edd298; }
+.foes em { display: inline-block; margin-left: 6px; font-style: normal; font-size: 10px; color: #aab7c6; }
+.foes em[data-defeats='true'] { color: #a6e8c5; }
+.briefing > small { display: block; margin-top: 10px; font-size: 10px; line-height: 1.7; color: #aab7c6; }
+@media (max-width: 520px) {
+  .briefing { padding: 14px; }
+  .party { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats dd { font-size: 17px; }
+  .foes em { display: block; margin-left: 0; }
+}
+.foes thead td { width: 34%; }

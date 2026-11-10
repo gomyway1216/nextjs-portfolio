@@ -12,6 +12,7 @@ import { lookUp, type Glance } from '../MedalCenter/lookUp';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { Wheel } from './Wheel';
 import { HistoryBoard } from './HistoryBoard';
+import { PayoutMapPanel } from './PayoutPanel';
 import { resultsStore } from './resultsStore';
 import { Bet, BET_ODDS, colorOf, RED_NUMBERS, spin } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
@@ -154,6 +155,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const canBet = mine && here && !spinning;
 
   const totalWagered = useMemo(() => sumOf(bets), [bets]);
+  const placedBets = useMemo(() => Object.values(bets), [bets]);
   // What a spin still rolling won, when it was paid before its ball stopped: the card went for a moment (the medal
   // center taking the day's bonus, say) and the spin was settled as it went. The medals are in, and the counter does
   // not show them before the ball has stopped on the number that won them.
@@ -779,6 +781,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         <p className={styles.tableMessage} role="status" data-testid="roulette-message">
           {message}
         </p>
+
+        <PayoutMapPanel bets={placedBets} t={t} />
 
         <p className={styles.hint}>
           {t.outsideHint}{' '}

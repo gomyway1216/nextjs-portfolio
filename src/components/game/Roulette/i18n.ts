@@ -81,6 +81,20 @@ export interface RouletteStrings {
   recentResults: string;
   none: string;
   betHistory: string;
+  // The panel under the felt: what the bets on it would do on each of the 37 pockets.
+  payoutTitle: string;
+  payoutEmpty: string;
+  /** How many of the 37 pockets leave the player with more medals than before the spin, and their share. */
+  payoutAhead: (pockets: number, share: string) => string;
+  /** How many pockets give back exactly the medals bet. */
+  payoutLevel: (pockets: number) => string;
+  payoutBest: string;
+  payoutWorst: string;
+  /** Which pockets a net belongs to: the numbers themselves when they are few, or how many there are. */
+  payoutOn: (numbers: readonly number[]) => string;
+  /** The mean net of the 37 pockets, already signed and rounded. */
+  payoutAverage: (average: string) => string;
+  payoutMapLabel: string;
   noBets: string;
   insideHint: string;
   /** The table's keys, on a desktop. */
@@ -212,6 +226,9 @@ const medalsEn = (n: number): string => `${n.toLocaleString('en-US')} ${n === 1 
 const signed = (n: number): string => (n > 0 ? `+${n.toLocaleString('en-US')}` : n < 0 ? `−${(-n).toLocaleString('en-US')}` : '±0');
 
 
+/** A net that belongs to this many pockets or fewer names them; more are counted. */
+const PAYOUT_NAMED = 4;
+
 const EN: RouletteStrings = {
   title: 'Roulette',
   subtitle:
@@ -259,6 +276,15 @@ const EN: RouletteStrings = {
   recentResults: 'Winning numbers',
   none: '(none yet)',
   betHistory: 'Spin history',
+  payoutTitle: 'What these bets pay',
+  payoutEmpty: 'Place a bet to see what each number would win or lose.',
+  payoutAhead: (pockets, share) => `Ahead on ${pockets} of 37 numbers (${share})`,
+  payoutLevel: (pockets) => `break even on ${pockets}`,
+  payoutBest: 'Best',
+  payoutWorst: 'Worst',
+  payoutOn: (numbers) => (numbers.length <= PAYOUT_NAMED ? `on ${numbers.join(', ')}` : `on ${numbers.length} numbers`),
+  payoutAverage: (average) => `Average over all 37 numbers: ${average} medals a spin`,
+  payoutMapLabel: 'Medals won or lost on each number, bets included, in wheel order',
   noBets: 'No spins yet.',
   insideHint:
     'Inside bets: tap the border between two numbers = Split (17:1), a point where four meet = Corner (8:1), the small boxes along the numbers = Street (11:1) / Line (5:1).',
@@ -394,6 +420,15 @@ const JA: RouletteStrings = {
   recentResults: '出目履歴',
   none: '（まだなし）',
   betHistory: 'スピン履歴',
+  payoutTitle: 'このベットの結果予想',
+  payoutEmpty: 'ベットを置くと、各数字が出たときのメダルの増減を表示します。',
+  payoutAhead: (pockets, share) => `37個中${pockets}個の数字でプラス（${share}）`,
+  payoutLevel: (pockets) => `${pockets}個で±0`,
+  payoutBest: '最高',
+  payoutWorst: '最低',
+  payoutOn: (numbers) => (numbers.length <= PAYOUT_NAMED ? `（${numbers.join('、')}）` : `（${numbers.length}個の数字）`),
+  payoutAverage: (average) => `37個の数字の平均：1スピンあたり${average}枚`,
+  payoutMapLabel: '各数字が出たときのメダルの増減（ベット分を含む・ホイールの並び順）',
   noBets: 'まだスピンなし。',
   insideHint:
     'インサイドベット: 2つの数字の境界線をタップ = スプリット (17:1)、4つの数字が接する点 = コーナー (8:1)、数字に沿った小さな枠 = ストリート (11:1) / ライン (5:1)。',

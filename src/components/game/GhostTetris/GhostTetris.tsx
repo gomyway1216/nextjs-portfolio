@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Info, Pause, Play } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
@@ -217,7 +217,10 @@ export const GhostTetris = () => {
   }
 
   const showRevealed = revealed && game.phase === 'gameover';
-  const gapCells = new Set<number>(showRevealed ? buriedGaps(game.board) : []);
+  const gapCells = useMemo(
+    () => new Set<number>(showRevealed ? buriedGaps(game.board) : []),
+    [showRevealed, game.board],
+  );
 
   const cells: React.ReactNode[] = [];
   for (let y = 0; y < BOARD_H; y += 1) {
@@ -236,11 +239,12 @@ export const GhostTetris = () => {
         opacity = showRevealed ? 1 : ghostOpacity(game.lockedAt[y][x], now);
       }
 
+      const isGap = gapCells.has(idx);
       const className = [
         styles.cell,
-        cellId === 0 && !isShadow ? styles.empty : '',
+        cellId === 0 && !isShadow && !isGap ? styles.empty : '',
         isShadow ? styles.ghostShadow : '',
-        gapCells.has(idx) ? styles.gap : '',
+        isGap ? styles.gap : '',
       ]
         .filter(Boolean)
         .join(' ');

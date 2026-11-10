@@ -341,7 +341,7 @@ export const lockCurrent = (
   const level = levelForLines(lines);
   const score = state.score + lineScore(cleared, state.level);
   const clears: RunStats['clears'] = [...state.stats.clears];
-  if (cleared > 0) clears[cleared - 1] += 1;
+  if (cleared > 0 && cleared <= clears.length) clears[cleared - 1] += 1;
   const stats: RunStats = { pieces: state.stats.pieces + 1, clears };
 
   const current = makePiece(state.next.id);

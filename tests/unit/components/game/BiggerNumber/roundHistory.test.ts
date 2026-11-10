@@ -142,6 +142,13 @@ describe('historyFromLog', () => {
     expect(history[1]).toMatchObject({ winner: 'opponent' });
   });
 
+  it('reads a tie whose null winner was dropped by the database', () => {
+    const { winnerId: _dropped, ...tie } = { ...entry, p1Card: 4, p2Card: 4 };
+    expect(historyFromLog([tie], 'a', 'b')).toEqual([
+      { round: 1, yourCard: 4, opponentCard: 4, winner: 'tie', cardsReturnedToHand: false },
+    ]);
+  });
+
   it('skips malformed entries and entries between other players', () => {
     const history = historyFromLog(
       [
@@ -150,6 +157,8 @@ describe('historyFromLog', () => {
         { ...entry, p1Card: 42 },
         { ...entry, round: 'x' },
         { ...entry, p1Id: 'someone-else' },
+        { ...entry, winnerId: 'someone-else' },
+        { ...entry, winnerId: 42 },
         entry,
       ],
       'a',

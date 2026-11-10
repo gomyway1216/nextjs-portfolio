@@ -254,7 +254,9 @@
 
 /* Center stage */
 .stage {
-  flex: 1;
+  /* Never shrink below its content: the log and summary must push the page
+     taller (the root scrolls) rather than spill over the neighbouring rows. */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;

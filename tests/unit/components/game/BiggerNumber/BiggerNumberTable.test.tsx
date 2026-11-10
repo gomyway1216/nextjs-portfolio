@@ -68,8 +68,8 @@ describe('BiggerNumberTable', () => {
   it('lists each round in a focusable, labelled log', () => {
     const t = getStrings('en');
     const html = render({ history });
-    expect(html).toContain(t.roundLogEntry(1, '9', '3', 'you', false));
-    expect(html).toContain(t.roundLogEntry(2, '2', '龍', 'opponent', false));
+    expect(html).toContain(t.roundLogEntry(1, t.cardN(9), t.cardN(3), 'you', false));
+    expect(html).toContain(t.roundLogEntry(2, t.cardN(2), t.dragonCard, 'opponent', false));
     expect(html).toMatch(new RegExp(`role="region"[^>]*aria-label="${t.roundLog}"[^>]*tabindex="0"`));
   });
 

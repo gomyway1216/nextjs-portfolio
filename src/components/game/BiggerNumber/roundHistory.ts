@@ -116,6 +116,9 @@ export function historyFromLog(
     if (!isCardValue(yourCard) || !isCardValue(opponentCard)) continue;
     if (typeof e.round !== 'number' || !Number.isFinite(e.round)) continue;
 
+    // A tie is stored as a null winner, which the database drops entirely.
+    if (e.winnerId != null && e.winnerId !== myId && e.winnerId !== opponentId) continue;
+
     const winner: RoundWinner =
       e.winnerId === myId ? 'you' : e.winnerId === opponentId ? 'opponent' : 'tie';
     records.push({

@@ -377,8 +377,8 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
                     <span className={styles.srOnly}>
                       {t.roundLogEntry(
                         r.round,
-                        cardLabel(r.yourCard),
-                        cardLabel(r.opponentCard),
+                        tileLabel(r.yourCard),
+                        tileLabel(r.opponentCard),
                         r.winner,
                         r.cardsReturnedToHand,
                       )}

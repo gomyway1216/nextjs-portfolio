@@ -114,6 +114,8 @@ test('smart-ball: a play takes five medals, the plunger shoots ten marbles, thre
     await onPlunger(page, m);
     await expect(page.getByTestId('smb-plunger')).toHaveAttribute('data-ready', 'true');
     await expect(page.getByTestId('smb-status')).toContainText(`Marble ${m + 1} of 10`);
+    // The shot card has the marbles that have come to rest, and no more.
+    await expect(page.getByTestId('smb-card')).toHaveAttribute('data-shown', String(m));
     // Skip never shoots a marble for the player: it waits for the last one.
     await expect(page.getByTestId('smb-skip')).toBeDisabled();
     await shoot(page, AIM);
@@ -127,6 +129,8 @@ test('smart-ball: a play takes five medals, the plunger shoots ten marbles, thre
   await expect.poll(() => bankBalance(page)).toBe(WELCOME - STAKE + 100);
   await expect(page.getByTestId('smb-medals-led')).toHaveAttribute('data-shown', String(WELCOME + 95), { timeout: 8_000 });
   await expect(page.getByTestId('smb-history').locator('li').first()).toHaveAttribute('data-lines', '3');
+  await expect(page.getByTestId('smb-card')).toHaveAttribute('data-shown', String(MARBLES));
+  await expect(page.getByTestId('smb-card').locator('[data-line="true"]')).toHaveCount(3);
   expect(await record(page)).toMatchObject({ paid: true, shots: Array.from({ length: MARBLES }, () => AIM) });
   expect(mismatches).toEqual([]);
 

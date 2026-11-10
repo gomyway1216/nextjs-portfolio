@@ -113,6 +113,13 @@ const en = {
   sayReady: (marble: number) => `Marble ${marble + 1}: hold the plunger and let go to shoot.`,
   sayHole: (hole: number, lines: number) => `Hole ${numberOf(hole)} lit.${lines > 0 ? ` ${enLines(lines)} so far.` : ''}`,
   sayOut: 'OUT.',
+  /** The shot card: each marble's strength and where it went. */
+  cardTitle: 'Shot by shot',
+  cardStrength: (window: number) => `Str ${window + 1}`,
+  cardLegend: 'Each marble: the hole it lit (or OUT) over the strength it was shot at. ★ completed a line · * shot blind while the page was away.',
+  cardSay: (marble: number, window: number, hole: number | null, lines: number, blind: boolean) =>
+    `Marble ${marble + 1}: strength ${window + 1}${blind ? ', shot blind' : ''}, ${hole === null ? 'OUT' : `hole ${numberOf(hole)}`}${lines > 0 ? `, completing ${enLines(lines)}` : ''}.`,
+  cardWaiting: (marble: number) => `Marble ${marble + 1}: not shot yet.`,
   historyTitle: 'Last plays',
   historyEmpty: 'No plays yet.',
   historyEntry: (play: Play) => (play.lines.length > 0 ? `${enLines(play.lines.length)} +${play.won}` : enHoles(play.marbles.filter((m) => m.hole !== null).length)),
@@ -247,6 +254,12 @@ const ja: SmartBallStrings = {
   sayReady: (marble: number) => `${marble + 1}個目の玉：バネを引いて、離して打とう。`,
   sayHole: (hole: number, lines: number) => `${numberOf(hole)}番の穴が光りました。${lines > 0 ? `いま${lines}列です。` : ''}`,
   sayOut: 'OUTです。',
+  cardTitle: '1個ずつの記録',
+  cardStrength: (window: number) => `強さ${window + 1}`,
+  cardLegend: `玉ごとに、${B}入った穴（${B}またはOUT）と${B}打った強さ。${B}★は列がそろった玉、${B}*は離れている間に${B}目をつぶって打った玉。`,
+  cardSay: (marble: number, window: number, hole: number | null, lines: number, blind: boolean) =>
+    `${marble + 1}個目：強さ${window + 1}${blind ? '（目をつぶって打った）' : ''}、${hole === null ? 'OUT' : `${numberOf(hole)}番の穴`}${lines > 0 ? `、${lines}列そろった` : ''}。`,
+  cardWaiting: (marble: number) => `${marble + 1}個目：まだ打っていません。`,
   historyTitle: '最近のプレイ',
   historyEmpty: 'まだ遊んでいません。',
   historyEntry: (play: Play) => (play.lines.length > 0 ? `${play.lines.length}列 +${play.won}枚` : `穴${play.marbles.filter((m) => m.hole !== null).length}個`),

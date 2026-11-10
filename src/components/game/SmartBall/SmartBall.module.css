@@ -1118,6 +1118,64 @@
   font-size: 0.85rem;
   color: var(--games-route-muted);
 }
+/* The shot card: ten places, five to a row, there from the start so that nothing moves as they fill. */
+.cardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+.cardCell {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.05rem;
+  min-width: 0;
+  padding: 0.25rem 0.1rem 0.3rem;
+  border-radius: 8px;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  color: var(--games-route-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.cardMarble {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.cardResult {
+  font-size: 1rem;
+  font-weight: 850;
+}
+.cardStrength {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.cardCell[data-state='hole'] .cardResult {
+  color: var(--games-route-fg);
+}
+.cardCell[data-state='now'] {
+  border-color: var(--smb-accent-text);
+  box-shadow: inset 0 0 0 1px var(--smb-accent-text);
+  color: var(--smb-accent-text);
+}
+.cardCell[data-line='true'] {
+  background: #f6c343;
+  border-color: #d9a43a;
+  color: #2a1600;
+}
+.cardCell[data-line='true'] .cardResult {
+  color: #2a1600;
+}
+.cardLegend {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
 .historyList {
   list-style: none;
   margin: 0;
@@ -1319,6 +1377,7 @@
  */
 .statLabel,
 .statNote,
+.cardLegend,
 .statList dt,
 .ruleList li,
 .note,
@@ -1331,6 +1390,7 @@
 @supports (word-break: auto-phrase) {
   .statLabel,
   .statNote,
+  .cardLegend,
   .statList dt,
   .ruleList li,
   .note,

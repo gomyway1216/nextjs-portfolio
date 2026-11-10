@@ -3,7 +3,7 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { MachineOdds } from './engine';
 import { getStrings } from './i18n';
-import { chartScale, expectedHits, expectedNet, type SessionLog } from './sessionLog';
+import { chartScale, expectedHits, expectedNet, type SessionLog, type SessionPoint } from './sessionLog';
 import { SlotSymbol } from './Symbols';
 import styles from './SlotMachine.module.css';
 
@@ -44,7 +44,7 @@ export const SessionRecord = ({ log, odds, language }: SessionRecordProps) => {
   const innerH = HEIGHT - PAD.top - PAD.bottom;
   const x = (n: number) => PAD.left + (n / scale.maxSpins) * innerW;
   const y = (v: number) => PAD.top + innerH - ((v - scale.low) / (scale.high - scale.low)) * innerH;
-  const path = (value: (i: number) => number) => points.map((p, i) => `${x(p.spins).toFixed(1)},${y(value(i)).toFixed(1)}`).join(' ');
+  const path = (value: (p: SessionPoint) => number) => points.map((p) => `${x(p.spins).toFixed(1)},${y(value(p)).toFixed(1)}`).join(' ');
   const average = expectedNet(last.wagered, odds.houseEdge);
   const ticks = [scale.high, scale.low].filter((v) => Math.abs(y(v) - y(0)) >= LABEL_GAP);
   const edge = `${(odds.houseEdge * 100).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
@@ -89,8 +89,8 @@ export const SessionRecord = ({ log, odds, language }: SessionRecordProps) => {
           </text>
         ) : (
           <>
-            <polyline className={styles.chartAverage} points={path((i) => expectedNet(points[i].wagered, odds.houseEdge))} />
-            <polyline className={styles.chartNet} points={path((i) => points[i].net)} />
+            <polyline className={styles.chartAverage} points={path((p) => expectedNet(p.wagered, odds.houseEdge))} />
+            <polyline className={styles.chartNet} points={path((p) => p.net)} />
             <circle className={styles.chartNetDot} cx={x(last.spins)} cy={y(last.net)} r={3} />
           </>
         )}

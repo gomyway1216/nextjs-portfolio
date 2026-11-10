@@ -5,7 +5,8 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
-import type { MiniAdventureDifficulty } from './types';
+import type { EnemyTrait } from './Sight';
+import type { EnemyType, MiniAdventureDifficulty, StatusEffect } from './types';
 
 export interface MiniAdventureStrings {
   title: string;
@@ -60,6 +61,20 @@ export interface MiniAdventureStrings {
   tipsTitle: string;
   controlsList: string[];
   tips: string[];
+  // "In sight" panel: the enemies the player can currently see
+  sight: {
+    title: string;
+    empty: string;
+    /** Header count: how many rows are listed out of how many enemies are visible. */
+    count: (shown: number, total: number) => string;
+    /** One player melee hit on the enemy; `range` is e.g. "6–8". */
+    dealt: (range: string) => string;
+    /** One enemy hit on the player. */
+    taken: (range: string) => string;
+    enemyNames: Record<EnemyType, string>;
+    status: Record<Exclude<StatusEffect, StatusEffect.NONE>, string>;
+    traits: Record<EnemyTrait, string>;
+  };
   // Accessibility labels (screen readers)
   aria: {
     surfaceMap: string;
@@ -140,7 +155,29 @@ const en: MiniAdventureStrings = {
     'Eggs hatch after 60 turns into helpful pets.',
     'Watch out for Worms — they eat your eggs!',
     'The Dragon resists magic — you must beat it in melee.',
+    '"In sight" lists the enemies you can see: their HP and the damage one hit does each way.',
   ],
+  sight: {
+    title: 'In sight',
+    empty: 'No enemies in sight.',
+    count: (shown, total) => (total > shown ? `nearest ${shown} of ${total}` : `${total}`),
+    dealt: range => `Deal ${range}`,
+    taken: range => `Take ${range}`,
+    enemyNames: {
+      slime: 'Slime', bat: 'Bat', goblin: 'Goblin', skeleton: 'Skeleton', orc: 'Orc',
+      worm: 'Worm', imp: 'Imp', ghost: 'Ghost', golem: 'Golem', dragon: 'Dragon',
+    },
+    status: {
+      sleep: 'Asleep', frozen: 'Frozen', confused: 'Confused',
+      powered_up: 'Powered up', shielded: 'Shielded',
+    },
+    traits: {
+      resistsMagic: 'Scroll-immune',
+      canPassWalls: 'Passes walls',
+      eatsEggs: 'Eats eggs',
+      canDisable: 'Freezing scream',
+    },
+  },
   aria: {
     surfaceMap: 'Surface map',
     floorMap: (floor: number) => `Dungeon floor ${floor}`,
@@ -231,7 +268,29 @@ const ja: MiniAdventureStrings = {
     '卵は60ターンで頼れるペットに孵化する。',
     'ワームに注意 — 卵を食べられてしまう！',
     'ドラゴンは魔法に耐性 — 近接で倒すしかない。',
+    '「視界内の敵」には見えている敵のHPと、1回の攻撃で与える・受けるダメージが表示される。',
   ],
+  sight: {
+    title: '視界内の敵',
+    empty: '視界に敵はいません。',
+    count: (shown, total) => (total > shown ? `${total}体中 近い${shown}体` : `${total}体`),
+    dealt: range => `与ダメ ${range}`,
+    taken: range => `被ダメ ${range}`,
+    enemyNames: {
+      slime: 'スライム', bat: 'コウモリ', goblin: 'ゴブリン', skeleton: 'スケルトン', orc: 'オーク',
+      worm: 'ワーム', imp: 'インプ', ghost: 'ゴースト', golem: 'ゴーレム', dragon: 'ドラゴン',
+    },
+    status: {
+      sleep: '睡眠', frozen: '凍結', confused: '混乱',
+      powered_up: '強化', shielded: '防御強化',
+    },
+    traits: {
+      resistsMagic: '巻物無効',
+      canPassWalls: '壁抜け',
+      eatsEggs: '卵を食べる',
+      canDisable: '凍結の叫び',
+    },
+  },
   aria: {
     surfaceMap: '地上マップ',
     floorMap: (floor: number) => `ダンジョン ${floor} 階`,

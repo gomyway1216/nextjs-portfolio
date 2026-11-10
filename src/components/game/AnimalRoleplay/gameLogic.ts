@@ -50,6 +50,10 @@ const TURN_EVENTS: TurnEvent[] = [
   { id: 'calm', threat: 14, foodRichness: 48 },
 ];
 
+export function getEventById(id: TurnEvent['id']): TurnEvent {
+  return TURN_EVENTS.find((event) => event.id === id)!;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

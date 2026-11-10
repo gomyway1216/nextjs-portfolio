@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { BayesianStrings } from './i18n';
-import { PosteriorChart } from './charts';
+import { BeliefTraceChart, PosteriorChart } from './charts';
 import {
   Posterior,
   credibleIntervalExact,
@@ -11,6 +11,7 @@ import {
   posteriorMode,
   posteriorStd,
 } from './engine';
+import { EMPTY_TRACE, FlipTrace, beliefPath, extendTrace, formatWidth } from './trace';
 import styles from './BayesianUpdate.module.css';
 
 const DEFAULT_TRUE_P = 0.7;
@@ -36,6 +37,7 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
   const [heads, setHeads] = useState(0);
   const [tails, setTails] = useState(0);
   const [history, setHistory] = useState<(0 | 1)[]>([]);
+  const [trace, setTrace] = useState<FlipTrace>(EMPTY_TRACE);
   const [guess, setGuess] = useState(0.5);
 
   const posterior: Posterior = useMemo(
@@ -56,12 +58,14 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
     setHeads((v) => v + h);
     setTails((v) => v + ta);
     setHistory((prev) => [...prev, ...flips].slice(-1000));
+    setTrace((prev) => extendTrace(prev, flips));
   };
 
   const resetData = () => {
     setHeads(0);
     setTails(0);
     setHistory([]);
+    setTrace(EMPTY_TRACE);
   };
 
   const onTruePChange = (np: number) => {
@@ -90,6 +94,10 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
     const ci = credibleIntervalExact(posterior, 0.95);
     return { mean, std, mode, ci };
   }, [posterior]);
+
+  const path = useMemo(() => beliefPath(trace, prior, 0.95), [trace, prior]);
+  const pathStart = path[0];
+  const pathEnd = path[path.length - 1];
 
   const activePreset = PRESETS.find((p) => p.alpha === prior.alpha && p.beta === prior.beta)?.key;
   const guessError = Math.abs(guess - trueP);
@@ -167,6 +175,34 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
             </span>
           )}
         </div>
+
+        <h4 className={styles.panelTitle} style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+          {t.traceHeading}
+        </h4>
+        <BeliefTraceChart
+          path={path}
+          trueP={reveal ? trueP : null}
+          axisLabel={t.traceAxis}
+          startLabel={t.flipsAxis('0')}
+          endLabel={t.flipsAxis(trace.n.toLocaleString())}
+          ariaLabel={
+            trace.n === 0
+              ? t.chartAriaTraceEmpty
+              : t.chartAriaTrace(trace.n, pathEnd.mean.toFixed(3), pathEnd.lo.toFixed(3), pathEnd.hi.toFixed(3))
+          }
+        />
+        <p className={styles.traceSummary}>
+          {trace.n === 0
+            ? t.traceEmpty
+            : t.traceSummary(
+                trace.n,
+                formatWidth(pathStart.hi - pathStart.lo),
+                formatWidth(pathEnd.hi - pathEnd.lo),
+              )}
+        </p>
+        <p className={styles.caption} style={{ marginTop: '0.2rem' }}>
+          {t.traceHint}
+        </p>
 
         <h4 className={styles.panelTitle} style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
           {t.historyHeading}

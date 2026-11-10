@@ -52,6 +52,14 @@ export interface BayesianStrings {
   historyTruncated: (n: number) => string;
   noFlipsYet: string;
 
+  traceHeading: string;
+  traceAxis: string;
+  traceEmpty: string;
+  traceHint: string;
+  traceSummary: (flips: number, before: string, now: string) => string;
+  chartAriaTrace: (flips: number, mean: string, lo: string, hi: string) => string;
+  chartAriaTraceEmpty: string;
+
   // Sim tab
   simTrueP: string;
   simSteps: string;
@@ -124,6 +132,16 @@ const ja: BayesianStrings = {
   historyTruncated: (n) => `(直近 ${n} 回のみ表示)`,
   noFlipsYet: 'まだコインを振っていません。',
 
+  traceHeading: '推定の歩み',
+  traceAxis: '事後平均と 95% 信用区間',
+  traceEmpty: 'コインを振ると、ここに推定の推移が描かれます。',
+  traceHint: '線は事後平均、帯は 95% 信用区間。振るたびに右へ伸びていきます。',
+  traceSummary: (flips, before, now) =>
+    `95% 信用区間の幅: 振る前 ${before} → ${flips.toLocaleString('ja-JP')} 回後 ${now}`,
+  chartAriaTrace: (flips, mean, lo, hi) =>
+    `${flips.toLocaleString('ja-JP')} 回振る間の事後平均と 95% 信用区間の推移。現在の事後平均は ${mean}、区間は ${lo} から ${hi}`,
+  chartAriaTraceEmpty: '事後平均と 95% 信用区間の推移。まだコインを振っていません',
+
   simTrueP: '真の確率 p',
   simSteps: 'ステップ数',
   simTrials: '試行回数',
@@ -146,6 +164,8 @@ const ja: BayesianStrings = {
   flipsAxis: (n) => `${n} 回`,
   posteriorMeanAxis: (trials) => `事後平均 / 試行 (${trials} 試行)`,
 };
+
+const enFlips = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'flip' : 'flips'}`;
 
 const en: BayesianStrings = {
   title: 'Bayesian Update',
@@ -198,6 +218,16 @@ const en: BayesianStrings = {
   historyHeading: 'Observation history',
   historyTruncated: (n) => `(showing last ${n} only)`,
   noFlipsYet: "You haven't flipped the coin yet.",
+
+  traceHeading: 'How your estimate has moved',
+  traceAxis: 'posterior mean with 95% credible interval',
+  traceEmpty: 'Flip the coin and the path of your estimate is drawn here.',
+  traceHint: 'The line is the posterior mean, the band the 95% credible interval. It grows to the right with every flip.',
+  traceSummary: (flips, before, now) =>
+    `95% interval width: ${before} before any flips → ${now} after ${enFlips(flips)}`,
+  chartAriaTrace: (flips, mean, lo, hi) =>
+    `Posterior mean and 95% credible interval over ${enFlips(flips)}. The posterior mean is now ${mean}, the interval ${lo} to ${hi}`,
+  chartAriaTraceEmpty: 'Posterior mean and 95% credible interval over time. No flips yet',
 
   simTrueP: 'True probability p',
   simSteps: 'Steps',

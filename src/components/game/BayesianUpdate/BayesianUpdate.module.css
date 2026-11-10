@@ -323,6 +323,17 @@
   margin-top: 0.25rem;
 }
 
+/* ---- Belief trace ---- */
+.traceSummary {
+  margin: 0.5rem 0 0;
+  /* Two lines reserved so the history below does not jump when the text wraps. */
+  min-height: 2.9em;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Explain box ---- */
 .explain {
   margin-top: 1rem;

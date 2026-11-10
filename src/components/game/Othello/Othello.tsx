@@ -17,6 +17,7 @@ import { Difficulty, GameStats, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { OthelloAI } from './AI';
 import { Board } from './Board';
+import { findHint } from './hint';
 import { getOthelloStrings } from './i18n';
 import { initMobilityTables } from './MobilityTable';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
@@ -27,10 +28,6 @@ import { BLACK, BOARD_SIZE, Color, EMPTY, Point, pointToString, WHITE } from './
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
-
-// The hint search runs on the main thread, so it gets a short fixed budget
-// rather than the opponent's (up to 2.5s) one.
-const HINT_TIME_LIMIT_MS = 400;
 
 const appendEntry = (
   history: MoveHistoryEntry[],
@@ -478,8 +475,7 @@ const Othello = () => {
     const board = gameState.board;
     // Deferred so the "thinking" label paints before the search runs.
     const timeoutId = setTimeout(() => {
-      // Search a copy: the engine re-indexes the board it is handed.
-      const move = new OthelloAI('medium', { timeLimitMs: HINT_TIME_LIMIT_MS }).getBestMove(board.clone());
+      const move = findHint(board);
       setHintRequest(null);
       if (move) setHint({ board, move });
     }, 60);

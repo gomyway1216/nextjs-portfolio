@@ -13,11 +13,12 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { MARBLES, STAKE, WINDOWS, drawPlay, linesOf, playOf, valueOf, type Play } from './engine';
+import { MARBLES, STAKE, WINDOWS, drawPlay, linesOf, playOf, valueOf, type MarblePlay, type Play } from './engine';
 import { getStrings } from './i18n';
 import { Board, ChaseLamps, type BoardParts } from './Board';
 import { SMART_BALL_GAME, createTable, playId, playOfRecord, type PlayRecord, type Staked, type Table } from './medalTable';
 import { PUBLISHED_SMART_BALL_ODDS } from './published';
+import { ShotCard } from './ShotCard';
 import { PLUNGER_DRAW, createMachineClock, cuesOf, loadTrack, poseAt, restPose, shotTrack, strengthAt, weakTrack, windowOf, type Cue, type CueSound, type Pose, type Track } from './scene';
 import styles from './SmartBall.module.css';
 
@@ -81,6 +82,8 @@ interface Ended {
   play: Play;
   /** The last play from before this page opened, or one finished from before. */
   earlier: boolean;
+  /** How many of its marbles the player shot, where the rest were shot blind as it was finished (`PlayRecord.own`). */
+  own?: number;
 }
 
 interface SessionStats {
@@ -91,6 +94,7 @@ interface SessionStats {
   bingos: number;
 }
 const EMPTY_STATS: SessionStats = { plays: 0, played: 0, won: 0, holes: 0, bingos: 0 };
+const NO_MARBLES: readonly MarblePlay[] = [];
 
 /** What the status line says for a moment as a marble goes: a hole lit, a line, OUT, a shot too soft. */
 type Moment = { kind: 'hole'; hole: number } | { kind: 'bingo'; lines: number } | { kind: 'out' } | { kind: 'weak' } | null;
@@ -181,6 +185,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [roundId, setRoundId] = useState<string | null>(null);
   // The holes shown lit: each as its marble drops in, the whole board as a play ends.
   const [shownLit, setShownLit] = useState(0);
+  // The marbles of the play under way that have come to rest, for the shot card: each is added as it drops in or goes OUT.
+  const [landed, setLanded] = useState<readonly MarblePlay[]>(NO_MARBLES);
   const [moment, setMoment] = useState<Moment>(null);
   // The flash over the board as a line lights: which one it is (a new key each time), and how many lines there are.
   const [flash, setFlash] = useState<{ key: number; lines: number } | null>(null);
@@ -289,7 +295,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
         payWin();
       }
       setShownLit(ended.lit);
-      const entry: Ended = { id: staked.record.id, play: ended, earlier: how === 'resumed' };
+      const entry: Ended = { id: staked.record.id, play: ended, earlier: how === 'resumed', own: staked.record.own };
       setOutcome(entry);
       setHistory((list) => [entry, ...list.filter((e) => e.id !== entry.id)].slice(0, HISTORY_LIMIT));
       if (how !== 'resumed') {
@@ -365,10 +371,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       flight.phase = 'fly';
       setPhase('fly');
       setMoment(null);
-      const litAfter = playOf(record.draw, record.shots).lit;
+      const { lit: litAfter, marbles: shotSoFar } = playOf(record.draw, record.shots);
       const linesBefore = linesOf(playOf(record.draw, record.shots.slice(0, m)).lit).length;
       const way = shotTrack(shot, record.draw.drops[m], live.current.calm, drawnRef.current);
       go(flight, way, () => {
+        // On the card by now, whichever cue the way had (with less motion it may have none of its own).
+        setLanded(shotSoFar);
         if (m + 1 < MARBLES) load(flight, m + 1);
         else finish(flight, 'played');
       });
@@ -380,6 +388,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             ...cue,
             then: () => {
               setShownLit(litAfter);
+              setLanded(shotSoFar);
               const lines = linesOf(litAfter).length;
               if (lines > linesBefore) {
                 setMoment({ kind: 'bingo', lines });
@@ -390,7 +399,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             },
           };
         }
-        if (cue.cue === 'out') return { ...cue, then: () => setMoment({ kind: 'out' }) };
+        if (cue.cue === 'out')
+          return {
+            ...cue,
+            then: () => {
+              setMoment({ kind: 'out' });
+              setLanded(shotSoFar);
+            },
+          };
         return cue;
       });
     },
@@ -457,6 +473,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setAttract(false);
     setOutcome(null);
     setShownLit(0);
+    setLanded(NO_MARBLES);
     setMoment(null);
     const now = clock.now();
     const flight: Flight = { staked: staked.staked, marble: 0, phase: 'load', way: null, wayAt: now, cues: [], then: null };
@@ -493,6 +510,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       setRoundId(null);
       setOutcome(null);
       setHistory([]);
+      setLanded(NO_MARBLES);
       setStats(EMPTY_STATS);
       setMessage('');
       setMoment(null);
@@ -563,7 +581,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           setKnown(true);
           if (record && record.paid && shownLast.current !== record.id) {
             shownLast.current = record.id;
-            const ended: Ended = { id: record.id, play: playOfRecord(record), earlier: true };
+            const ended: Ended = { id: record.id, play: playOfRecord(record), earlier: true, own: record.own };
             setShownLit(ended.play.lit);
             setOutcome(ended);
             setHistory((before) => (before.some((entry) => entry.id === ended.id) ? before : [ended, ...before].slice(0, HISTORY_LIMIT)));
@@ -839,6 +857,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const won = !running && outcome !== null && !outcome.earlier && outcome.play.won > 0;
   const result = outcome ? `lines-${Math.min(3, outcome.play.lines.length)}` : '';
   /** The badge over a play from before: one this page finished, or one simply shown again. */
+  // The shot card: the play under way as far as its marbles have come to rest, or the whole of the play shown as ended.
+  const cardMarbles = running ? landed : (outcome?.play.marbles ?? NO_MARBLES);
   const badge = resumed ? t.resumed : outcome?.earlier && !running ? t.lastPlay : null;
 
   return (
@@ -1013,6 +1033,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
+        <ShotCard t={t} marbles={cardMarbles} now={running ? marble : null} own={running ? undefined : outcome?.own} />
+
         <section className={styles.panel} aria-labelledby="smb-history-title">
           <h2 id="smb-history-title" className={styles.panelTitle}>
             {t.historyTitle}

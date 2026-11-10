@@ -115,7 +115,7 @@ const en: MontyHallStrings = {
     'Counts every round you play, whichever choice you make: staying wins exactly when your first pick was right.',
   alwaysStayNote: (rounds, right, switchOptions) => {
     const wrong = rounds - right;
-    const head = `Your first pick was right in ${right} of ${rounds} round${rounds === 1 ? '' : 's'} — the only rounds staying wins.`;
+    const head = `Staying only wins when your first pick was right — yours was in ${right} of ${rounds} round${rounds === 1 ? '' : 's'}.`;
     return switchOptions === 1
       ? `${head} Switching every round would have won the other ${wrong}.`
       : `${head} In the other ${wrong}, the prize was behind one of the ${switchOptions} doors you could switch to.`;
@@ -202,7 +202,7 @@ const ja: MontyHallStrings = {
   alwaysStayEmpty: 'どちらを選んでも全ラウンドを数えます。「そのまま」で勝てるのは、最初の選択が当たっていたときだけです。',
   alwaysStayNote: (rounds, right, switchOptions) => {
     const wrong = rounds - right;
-    const head = `最初の選択が当たっていたのは${rounds}回中${right}回。「そのまま」で勝てるのはこの回だけです。`;
+    const head = `「そのまま」で勝てるのは、最初の選択が当たっていたときだけです。あなたの場合は${rounds}回中${right}回でした。`;
     return switchOptions === 1
       ? `${head}毎回変えていれば、残りの${wrong}回で勝てました。`
       : `${head}残りの${wrong}回は、変えられる${switchOptions}枚のドアのどれかに景品がありました。`;

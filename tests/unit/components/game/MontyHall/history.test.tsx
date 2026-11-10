@@ -123,11 +123,11 @@ describe("MontyHall history — strings", () => {
 
   it("the always-stay note only promises a switch win when there is one door to switch to", () => {
     const en = getStrings("en");
-    expect(en.alwaysStayNote(5, 2, 1)).toContain("2 of 5 rounds");
+    expect(en.alwaysStayNote(5, 2, 1)).toContain("2 of 5 rounds.");
     expect(en.alwaysStayNote(5, 2, 1)).toContain("would have won the other 3");
     expect(en.alwaysStayNote(5, 2, 2)).toContain("one of the 2 doors");
     expect(en.alwaysStayNote(5, 2, 2)).not.toContain("would have won");
-    expect(en.alwaysStayNote(1, 0, 1)).toContain("0 of 1 round ");
+    expect(en.alwaysStayNote(1, 0, 1)).toContain("0 of 1 round.");
     const ja = getStrings("ja");
     expect(ja.alwaysStayNote(5, 2, 1)).toContain("5回中2回");
     expect(ja.alwaysStayNote(5, 2, 1)).toContain("残りの3回で勝てました");

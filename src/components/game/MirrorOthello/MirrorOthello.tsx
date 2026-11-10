@@ -56,6 +56,22 @@ export const MirrorOthello = () => {
   const flipTimer = useRef<number | null>(null);
   const aiTimer = useRef<number | null>(null);
   const moveLogRef = useRef<HTMLOListElement | null>(null);
+  // Handlers read the position from here rather than from their closure, so
+  // an action that lands before React has re-rendered (the AI's timer firing
+  // just ahead of a click) still builds on the latest one.
+  const live = useRef<{ game: GameState; history: HistoryEntry[] }>({
+    game,
+    history,
+  });
+
+  const applyPosition = useCallback(
+    (nextGame: GameState, nextHistory: HistoryEntry[]) => {
+      live.current = { game: nextGame, history: nextHistory };
+      setGame(nextGame);
+      setHistory(nextHistory);
+    },
+    [],
+  );
 
   const clearTimers = useCallback(() => {
     if (flipTimer.current) window.clearTimeout(flipTimer.current);
@@ -68,12 +84,11 @@ export const MirrorOthello = () => {
 
   const start = useCallback(() => {
     clearTimers();
-    setGame(freshGame());
-    setHistory([]);
+    applyPosition(freshGame(), []);
     setMessage(t.yourTurn);
     setFlipping(false);
     setPhase('playing');
-  }, [clearTimers, t.yourTurn]);
+  }, [clearTimers, applyPosition, t.yourTurn]);
 
   const triggerFlipAnim = useCallback(() => {
     if (flipTimer.current) window.clearTimeout(flipTimer.current);
@@ -88,12 +103,13 @@ export const MirrorOthello = () => {
    */
   const commitMove = useCallback(
     (point: Point, color: Cell) => {
-      const played = playMove(game, point, color);
+      const current = live.current;
+      if (current.game.currentColor !== color) return;
+      const played = playMove(current.game, point, color);
       if (!played) return;
       const { state, entry } = played;
       const { record } = entry;
-      setHistory((h) => [...h, entry]);
-      setGame(state);
+      applyPosition(state, [...current.history, entry]);
 
       if (record.mirrored) triggerFlipAnim();
 
@@ -125,17 +141,17 @@ export const MirrorOthello = () => {
       }
       setMessage(msg);
     },
-    [game, t, triggerFlipAnim],
+    [applyPosition, t, triggerFlipAnim],
   );
 
   const undoable = phase !== 'menu' && canUndo(history);
 
   const undo = useCallback(() => {
-    const undone = undoLastPlayerMove(history);
+    const undone = undoLastPlayerMove(live.current.history);
     if (!undone) return;
     clearTimers();
     // A finished game that is taken back no longer counts towards the record.
-    const { result } = game;
+    const { result } = live.current.game;
     if (result) {
       setStats((s) => ({
         wins: s.wins - (result === 'player' ? 1 : 0),
@@ -144,11 +160,10 @@ export const MirrorOthello = () => {
       }));
     }
     setFlipping(false);
-    setHistory(undone.history);
-    setGame(undone.state);
+    applyPosition(undone.state, undone.history);
     setPhase('playing');
     setMessage(t.undone);
-  }, [history, game, clearTimers, t.undone]);
+  }, [applyPosition, clearTimers, t.undone]);
 
   useEffect(() => {
     const log = moveLogRef.current;
@@ -353,7 +368,13 @@ export const MirrorOthello = () => {
               {history.length === 0 ? (
                 <p className={styles.moveLogEmpty}>{t.moveLogEmpty}</p>
               ) : (
-                <ol className={styles.moveLogList} ref={moveLogRef}>
+                <ol
+                  className={styles.moveLogList}
+                  ref={moveLogRef}
+                  // Focusable so the overflowing list can be scrolled by keyboard.
+                  tabIndex={0}
+                  aria-label={t.moveLog}
+                >
                   {history.map(({ record }) => (
                     <li
                       key={record.ply}

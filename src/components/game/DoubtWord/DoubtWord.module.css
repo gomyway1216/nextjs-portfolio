@@ -323,6 +323,65 @@
   line-height: 1.4;
 }
 
+/* Bluff editor ------------------------------------------------------------- */
+.bluffEditor {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.bluffField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.bluffFieldLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--games-route-muted, #94a3b8);
+}
+
+.bluffSelect {
+  min-height: 44px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--games-route-border, rgba(255, 255, 255, 0.14));
+  background: var(--games-route-surface, rgba(15, 23, 42, 0.5));
+  color: var(--games-route-fg, #e2e8f0);
+  padding: 0.4rem 0.7rem;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.bluffSelect:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+
+/* Native option lists need an opaque background, so use the theme's solid surface. */
+.bluffSelect option {
+  background: var(--games-route-surface-solid, #0f172a);
+  color: var(--games-route-fg, #e2e8f0);
+}
+
+.btnGhost {
+  background: transparent;
+  border-color: var(--games-route-border, rgba(255, 255, 255, 0.2));
+  color: var(--games-route-fg, #e5e7eb);
+  flex: 0 1 auto;
+}
+
+.previewNote {
+  flex: 1 1 100%;
+  color: var(--games-route-fg, #e5e7eb);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 /* Preview ------------------------------------------------------------------ */
 .preview {
   display: flex;
@@ -344,7 +403,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.previewBluff .previewValue { color: #fb923c; }
+.previewBluff { border-color: color-mix(in srgb, #f97316 55%, var(--games-route-border, rgba(255, 255, 255, 0.15))); }
+/* Mixed with the foreground so the orange keeps >= 4.5:1 on both themes' surfaces. */
+.previewBluff .previewValue { color: color-mix(in srgb, #f97316 55%, var(--games-route-fg, #e5e7eb)); }
 
 /* Result ------------------------------------------------------------------- */
 .outcomeBadge {
@@ -432,4 +493,5 @@
 @media (max-width: 420px) {
   .scoreboard { grid-template-columns: 1fr; }
   .btnBelieve, .btnDoubt { flex: 1 1 100%; }
+  .btnGhost { flex: 1 1 100%; justify-content: center; }
 }

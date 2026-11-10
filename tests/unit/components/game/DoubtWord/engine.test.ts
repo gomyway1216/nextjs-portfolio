@@ -5,11 +5,15 @@ import {
   aiMakeClaim,
   aiReactToClaim,
   AI_PROFILES,
+  CLAIM_LETTERS,
+  CLAIM_MAX_LENGTH,
+  CLAIM_MIN_LENGTH,
   claimMatchesWord,
   decideWinner,
   DIFFICULTY_LIVES,
   isBluffClaim,
   makeClaim,
+  makeCustomClaim,
   plausibility,
   resolveRound,
   sampleWords,
@@ -324,5 +328,74 @@ describe('aiMakeClaim', () => {
       easySum += plausibility(e.claimedFirst, e.claimedLength);
     }
     expect(masterSum).toBeGreaterThanOrEqual(easySum);
+  });
+});
+
+describe('makeCustomClaim', () => {
+  it('announces exactly the chosen false signature and marks it a bluff', () => {
+    const claim = makeCustomClaim('player', 'galaxy', 'f', 7);
+    expect(claim).toEqual({
+      speaker: 'player',
+      actualWord: 'galaxy',
+      claimedFirst: 'F',
+      claimedLength: 7,
+      isBluff: true,
+    });
+    expect(isBluffClaim(claim)).toBe(true);
+  });
+
+  it('counts as a bluff when only one of letter / length is false', () => {
+    expect(makeCustomClaim('player', 'galaxy', 'G', 5).isBluff).toBe(true);
+    expect(makeCustomClaim('player', 'galaxy', 'H', 6).isBluff).toBe(true);
+  });
+
+  it('is the truth when the chosen signature matches the real word', () => {
+    const claim = makeCustomClaim('player', 'galaxy', 'g', 6);
+    expect(claim.isBluff).toBe(false);
+    expect(claim.claimedFirst).toBe('G');
+    expect(resolveRound(claim, 'doubt').outcome).toBe('doubtWrong');
+  });
+
+  it('clamps and rounds the length into the announceable range', () => {
+    expect(makeCustomClaim('player', 'galaxy', 'G', 0).claimedLength).toBe(CLAIM_MIN_LENGTH);
+    expect(makeCustomClaim('player', 'galaxy', 'G', 99).claimedLength).toBe(CLAIM_MAX_LENGTH);
+    expect(makeCustomClaim('player', 'galaxy', 'G', 4.6).claimedLength).toBe(5);
+  });
+
+  it('falls back to the real signature for unusable input', () => {
+    for (const bad of ['', '1', 'ab', 'é']) {
+      const claim = makeCustomClaim('player', 'galaxy', bad, Number.NaN);
+      expect(claim.claimedFirst).toBe('G');
+      expect(claim.claimedLength).toBe(6);
+      expect(claim.isBluff).toBe(false);
+    }
+  });
+
+  it('keeps isBluff consistent with isBluffClaim for every letter and length', () => {
+    for (const letter of CLAIM_LETTERS) {
+      for (let len = CLAIM_MIN_LENGTH; len <= CLAIM_MAX_LENGTH; len += 1) {
+        const claim = makeCustomClaim('player', 'ember', letter, len);
+        expect(claim.isBluff).toBe(isBluffClaim(claim));
+        expect(claim.isBluff).toBe(!(letter === 'E' && len === 5));
+      }
+    }
+  });
+
+  it('every random bluff stays inside the range the bluff editor offers', () => {
+    for (const word of WORD_POOL) {
+      for (let i = 0; i < 20; i += 1) {
+        const claim = makeClaim('player', word, true);
+        expect(CLAIM_LETTERS).toContain(claim.claimedFirst);
+        expect(claim.claimedLength).toBeGreaterThanOrEqual(CLAIM_MIN_LENGTH);
+        expect(claim.claimedLength).toBeLessThanOrEqual(CLAIM_MAX_LENGTH);
+      }
+    }
+  });
+
+  it('a bluff that fits a real pool word is doubted less by the strongest AI than one that fits nothing', () => {
+    const fits = aiDoubtProbability({ claimedFirst: 'G', claimedLength: 6 }, AI_PROFILES.master);
+    const fitsNothing = aiDoubtProbability({ claimedFirst: 'X', claimedLength: 9 }, AI_PROFILES.master);
+    expect(plausibility('X', 9)).toBeLessThan(plausibility('G', 6));
+    expect(fits).toBeLessThan(fitsNothing);
   });
 });

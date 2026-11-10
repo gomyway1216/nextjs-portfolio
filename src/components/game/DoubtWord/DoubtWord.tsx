@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Brain, Check, Eye, Heart, Play, RotateCcw, Sparkles, X } from 'lucide-react';
+import { Brain, Check, Eye, Heart, Play, RotateCcw, Shuffle, Sparkles, X } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
@@ -17,9 +17,14 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import {
   aiMakeClaim,
   aiReactToClaim,
+  CLAIM_LETTERS,
+  CLAIM_MAX_LENGTH,
+  CLAIM_MIN_LENGTH,
+  claimMatchesWord,
   decideWinner,
   DIFFICULTY_LIVES,
   makeClaim,
+  makeCustomClaim,
   randomFrom,
   resolveRound,
   sampleWords,
@@ -43,6 +48,9 @@ interface GameState {
   playerOptions: string[];
   selectedWord: string;
   playerBluff: boolean;
+  /** The first letter / length the player announces when bluffing. */
+  bluffFirst: string;
+  bluffLength: number;
   /** Whose claim just resolved (for the result screen). */
   lastReaction: Reaction | null;
   lastDelta: RoundDelta | null;
@@ -51,6 +59,11 @@ interface GameState {
 }
 
 const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
+
+const CLAIM_LENGTHS: number[] = Array.from(
+  { length: CLAIM_MAX_LENGTH - CLAIM_MIN_LENGTH + 1 },
+  (_, i) => CLAIM_MIN_LENGTH + i,
+);
 
 export const DoubtWord = () => {
   useFeatureLifecycle('game.doubt-word');
@@ -102,6 +115,8 @@ export const DoubtWord = () => {
       playerOptions: [],
       selectedWord: '',
       playerBluff: false,
+      bluffFirst: CLAIM_LETTERS[0],
+      bluffLength: CLAIM_MIN_LENGTH,
       lastReaction: null,
       lastDelta: null,
       nextClaimant: 'player',
@@ -149,7 +164,9 @@ export const DoubtWord = () => {
   // Mode / concurrent rendering).
   const sendPlayerClaim = useCallback(() => {
     if (!game || game.phase !== 'playerClaim' || !game.selectedWord) return;
-    const claim = makeClaim('player', game.selectedWord, game.playerBluff);
+    const claim = game.playerBluff
+      ? makeCustomClaim('player', game.selectedWord, game.bluffFirst, game.bluffLength)
+      : makeClaim('player', game.selectedWord, false);
     const reaction = aiReactToClaim(
       { claimedFirst: claim.claimedFirst, claimedLength: claim.claimedLength },
       difficulty,
@@ -170,6 +187,7 @@ export const DoubtWord = () => {
       return;
     }
     const options = sampleWords(3);
+    const suggestion = makeClaim('player', options[0], true);
     setGame((prev) =>
       prev
         ? {
@@ -178,12 +196,41 @@ export const DoubtWord = () => {
             playerOptions: options,
             selectedWord: options[0],
             playerBluff: false,
+            bluffFirst: suggestion.claimedFirst,
+            bluffLength: suggestion.claimedLength,
             lastReaction: null,
             lastDelta: null,
           }
         : prev,
     );
   }, [game, difficulty, scheduleReveal]);
+
+  // Switching words keeps the bluff the player set up, unless it happens to
+  // describe the new word truthfully — then a fresh false signature is offered.
+  // The random suggestion is drawn outside the updater so the updater stays pure.
+  const selectWord = useCallback((word: string) => {
+    const suggestion = makeClaim('player', word, true);
+    setGame((prev) => {
+      if (!prev || prev.phase !== 'playerClaim' || word === prev.selectedWord) return prev;
+      const collides = claimMatchesWord(word, prev.bluffFirst, prev.bluffLength);
+      return {
+        ...prev,
+        selectedWord: word,
+        bluffFirst: collides ? suggestion.claimedFirst : prev.bluffFirst,
+        bluffLength: collides ? suggestion.claimedLength : prev.bluffLength,
+      };
+    });
+  }, []);
+
+  const shuffleBluff = useCallback(() => {
+    if (!game || game.phase !== 'playerClaim' || !game.selectedWord) return;
+    const suggestion = makeClaim('player', game.selectedWord, true);
+    setGame((prev) =>
+      prev && prev.phase === 'playerClaim'
+        ? { ...prev, bluffFirst: suggestion.claimedFirst, bluffLength: suggestion.claimedLength }
+        : prev,
+    );
+  }, [game]);
 
   // Record win/loss/draw once when the match ends.
   useEffect(() => {
@@ -247,6 +294,13 @@ export const DoubtWord = () => {
   }
 
   const playerActive = game.phase === 'playerClaim';
+  const announcedFirst =
+    game.playerBluff || !game.selectedWord ? game.bluffFirst : game.selectedWord[0].toUpperCase();
+  const announcedLength =
+    game.playerBluff || !game.selectedWord ? game.bluffLength : game.selectedWord.length;
+  const announcedIsBluff =
+    Boolean(game.selectedWord) &&
+    !claimMatchesWord(game.selectedWord, announcedFirst, announcedLength);
   const aiActive = game.phase === 'aiDecision';
 
   return (
@@ -308,7 +362,7 @@ export const DoubtWord = () => {
                     type="button"
                     aria-pressed={selected}
                     className={`${styles.wordChip} ${selected ? styles.wordChipSelected : ''}`}
-                    onClick={() => setGame((prev) => (prev ? { ...prev, selectedWord: word } : prev))}
+                    onClick={() => selectWord(word)}
                   >
                     {word}
                   </button>
@@ -331,21 +385,65 @@ export const DoubtWord = () => {
               </span>
             </label>
 
+            {game.playerBluff && (
+              <div className={styles.bluffEditor}>
+                <label className={styles.bluffField}>
+                  <span className={styles.bluffFieldLabel}>{t.bluffFirstLabel}</span>
+                  <select
+                    className={styles.bluffSelect}
+                    value={game.bluffFirst}
+                    onChange={(e) =>
+                      setGame((prev) => (prev ? { ...prev, bluffFirst: e.target.value } : prev))
+                    }
+                  >
+                    {CLAIM_LETTERS.map((letter) => (
+                      <option key={letter} value={letter}>
+                        {letter}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.bluffField}>
+                  <span className={styles.bluffFieldLabel}>{t.bluffLengthLabel}</span>
+                  <select
+                    className={styles.bluffSelect}
+                    value={game.bluffLength}
+                    onChange={(e) =>
+                      setGame((prev) => (prev ? { ...prev, bluffLength: Number(e.target.value) } : prev))
+                    }
+                  >
+                    {CLAIM_LENGTHS.map((len) => (
+                      <option key={len} value={len}>
+                        {len}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnGhost}`}
+                  onClick={shuffleBluff}
+                >
+                  <Shuffle size={16} /> {t.bluffShuffle}
+                </button>
+              </div>
+            )}
+
             {game.selectedWord && (
-              <div className={`${styles.preview} ${game.playerBluff ? styles.previewBluff : ''}`}>
+              <div
+                className={`${styles.preview} ${announcedIsBluff ? styles.previewBluff : ''}`}
+                aria-live="polite"
+              >
                 <span>{t.willAnnounce}:</span>
                 <span>
-                  {t.first} ={' '}
-                  <span className={styles.previewValue}>
-                    {game.playerBluff ? t.hidden : game.selectedWord[0].toUpperCase()}
-                  </span>
+                  {t.first} = <span className={styles.previewValue}>{announcedFirst}</span>
                 </span>
                 <span>
-                  {t.length} ={' '}
-                  <span className={styles.previewValue}>
-                    {game.playerBluff ? t.hidden : game.selectedWord.length}
-                  </span>
+                  {t.length} = <span className={styles.previewValue}>{announcedLength}</span>
                 </span>
+                {game.playerBluff && !announcedIsBluff && (
+                  <span className={styles.previewNote}>{t.bluffMatchesWord}</span>
+                )}
               </div>
             )}
 
@@ -507,7 +605,11 @@ const RoundResult = ({
           </span>
         )}
       </div>
-      <p className={styles.resultLine}>{t.realWordWas(claim.actualWord)}</p>
+      <p className={styles.resultLine}>
+        {t.declared(claim.claimedFirst, claim.claimedLength)}
+        <br />
+        {t.realWordWas(claim.actualWord)}
+      </p>
       <button type="button" className={`${styles.btn} ${styles.btnNeutral} ${styles.btnBlock}`} onClick={onNext}>
         {t.nextTurn}
       </button>

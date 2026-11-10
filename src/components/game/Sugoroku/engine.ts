@@ -464,6 +464,42 @@ export function outcomesFrom(from: number): Outcome[] {
   return out;
 }
 
+// ── The next roll, face by face ─────────────────────────────────────────────
+
+/** What one face of the die would do from a square: where the boat would stop, and the least and the most the roll could pay. */
+export interface Ahead {
+  face: number;
+  /** The square the die's roll lands on. */
+  landed: number;
+  /** The arrow there, if it is one. */
+  sent: ArrowKind | null;
+  /** The square that counts: the one landed on, or the one the arrow carries the boat to. */
+  stop: number;
+  /** Whether the boat sails past (or onto) START on the way: the lap bonus, which `least` and `most` include. */
+  lap: boolean;
+  /** The least and the most the roll can pay, per `UNIT` medals bet, over every way it can go (`outcomesFrom`). They differ only where a chance or the whale ride is played. */
+  least: number;
+  most: number;
+}
+
+const aheads = new Map<number, readonly Ahead[]>();
+
+/** The six faces of the die from square `from`, in order: where each takes the boat and what it can pay. Worked out once a square. */
+export function aheadOf(from: number): readonly Ahead[] {
+  const known = aheads.get(from);
+  if (known) return known;
+  const faces: Ahead[] = [];
+  for (const { play } of outcomesFrom(from)) {
+    const at = faces[play.draw.roll - 1];
+    if (at) {
+      at.least = Math.min(at.least, play.pays);
+      at.most = Math.max(at.most, play.pays);
+    } else faces[play.draw.roll - 1] = { face: play.draw.roll, landed: play.landed, sent: play.sent?.kind ?? null, stop: play.stop, lap: play.lap, least: play.pays, most: play.pays };
+  }
+  aheads.set(from, faces);
+  return faces;
+}
+
 // ── The chain ───────────────────────────────────────────────────────────────
 
 /** Solves π P = π, Σπ = 1 exactly, for a chain given by `moves[s][t]`, the chance of going from s to t. */

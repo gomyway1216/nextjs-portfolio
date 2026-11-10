@@ -14,7 +14,8 @@ import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { BETS, BOARD, START, drawPlay, medalsFor, valueOf, type Bet, type Play } from './engine';
+import { DieFace } from './Die';
+import { BETS, BOARD, START, aheadOf, drawPlay, medalsFor, valueOf, type Bet, type Play } from './engine';
 import { getStrings } from './i18n';
 import { IslandBoard, SquareIcon } from './IslandBoard';
 import { SUGOROKU_GAME, createTable, playOfRecord, rollId, standingOf, type BoardRecord, type Staked, type Table } from './medalTable';
@@ -496,6 +497,11 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     return t.status.idle(t.squareName(BOARD[standingSquare].kind));
   })();
   const where = scene.boat.on === 'board' ? t.boatOn(scene.boat.square, t.squareName(BOARD[scene.boat.square].kind)) : t.boatRiding;
+  // The next roll, face by face: from the square the boat stands on, or, while a roll is on the board, the square that
+  // roll started from, with the face it rolled marked once the die has landed.
+  const aheadFrom = running ? running.play.from : (standingSquare ?? START);
+  const ahead = aheadOf(aheadFrom);
+  const rolledFace = running && !scene.rolling ? running.play.draw.roll : null;
   const observed = stats.played > 0 ? stats.won / stats.played : null;
   const net = stats.won - stats.played;
   const won = !running && outcome !== null && !outcome.earlier && outcome.won > 0;
@@ -671,6 +677,36 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       </div>
 
       <div className={styles.side}>
+        <section className={styles.panel} aria-labelledby="sg-ahead-title" data-testid="sg-ahead" data-from={aheadFrom}>
+          <h2 id="sg-ahead-title" className={styles.panelTitle}>
+            {t.aheadTitle}
+          </h2>
+          <p className={`${styles.muted} ${styles.aheadNote}`}>{running ? t.aheadNoteRolling : t.aheadNote}</p>
+          <ol className={styles.aheadList}>
+            {ahead.map((row) => {
+              const stopName = t.squareName(BOARD[row.stop].kind);
+              const rolled = rolledFace === row.face;
+              return (
+                <li key={row.face} className={styles.aheadRow} data-face={row.face} data-stop={row.stop} data-rolled={rolled ? 'true' : 'false'}>
+                  <DieFace face={row.face} className={styles.aheadDie} />
+                  <span className={styles.srOnly}>{t.aheadFace(row.face)}</span>
+                  <span className={styles.aheadWhere}>
+                    <span className={styles.aheadIcon} aria-hidden="true">
+                      <SquareIcon kind={BOARD[row.stop].kind} />
+                    </span>
+                    <span className={styles.aheadName}>
+                      <span>{row.sent ? t.aheadSent(t.squareName(row.sent), stopName) : stopName}</span>
+                      {row.lap && <span className={styles.aheadLap}>{t.aheadLap}</span>}
+                      {rolled && <span className={styles.srOnly}>{t.aheadRolled}</span>}
+                    </span>
+                  </span>
+                  <span className={styles.aheadGain}>{t.aheadGain(medalsFor(shownBet, row.least), medalsFor(shownBet, row.most))}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+
         <section className={styles.panel} aria-labelledby="sg-history-title">
           <h2 id="sg-history-title" className={styles.panelTitle}>
             {t.historyTitle}

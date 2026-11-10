@@ -211,6 +211,17 @@ const en = {
   notMoney: NOT_MONEY.en,
   centerNote: 'Your medals are the Medal Game Center’s, shared by every machine there.',
   centerNoteLink: 'Daily bonus and refills at the front',
+  aheadTitle: 'The next roll',
+  /** Under the title: what the six rows are, before a roll and while one is on the board. */
+  aheadNote: 'Where each face of the die takes the boat from its square, and the least and the most that roll can bring at your bet.',
+  aheadNoteRolling: 'This roll, from the square the boat started on.',
+  aheadFace: (face: number): string => `A ${face}:`,
+  aheadSent: (arrow: string, to: string): string => `${arrow} → ${to}`,
+  aheadLap: 'past START',
+  /** What a face can bring, in medals at the bet: one figure where it is certain, the least and the most where a chance or the whale ride is played. */
+  aheadGain: (least: number, most: number): string =>
+    least === most ? (most > 0 ? `+${most.toLocaleString('en-US')}` : '—') : least > 0 ? `+${least.toLocaleString('en-US')} to +${most.toLocaleString('en-US')}` : `up to +${most.toLocaleString('en-US')}`,
+  aheadRolled: 'rolled',
   historyTitle: 'Last rolls',
   historyEmpty: 'No rolls yet.',
   historyEntry: (face: number, won: number): string => (won > 0 ? `${face}: +${won.toLocaleString('en-US')}` : `${face}: —`),
@@ -446,6 +457,15 @@ const ja: SugorokuStrings = {
   notMoney: NOT_MONEY.ja,
   centerNote: '持ちメダルはメダルゲームセンターのもので、どのマシンでも共通です。',
   centerNoteLink: 'デイリーボーナスと補充は入口で',
+  aheadTitle: '次のサイコロ',
+  // The notes carry their phrase breaks (U+200B), as the figures' labels below do.
+  aheadNote: '出た目ごとに、いまのマスから​船が​どこへ行くかと、いまのベットで​もらえる​最小と最大の​枚数。',
+  aheadNoteRolling: 'このサイコロの、ふる前のマスからの​行き先。',
+  aheadFace: (face) => `${face}の目：`,
+  aheadSent: (arrow, to) => `${arrow} → ${to}`,
+  aheadLap: 'スタート通過',
+  aheadGain: (least, most) => (least === most ? (most > 0 ? `+${most.toLocaleString('ja-JP')}` : '—') : least > 0 ? `+${least.toLocaleString('ja-JP')}〜+${most.toLocaleString('ja-JP')}` : `最大+${most.toLocaleString('ja-JP')}`),
+  aheadRolled: '出た目',
   historyTitle: '最近のサイコロ',
   historyEmpty: 'まだふっていません。',
   historyEntry: (face, won) => (won > 0 ? `${face}：+${won.toLocaleString('ja-JP')}` : `${face}：—`),

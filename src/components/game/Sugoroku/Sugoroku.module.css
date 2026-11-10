@@ -1111,6 +1111,70 @@
   font-size: 0.85rem;
   color: var(--games-route-muted);
 }
+.aheadList {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.aheadRow {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.2rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: var(--games-route-surface-raised);
+  border: 1px solid var(--games-route-border);
+  min-width: 0;
+}
+/* The face this roll came to: marked by a thick gold edge, not by colour alone, and said in words for a screen reader. */
+.aheadRow[data-rolled='true'] {
+  border-color: #d9a43a;
+  box-shadow: inset 4px 0 0 #d9a43a;
+}
+.aheadDie {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+.aheadWhere {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.aheadIcon {
+  flex: none;
+  display: inline-grid;
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.aheadIcon svg {
+  width: 100%;
+  height: 100%;
+}
+.aheadName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+  min-width: 0;
+  font-weight: 800;
+}
+.aheadLap {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--games-route-muted);
+}
+.aheadGain {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
 .historyList {
   list-style: none;
   margin: 0;
@@ -1387,6 +1451,8 @@
 .statLabel,
 .statNote,
 .statList dt,
+.aheadNote,
+.aheadName,
 .rowNote,
 .oddsTable th,
 .oddsTable td {
@@ -1397,6 +1463,8 @@
   .statLabel,
   .statNote,
   .statList dt,
+  .aheadNote,
+  .aheadName,
   .rowNote,
   .oddsTable th,
   .oddsTable td {

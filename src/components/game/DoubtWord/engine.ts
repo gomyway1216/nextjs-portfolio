@@ -72,8 +72,14 @@ export const sampleWords = (count: number, rng: Rng = defaultRng): string[] => {
   return picked;
 };
 
-const MIN_LEN = 3;
-const MAX_LEN = 9;
+/** Bounds of the length a claim may announce (wider than any pool word, so a bluff can go either way). */
+export const CLAIM_MIN_LENGTH = 3;
+export const CLAIM_MAX_LENGTH = 9;
+const MIN_LEN = CLAIM_MIN_LENGTH;
+const MAX_LEN = CLAIM_MAX_LENGTH;
+
+/** Every first letter a claim may announce. */
+export const CLAIM_LETTERS: readonly string[] = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 const wrongLetter = (current: string, rng: Rng = defaultRng): string => {
   const target = current.toLowerCase();
@@ -135,6 +141,34 @@ export const makeClaim = (
     claimedFirst,
     claimedLength,
     isBluff: claimedLength !== length || claimedFirst !== first,
+  };
+};
+
+/**
+ * Build a claim that announces exactly the first letter and length the
+ * claimant chose. Input is sanitised so the claim is always announceable: an
+ * invalid letter falls back to the word's real first letter and the length is
+ * rounded and clamped to [CLAIM_MIN_LENGTH, CLAIM_MAX_LENGTH]. `isBluff` is
+ * derived from the result, so announcing the word's real signature is simply
+ * the truth.
+ */
+export const makeCustomClaim = (
+  speaker: Speaker,
+  word: string,
+  claimedFirst: string,
+  claimedLength: number,
+): Claim => {
+  const letter = claimedFirst.trim().toUpperCase();
+  const first = CLAIM_LETTERS.includes(letter) ? letter : word[0].toUpperCase();
+  const length = Number.isFinite(claimedLength)
+    ? Math.max(CLAIM_MIN_LENGTH, Math.min(CLAIM_MAX_LENGTH, Math.round(claimedLength)))
+    : word.length;
+  return {
+    speaker,
+    actualWord: word,
+    claimedFirst: first,
+    claimedLength: length,
+    isBluff: !claimMatchesWord(word, first, length),
   };
 };
 

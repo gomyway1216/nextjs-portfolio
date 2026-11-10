@@ -31,6 +31,11 @@ export interface DoubtWordStrings {
   length: string;
   sendClaim: string;
   hidden: string;
+  bluffFirstLabel: string;
+  bluffLengthLabel: string;
+  bluffShuffle: string;
+  bluffMatchesWord: string;
+  declared: (first: string, length: number) => string;
   roundResultTitle: string;
   realWordWas: (word: string) => string;
   nextTurn: string;
@@ -97,12 +102,17 @@ const en: DoubtWordStrings = {
   yourTurnHint: 'Pick one of your words, then declare it — truthfully or as a bluff.',
   pickWord: 'Your words',
   bluffMode: 'Bluff',
-  bluffHint: 'Announce a false first-letter and/or length to mislead the AI.',
+  bluffHint: 'Choose a false first letter and/or length to announce instead of the real ones.',
   willAnnounce: 'You will announce',
   first: 'first',
   length: 'length',
   sendClaim: 'Declare',
   hidden: 'hidden',
+  bluffFirstLabel: 'Announced first letter',
+  bluffLengthLabel: 'Announced length',
+  bluffShuffle: 'Random bluff',
+  bluffMatchesWord: 'This matches your real word, so it will count as the truth, not a bluff.',
+  declared: (first, length) => `Declared: ${first}, ${length} letters`,
   roundResultTitle: 'Round result',
   realWordWas: (word) => `The real word was “${word}”.`,
   nextTurn: 'Next round',
@@ -135,7 +145,7 @@ const en: DoubtWordStrings = {
     'When it is the AI’s claim, you choose Believe or Doubt.',
     'Doubt a bluff → the AI loses a life. Doubt the truth → you lose a life.',
     'Believe a bluff → you lose a life. Believe the truth → a safe pass, no damage.',
-    'On your turn, pick a word and optionally toggle Bluff, then declare. The AI reacts.',
+    'On your turn, pick a word and declare it. Toggle Bluff to choose the false first letter and length you announce. The AI reacts.',
     'Lose all your lives and the match is over. Higher difficulty = smarter, bolder AI.',
   ],
   waiting: 'Waiting…',
@@ -169,12 +179,17 @@ const ja: DoubtWordStrings = {
   yourTurnHint: '単語を1つ選び、真実かブラフで宣言しよう。',
   pickWord: '手持ちの単語',
   bluffMode: 'ブラフ',
-  bluffHint: '偽の頭文字・文字数を宣言してAIを惑わせる。',
+  bluffHint: '本当の代わりに宣言する、偽の頭文字・文字数を自分で選ぶ。',
   willAnnounce: '宣言内容',
   first: '頭文字',
   length: '文字数',
   sendClaim: '宣言する',
   hidden: '？',
+  bluffFirstLabel: '宣言する頭文字',
+  bluffLengthLabel: '宣言する文字数',
+  bluffShuffle: 'おまかせブラフ',
+  bluffMatchesWord: '実際の単語と一致しているため、ブラフではなく本当の宣言として扱われます。',
+  declared: (first, length) => `宣言：頭文字 ${first}・${length} 文字`,
   roundResultTitle: 'ラウンド結果',
   realWordWas: (word) => `実際の単語は「${word}」でした。`,
   nextTurn: '次のラウンド',
@@ -207,7 +222,7 @@ const ja: DoubtWordStrings = {
     'AIの宣言に対し、あなたは「信じる」か「疑う」を選ぶ。',
     'ブラフを疑えば→AIがライフを失う。本当を疑えば→あなたがライフを失う。',
     'ブラフを信じれば→あなたがライフを失う。本当を信じれば→無傷で通過。',
-    '自分の番では単語を選び、必要ならブラフを付けて宣言。AIが反応する。',
+    '自分の番では単語を選んで宣言。「ブラフ」をオンにすると、宣言する偽の頭文字と文字数を自分で選べる。AIが反応する。',
     'ライフを全て失うと敗北。難易度が上がるほどAIは賢く大胆になる。',
   ],
   waiting: '待機中…',

@@ -4,7 +4,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LocalStrings } from './i18n';
 import type { RunReview as RunReviewData } from './runReview';
@@ -38,6 +38,7 @@ interface RunReviewPanelProps {
 
 export function RunReviewPanel({ review, local }: RunReviewPanelProps) {
   const { t } = useTranslation();
+  const headingId = useId();
   const strings = local.review;
   const total = review.turns.length;
   const hpLabel = t('games.animal-roleplay.ui.hpLabel');
@@ -46,8 +47,10 @@ export function RunReviewPanel({ review, local }: RunReviewPanelProps) {
   const hungerSeries = [MAX_HUNGER, ...review.turns.map((turn) => turn.hungerAfter)];
 
   return (
-    <section className={styles.card} data-testid="animal-run-review" aria-label={strings.heading}>
-      <h3 className={styles.reviewHeading}>{strings.heading}</h3>
+    <section className={styles.card} data-testid="animal-run-review" aria-labelledby={headingId}>
+      <h3 id={headingId} className={styles.reviewHeading}>
+        {strings.heading}
+      </h3>
 
       <div className={styles.reviewLegend} aria-hidden="true">
         <span className={styles.reviewLegendItem} style={{ color: HP_COLOR }}>

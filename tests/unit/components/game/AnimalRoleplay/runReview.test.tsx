@@ -212,7 +212,11 @@ describe('RunReviewPanel', () => {
     for (let turn = 1; turn <= state.logs.length; turn += 1) {
       expect(markup).toContain(`Turn ${turn} / ${MAX_TURNS}`);
     }
-    expect(markup).toContain('Run review');
+    // The section takes its name from its own heading.
+    const headingId = /<section[^>]*aria-labelledby="([^"]+)"/.exec(markup)?.[1];
+    expect(headingId).toBeTruthy();
+    expect(markup).toContain(`<h3 id="${headingId}"`);
+    expect(markup).toMatch(/<h3[^>]*>Run review<\/h3>/);
     expect(markup).toContain('aria-label="HP and hunger after each turn"');
     expect(markup.match(/<polyline/g)).toHaveLength(2);
   });

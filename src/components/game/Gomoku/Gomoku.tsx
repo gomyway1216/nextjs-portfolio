@@ -164,8 +164,12 @@ const Gomoku = () => {
     // Deferred so the "finding a hint" state paints before the search runs.
     hintTimerRef.current = setTimeout(() => {
       hintTimerRef.current = null;
-      setHint(getHintMove(board));
-      setIsHintThinking(false);
+      // A throwing search must not leave every control disabled.
+      try {
+        setHint(getHintMove(board));
+      } finally {
+        setIsHintThinking(false);
+      }
     }, 60);
   }, [board, interactive]);
 

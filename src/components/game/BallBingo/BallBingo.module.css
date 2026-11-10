@@ -919,8 +919,13 @@
   color: var(--bb-accent-text);
   font-weight: 800;
 }
+/* A game of the list is pressed to list its balls: 44 px to hit on a phone, as every control of the floor. */
 .recentButton {
-  padding: 0.1rem 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.1rem 0.4rem;
   border: 1px solid transparent;
   border-radius: 6px;
   background: none;

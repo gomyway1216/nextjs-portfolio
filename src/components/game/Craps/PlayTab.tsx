@@ -21,6 +21,7 @@ import { CrapsFelt, type ShownThrow } from './CrapsFelt';
 import { BET_SIZES, CRAPS_GAME, lastRoll, onTable, pressAmount, spotLimit, stakeStep, tableKey, type Table, type TableError } from './medalTable';
 import { DieFace } from './Dice';
 import { getStrings } from './i18n';
+import { RollOutlook } from './RollOutlook';
 import { unlockThrowSounds } from './throwSounds';
 import styles from './Craps.module.css';
 
@@ -565,6 +566,9 @@ export const PlayTab = ({ settled = true, active = true }: PlayTabProps) => {
           </div>
         )}
       </div>
+
+      {/* What the bets on the table would win or lose on the next roll, total by total. */}
+      <RollOutlook point={point} bets={bets} t={t} locale={locale} />
 
       <div className={styles.infoGrid}>
         <div className={styles.panel}>

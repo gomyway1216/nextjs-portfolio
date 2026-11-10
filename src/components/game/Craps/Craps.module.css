@@ -553,6 +553,62 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- The next roll, total by total ---------- */
+.outlookTitle {
+  margin-top: 0;
+}
+.outlookIntro {
+  margin: 0 0 0.6rem;
+  color: var(--games-route-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.outlookGrid {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
+  gap: 0.35rem;
+}
+/* The result is said by its border and its sign, not by a tint: the green and red text keep their contrast. */
+.outlookCell {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.3rem 0.2rem;
+  border-radius: 9px;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  text-align: center;
+}
+.outlookCell[data-sign='pos'] {
+  border-color: var(--cr-win);
+  box-shadow: inset 0 0 0 1px var(--cr-win);
+}
+.outlookCell[data-sign='neg'] {
+  border-color: var(--cr-lose);
+  box-shadow: inset 0 0 0 1px var(--cr-lose);
+}
+.outlookRoll {
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.outlookNet {
+  font-size: 1rem;
+  font-weight: 820;
+  font-variant-numeric: tabular-nums;
+}
+.outlookWays {
+  color: var(--games-route-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- The medals ---------- */
 .playLayout {
   display: flex;

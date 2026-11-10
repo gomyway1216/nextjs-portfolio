@@ -5,7 +5,7 @@
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { RotateCcw } from 'lucide-react';
+import { Lightbulb, RotateCcw, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Difficulty,
@@ -17,6 +17,17 @@ import {
   InfoModal
 } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import {
+  AI_MARK,
+  boardAfter,
+  getHint,
+  Hint,
+  HUMAN_MARK,
+  MoveRecord,
+  reviewGame,
+  undoLastPlayerMove
+} from './analysis';
+import GameReview from './GameReview';
 import { checkWinner, getBestMove, isBoardFull } from './TicTacToeAI';
 import { getTicTacToeCopy } from './i18n';
 import { AI, Player, PLAYER } from './types';
@@ -41,6 +52,9 @@ const TicTacToe = () => {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [winningLine, setWinningLine] = useState<number[] | null>(null);
   const [lastMove, setLastMove] = useState<number | null>(null);
+  const [moves, setMoves] = useState<readonly MoveRecord[]>([]);
+  const [hint, setHint] = useState<Hint | null>(null);
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null);
 
   const difficultyOptions: DifficultyOption[] = useMemo(
     () =>
@@ -80,9 +94,40 @@ const TicTacToe = () => {
     const newBoard = [...board];
     newBoard[index] = PLAYER;
     setBoard(newBoard);
+    setMoves([...moves, { cell: index, mark: HUMAN_MARK }]);
     setLastMove(index);
+    setHint(null);
     settle(newBoard, PLAYER);
   };
+
+  const playing = gameStatus === 'playing';
+  const canUndo = playing && isPlayerTurn && moves.some(move => move.mark === HUMAN_MARK);
+  const canHint = playing && isPlayerTurn;
+
+  const undoMove = () => {
+    if (!canUndo) return;
+    const kept = undoLastPlayerMove(moves);
+    setMoves(kept);
+    setBoard(boardAfter(kept));
+    // No cell is "just played" after a take-back, so nothing replays its pop.
+    setLastMove(null);
+    setHint(null);
+  };
+
+  const showHint = () => {
+    if (!canHint) return;
+    setHint(getHint(board, HUMAN_MARK));
+  };
+
+  const selectReviewMove = (index: number | null) => {
+    setReviewIndex(index);
+    // Stepping through the review must not replay the last move's pop.
+    setLastMove(null);
+  };
+
+  const reviews = useMemo(() => (playing ? [] : reviewGame(moves)), [playing, moves]);
+  const reviewed = reviewIndex !== null ? reviews[reviewIndex] : undefined;
+  const shownBoard = reviewed && reviewIndex !== null ? boardAfter(moves, reviewIndex + 1) : board;
 
   // AI move
   useEffect(() => {
@@ -93,17 +138,21 @@ const TicTacToe = () => {
       const newBoard = [...board];
       newBoard[move] = AI;
       setBoard(newBoard);
+      setMoves([...moves, { cell: move, mark: AI_MARK }]);
       setLastMove(move);
       settle(newBoard, AI);
     }, 450);
     return () => clearTimeout(timer);
-  }, [isPlayerTurn, gameStatus, board, difficulty, settle]);
+  }, [isPlayerTurn, gameStatus, board, moves, difficulty, settle]);
 
   const resetGame = useCallback(() => {
     setBoard(emptyBoard());
     setGameStatus('playing');
     setWinningLine(null);
     setLastMove(null);
+    setMoves([]);
+    setHint(null);
+    setReviewIndex(null);
     setIsPlayerTurn(playerFirst);
   }, [playerFirst]);
 
@@ -135,6 +184,11 @@ const TicTacToe = () => {
   };
 
   const status = statusText();
+  const statusSub = reviewed
+    ? copy.reviewingMove((reviewIndex ?? 0) + 1, reviews.length)
+    : hint
+      ? copy.hintText(copy.cellNames[hint.cell], hint.outcome)
+      : status.sub;
 
   const firstMoveToggle = (
     <div className={styles.firstMove}>
@@ -194,15 +248,31 @@ const TicTacToe = () => {
               )}
               {status.title}
             </p>
-            <p className={styles.statusSub}>{status.sub}</p>
+            <p className={styles.statusSub}>{statusSub}</p>
           </div>
 
           <div className={styles.board} role="group" aria-label={copy.title}>
-            {board.map((cell, index) => {
-              const isWin = winningLine?.includes(index);
+            {shownBoard.map((cell, index) => {
+              const isWin = !reviewed && winningLine?.includes(index);
               const playable = isPlayerTurn && cell === null && gameStatus === 'playing';
+              const isHint = !reviewed && hint?.cell === index && cell === null;
+              const isReviewed = reviewed?.cell === index;
+              // On a reviewed slip, mark the cells that would have kept the result.
+              const isBetter =
+                reviewed !== undefined &&
+                reviewed.grade !== 'good' &&
+                cell === null &&
+                reviewed.bestCells.includes(index);
               const label =
-                cell === 'X' ? copy.youAre : cell === 'O' ? copy.aiIs : copy.cellLabel(index + 1);
+                cell === 'X'
+                  ? copy.youAre
+                  : cell === 'O'
+                    ? copy.aiIs
+                    : isHint
+                      ? copy.hintCellLabel(copy.cellNames[index])
+                      : isBetter
+                        ? copy.betterCellLabel(copy.cellNames[index])
+                        : copy.cellLabel(index + 1);
               return (
                 <button
                   key={index}
@@ -213,7 +283,10 @@ const TicTacToe = () => {
                   className={[
                     styles.cell,
                     playable ? styles.playable : '',
-                    isWin ? styles.win : ''
+                    isWin ? styles.win : '',
+                    isHint ? styles.hinted : '',
+                    isReviewed ? styles.reviewedCell : '',
+                    isBetter ? styles.betterCell : ''
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -221,7 +294,7 @@ const TicTacToe = () => {
                   {cell && (
                     <span
                       className={`${cell === 'X' ? styles.markX : styles.markO} ${
-                        isWin ? styles.winMark : index === lastMove ? styles.mark : ''
+                        isWin ? styles.winMark : !reviewed && index === lastMove ? styles.mark : ''
                       }`}
                     >
                       {cell === 'X' ? '✕' : '○'}
@@ -231,6 +304,36 @@ const TicTacToe = () => {
               );
             })}
           </div>
+
+          {playing ? (
+            <div className={styles.assist}>
+              <button
+                type="button"
+                onClick={undoMove}
+                disabled={!canUndo}
+                className={`${styles.btn} ${styles.btnSecondary}`}
+              >
+                <Undo2 className={styles.icon} aria-hidden />
+                {copy.undo}
+              </button>
+              <button
+                type="button"
+                onClick={showHint}
+                disabled={!canHint}
+                className={`${styles.btn} ${styles.btnSecondary}`}
+              >
+                <Lightbulb className={styles.icon} aria-hidden />
+                {copy.hint}
+              </button>
+            </div>
+          ) : (
+            <GameReview
+              reviews={reviews}
+              selected={reviewIndex}
+              onSelect={selectReviewMove}
+              copy={copy}
+            />
+          )}
 
           <div className={styles.actions}>
             <button type="button" onClick={resetGame} className={`${styles.btn} ${styles.btnPrimary}`}>

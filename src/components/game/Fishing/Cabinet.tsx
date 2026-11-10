@@ -13,6 +13,7 @@ import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { FishArt, FloatArt, MedalArt, ShadowArt } from './art';
+import { emptyLog, kindsLanded, logged, type CatchLog } from './catchLog';
 import { BET_OPTIONS, CHEST, FISH, analyzeMachine, drawCast, fishOf, resolveCast, valueOf, type Bet, type CastResult, type Shadow } from './engine';
 import { getStrings } from './i18n';
 import { browserStorage, createPier, randomName, tabName, type Pier, type Round } from './medals';
@@ -112,6 +113,7 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
   const [chestLit, setChestLit] = useState<number | null>(null);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
   const [recent, setRecent] = useState<RecentCast[]>([]);
+  const [log, setLog] = useState<CatchLog>(emptyLog);
   const [announcement, setAnnouncement] = useState('');
   const [attract, setAttract] = useState(false);
   const [castCount, setCastCount] = useState(0);
@@ -187,6 +189,7 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
     }));
     const entry = { id: recentId.current++, result };
     setRecent((r) => [entry, ...r].slice(0, RECENT_LIMIT));
+    setLog((l) => logged(l, result));
     const words = live.current.t;
     const fishName = result.cast.fish ? words.fishNames[result.cast.fish] : '';
     setAnnouncement(
@@ -328,6 +331,7 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
           setHiddenWin(0);
           setStats(EMPTY_STATS);
           setRecent([]);
+          setLog(emptyLog());
           setLast(null);
           setLastResumed(false);
           setChestLit(null);
@@ -794,6 +798,55 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
               </ol>
             </>
           )}
+        </section>
+
+        {/* The catch log: every cast played out on this page, by what bit. Every fish has its row from the start, so the panel keeps its height. */}
+        <section className={styles.panel} aria-labelledby="fishing-log-title">
+          <h2 id="fishing-log-title" className={styles.panelTitle}>
+            {t.logTitle}
+          </h2>
+          <p className={styles.panelNote}>{t.logNote}</p>
+          <table className={`${styles.board} ${styles.log}`} data-testid="fishing-log">
+            <thead>
+              <tr>
+                <th scope="col">{t.colFish}</th>
+                <th scope="col" className={styles.num}>
+                  {t.colLogLanded}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colLogAway}
+                </th>
+                <th scope="col" className={styles.num}>
+                  {t.colLogMedals}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...FISH].reverse().map((fish) => {
+                const count = log.fish[fish.id];
+                return (
+                  <tr key={fish.id} data-log={fish.id} data-met={count.landed + count.away > 0 ? 'true' : 'false'} data-landed={count.landed > 0 ? 'true' : 'false'}>
+                    <th scope="row" className={styles.boardFish}>
+                      <FishArt id={fish.id} className={`${styles.boardArt} ${styles.logArt}`} />
+                      <span>
+                        {t.fishNames[fish.id]}
+                        <small className={styles.boardShadow}>{t.logLands(fish.lands.num, fish.lands.den)}</small>
+                      </span>
+                    </th>
+                    <td className={styles.num}>{fmt(count.landed)}</td>
+                    <td className={styles.num}>{fmt(count.away)}</td>
+                    <td className={styles.num}>{fmt(count.medals)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className={styles.logFoot} data-testid="fishing-log-kinds">
+            {t.logKinds(kindsLanded(log), FISH.length)}
+          </p>
+          <p className={styles.logFoot} data-testid="fishing-log-no-bite">
+            {t.logNoBite(log.noBite)}
+          </p>
         </section>
       </div>
 

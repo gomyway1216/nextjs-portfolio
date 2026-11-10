@@ -36,6 +36,12 @@ describe('the cabinet', () => {
     expect(markup.match(/<tr data-fish="/g)).toHaveLength(FISH.length);
     expect(markup.indexOf('data-fish="lord"')).toBeLessThan(markup.indexOf('data-fish="fry"'));
     expect(markup).toContain('Moonscale, the Harbor Lord');
+    // The catch log has a row for every fish from the start, the lord first, all at zero, with each one's published chance to be landed.
+    expect(markup.match(/<tr data-log="[a-z]+" data-met="false" data-landed="false"/g)).toHaveLength(FISH.length);
+    expect(markup.indexOf('data-log="lord"')).toBeLessThan(markup.indexOf('data-log="fry"'));
+    expect(markup).toContain('Lands 1 in 8 bites');
+    expect(markup).toContain(`data-testid="fishing-log-kinds">Kinds landed: 0 of ${FISH.length}<`);
+    expect(markup).toContain('data-testid="fishing-log-no-bite">Casts with no bite: 0<');
     // The note that medals are not money is under the machine, with the way to the medal center.
     expect(markup).toContain(NOT_MONEY.en);
     expect(markup).toContain(`href="${MEDAL_CENTER_PATH}"`);
@@ -51,6 +57,9 @@ describe('the cabinet', () => {
     expect(markup).toContain('aria-label="1投1枚"');
     expect(markup).toContain('>キャスト<');
     expect(markup).toContain('魚図鑑');
+    expect(markup).toContain('釣果ノート');
+    expect(markup).toContain('アタリ8回につき1回釣れる');
+    expect(markup).toContain(`釣った種類：0／${FISH.length}`);
     expect(markup).toContain('港のヌシ ツキウロコ');
     expect(markup).toContain(NOT_MONEY.ja);
   });

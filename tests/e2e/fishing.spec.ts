@@ -93,10 +93,19 @@ test('a cast takes the bet, plays out to the fish drawn, and pays it once; the m
   await expect(cabinet(page)).toHaveAttribute('data-step', 'landed', { timeout: 5_000 });
   await expect.poll(() => bankBalance(page)).toBe(WELCOME + 1_495 - 1 + 50);
 
-  // After a reload the machine shows the same medals, and so do the medal center's front and My Page.
+  // The catch log has both, each on its own row with the medals it gave.
+  const logRow = (fish: string) => page.locator(`[data-testid="fishing-log"] tr[data-log="${fish}"]`);
+  await expect(logRow('lord')).toHaveAttribute('data-landed', 'true');
+  await expect(logRow('lord').locator('td')).toHaveText(['1', '0', '1,500']);
+  await expect(logRow('chest').locator('td')).toHaveText(['1', '0', '50']);
+  await expect(logRow('tuna')).toHaveAttribute('data-met', 'false');
+  await expect(page.getByTestId('fishing-log-kinds')).toHaveText('Kinds landed: 2 of 9');
+
+  // After a reload the machine shows the same medals, and so do the medal center's front and My Page. The catch log is the page's, and starts again.
   await page.reload();
   await arrived(page);
   await expect(page.getByTestId('fishing-medals')).toHaveText((WELCOME + 1_544).toLocaleString('en-US'));
+  await expect(page.getByTestId('fishing-log-kinds')).toHaveText('Kinds landed: 0 of 9');
   await openCenter(page);
   await expect(page.getByTestId('center-balance')).toHaveText((WELCOME + 1_544).toLocaleString('en-US'));
   await expect(page.getByTestId('center-play-fishing')).toHaveAttribute('href', '/games/fishing');
@@ -130,6 +139,13 @@ test('REEL moves the show on a step and SKIP to its end; neither changes what wa
   await expect(cabinet(page)).toHaveAttribute('data-step', 'nothing');
   await expect(page.getByTestId('fishing-status')).toHaveText('Nothing bit this time.');
   await expect.poll(() => bankBalance(page)).toBe(WELCOME - 4);
+  // The catch log counts the marlin that got away and the cast nothing bit, and no kind landed.
+  const marlin = page.locator('[data-testid="fishing-log"] tr[data-log="marlin"]');
+  await expect(marlin).toHaveAttribute('data-met', 'true');
+  await expect(marlin).toHaveAttribute('data-landed', 'false');
+  await expect(marlin.locator('td')).toHaveText(['0', '1', '0']);
+  await expect(page.getByTestId('fishing-log-no-bite')).toHaveText('Casts with no bite: 1');
+  await expect(page.getByTestId('fishing-log-kinds')).toHaveText('Kinds landed: 0 of 9');
 });
 
 test('a reload in the middle of a cast pays it once as the page goes, and shows it again', async ({ page }) => {

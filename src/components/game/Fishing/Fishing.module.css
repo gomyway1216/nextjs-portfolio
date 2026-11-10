@@ -1236,6 +1236,41 @@
   font-weight: 800;
 }
 
+/* The catch log: the fish board's table again, with a fish not yet landed drawn as its silhouette (the words keep
+   their own colours, so nothing loses contrast). */
+.log tbody td {
+  font-weight: 700;
+}
+.log tr[data-met='false'] td {
+  font-weight: 500;
+  color: var(--games-route-muted);
+}
+.log tr[data-landed='false'] .logArt {
+  filter: grayscale(1) brightness(0.55);
+  opacity: 0.55;
+}
+.log tr[data-landed='true'] {
+  background: rgba(255, 211, 77, 0.14);
+}
+.logFoot {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.logFoot + .logFoot {
+  margin-top: 0.15rem;
+  font-weight: 500;
+  color: var(--games-route-muted);
+}
+@media (max-width: 360px) {
+  .log th,
+  .log td {
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+  }
+}
+
 /* ---------- The Odds tab ---------- */
 .odds {
   display: grid;

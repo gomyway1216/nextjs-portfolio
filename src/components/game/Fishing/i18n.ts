@@ -87,6 +87,16 @@ export interface FishingStrings {
   recentTitle: string;
   recentNothing: string;
   recentAway: string;
+  // The catch log
+  logTitle: string;
+  logNote: string;
+  colLogLanded: string;
+  colLogAway: string;
+  colLogMedals: string;
+  /** The fish's published chance to be landed once it bites. */
+  logLands: (num: number, den: number) => string;
+  logKinds: (kinds: number, of: number) => string;
+  logNoBite: (casts: number) => string;
   // How to play
   infoBody: (top: number) => string[];
   // The Odds tab
@@ -211,6 +221,14 @@ const en: FishingStrings = {
   recentTitle: 'Last casts',
   recentNothing: 'No bite',
   recentAway: 'Got away',
+  logTitle: 'Catch log',
+  logNote: 'Every cast played out on this page since it was opened, by what bit. It starts empty again when the page is reloaded or your medals are reset.',
+  colLogLanded: 'Landed',
+  colLogAway: 'Got away',
+  colLogMedals: 'Medals',
+  logLands: (num, den) => `Lands ${num} in ${den} bites`,
+  logKinds: (kinds, of) => `Kinds landed: ${kinds} of ${of}`,
+  logNoBite: (casts) => `Casts with no bite: ${casts}`,
   infoBody: (top) => [
     'Choose how many medals a cast takes: 1, 3 or 5 (keys 1, 3, 5). Whatever you catch gives its multiple of that. Then press CAST (Space or Enter).',
     'The float flies out and shadows swim by. When one bites, the float goes under: HIT! A small, medium or large shadow is a small, medium or large fish; a glinting one is a treasure chest, and a huge one is the harbor’s lord, Moonscale.',
@@ -352,6 +370,14 @@ const ja: FishingStrings = {
   recentTitle: '最近のキャスト',
   recentNothing: 'アタリなし',
   recentAway: 'バラシ',
+  logTitle: '釣果ノート',
+  logNote: 'このページを開いてから最後まで見たキャストを、食いついた魚ごとに数えています。ページを読み込み直すか、メダルがリセットされると空に戻ります。',
+  colLogLanded: '釣れた',
+  colLogAway: 'バラシ',
+  colLogMedals: 'メダル',
+  logLands: (num, den) => `アタリ${den}回につき${num}回釣れる`,
+  logKinds: (kinds, of) => `釣った種類：${kinds}／${of}`,
+  logNoBite: (casts) => `アタリなしのキャスト：${casts}回`,
   infoBody: (top) => [
     '1投のメダルを1・3・5枚から選びます（1・3・5キー）。釣れた魚の倍率に、この枚数をかけたメダルがもらえます。選んだら「キャスト」（Space か Enter）。',
     'ウキが飛んでいき、魚影が泳いできます。食いつくとウキが沈んで「ヒット！」。魚影の小・中・大は魚の大きさ、キラリと光る影は宝箱、特大の影は港のヌシ、ツキウロコです。',

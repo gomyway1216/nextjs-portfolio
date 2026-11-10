@@ -32,6 +32,8 @@ import {
   planTurn,
 } from './MemoryBattleAI';
 import { getStrings } from './i18n';
+import { TurnRecord, reviewGame } from './review';
+import { ReviewPanel } from './ReviewPanel';
 import styles from './MemoryBattle.module.css';
 
 type GridKey = 'small' | 'medium' | 'large';
@@ -45,6 +47,7 @@ type Phase = 'playing' | 'over';
 
 // Symbols shown on card faces; index by card value.
 const FACE_SYMBOLS = ['🍎', '🍋', '🍇', '🍒', '🥝', '🍑', '🍉', '🫐', '🥥', '🍍', '🥭', '🍓'];
+const faceSymbol = (value: number): string | number => FACE_SYMBOLS[value] ?? value + 1;
 
 const MISMATCH_DELAY = 950; // ms cards stay revealed after a mismatch
 const AI_FLIP_DELAY = 750; // pause before AI's first flip
@@ -71,6 +74,7 @@ const MemoryBattle = () => {
   const [mismatchIds, setMismatchIds] = useState<number[]>([]);
   const [justMatchedIds, setJustMatchedIds] = useState<number[]>([]);
   const [locked, setLocked] = useState(false); // input locked during animations / AI
+  const [turnLog, setTurnLog] = useState<TurnRecord[]>([]);
 
   const aiMemory = useRef<AIMemory>(createMemory());
   const timers = useRef<number[]>([]);
@@ -102,6 +106,7 @@ const MemoryBattle = () => {
     setFlipped([]);
     setMismatchIds([]);
     setJustMatchedIds([]);
+    setTurnLog([]);
     setTurn('player');
     setPhase('playing');
     setLocked(false);
@@ -126,6 +131,7 @@ const MemoryBattle = () => {
       // AI observes both revealed cards regardless of who flipped them.
       observeReveal(aiMemory.current, cardA, cfg);
       observeReveal(aiMemory.current, cardB, cfg);
+      setTurnLog((log) => [...log, { mover, first: a, second: b }]);
 
       if (isMatch(cardA, cardB)) {
         // Update by position (map index) so we never conflate Card.id with the
@@ -284,6 +290,11 @@ const MemoryBattle = () => {
   const pairsLeft = spec.pairs - scores.player - scores.ai;
   const winner: Winner = useMemo(() => decideWinner(scores), [scores]);
 
+  const review = useMemo(
+    () => (phase === 'over' ? reviewGame(board.map((c) => c.value), turnLog) : null),
+    [board, phase, turnLog],
+  );
+
   const difficultyOptions: DifficultyOption[] = useMemo(
     () => [
       { value: 'easy', label: t.difficulties.easy.label, description: t.difficulties.easy.description },
@@ -410,7 +421,7 @@ const MemoryBattle = () => {
                 !card.matched &&
                 !flipped.includes(index) &&
                 flipped.length < 2;
-              const symbol = FACE_SYMBOLS[card.value] ?? card.value + 1;
+              const symbol = faceSymbol(card.value);
               const cellClass = [
                 styles.cardCell,
                 card.matched ? styles.cardMatched : '',
@@ -467,6 +478,8 @@ const MemoryBattle = () => {
               </div>
             </div>
           )}
+
+          {review && <ReviewPanel review={review} strings={t} symbolFor={faceSymbol} />}
 
           <div className={styles.buttonRow}>
             <button type="button" className={styles.primaryBtn} onClick={startGame}>

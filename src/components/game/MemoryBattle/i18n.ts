@@ -43,6 +43,15 @@ export interface MemoryBattleStrings {
   objectiveBody: string;
   tipsTitle: string;
   tips: string[];
+  reviewTitle: string;
+  reviewTurns: string;
+  reviewRecalled: string;
+  reviewLucky: string;
+  reviewMissed: string;
+  reviewStreak: string;
+  reviewNote: string;
+  turnLogLabel: string;
+  turnKinds: { recalled: string; lucky: string; missed: string; noMatch: string };
 }
 
 const en: MemoryBattleStrings = {
@@ -88,6 +97,16 @@ const en: MemoryBattleStrings = {
     'When you know a pair, grab it, then chain into another flip.',
     'On higher difficulties the AI remembers almost everything — deny it easy reveals.',
   ],
+  reviewTitle: 'Game review',
+  reviewTurns: 'Turns',
+  reviewRecalled: 'Pairs from memory',
+  reviewLucky: 'Lucky pairs',
+  reviewMissed: 'Missed chances',
+  reviewStreak: 'Longest run of pairs',
+  reviewNote:
+    'From memory: the first card\u2019s partner had already been shown. Lucky: it had not. Missed chance: no pair, although the first card\u2019s partner, or both cards of another pair, had already been shown.',
+  turnLogLabel: 'Turn-by-turn log',
+  turnKinds: { recalled: 'From memory', lucky: 'Lucky', missed: 'Missed chance', noMatch: 'No match' },
 };
 
 const ja: MemoryBattleStrings = {
@@ -133,6 +152,16 @@ const ja: MemoryBattleStrings = {
     'ペアの位置が分かったら取りに行き、連続でめくろう。',
     '高難度のAIはほぼ全て記憶します。無駄な公開を避けましょう。',
   ],
+  reviewTitle: '対局のふり返り',
+  reviewTurns: 'ターン数',
+  reviewRecalled: '記憶で取ったペア',
+  reviewLucky: '運で取ったペア',
+  reviewMissed: '取り逃し',
+  reviewStreak: '最長連続ペア',
+  reviewNote:
+    '記憶：1枚目の相方がすでに公開されていたペア。運：公開されていなかったペア。取り逃し：1枚目の相方、または別のペアの2枚がすでに公開されていたのに、ペアにならなかったターン。',
+  turnLogLabel: 'ターンごとの記録',
+  turnKinds: { recalled: '記憶', lucky: '運', missed: '取り逃し', noMatch: 'はずれ' },
 };
 
 export const getStrings = (language: GameLanguage): MemoryBattleStrings =>

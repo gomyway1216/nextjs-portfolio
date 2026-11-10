@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getBanditStrings } from './i18n';
 import { StrategyName, chooseArm, mulberry32, wilsonInterval } from './engine';
+import { ReviewPanel, type ReviewState } from './ReviewPanel';
+import { type GameReview, type Pull, reviewGame } from './review';
 
 const ARM_PALETTE = ['#67e8f9', '#a78bfa', '#f472b6', '#4ade80', '#fbbf24'];
 const T_DEFAULT = 50;
@@ -31,7 +33,10 @@ export const PlayTab = () => {
   const [probs, setProbs] = useState(() => randomProbs(K_DEFAULT));
   const [arms, setArms] = useState<ArmState[]>(() => freshArms(probs));
   const [step, setStep] = useState(0);
-  const [history, setHistory] = useState<{ arm: number; reward: number }[]>([]);
+  const [history, setHistory] = useState<Pull[]>([]);
+  // Review of a finished game, tagged with the pull list it was computed for so
+  // a result for an earlier game (or an earlier pull limit) is never shown.
+  const [reviewed, setReviewed] = useState<{ pulls: Pull[]; review: GameReview | null } | null>(null);
   const [reveal, setReveal] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [flash, setFlash] = useState<{ arm: number; reward: number; id: number } | null>(null);
@@ -53,6 +58,26 @@ export const PlayTab = () => {
     return chooseArm(HINT_STRATEGY, { counts, sums, total: step }, 0.1, mulberry32(seed >>> 0));
   }, [showHint, done, arms, step]);
 
+  useEffect(() => {
+    if (!done || history.length === 0) return;
+    const controller = new AbortController();
+    reviewGame(history, probs, { signal: controller.signal })
+      .then((review) => {
+        if (review && !controller.signal.aborted) setReviewed({ pulls: history, review });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setReviewed({ pulls: history, review: null });
+      });
+    return () => controller.abort();
+  }, [done, history, probs]);
+
+  let reviewState: ReviewState | null = null;
+  if (done && history.length > 0) {
+    if (reviewed?.pulls !== history) reviewState = { status: 'computing' };
+    else if (reviewed.review) reviewState = { status: 'ready', review: reviewed.review };
+    else reviewState = { status: 'failed' };
+  }
+
   const pull = useCallback((i: number) => {
     if (i < 0 || i >= probs.length || step >= T) return;
     // Side effects and randomness live in the handler, not in a state updater,
@@ -70,6 +95,7 @@ export const PlayTab = () => {
     setArms(freshArms(np));
     setStep(0);
     setHistory([]);
+    setReviewed(null);
     setReveal(false);
     setFlash(null);
   }, [k]);
@@ -246,6 +272,8 @@ export const PlayTab = () => {
           <strong style={{ color: '#fbbf24' }}>{t.explainTitle}</strong> {t.explainBody}
         </div>
       </div>
+
+      {reviewState && <ReviewPanel state={reviewState} />}
     </div>
   );
 };

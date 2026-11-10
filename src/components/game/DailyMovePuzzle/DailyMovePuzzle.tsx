@@ -9,13 +9,12 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import { getDateKey, getPuzzleForDate, type Mark } from './engine';
 import {
-  emptyStore,
-  parseStore,
+  createStatsSession,
   recordHint,
   recordSolve,
   recordWrongPick,
-  serializeStore,
   summarize,
+  type StatsSession,
   type StatsStore,
 } from './stats';
 import styles from './DailyMovePuzzle.module.css';
@@ -25,14 +24,15 @@ type Feedback = 'idle' | 'wrong' | 'solved';
 const STORAGE_KEY = 'daily-move-puzzle-last-solved';
 const STATS_KEY = 'daily-move-puzzle-stats';
 
-/** Null when storage cannot be read (blocked or unavailable). */
-const readStoredStats = (): StatsStore | null => {
-  if (typeof window === 'undefined') return null;
+const openStatsSession = (): StatsSession => {
+  let storage: Storage | null = null;
   try {
-    return parseStore(window.localStorage.getItem(STATS_KEY));
+    // Reading the property itself throws when storage is blocked.
+    storage = typeof window === 'undefined' ? null : window.localStorage;
   } catch {
-    return null;
+    storage = null;
   }
+  return createStatsSession(storage, STATS_KEY);
 };
 
 export const DailyMovePuzzle = () => {
@@ -63,23 +63,15 @@ export const DailyMovePuzzle = () => {
     return window.localStorage.getItem(STORAGE_KEY) === dateKey;
   });
 
-  const [stats, setStats] = useState<StatsStore>(() => readStoredStats() ?? emptyStore());
-  const statsRef = useRef(stats);
+  const [statsSession] = useState(openStatsSession);
+  const [stats, setStats] = useState<StatsStore>(() => statsSession.current());
 
-  // Re-read storage before every change so a second tab cannot overwrite a
-  // result this tab has not seen; fall back to memory when storage is blocked.
-  const updateStats = useCallback((apply: (store: StatsStore) => StatsStore) => {
-    const current = readStoredStats() ?? statsRef.current;
-    const next = apply(current);
-    statsRef.current = next;
-    setStats(next);
-    if (next === current) return;
-    try {
-      window.localStorage.setItem(STATS_KEY, serializeStore(next));
-    } catch {
-      // Storage is full or blocked: the record lasts for this visit only.
-    }
-  }, []);
+  const updateStats = useCallback(
+    (apply: (store: StatsStore) => StatsStore) => {
+      setStats(statsSession.update(apply));
+    },
+    [statsSession],
+  );
 
   const summary = useMemo(() => summarize(stats, dateKey), [stats, dateKey]);
   const todayResult = stats.results[dateKey];

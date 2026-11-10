@@ -7,7 +7,8 @@
  * with Reset does not improve the record. A solve made after the hint was
  * shown is flagged and reported separately.
  *
- * Everything here is pure; the component owns reading and writing storage.
+ * The record functions are pure; `createStatsSession` is the only part that
+ * touches storage.
  */
 
 export interface DayResult {
@@ -161,6 +162,56 @@ export const recordSolve = (store: StatsStore, dateKey: string): StatsStore => {
     }
   }
   return { results, progress: null };
+};
+
+export interface StatsSession {
+  /** The record as this visit currently knows it. */
+  current: () => StatsStore;
+  /** Applies a change, saves it when possible, and returns the new record. */
+  update: (apply: (store: StatsStore) => StatsStore) => StatsStore;
+}
+
+/**
+ * Keeps the record in `storage` under `key`.
+ *
+ * Storage is re-read before every change so a second tab's saved result is
+ * not overwritten. Once a read or a write fails (storage blocked or full) the
+ * session stops trusting storage and continues from memory, so a change that
+ * could not be saved is still honoured for the rest of the visit.
+ */
+export const createStatsSession = (
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null,
+  key: string,
+): StatsSession => {
+  let memoryOnly = storage === null;
+  let memory = emptyStore();
+
+  const current = (): StatsStore => {
+    if (!memoryOnly && storage) {
+      try {
+        memory = parseStore(storage.getItem(key));
+      } catch {
+        memoryOnly = true;
+      }
+    }
+    return memory;
+  };
+
+  const update = (apply: (store: StatsStore) => StatsStore): StatsStore => {
+    const before = current();
+    const next = apply(before);
+    memory = next;
+    if (next !== before && !memoryOnly && storage) {
+      try {
+        storage.setItem(key, serializeStore(next));
+      } catch {
+        memoryOnly = true;
+      }
+    }
+    return next;
+  };
+
+  return { current, update };
 };
 
 /** Totals and streaks as of `todayKey`. */

@@ -5,6 +5,7 @@ import { getStrings } from '@/components/game/DailyMovePuzzle/i18n';
 import {
   MAX_ATTEMPTS,
   MAX_STORED_DAYS,
+  createStatsSession,
   emptyStore,
   isDateKey,
   parseStore,
@@ -241,6 +242,93 @@ describe('parseStore', () => {
     expect(
       parseStore(JSON.stringify({ results: {}, progress: { dateKey: 'today', wrong: [] } })).progress,
     ).toBeNull();
+  });
+});
+
+describe('createStatsSession', () => {
+  const day = '2026-07-08';
+  const key = 'stats';
+
+  const fakeStorage = (initial?: string) => {
+    const data = new Map<string, string>();
+    if (initial !== undefined) data.set(key, initial);
+    const flags = { failWrites: false, failReads: false };
+    return {
+      data,
+      flags,
+      getItem: (k: string) => {
+        if (flags.failReads) throw new Error('blocked');
+        return data.get(k) ?? null;
+      },
+      setItem: (k: string, value: string) => {
+        if (flags.failWrites) throw new Error('quota');
+        data.set(k, value);
+      },
+    };
+  };
+
+  it('loads what is stored and saves changes', () => {
+    const storage = fakeStorage(serializeStore(storeWith({ '2026-07-07': [2] })));
+    const session = createStatsSession(storage, key);
+    expect(session.current().results['2026-07-07']).toEqual({ attempts: 2, hinted: false });
+
+    session.update((store) => recordSolve(store, day));
+    expect(parseStore(storage.data.get(key)).results[day]).toEqual({ attempts: 1, hinted: false });
+  });
+
+  it("picks up another tab's saved result before applying a change", () => {
+    const storage = fakeStorage();
+    const session = createStatsSession(storage, key);
+    session.update((store) => recordWrongPick(store, day, 3));
+
+    // Another tab solves today's puzzle with two wrong squares.
+    const other = createStatsSession(storage, key);
+    other.update((store) => recordWrongPick(store, day, 5));
+    other.update((store) => recordSolve(store, day));
+
+    const after = session.update((store) => recordSolve(store, day));
+    expect(after.results[day]).toEqual({ attempts: 3, hinted: false });
+    expect(parseStore(storage.data.get(key)).results[day]).toEqual({ attempts: 3, hinted: false });
+  });
+
+  it('keeps the recording rules for the visit when writes start failing', () => {
+    const storage = fakeStorage();
+    storage.flags.failWrites = true;
+    const session = createStatsSession(storage, key);
+
+    session.update((store) => recordWrongPick(store, day, 3));
+    session.update((store) => recordHint(store, day));
+    const solved = session.update((store) => recordSolve(store, day));
+    expect(solved.results[day]).toEqual({ attempts: 2, hinted: true });
+
+    // Solving again after Reset must not replace the first result.
+    expect(session.update((store) => recordSolve(store, day))).toBe(solved);
+    expect(session.current()).toBe(solved);
+    expect(storage.data.has(key)).toBe(false);
+  });
+
+  it('continues from the last good read when reads start failing', () => {
+    const storage = fakeStorage(serializeStore(storeWith({ '2026-07-07': [1] })));
+    const session = createStatsSession(storage, key);
+    session.current();
+    storage.flags.failReads = true;
+
+    session.update((store) => recordWrongPick(store, day, 1));
+    const solved = session.update((store) => recordSolve(store, day));
+    expect(solved.results).toEqual({
+      '2026-07-07': { attempts: 1, hinted: false },
+      [day]: { attempts: 2, hinted: false },
+    });
+  });
+
+  it('works in memory without any storage', () => {
+    const session = createStatsSession(null, key);
+    expect(session.current()).toEqual(emptyStore());
+    session.update((store) => recordWrongPick(store, day, 2));
+    expect(session.update((store) => recordSolve(store, day)).results[day]).toEqual({
+      attempts: 2,
+      hinted: false,
+    });
   });
 });
 

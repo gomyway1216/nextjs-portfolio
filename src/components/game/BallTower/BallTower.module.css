@@ -837,12 +837,19 @@
   flex-wrap: wrap;
   gap: 0.3rem;
 }
+.historyList li {
+  display: flex;
+}
+/* Each of the last runs is a button that shows its way down (RunRoute.tsx): as tall and as wide as a finger. */
 .historyChip {
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
-  padding: 0 0.55rem;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.6rem;
   border-radius: 8px;
+  font: inherit;
   font-size: 0.8rem;
   font-weight: 800;
   background: var(--games-route-surface-raised);
@@ -850,6 +857,7 @@
   color: var(--games-route-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  cursor: pointer;
 }
 .historyChip[data-won='true'] {
   color: var(--games-route-fg);
@@ -858,6 +866,71 @@
 .historyChip[data-jackpot='true'] {
   background: #f6c343;
   color: #2a1600;
+}
+/* The run whose way down is shown: ringed in the page's own text colour, which reads on every chip in both themes. */
+.historyChip[aria-pressed='true'] {
+  color: var(--games-route-fg);
+  border-color: var(--games-route-fg);
+  box-shadow: 0 0 0 2px var(--games-route-fg);
+}
+.historyChip[data-jackpot='true'][aria-pressed='true'] {
+  color: #2a1600;
+}
+.historyChip:focus-visible {
+  outline: 2px solid var(--games-route-fg);
+  outline-offset: 3px;
+}
+.historyHint {
+  margin-top: 0.5rem;
+}
+
+/* The way a ball came down: every disc has its row, and the lines over and under the rows keep room for their longest
+   words, so the panel is as tall for any run. */
+.routeWhich {
+  margin: 0;
+  min-height: calc(3 * 1.45em);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.routeWhat {
+  font-weight: 800;
+}
+.routeBet,
+.routeNone {
+  color: var(--games-route-muted);
+}
+.routeBet {
+  white-space: nowrap;
+}
+.routeTable {
+  margin-top: 0.3rem;
+}
+/* The pocket and its chance stay on one line each, so a row is as tall for any pocket; the disc's name takes the rest. */
+.routePocket {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.routePocket[data-kind='out'] {
+  color: var(--bt-behind);
+}
+.routePocket[data-kind='pay'],
+.routePocket[data-kind='mystery'],
+.routePocket[data-kind='jackpot'] {
+  color: var(--bt-ahead);
+}
+.routeSum {
+  margin: 0.6rem 0 0;
+  min-height: calc(4 * 1.45em);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.routeNote {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
 }
 .statList {
   display: grid;
@@ -1034,6 +1107,10 @@
 .statLabel,
 .statNote,
 .statList dt,
+.routeWhich,
+.routeSum,
+.routeNote,
+.historyHint,
 .ruleList li,
 .note,
 .intro p,
@@ -1047,6 +1124,10 @@
   .statLabel,
   .statNote,
   .statList dt,
+  .routeWhich,
+  .routeSum,
+  .routeNote,
+  .historyHint,
   .ruleList li,
   .note,
   .intro p,

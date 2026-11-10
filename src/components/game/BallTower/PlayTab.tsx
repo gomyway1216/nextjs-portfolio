@@ -17,6 +17,7 @@ import { BETS, CHANCE_LEVEL, JACKPOT, LEVELS, drawRun, isBet, valueOf, type Bet,
 import { getStrings } from './i18n';
 import { BALL_TOWER_GAME, createTable, runId, runOfRecord, wonOfRecord, type Staked, type Table } from './medalTable';
 import { PUBLISHED_BALL_TOWER_ODDS } from './published';
+import { RunRoute } from './RunRoute';
 import { BALL_HOME, BOARD_W, FIRST_ANGLES, ballAt, createMachineClock, discAngle, lampAt, levelAt, runScene, settledAt, turning, type Cue, type Timeline } from './scene';
 import { paintFrame, paintStill, spritesFor, type Frame, type Sprites } from './draw';
 import styles from './BallTower.module.css';
@@ -214,6 +215,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const [outcome, setOutcome] = useState<Ended | null>(null);
   const [history, setHistory] = useState<Ended[]>([]);
   const [stats, setStats] = useState<SessionStats>(EMPTY_STATS);
+  // The run of the last runs whose way down is shown (RunRoute.tsx): none picked, the last one that ended.
+  const [picked, setPicked] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [resumed, setResumed] = useState(false);
@@ -230,6 +233,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const syncNow = useRef<(() => void) | null>(null);
   const playAreaRef = useRef<HTMLDivElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const historyRef = useRef<HTMLOListElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stillRef = useRef<HTMLCanvasElement | null>(null);
   const spritesRef = useRef<Sprites | null>(null);
@@ -317,6 +321,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       }
       const entry: Ended = { id: staked.record.id, run, bet: staked.record.bet, won, earlier: how === 'resumed' };
       setOutcome(entry);
+      setPicked(null);
       setHistory((list) => [entry, ...list.filter((e) => e.id !== entry.id)].slice(0, HISTORY_LIMIT));
       if (how !== 'resumed') {
         const chance = run.stops.length > CHANCE_LEVEL;
@@ -414,6 +419,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setMessage('');
     setResumed(false);
     setOutcome(null);
+    setPicked(null);
     setFlash(null);
     setSkippable(false);
     setLevel(-1);
@@ -451,6 +457,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     [play],
   );
 
+  /** A run of the last runs is pressed: its way down is shown. Pressing the one shown already changes nothing. */
+  const pickRun = (entry: Ended) => {
+    setPicked(entry.id);
+    setAnnouncement(live.current.t.sayRoute(live.current.t.historyEntryLabel(entry.run, entry.bet)));
+  };
+
   /** The medals have been reset at the medal center: the machine starts over. */
   const startOver = useCallback((said: boolean) => {
     const flight = flightRef.current;
@@ -465,6 +477,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     setRoundId(null);
     setOutcome(null);
     setHistory([]);
+    setPicked(null);
     setStats(EMPTY_STATS);
     setMessage('');
     setMoment(null);
@@ -702,6 +715,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     if (key === ' ' || key === 'Enter') start();
     else if (key === 's') skip();
     else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      // On one of the last runs' buttons the arrows are not the bet's: a player looking back changes nothing by them.
+      if (historyRef.current?.contains(document.activeElement)) return false;
       const at = BETS.indexOf(betRef.current);
       const next = BETS[Math.min(BETS.length - 1, Math.max(0, at + (key === 'ArrowRight' ? 1 : -1)))];
       if (next !== betRef.current) chooseBet(next);
@@ -730,6 +745,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const net = stats.won - stats.played;
   const won = !running && outcome !== null && !outcome.earlier && outcome.won > 0;
   const result = outcome && !running ? (outcome.run.jackpot ? 'jackpot' : outcome.won > 0 ? 'pay' : 'out') : '';
+  // The run whose way down is shown: the one picked while it is still among the last runs, or the last to end. A ball
+  // in play shows nothing of itself here: only a run picked from before.
+  const routeEntry = history.find((entry) => entry.id === picked) ?? (running ? null : (history[0] ?? null));
   /** The badge over a run from before: one this page finished, or one simply shown again. */
   const badge = resumed ? t.resumed : outcome?.earlier && !running ? t.lastRun : null;
 
@@ -923,15 +941,30 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
           {history.length === 0 ? (
             <p className={styles.muted}>{t.historyEmpty}</p>
           ) : (
-            <ol className={styles.historyList} data-testid="bt-history">
-              {history.map((entry) => (
-                <li key={entry.id} className={styles.historyChip} data-won={entry.won > 0 ? 'true' : 'false'} data-jackpot={entry.run.jackpot ? 'true' : 'false'} title={t.historyEntryLabel(entry.run, entry.bet)}>
-                  {t.historyEntry(entry.run, entry.bet)}
-                </li>
-              ))}
-            </ol>
+            <>
+              <ol className={styles.historyList} data-testid="bt-history" ref={historyRef}>
+                {history.map((entry) => (
+                  <li key={entry.id}>
+                    <button
+                      type="button"
+                      className={styles.historyChip}
+                      data-won={entry.won > 0 ? 'true' : 'false'}
+                      data-jackpot={entry.run.jackpot ? 'true' : 'false'}
+                      aria-pressed={routeEntry?.id === entry.id}
+                      title={t.historyEntryLabel(entry.run, entry.bet)}
+                      onClick={() => pickRun(entry)}
+                    >
+                      {t.historyEntry(entry.run, entry.bet)}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              <p className={`${styles.muted} ${styles.historyHint}`}>{t.historyHint}</p>
+            </>
           )}
         </section>
+
+        <RunRoute entry={routeEntry} running={running} />
 
         <section className={styles.panel} aria-labelledby="bt-session-title">
           <h2 id="bt-session-title" className={styles.panelTitle}>

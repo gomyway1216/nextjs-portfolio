@@ -1,5 +1,6 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { QuizDifficulty } from './questions';
+import type { QuestionCategory } from './review';
 
 interface IqStrings {
   title: string;
@@ -23,6 +24,21 @@ interface IqStrings {
   estimatedIq: string;
   outOf: (correct: number, total: number) => string;
   yourAnswer: string;
+  correctAnswerLabel: string;
+  noAnswer: string;
+  breakdownTitle: string;
+  categoryLabel: Record<QuestionCategory, string>;
+  questionNo: (n: number) => string;
+  /** `seconds` is already formatted, e.g. "4.2". */
+  timeTaken: (seconds: string) => string;
+  avgTime: (seconds: string) => string;
+  avgTimeOverall: (seconds: string) => string;
+  filterLabel: string;
+  filterAll: (n: number) => string;
+  filterMissed: (n: number) => string;
+  reviewHint: string;
+  matrixGridLabel: string;
+  blankCell: string;
   timerLabel: string;
   timerOn: string;
   timerOff: string;
@@ -52,6 +68,26 @@ const ja: IqStrings = {
   estimatedIq: '推定 IQ',
   outOf: (correct, total) => `正解 ${correct} / ${total}`,
   yourAnswer: 'あなたの解答',
+  correctAnswerLabel: '正解',
+  noAnswer: '時間切れのため未解答',
+  breakdownTitle: '出題タイプ別の成績',
+  categoryLabel: {
+    sequence: '数列',
+    oddOneOut: '仲間外れ',
+    analogy: '類比',
+    letter: 'アルファベット',
+    matrix: '図形マトリックス',
+  },
+  questionNo: (n) => `第${n}問`,
+  timeTaken: (seconds) => `${seconds}秒`,
+  avgTime: (seconds) => `平均 ${seconds}秒`,
+  avgTimeOverall: (seconds) => `1問あたりの平均解答時間: ${seconds}秒`,
+  filterLabel: '表示する問題',
+  filterAll: (n) => `すべて (${n})`,
+  filterMissed: (n) => `不正解のみ (${n})`,
+  reviewHint: '問題を選ぶと、選択肢と解説が開きます。',
+  matrixGridLabel: '3×3 の図形マトリックス',
+  blankCell: '空欄',
   timerLabel: 'タイマー',
   timerOn: 'オン',
   timerOff: 'オフ',
@@ -94,6 +130,26 @@ const en: IqStrings = {
   estimatedIq: 'Estimated IQ',
   outOf: (correct, total) => `${correct} / ${total} correct`,
   yourAnswer: 'Your answer',
+  correctAnswerLabel: 'Correct answer',
+  noAnswer: 'No answer: the time ran out',
+  breakdownTitle: 'Results by question type',
+  categoryLabel: {
+    sequence: 'Number sequence',
+    oddOneOut: 'Odd one out',
+    analogy: 'Analogy',
+    letter: 'Letter sequence',
+    matrix: 'Figure matrix',
+  },
+  questionNo: (n) => `Q${n}`,
+  timeTaken: (seconds) => `${seconds}s`,
+  avgTime: (seconds) => `avg ${seconds}s`,
+  avgTimeOverall: (seconds) => `Average time per question: ${seconds}s`,
+  filterLabel: 'Questions to show',
+  filterAll: (n) => `All (${n})`,
+  filterMissed: (n) => `Missed only (${n})`,
+  reviewHint: 'Select a question to open its options and explanation.',
+  matrixGridLabel: '3 by 3 pattern matrix',
+  blankCell: 'missing cell',
   timerLabel: 'Timer',
   timerOn: 'On',
   timerOff: 'Off',

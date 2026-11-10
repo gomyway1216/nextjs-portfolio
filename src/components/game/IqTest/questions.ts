@@ -464,7 +464,7 @@ const axisLabel: Record<MatrixAxis, Bilingual> = {
   count: { ja: '個数', en: 'count' },
 };
 
-const colorName: Record<CellColor, Bilingual> = {
+export const colorName: Record<CellColor, Bilingual> = {
   '#ef4444': { ja: '赤', en: 'red' },
   '#3b82f6': { ja: '青', en: 'blue' },
   '#22c55e': { ja: '緑', en: 'green' },
@@ -472,7 +472,7 @@ const colorName: Record<CellColor, Bilingual> = {
   '#a855f7': { ja: '紫', en: 'purple' },
 };
 
-const shapeName: Record<CellShape, Bilingual> = {
+export const shapeName: Record<CellShape, Bilingual> = {
   circle: { ja: '円', en: 'circle' },
   square: { ja: '四角', en: 'square' },
   triangle: { ja: '三角', en: 'triangle' },

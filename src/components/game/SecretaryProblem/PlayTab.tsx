@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { GameStats } from '../common';
 import { generateCandidates, SUGGESTED_R_RATIO } from './engine';
 import type { SecretaryStrings } from './i18n';
+import { reviewRound } from './review';
 import styles from './SecretaryProblem.module.css';
 
 const DEFAULT_N = 20;
@@ -37,9 +38,12 @@ interface PlayTabProps {
   t: SecretaryStrings;
   stats: GameStats;
   setStats: React.Dispatch<React.SetStateAction<GameStats>>;
+  /** Rounds of this record that the 37% rule would have won on the same order. */
+  ruleWins: number;
+  setRuleWins: React.Dispatch<React.SetStateAction<number>>;
 }
 
-export const PlayTab = ({ t, stats, setStats }: PlayTabProps) => {
+export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabProps) => {
   const [n, setN] = useState(DEFAULT_N);
   const [round, setRound] = useState<RoundState>(() => freshRound(DEFAULT_N));
   const [phase, setPhase] = useState<Phase>('idle');
@@ -79,16 +83,20 @@ export const PlayTab = ({ t, stats, setStats }: PlayTabProps) => {
     return isCurrentBestSoFar ? 'accept' : 'reject';
   }, [phase, round, suggestedR, currentVal, isCurrentBestSoFar]);
 
-  const recordOutcome = (isBest: boolean) =>
+  const recordOutcome = (isBest: boolean, pickedIndex: number) => {
     setStats((s) =>
       isBest ? { ...s, wins: s.wins + 1 } : { ...s, losses: s.losses + 1 },
     );
+    if (reviewRound(round.candidates, suggestedR, pickedIndex).rule.won) {
+      setRuleWins((w) => w + 1);
+    }
+  };
 
   const accept = () => {
     if (phase !== 'interviewing' || currentVal === null) return;
     const isBest = currentVal === round.bestValue;
     setRound((r) => ({ ...r, picked: currentVal, pickedIndex: r.current }));
-    recordOutcome(isBest);
+    recordOutcome(isBest, round.current);
     setPhase('done');
   };
 
@@ -106,14 +114,24 @@ export const PlayTab = ({ t, stats, setStats }: PlayTabProps) => {
         forcedLast: true,
         current: r.candidates.length,
       }));
-      recordOutcome(isBest);
+      recordOutcome(isBest, round.candidates.length - 1);
       setPhase('done');
     } else {
       setRound((r) => ({ ...r, current: nextCurrent }));
     }
   };
 
-  const resetStats = () => setStats({ wins: 0, losses: 0, draws: 0 });
+  const resetStats = () => {
+    setStats({ wins: 0, losses: 0, draws: 0 });
+    setRuleWins(0);
+  };
+  const review = useMemo(
+    () =>
+      phase === 'done' && round.pickedIndex !== null
+        ? reviewRound(round.candidates, suggestedR, round.pickedIndex)
+        : null,
+    [phase, round.candidates, round.pickedIndex, suggestedR],
+  );
   const won =
     phase === 'done' && round.picked !== null && round.picked === round.bestValue;
 
@@ -228,26 +246,31 @@ export const PlayTab = ({ t, stats, setStats }: PlayTabProps) => {
               const inSkip = i < suggestedR;
               const isCurrent = i === round.current && phase === 'interviewing';
               const isPicked = round.pickedIndex === i && phase === 'done';
+              // Once the round is over the whole order is shown for the review.
               const isRevealed =
-                i < round.current || isCurrent || isPicked;
+                review !== null || i < round.current || isCurrent || isPicked;
+              const isBest = review?.bestIndex === i;
+              const isRulePick = review?.rule.pickedIndex === i;
               const cls = [styles.cell];
               if (inSkip) cls.push(styles.cellObserve);
               if (isPicked) cls.push(won ? styles.cellPickedWin : styles.cellPickedLose);
               else if (isCurrent) cls.push(styles.cellCurrent);
               else if (i < round.current) cls.push(styles.cellRejected);
+              else if (review !== null) cls.push(styles.cellUnseen);
+              if (isRulePick) cls.push(styles.cellRulePick);
+              const titleParts = [`${inSkip ? t.phaseObserve : t.phaseDecide} · #${i + 1}`];
+              if (isBest) titleParts.push(t.markBest);
+              if (isRulePick) titleParts.push(t.markRulePick);
               return (
-                <span
-                  key={i}
-                  className={cls.join(' ')}
-                  title={`${inSkip ? t.phaseObserve : t.phaseDecide} · #${i + 1}`}
-                >
+                <span key={i} className={cls.join(' ')} title={titleParts.join(' · ')}>
+                  {isBest && <span aria-hidden="true">★</span>}
                   {isRevealed ? v : '?'}
                 </span>
               );
             })}
           </div>
           <div className={styles.legend}>
-            {t.legendObserve} {t.legendHidden}
+            {t.legendObserve} {review ? t.legendReview : t.legendHidden}
           </div>
         </div>
       </section>
@@ -277,6 +300,12 @@ export const PlayTab = ({ t, stats, setStats }: PlayTabProps) => {
             value={`${(SUGGESTED_R_RATIO * 100).toFixed(1)}%`}
             color="var(--sp-accent-strong)"
           />
+          <Stat label={t.ruleWins} value={`${ruleWins}`} color="var(--sp-cyan)" />
+          <Stat
+            label={t.ruleWinRate}
+            value={totalPlays === 0 ? '—' : `${((ruleWins / totalPlays) * 100).toFixed(1)}%`}
+            color="var(--sp-cyan)"
+          />
         </div>
 
         <label className={styles.checkbox}>
@@ -297,6 +326,33 @@ export const PlayTab = ({ t, stats, setStats }: PlayTabProps) => {
         <div className={styles.note}>
           <strong>{t.infoStrategyTitle}:</strong> {t.infoStrategy}
         </div>
+
+        {review && (
+          <div className={styles.review}>
+            <h4 className={styles.reviewTitle}>{t.reviewHeading}</h4>
+            <ul className={styles.reviewList}>
+              <li>
+                {t.reviewBest(review.bestIndex + 1, n, review.bestValue)}{' '}
+                {review.bestInObservation
+                  ? t.reviewBestInObservation(suggestedR)
+                  : t.reviewBestInDecision}
+              </li>
+              <li>
+                {review.rule.forcedLast
+                  ? t.reviewRuleForced(suggestedR, review.rule.pickedIndex + 1, review.rule.picked)
+                  : t.reviewRulePick(suggestedR, review.rule.pickedIndex + 1, review.rule.picked)}{' '}
+                <strong>{review.rule.won ? t.reviewRuleHit : t.reviewRuleMiss}</strong>
+              </li>
+              <li>
+                {review.comparison === 'same'
+                  ? t.reviewSame
+                  : review.comparison === 'earlier'
+                    ? t.reviewEarlier(review.playerPickedIndex + 1, review.rule.pickedIndex + 1)
+                    : t.reviewLater(review.playerPickedIndex + 1, review.rule.pickedIndex + 1)}
+              </li>
+            </ul>
+          </div>
+        )}
       </section>
     </div>
   );

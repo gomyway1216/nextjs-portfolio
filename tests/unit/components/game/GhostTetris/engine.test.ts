@@ -6,6 +6,7 @@ import {
   GHOST_MIN_OPACITY,
   LOCK_VISIBILITY_MS,
   type GameState,
+  buriedGaps,
   canPlace,
   clearLines,
   createGame,
@@ -337,5 +338,89 @@ describe('createGame', () => {
     expect(g.level).toBe(0);
     expect(g.current.id).toBeGreaterThanOrEqual(1);
     expect(g.next.id).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('run stats', () => {
+  it('starts a run with nothing counted', () => {
+    expect(createGame().stats).toEqual({ pieces: 0, clears: [0, 0, 0, 0] });
+  });
+
+  it('counts a locked piece and files its clear under the number of lines', () => {
+    const board = emptyBoard();
+    for (let x = 0; x < BOARD_W; x += 1) board[BOARD_H - 1][x] = x < 3 || x > 6 ? 2 : 0;
+    const s: GameState = {
+      ...createGame(),
+      phase: 'playing',
+      board,
+      current: { id: 1, shape: [[1, 1, 1, 1]], x: 3, y: 0 },
+    };
+    const single = hardDrop(s, 1000);
+    expect(single.stats).toEqual({ pieces: 1, clears: [1, 0, 0, 0] });
+    // The state it came from is left alone.
+    expect(s.stats).toEqual({ pieces: 0, clears: [0, 0, 0, 0] });
+
+    // A lock that clears nothing only counts the piece.
+    const plain = hardDrop({ ...single, current: makePiece(2) }, 2000);
+    expect(plain.stats).toEqual({ pieces: 2, clears: [1, 0, 0, 0] });
+  });
+
+  it('files four lines at once as a tetris', () => {
+    const board = emptyBoard();
+    for (let y = BOARD_H - 4; y < BOARD_H; y += 1) {
+      for (let x = 1; x < BOARD_W; x += 1) board[y][x] = 2;
+    }
+    const s: GameState = {
+      ...createGame(),
+      phase: 'playing',
+      board,
+      current: { id: 1, shape: [[1], [1], [1], [1]], x: 0, y: 0 },
+    };
+    const after = hardDrop(s, 1000);
+    expect(after.lines).toBe(4);
+    expect(after.stats).toEqual({ pieces: 1, clears: [0, 0, 0, 1] });
+  });
+
+  it('counts the piece whose lock ends the run', () => {
+    const board = emptyBoard();
+    for (let y = 0; y < BOARD_H; y += 1) {
+      for (let x = 0; x < BOARD_W - 1; x += 1) {
+        if (y === 0 && x >= 3 && x <= 5) continue;
+        board[y][x] = 2;
+      }
+    }
+    const s: GameState = {
+      ...createGame(),
+      phase: 'playing',
+      board,
+      current: { id: 3, shape: [[1, 1, 1]], x: 3, y: 0 },
+    };
+    const after = step(s, 1000);
+    expect(after.phase).toBe('gameover');
+    expect(after.stats.pieces).toBe(1);
+  });
+});
+
+describe('buriedGaps', () => {
+  it('finds nothing on an empty board or a solid stack', () => {
+    expect(buriedGaps(emptyBoard())).toEqual([]);
+    const board = emptyBoard();
+    board[BOARD_H - 1][0] = 1;
+    board[BOARD_H - 2][0] = 1;
+    expect(buriedGaps(board)).toEqual([]);
+  });
+
+  it('marks every empty cell below a block in its column, and only those', () => {
+    const board = emptyBoard();
+    // Column 2: block, two empty cells, block, then the floor row empty.
+    board[BOARD_H - 5][2] = 4;
+    board[BOARD_H - 2][2] = 4;
+    // Column 7: a block resting on the floor (no gap), open sky above it.
+    board[BOARD_H - 1][7] = 6;
+    expect(buriedGaps(board)).toEqual([
+      (BOARD_H - 4) * BOARD_W + 2,
+      (BOARD_H - 3) * BOARD_W + 2,
+      (BOARD_H - 1) * BOARD_W + 2,
+    ]);
   });
 });

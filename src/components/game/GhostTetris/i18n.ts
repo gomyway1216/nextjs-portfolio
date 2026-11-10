@@ -31,6 +31,12 @@ export interface GhostTetrisStrings {
   touchMove: string;
   touchRotate: string;
   touchDrop: string;
+  piecesPlaced: string;
+  clearNames: [string, string, string, string];
+  reveal: string;
+  backToResults: string;
+  revealNote: string;
+  buriedGaps: string;
 }
 
 const en: GhostTetrisStrings = {
@@ -69,6 +75,13 @@ const en: GhostTetrisStrings = {
   touchMove: 'Move',
   touchRotate: 'Rotate',
   touchDrop: 'Drop',
+  piecesPlaced: 'Pieces placed',
+  clearNames: ['Single', 'Double', 'Triple', 'Tetris'],
+  reveal: 'Reveal the board',
+  backToResults: 'Back to results',
+  revealNote:
+    'Every block is shown solid again. A hatched cell is an empty cell with a block above it in the same column.',
+  buriedGaps: 'Buried gaps',
 };
 
 const ja: GhostTetrisStrings = {
@@ -107,6 +120,13 @@ const ja: GhostTetrisStrings = {
   touchMove: '移動',
   touchRotate: '回転',
   touchDrop: 'ドロップ',
+  piecesPlaced: '置いたピース',
+  clearNames: ['シングル', 'ダブル', 'トリプル', 'テトリス'],
+  reveal: '盤面を見る',
+  backToResults: '結果に戻る',
+  revealNote:
+    'すべてのブロックをもう一度はっきり表示しています。斜線のマスは、同じ列の上にブロックがある空きマスです。',
+  buriedGaps: '埋もれた空きマス',
 };
 
 export const getStrings = (language: GameLanguage): GhostTetrisStrings =>

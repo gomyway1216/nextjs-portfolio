@@ -404,3 +404,93 @@
 .chartWrap {
   overflow-x: auto;
 }
+
+/* Running balance (play tab) */
+.bankrollChart {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(0, 1fr);
+  grid-template-rows: 180px auto;
+  column-gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+.bankrollYAxis {
+  position: relative;
+  color: var(--games-route-muted, #94a3b8);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.bankrollYAxis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+.bankrollPlot {
+  position: relative;
+  background: var(--games-route-surface-raised, rgba(255, 255, 255, 0.94));
+  border: 1px solid var(--games-route-border, rgba(148, 163, 184, 0.3));
+  border-radius: 10px;
+}
+.bankrollSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.bankrollZero {
+  stroke: var(--games-route-muted, #94a3b8);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.bankrollLine {
+  fill: none;
+  stroke: #0369a1;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.bankrollDot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid var(--games-route-surface-solid, #fff);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.bankrollDotLow { background: #dc2626; }
+.bankrollDotHigh { background: #15803d; }
+.bankrollEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+  text-align: center;
+  color: var(--games-route-muted, #94a3b8);
+  font-size: 0.85rem;
+}
+.bankrollXAxis {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+  color: var(--games-route-muted, #94a3b8);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.bankrollSub {
+  color: var(--games-route-muted, #94a3b8);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  margin-top: 0.1rem;
+}
+.bankrollNeg { color: #dc2626; }
+.bankrollPos { color: #15803d; }
+:global(html.dark) .bankrollLine { stroke: #38bdf8; }
+:global(html.dark) .bankrollDotLow { background: #f87171; }
+:global(html.dark) .bankrollDotHigh { background: #4ade80; }
+:global(html.dark) .bankrollNeg { color: #fca5a5; }
+:global(html.dark) .bankrollPos { color: #4ade80; }

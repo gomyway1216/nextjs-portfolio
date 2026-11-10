@@ -6,12 +6,11 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { REFILL } from '../MedalCenter/ledger';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
-import { upcard, type ActionEvs, type Value } from './analysis';
+import type { ActionEvs } from './analysis';
 import {
   BLACKJACK_PAYS,
   DECKS,
   basicStrategy,
-  cardValue,
   handValue,
   hiLo,
   insuranceCost,
@@ -30,9 +29,11 @@ import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { useMachineSound } from '../MedalCenter/machineSounds';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { HoleCard, PlayingCard } from './Cards';
+import { HandReview } from './HandReview';
 import { getStrings } from './i18n';
 import { MedalCounter, MedalNotes, MedalStack } from './MedalCounter';
 import { DEFAULT_BET, GAME, MAX_BET, MIN_BET, NOTICE_KEY, createMedalTable, freshTable, unsettled, type MedalTable, type Shelf, type Step, type TableSave } from './medalTable';
+import { moveEvs, reviewInsurance, reviewMove, type Decision } from './review';
 import { spreadUnits } from './sim';
 import styles from './Blackjack.module.css';
 
@@ -136,6 +137,8 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
   /** Changes every deal, so each round's cards mount (and animate) fresh. */
   const [dealNo, setDealNo] = useState(0);
   const [won, setWon] = useState<number | null>(null);
+  /** The plays of the hand on the table, for its review: null when the hand was not watched from its deal (read back after a reload, or played in another tab). */
+  const [plays, setPlays] = useState<Decision[] | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const notice = NOTE.useShown();
   const [longWait, setLongWait] = useState(false);
@@ -183,6 +186,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     setBet(next.bet);
     commitBusy(false);
     setWon(wonBy(next));
+    setPlays(null);
     setMessage(said ? { text: said, error: false } : null);
   };
 
@@ -380,6 +384,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     commitSave(step.save);
     setMessage(null);
     setWon(null);
+    setPlays([]);
     NOTE.putAway();
     const r = step.save.round!;
     const fast = prefersReducedMotion();
@@ -408,14 +413,14 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
       if (legalActions(r)[action]) say(t.noMedals);
       return;
     }
-    const hand = r.hands[r.active];
-    const chart = basicStrategy(hand.cards, r.dealer[0], can);
-    const step = table().act(action, chart === action);
+    const played = reviewMove(r, action, can);
+    const step = table().act(action, played.chart === action);
     if (!step.ok) {
       refused(step);
       return;
     }
     commitSave(step.save);
+    setPlays((was) => was && [...was, played]);
     setMessage(null);
     if (action === 'double' || action === 'split') play('chip');
     if (action !== 'stand') play('card', action === 'hit' ? 0 : 0.12);
@@ -438,6 +443,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
     }
     if (take) play('chip');
     commitSave(step.save);
+    setPlays((was) => was && [...was, reviewInsurance(r, take)]);
     setMessage(null);
     const next = step.save.round!;
     if (next.phase === 'done') playDealer(next, 0);
@@ -513,14 +519,7 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
 
   const evs = useMemo<ActionEvs | null>(() => {
     if (!round || round.phase !== 'player') return null;
-    const hand = round.hands[round.active];
-    const legal = legalActions(round);
-    const a = upcard(cardValue(round.dealer[0]) as Value);
-    const v = handValue(hand.cards);
-    const out: ActionEvs = { stand: a.stand(v.total), hit: a.hit(v) };
-    if (legal.double) out.double = a.double(v);
-    if (legal.split) out.split = a.split(cardValue(hand.cards[0]) as Value);
-    return out;
+    return moveEvs(round.hands[round.active].cards, round.dealer[0], legalActions(round), round.hands.length);
   }, [round]);
   const bestEv = evs ? Math.max(...Object.values(evs)) : 0;
 
@@ -934,6 +933,8 @@ export const PlayTab = ({ shown = true }: { shown?: boolean } = {}) => {
                 <p className={styles.note}>{t.evNote}</p>
               </section>
             )}
+
+            {round && view.settled && plays && <HandReview t={t} decisions={plays} hands={round.hands.length} />}
 
             <ul className={styles.hint}>
               {t.hint.map((h, i) => (

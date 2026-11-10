@@ -92,6 +92,21 @@ export interface BlackjackStrings {
   hintSays: (action: string) => string;
   evTitle: string;
   evNote: string;
+  // The review of the hand just played
+  reviewTitle: string;
+  /** A hand as a chart names it, against the dealer's up card: "Hard 16 vs 10", 「8のペア 対 6」. */
+  reviewSpot: (kind: 'pair' | 'soft' | 'hard', value: string, dealerUp: string) => string;
+  reviewYou: (play: string) => string;
+  reviewChartSame: string;
+  reviewChartSays: (play: string) => string;
+  reviewInsured: string;
+  reviewDeclined: string;
+  /** What a play gives up on average, beside it: "gives up 0.05 medals on average". */
+  reviewCost: (medals: string) => string;
+  reviewSummary: (matched: number, plays: number) => string;
+  reviewCostTotal: (medals: string) => string;
+  reviewCostNone: string;
+  reviewNote: string;
   statsTitle: string;
   hands: string;
   winsPushesLosses: string;
@@ -255,6 +270,19 @@ const en: BlackjackStrings = {
   evTitle: 'What each play is worth',
   evNote:
     'Exact expected result per unit of this hand’s original bet, for an infinite deck, after the dealer has checked for blackjack. Six-deck charts differ only in a few close calls.',
+  reviewTitle: 'Your plays this hand',
+  reviewSpot: (kind, value, dealerUp) => `${kind === 'pair' ? `Pair of ${value}s` : kind === 'soft' ? `Soft ${value}` : `Hard ${value}`} vs ${dealerUp}`,
+  reviewYou: (play) => `You: ${play}`,
+  reviewChartSame: '✓ The chart’s play',
+  reviewChartSays: (play) => `Chart: ${play}`,
+  reviewInsured: 'Insured',
+  reviewDeclined: 'No insurance',
+  reviewCost: (medals) => `gives up ${medals} on average`,
+  reviewSummary: (matched, plays) => `${matched} of ${plays} ${plays === 1 ? 'play' : 'plays'} matched the chart.`,
+  reviewCostTotal: (medals) => `Together they give up ${medals} on average.`,
+  reviewCostNone: 'None of them gives up anything on average.',
+  reviewNote:
+    'The cost of a play is the expected result of the best play your medals allowed, less that of your play, times your bet: exact for an infinite deck, after the dealer has checked for blackjack. Insurance gives up 1/13 of its stake. It is a long-run average, not what this hand’s cards did, and in a few close calls the six-deck chart’s play is not the cheapest by this measure.',
   statsTitle: 'Your record at this table',
   hands: 'Hands',
   winsPushesLosses: 'Won / pushed / lost',
@@ -443,6 +471,19 @@ const ja: BlackjackStrings = {
   evTitle: '各選択肢の期待値',
   evNote:
     'このハンドの元のベット1単位あたりの正確な期待値です（無限デッキ、ディーラーがブラックジャックでないと確認した後）。6デッキの表とは僅差のいくつかのマスだけが異なります。',
+  reviewTitle: 'このハンドのプレイ',
+  reviewSpot: (kind, value, dealerUp) => `${kind === 'pair' ? `${value}のペア` : kind === 'soft' ? `ソフト${value}` : `ハード${value}`} 対 ${dealerUp}`,
+  reviewYou: (play) => `あなた：${play}`,
+  reviewChartSame: '✓ 表どおり',
+  reviewChartSays: (play) => `表：${play}`,
+  reviewInsured: '掛けた',
+  reviewDeclined: '掛けない',
+  reviewCost: (medals) => `平均${medals}の損`,
+  reviewSummary: (matched, plays) => `${plays}回のうち${matched}回が表どおりでした。`,
+  reviewCostTotal: (medals) => `合わせて平均${medals}の損です。`,
+  reviewCostNone: '平均で損になるプレイはありませんでした。',
+  reviewNote:
+    'プレイの損は、手持ちのメダルで選べた最善の選択肢の期待値からあなたの選択の期待値を引き、ベットを掛けたものです（無限デッキ、ディーラーがブラックジャックでないと確認した後の正確な値）。インシュランスは掛けた枚数の1/13が損になります。長い目で見た平均であり、このハンドのカードの結果ではありません。僅差のいくつかの場面では、6デッキの表の選択がこの基準で最善とは限りません。',
   statsTitle: 'このテーブルでの記録',
   hands: 'ハンド数',
   winsPushesLosses: '勝ち / 引き分け / 負け',

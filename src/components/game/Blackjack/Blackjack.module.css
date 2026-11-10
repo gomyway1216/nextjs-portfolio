@@ -1433,6 +1433,61 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* ---------- The review of the hand just played ---------- */
+.reviewPanel {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--games-route-border);
+  padding-top: 0.75rem;
+}
+.reviewList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.reviewItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.6rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.6rem;
+  border: 1px solid var(--games-route-border);
+  border-left: 3px solid var(--bj-win);
+  border-radius: 8px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+.reviewItem[data-match='false'] {
+  border-left-color: var(--bj-lose);
+}
+.reviewSpot {
+  font-weight: 780;
+  overflow-wrap: anywhere;
+}
+.reviewCost {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--bj-lose-text);
+  font-weight: 700;
+}
+.reviewPlay {
+  overflow-wrap: anywhere;
+}
+.reviewVerdict {
+  text-align: right;
+  font-weight: 700;
+  color: var(--bj-lose-text);
+}
+.reviewItem[data-match='true'] .reviewVerdict {
+  color: var(--bj-win-text);
+}
+.reviewTotal {
+  margin: 0.55rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
 .note {
   margin: 0.5rem 0 0;
   color: var(--games-route-muted);

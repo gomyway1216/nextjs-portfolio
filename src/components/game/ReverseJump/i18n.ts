@@ -4,6 +4,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import type { ObstacleType, Pose } from './gameLogic';
 
 export interface ReverseJumpCopy {
   title: string;
@@ -41,6 +42,20 @@ export interface ReverseJumpCopy {
   pause: string;
   paused: string;
   resume: string;
+  lastRun: string;
+  lastRunEmpty: string;
+  /** what the runner was doing when it hit which obstacle */
+  hit: Record<ObstacleType, Record<Pose, string>>;
+  /** control mode at impact, by how long ago the controls last flipped */
+  flipNone: (mode: string) => string;
+  flipJust: (mode: string) => string;
+  flipAgo: (mode: string, seconds: string) => string;
+  statTime: string;
+  statLow: string;
+  statHigh: string;
+  statFlips: string;
+  statTopSpeed: string;
+  runSeconds: (seconds: string) => string;
 }
 
 const en: ReverseJumpCopy = {
@@ -84,6 +99,29 @@ const en: ReverseJumpCopy = {
   pause: 'Pause',
   paused: 'Paused',
   resume: 'Resume',
+  lastRun: 'Last run',
+  lastRunEmpty: 'Finish a run to see what ended it and how it went.',
+  hit: {
+    low: {
+      standing: 'Hit a low block while standing.',
+      ducking: 'Hit a low block while ducking.',
+      airborne: 'Hit a low block in mid-air.',
+    },
+    high: {
+      standing: 'Hit an overhead bar while standing.',
+      ducking: 'Hit an overhead bar while ducking.',
+      airborne: 'Hit an overhead bar in mid-air.',
+    },
+  },
+  flipNone: (mode) => `Controls were ${mode} — they had not flipped yet.`,
+  flipJust: (mode) => `Controls had flipped to ${mode} under 0.1s earlier.`,
+  flipAgo: (mode, seconds) => `Controls were ${mode} — flipped ${seconds}s earlier.`,
+  statTime: 'Time',
+  statLow: 'Blocks cleared',
+  statHigh: 'Bars cleared',
+  statFlips: 'Flips',
+  statTopSpeed: 'Top speed',
+  runSeconds: (seconds) => `${seconds}s`,
 };
 
 const ja: ReverseJumpCopy = {
@@ -127,6 +165,29 @@ const ja: ReverseJumpCopy = {
   pause: 'ポーズ',
   paused: '一時停止中',
   resume: '再開',
+  lastRun: '前回のラン',
+  lastRunEmpty: '1回プレイすると、ミスの原因と記録がここに表示されます。',
+  hit: {
+    low: {
+      standing: '立ったまま低いブロックに当たりました。',
+      ducking: 'しゃがんだまま低いブロックに当たりました。',
+      airborne: '空中で低いブロックに当たりました。',
+    },
+    high: {
+      standing: '立ったまま頭上のバーに当たりました。',
+      ducking: 'しゃがんだまま頭上のバーに当たりました。',
+      airborne: '空中で頭上のバーに当たりました。',
+    },
+  },
+  flipNone: (mode) => `操作は「${mode}」のまま（まだ反転なし）。`,
+  flipJust: (mode) => `操作が「${mode}」に切り替わった直後（0.1秒未満）。`,
+  flipAgo: (mode, seconds) => `操作は「${mode}」（${seconds}秒前に切り替わり）。`,
+  statTime: '時間',
+  statLow: 'ブロック突破',
+  statHigh: 'バー突破',
+  statFlips: '反転回数',
+  statTopSpeed: '最高速度',
+  runSeconds: (seconds) => `${seconds}秒`,
 };
 
 export const getReverseJumpCopy = (language: GameLanguage): ReverseJumpCopy =>

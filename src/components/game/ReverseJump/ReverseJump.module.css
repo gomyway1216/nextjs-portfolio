@@ -114,6 +114,10 @@
   width: 100%;
   max-width: 880px;
   aspect-ratio: 860 / 320;
+  /* The 860:320 world is only ~110px tall on a phone, which clipped the menu
+     and game-over overlays. Below ~590px wide this floor takes over and the
+     canvas centres the world inside the taller stage at the same scale. */
+  min-height: 220px;
   border-radius: 1rem;
   overflow: hidden;
   border: 1px solid var(--games-route-border);
@@ -347,6 +351,112 @@
   background: color-mix(in srgb, var(--games-route-fg) 8%, transparent);
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
+}
+
+/* Last-run summary. Every row is always rendered and each text line reserves
+   its tallest wrapped height, so the panel is the same size before the first
+   run, mid-run and after a crash. */
+.runPanel {
+  width: 100%;
+  max-width: 880px;
+  padding: 0.7rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface);
+}
+
+.runHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.1rem;
+  line-height: 1.1rem;
+}
+
+.runTitle {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--games-route-muted);
+}
+
+.runMeta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.runLine {
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  min-height: 1.45em;
+}
+
+.runLineMuted {
+  margin-top: 0;
+  color: var(--games-route-muted);
+}
+
+.runStats {
+  margin: 0.55rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem 0.4rem;
+}
+
+.runStat {
+  min-width: 0;
+}
+
+.runStatLabel {
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--games-route-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.runStatValue {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    gap: 0.45rem;
+    padding: 0.75rem;
+  }
+
+  .overlayTitle,
+  .overlaySub,
+  .newBest,
+  .overlayHint,
+  .primaryButton {
+    line-height: 1.25;
+  }
+
+  .diffButton {
+    padding: 0.4rem 0.6rem;
+    white-space: nowrap;
+  }
+
+  .runLine {
+    font-size: 0.85rem;
+    min-height: calc(2 * 1.45em);
+  }
+
+  .runStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {

@@ -417,6 +417,100 @@
 }
 .modalClose:focus-visible { outline: 2px solid var(--gr-info); outline-offset: 2px; }
 
+/* ---- live odds / run review / session log ---- */
+.liveHeading { margin-top: 0.9rem; }
+.liveBar {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--gr-ruin);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+.liveBarReach {
+  height: 100%;
+  background: var(--gr-reach);
+  transition: width 0.12s linear;
+}
+.liveStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(110px, 100%), 1fr));
+  gap: 0.5rem;
+}
+.liveShift {
+  color: var(--gr-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reserved so the page below does not jump when a run ends. */
+.resultArea { min-height: 8.5rem; }
+.resultPlaceholder {
+  margin: 0.6rem 0 0;
+  padding: 0.6rem 0.85rem;
+  border: 1px dashed var(--gr-border);
+  border-radius: 10px;
+  color: var(--gr-text-dim);
+  font-size: 0.85rem;
+}
+.reviewList {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+  color: var(--gr-text-dim);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.logHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+.logHeader .subHeading { margin: 0; }
+.btnSmall { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+.logEmpty { color: var(--gr-text-dim); }
+.logScroll {
+  margin-top: 0.4rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  border: 1px solid var(--gr-border);
+  border-radius: 10px;
+  background: var(--gr-surface-2);
+}
+.logScroll:focus-visible { outline: 2px solid var(--gr-accent); outline-offset: 2px; }
+.logList { margin: 0; padding: 0; list-style: none; }
+.logRow {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) auto;
+  gap: 0.2rem 0.6rem;
+  align-items: baseline;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--gr-text);
+}
+.logRow + .logRow { border-top: 1px solid var(--gr-border); }
+/* The outcome colour sits on a marker, not the text, to keep small text readable. */
+.logOutcome { font-weight: 700; }
+.logOutcome::before {
+  content: '';
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.logRuin::before { color: var(--gr-ruin); }
+.logReach::before { color: var(--gr-reach); }
+.logCap::before { color: var(--gr-text-dim); }
+.logSettings { color: var(--gr-text-dim); }
+
 @media (max-width: 480px) {
   .statGrid { grid-template-columns: 1fr; }
+  .resultArea { min-height: 11rem; }
+  .logRow { grid-template-columns: minmax(0, 1fr); }
 }

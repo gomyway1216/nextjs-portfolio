@@ -1,8 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { UniqueCurveChart } from './charts';
+import { UniqueCurveChart, WAIT_COLORS, WaitChart } from './charts';
 import { RunResult, expectedDraws } from './engine';
+import {
+  completionCdf,
+  currentDryStreak,
+  expectedRemaining,
+  expectedWaitForNext,
+  formatChance,
+  newCouponChance,
+  waitsPerNewCoupon,
+} from './outlook';
 import type { CouponStrings } from './i18n';
 import styles from './CouponCollector.module.css';
 
@@ -76,6 +85,24 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
   const complete = uniqueCount === n;
   const expected = expectedDraws(n);
   const ratio = run.draws === 0 ? null : run.draws / expected;
+
+  const remaining = expectedRemaining(n, uniqueCount);
+  const waits = useMemo(() => waitsPerNewCoupon(run.uniqueCurve), [run.uniqueCurve]);
+  const dryStreak = useMemo(() => currentDryStreak(run.uniqueCurve), [run.uniqueCurve]);
+  // T has no upper bound, so a finished run is never "100%" even if the float rounds to 1.
+  const finishChance = useMemo(
+    () => (complete ? Math.min(completionCdf(n, run.draws), 1 - 1e-12) : null),
+    [complete, n, run.draws],
+  );
+  const longestIdx = waits.reduce((best, w, j) => (w > waits[best] ? j : best), 0);
+  const waitSummary =
+    waits.length === 0
+      ? t.waitSummaryEmpty
+      : t.waitSummary(
+          waits[longestIdx].toLocaleString(),
+          longestIdx + 1,
+          expectedWaitForNext(n, longestIdx).toFixed(1),
+        );
 
   const cols = Math.min(n, 12);
 
@@ -170,6 +197,25 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
           </div>
         </div>
 
+        <h3 className={`${styles.statsHeading} ${styles.outlookHeading}`}>{t.outlookHeading}</h3>
+        <div className={styles.statGrid}>
+          <OutlookStat
+            label={t.nextNewChance}
+            value={complete ? '—' : formatChance(newCouponChance(n, uniqueCount))}
+          />
+          <OutlookStat label={t.expectedRemaining} value={remaining.toFixed(1)} />
+          <OutlookStat label={t.projectedTotal} value={(run.draws + remaining).toFixed(1)} />
+          <OutlookStat
+            label={t.dryStreak}
+            value={complete ? '—' : `${dryStreak} / ${expectedWaitForNext(n, uniqueCount).toFixed(1)}`}
+          />
+        </div>
+        <p className={styles.luckLine} aria-live="polite">
+          {finishChance === null
+            ? t.luckPending
+            : t.luckResult(n, run.draws.toLocaleString(), formatChance(finishChance))}
+        </p>
+
         {pace && (
           <span className={styles.paceTag} style={{ background: `${pace.color}22`, color: pace.color }}>
             {pace.text}
@@ -191,6 +237,32 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
           />
           <p className={styles.note}>{t.curveNote}</p>
         </div>
+
+        <div className={styles.chartBlock}>
+          <h4 className={styles.chartTitle}>{t.waitTitle}</h4>
+          <WaitChart
+            waits={waits}
+            n={n}
+            pendingWait={complete ? 0 : dryStreak}
+            ariaLabel={`${t.waitTitle}. ${waitSummary}`}
+            axisLabel={t.waitAxis}
+          />
+          <ul className={styles.legend}>
+            <li>
+              <span className={styles.legendSwatch} style={{ background: WAIT_COLORS.actual }} aria-hidden />
+              {t.waitLegendActual}
+            </li>
+            <li>
+              <span className={styles.legendSwatch} style={{ background: WAIT_COLORS.pending }} aria-hidden />
+              {t.waitLegendPending}
+            </li>
+            <li>
+              <span className={styles.legendLine} style={{ background: WAIT_COLORS.expected }} aria-hidden />
+              {t.waitLegendExpected}
+            </li>
+          </ul>
+          <p className={`${styles.note} ${styles.waitSummary}`}>{waitSummary}</p>
+        </div>
       </div>
     </div>
   );
@@ -202,5 +274,12 @@ const Stat = ({ label, value, color }: { label: string; value: string; color: st
     <div className={styles.statValue} style={{ color }}>
       {value}
     </div>
+  </div>
+);
+
+const OutlookStat = ({ label, value }: { label: string; value: string }) => (
+  <div className={styles.statCard}>
+    <div className={styles.statLabel}>{label}</div>
+    <div className={`${styles.statValue} ${styles.outlookValue}`}>{value}</div>
   </div>
 );

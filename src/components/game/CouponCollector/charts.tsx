@@ -295,3 +295,93 @@ export const ConvergenceChart = ({
     </svg>
   );
 };
+
+interface WaitChartProps {
+  /** waits[j] = draws it took to get the (j+1)-th new coupon. */
+  waits: number[];
+  n: number;
+  /** Draws made so far towards the next new coupon (0 when none are pending). */
+  pendingWait: number;
+  ariaLabel: string;
+  axisLabel: string;
+  width?: number;
+  height?: number;
+}
+
+export const WAIT_COLORS = { actual: '#0284c7', pending: '#64748b', expected: '#d97706' };
+
+/**
+ * One bar per new coupon (1st … n-th) showing how many draws it took, against
+ * the expected wait n/(n−j+1) for the j-th new coupon. Always rendered at a
+ * fixed size, so the expected curve is visible before the first draw.
+ */
+export const WaitChart = ({
+  waits,
+  n,
+  pendingWait,
+  ariaLabel,
+  axisLabel,
+  width = 700,
+  height = 240,
+}: WaitChartProps) => {
+  const padding = { top: 16, right: 16, bottom: 34, left: 48 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+  // The expected wait for the last coupon is n, so the expected curve always fits.
+  let yMax = Math.max(n, pendingWait);
+  for (const w of waits) if (w > yMax) yMax = w;
+  const slotW = innerW / n;
+  const barW = Math.max(1, slotW - (slotW > 4 ? 1.5 : 0.5));
+  const xSlot = (j: number) => padding.left + j * slotW;
+  const yScale = (v: number) => padding.top + innerH - (v / yMax) * innerH;
+  const bar = (j: number, v: number, fill: string) => (
+    <rect
+      key={j}
+      x={xSlot(j) + (slotW - barW) / 2}
+      y={yScale(v)}
+      width={barW}
+      height={padding.top + innerH - yScale(v)}
+      fill={fill}
+    />
+  );
+
+  const expectedPath = Array.from({ length: n }, (_, j) => {
+    const x = xSlot(j) + slotW / 2;
+    return `${x.toFixed(1)},${yScale(n / (n - j)).toFixed(1)}`;
+  }).join(' ');
+
+  return (
+    <svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={ariaLabel}
+      style={svgStyle}
+    >
+      {[0, 0.5, 1].map((p) => {
+        const y = padding.top + innerH * (1 - p);
+        return (
+          <g key={p}>
+            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={GRID} strokeDasharray="2 4" />
+            <text x={padding.left - 6} y={y + 4} textAnchor="end" fill={AXIS} fontSize="10">
+              {Math.round(p * yMax)}
+            </text>
+          </g>
+        );
+      })}
+      {waits.map((w, j) => bar(j, w, WAIT_COLORS.actual))}
+      {pendingWait > 0 && waits.length < n && bar(waits.length, pendingWait, WAIT_COLORS.pending)}
+      <polyline points={expectedPath} fill="none" stroke={WAIT_COLORS.expected} strokeWidth={1.8} />
+      <text x={padding.left} y={height - 18} fill={AXIS} fontSize="10">
+        1
+      </text>
+      <text x={width - padding.right} y={height - 18} textAnchor="end" fill={AXIS} fontSize="10">
+        {n}
+      </text>
+      <text x={padding.left + innerW / 2} y={height - 5} textAnchor="middle" fill={AXIS} fontSize="10">
+        {axisLabel}
+      </text>
+    </svg>
+  );
+};

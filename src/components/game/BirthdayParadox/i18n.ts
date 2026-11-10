@@ -26,6 +26,17 @@ export interface BirthdayStrings {
   playHintTitle: string;
   playHint: string;
   dealing: string;
+  // Year calendar
+  calendarTitle: string;
+  calendarSummary: (people: number, pairs: number, days: number) => string;
+  calendarAria: (people: number, days: number, sharedDays: number) => string;
+  monthShort: (month: number) => string;
+  legendSingle: string;
+  legendShared: string;
+  cellTitle: (day: string, people: string) => string;
+  sharedTitle: (sharedDays: number) => string;
+  sharedListAria: string;
+  sharedNone: string;
   // Sim tab
   maxGroup: string;
   trialsPerN: string;
@@ -50,6 +61,8 @@ export interface BirthdayStrings {
   infoP3: string;
 }
 
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const en: BirthdayStrings = {
   title: 'Birthday Paradox',
   subtitle:
@@ -72,6 +85,18 @@ const en: BirthdayStrings = {
   playHint:
     'With just 23 people the chance of a shared birthday passes 50%. Move the slider and keep dealing — your empirical rate should track the theoretical value.',
   dealing: 'Dealing…',
+  calendarTitle: 'Where the birthdays land',
+  calendarSummary: (people, pairs, days) =>
+    `${people} people make ${pairs} ${pairs === 1 ? 'pair' : 'pairs'}, yet they only fill ${days} of the 365 days.`,
+  calendarAria: (people, days, sharedDays) =>
+    `Year calendar: ${people} birthdays fall on ${days} ${days === 1 ? 'day' : 'different days'}. Days shared by two or more people: ${sharedDays}.`,
+  monthShort: (month) => EN_MONTHS[month - 1] ?? '',
+  legendSingle: 'One birthday',
+  legendShared: 'Shared by 2 or more',
+  cellTitle: (day, people) => `${day} — person ${people}`,
+  sharedTitle: (sharedDays) => `Shared days in this group: ${sharedDays}`,
+  sharedListAria: 'Shared birthdays in this group',
+  sharedNone: 'Nobody shares a birthday in this group.',
   maxGroup: 'Max group size n',
   trialsPerN: 'Trials per n',
   runSim: 'Run simulation',
@@ -121,6 +146,18 @@ const ja: BirthdayStrings = {
   playHint:
     'わずか 23 人で誕生日が被る確率は 50% を超える。スライダーを動かして配り続ければ、実測値が理論値に近づくのが分かる。',
   dealing: '配布中…',
+  calendarTitle: '誕生日はどこに落ちる？',
+  calendarSummary: (people, pairs, days) =>
+    `${people} 人なら ${pairs} 通りのペアができるが、埋まるのは 365 日のうち ${days} 日だけ。`,
+  calendarAria: (people, days, sharedDays) =>
+    `1 年のカレンダー：${people} 人の誕生日は ${days} 日に分かれている。2 人以上が重なった日は ${sharedDays} 日。`,
+  monthShort: (month) => `${month}月`,
+  legendSingle: '1 人',
+  legendShared: '2 人以上が一致',
+  cellTitle: (day, people) => `${day} — 人 ${people}`,
+  sharedTitle: (sharedDays) => `このグループで重なった日：${sharedDays} 日`,
+  sharedListAria: 'このグループで重なった誕生日',
+  sharedNone: 'このグループでは誰も誕生日が重なっていない。',
   maxGroup: '最大グループ人数 n',
   trialsPerN: 'n ごとの試行回数',
   runSim: 'シミュレーション実行',

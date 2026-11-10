@@ -7,6 +7,7 @@
   --bp-sim-bright: #06b6d4;
   --bp-danger: #dc2626;
   --bp-danger-soft: color-mix(in srgb, #dc2626 14%, transparent);
+  --bp-match: #dc2626;
   min-height: 100vh;
   color: var(--games-route-fg, #1d1d1f);
   padding: clamp(1rem, 4vw, 2.25rem) clamp(0.75rem, 3vw, 1.5rem) 3rem;
@@ -15,6 +16,7 @@
 :global(html.dark) .root {
   --bp-sim: #22d3ee;
   --bp-sim-bright: #67e8f9;
+  --bp-match: #f87171;
 }
 
 .shell {
@@ -443,6 +445,143 @@
 
 .infoBody { line-height: 1.65; font-size: 0.95rem; }
 .infoBody p { margin: 0 0 0.85rem; }
+
+/* Year calendar: the dealt group on a 12 × 31 grid, plus the shared days. */
+.calendarCard {
+  margin-top: 1.25rem;
+}
+.calendarSummary {
+  margin: 0 0 0.8rem;
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  /* Two lines reserved so a wrap on narrow screens doesn't move the grid. */
+  min-height: 3em;
+}
+.calendarLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 640px;
+}
+.calRow {
+  display: grid;
+  grid-template-columns: 2.1rem repeat(31, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+}
+.calMonth {
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.66rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.calCell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--games-route-control, rgba(0, 0, 0, 0.08));
+}
+:global(html.dark) .calCell {
+  background: rgba(255, 255, 255, 0.08);
+}
+.calCell.calSingle,
+.calSwatch.calSingle {
+  background: var(--bp-sim);
+}
+.calCell.calShared,
+.calSwatch.calShared {
+  background: var(--bp-match);
+}
+/* Shared days are also drawn larger and round, so they don't rely on colour alone. */
+.calCell.calShared {
+  transform: scale(1.45);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--games-route-surface-solid, #fff);
+  position: relative;
+  z-index: 1;
+}
+.calSwatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.calSwatch.calShared {
+  border-radius: 50%;
+}
+
+.sharedPanel {
+  min-width: 0;
+}
+.sharedTitle {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--games-route-fg, #1d1d1f);
+}
+.sharedScroll {
+  height: 13rem;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+  background: var(--games-route-surface-solid, #fff);
+  border: 1px solid var(--games-route-border, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+}
+:global(html.dark) .sharedScroll {
+  background: rgba(0, 0, 0, 0.3);
+}
+.sharedScroll:focus-visible {
+  outline: 2px solid var(--bp-accent);
+  outline-offset: 2px;
+}
+.sharedEmpty {
+  margin: 0;
+  color: var(--games-route-muted, #6e6e73);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.sharedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.sharedItem {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr);
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+.sharedDay {
+  font-weight: 800;
+  color: var(--bp-danger);
+}
+:global(html.dark) .sharedDay {
+  color: #fca5a5;
+}
+.sharedPeople {
+  color: var(--games-route-fg, #1d1d1f);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .calendarLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sharedScroll {
+    height: 7.5rem;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .chip, .chipMatch, .meterFill, .btnPrimary { animation: none; transition: none; }

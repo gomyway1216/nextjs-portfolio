@@ -5,10 +5,12 @@ import {
   createSeededRng,
   dayLabel,
   findFirstCollision,
+  findSharedBirthdays,
   generateBirthdays,
   theoreticalMatchProb,
 } from './engine';
 import type { BirthdayStrings } from './i18n';
+import { YearCalendar } from './YearCalendar';
 import styles from './BirthdayParadox.module.css';
 
 const DEFAULT_N = 23;
@@ -118,8 +120,11 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
   const theoretical = theoreticalMatchProb(n);
   const visible = useMemo(() => birthdays.slice(0, revealed), [birthdays, revealed]);
   const visibleCollision = useMemo(() => findFirstCollision(visible), [visible]);
+  const visibleShared = useMemo(() => findSharedBirthdays(visible), [visible]);
+  const sharedDays = useMemo(() => new Set(visibleShared.map((s) => s.day)), [visibleShared]);
 
   return (
+    <>
     <div className={styles.grid}>
       {/* Left: controls + birthday chips */}
       <div className={styles.card}>
@@ -182,7 +187,7 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
 
         <div className={styles.chips} aria-label={`${visible.length} ${t.person}`}>
           {visible.map((d, i) => {
-            const isMatch = visibleCollision !== null && visibleCollision.day === d;
+            const isMatch = sharedDays.has(d);
             return (
               <span
                 key={i}
@@ -238,5 +243,9 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
         </div>
       </div>
     </div>
+
+    {/* Outside the auto-fit grid: a full-width item there would keep an empty third column open. */}
+    <YearCalendar birthdays={visible} shared={visibleShared} dealing={dealing} t={t} />
+    </>
   );
 };

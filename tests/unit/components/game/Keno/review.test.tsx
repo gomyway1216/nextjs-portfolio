@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { BALLS, DRAWN, LAST_BALL_TIMES, catchChance, payOf, valueOf, winOf } from '@/components/game/Keno/engine';
 import { GameReview, type ReviewedGame } from '@/components/game/Keno/GameReview';
 import { getStrings } from '@/components/game/Keno/i18n';
-import { reviewOf } from '@/components/game/Keno/review';
+import { chanceText, reviewOf } from '@/components/game/Keno/review';
 
 /** A draw of twenty balls: `first` in that order, then the lowest numbers not in `avoid`, then `last` as the twentieth. */
 const drawOf = (first: readonly number[], last: number, avoid: readonly number[]): number[] => {
@@ -65,6 +65,19 @@ describe('a game looked back at', () => {
       total += review.chance;
     }
     expect(total).toBeCloseTo(1, 12);
+  });
+
+  it('never writes a chance that is not nothing as 0.00%: the rarest catches keep their first two figures', () => {
+    expect(chanceText(valueOf(catchChance(5, 2)), 'en-US')).toBe('27.05%');
+    expect(chanceText(valueOf(catchChance(1, 1)), 'ja-JP')).toBe('25.00%');
+    expect(chanceText(valueOf(catchChance(7, 7)), 'en-US')).toBe('0.0024%');
+    expect(chanceText(valueOf(catchChance(10, 10)), 'en-US')).toBe('0.000011%');
+    for (let spots = 1; spots <= 10; spots += 1) {
+      for (let caught = 0; caught <= spots; caught += 1) {
+        expect(chanceText(valueOf(catchChance(spots, caught)), 'en-US'), `${caught} of ${spots}`).not.toMatch(/^0\.0+%$/);
+      }
+    }
+    expect(chanceText(0, 'en-US')).toBe('0.00%');
   });
 });
 

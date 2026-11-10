@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { LAST_BALL_TIMES } from './engine';
 import type { KenoStrings, Result } from './i18n';
-import { reviewOf } from './review';
+import { chanceText, reviewOf } from './review';
 import styles from './Keno.module.css';
 
 /** A game that has ended: its ticket, its twenty balls in the order they came out, and what it came to. */
@@ -32,7 +32,7 @@ export const GameReview = ({ t, locale, game, canMark, onMark, onClose }: GameRe
   const review = useMemo(() => reviewOf(game.ticket, game.balls), [game.ticket, game.balls]);
   const fmt = (n: number) => n.toLocaleString(locale);
   const spots = new Set(game.ticket);
-  const chance = `${(review.chance * 100).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  const chance = chanceText(review.chance, locale);
 
   return (
     <div className={styles.review} id="kn-review" role="group" aria-labelledby="kn-review-title" data-testid="kn-review">

@@ -40,3 +40,13 @@ export function reviewOf(ticket: readonly number[], balls: readonly number[]): R
     chance: valueOf(catchChance(ticket.length, game.caught.length)),
   };
 }
+
+/**
+ * A chance as a percentage: to two places, or, where that would round a chance that is not nothing down to 0.00%
+ * (the rarest catches on seven spots or more), to its first two figures.
+ */
+export function chanceText(chance: number, locale: string): string {
+  const percent = chance * 100;
+  const digits = percent > 0 && percent < 0.01 ? { maximumSignificantDigits: 2 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  return `${percent.toLocaleString(locale, digits)}%`;
+}

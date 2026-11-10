@@ -14,6 +14,10 @@ export interface MirrorOthelloStrings {
   start: string;
   restart: string;
   playAgain: string;
+  undo: string;
+  undone: string;
+  moveLog: string;
+  moveLogEmpty: string;
   yourTurn: string;
   aiThinking: string;
   youPass: string;
@@ -42,6 +46,10 @@ const en: MirrorOthelloStrings = {
   start: 'Start Game',
   restart: 'Restart',
   playAgain: 'Play Again',
+  undo: 'Undo',
+  undone: 'Move taken back — your turn again.',
+  moveLog: 'Moves',
+  moveLogEmpty: 'No moves yet.',
   yourTurn: 'Your turn',
   aiThinking: 'AI is thinking…',
   youPass: 'You have no move — pass.',
@@ -63,6 +71,7 @@ const en: MirrorOthelloStrings = {
     'The twist: every 4 moves (by either side) the whole board flips left ↔ right. Corners swap sides, so a "safe" corner can suddenly be exposed.',
     'Dots mark your legal moves. Watch the "Mirror in N moves" counter and plan for the flip.',
     'You play the dark discs. Most discs when the board fills up wins.',
+    'Undo takes back your last move together with the AI\'s replies — even across a flip or after the game ends. The move list marks every flip with 🔄.',
     'Pick a difficulty: higher tiers search deeper and see through the mirror further ahead.',
   ],
   difficultyOptions: [
@@ -82,6 +91,10 @@ const ja: MirrorOthelloStrings = {
   start: 'ゲーム開始',
   restart: 'リスタート',
   playAgain: 'もう一度',
+  undo: '待った',
+  undone: '一手戻しました。あなたの番です。',
+  moveLog: '棋譜',
+  moveLogEmpty: 'まだ着手がありません。',
   yourTurn: 'あなたの番',
   aiThinking: 'AI思考中…',
   youPass: '置ける場所がないためパス。',
@@ -103,6 +116,7 @@ const ja: MirrorOthelloStrings = {
     '仕掛け：どちらかが4手打つごとに盤面全体が左右反転します。角も左右入れ替わるので、確保したはずの角が急に危険になります。',
     '点で示された場所が着手可能マスです。「あと◯手で反転」の表示を見ながら反転に備えましょう。',
     'あなたは黒石です。盤が埋まったとき石が多い方が勝ちです。',
+    '「待った」で自分の直前の手とAIの応手を取り消せます。反転をまたいでも、終局後でも戻せます。棋譜では反転した手に🔄が付きます。',
     '難易度を選択：上位ほど深く読み、反転の先まで見通します。',
   ],
   difficultyOptions: [

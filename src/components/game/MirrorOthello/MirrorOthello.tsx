@@ -1,6 +1,6 @@
 'use client';
 
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
@@ -14,44 +14,27 @@ import {
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { chooseAIMove } from './ai';
 import {
-  advance,
   AI,
   Cell,
   cellLabel,
   countDiscs,
-  createInitialBoard,
   EMPTY,
-  getValidMoves,
   PLAYER,
   pliesUntilMirror,
   Point,
-  type GameResult,
 } from './engine';
+import {
+  canUndo,
+  freshGame,
+  playMove,
+  undoLastPlayerMove,
+  type GameState,
+  type HistoryEntry,
+} from './history';
 import { getMirrorOthelloStrings } from './i18n';
 import styles from './MirrorOthello.module.css';
 
 type Phase = 'menu' | 'playing' | 'gameover';
-
-interface GameState {
-  board: Cell[][];
-  currentColor: Cell;
-  validMoves: Point[];
-  turnCount: number;
-  lastMove: Point | null;
-  result: GameResult | null;
-}
-
-const freshGame = (): GameState => {
-  const board = createInitialBoard();
-  return {
-    board,
-    currentColor: PLAYER,
-    validMoves: getValidMoves(board, PLAYER),
-    turnCount: 0,
-    lastMove: null,
-    result: null,
-  };
-};
 
 const AI_DELAY_MS = 480;
 const FLIP_ANIM_MS = 500;
@@ -64,6 +47,7 @@ export const MirrorOthello = () => {
   const [phase, setPhase] = useState<Phase>('menu');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [game, setGame] = useState<GameState>(freshGame);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [message, setMessage] = useState<string>('');
   const [showInfo, setShowInfo] = useState(false);
   const [flipping, setFlipping] = useState(false);
@@ -71,6 +55,23 @@ export const MirrorOthello = () => {
 
   const flipTimer = useRef<number | null>(null);
   const aiTimer = useRef<number | null>(null);
+  const moveLogRef = useRef<HTMLOListElement | null>(null);
+  // Handlers read the position from here rather than from their closure, so
+  // an action that lands before React has re-rendered (the AI's timer firing
+  // just ahead of a click) still builds on the latest one.
+  const live = useRef<{ game: GameState; history: HistoryEntry[] }>({
+    game,
+    history,
+  });
+
+  const applyPosition = useCallback(
+    (nextGame: GameState, nextHistory: HistoryEntry[]) => {
+      live.current = { game: nextGame, history: nextHistory };
+      setGame(nextGame);
+      setHistory(nextHistory);
+    },
+    [],
+  );
 
   const clearTimers = useCallback(() => {
     if (flipTimer.current) window.clearTimeout(flipTimer.current);
@@ -83,11 +84,11 @@ export const MirrorOthello = () => {
 
   const start = useCallback(() => {
     clearTimers();
-    setGame(freshGame());
+    applyPosition(freshGame(), []);
     setMessage(t.yourTurn);
     setFlipping(false);
     setPhase('playing');
-  }, [clearTimers, t.yourTurn]);
+  }, [clearTimers, applyPosition, t.yourTurn]);
 
   const triggerFlipAnim = useCallback(() => {
     if (flipTimer.current) window.clearTimeout(flipTimer.current);
@@ -102,29 +103,19 @@ export const MirrorOthello = () => {
    */
   const commitMove = useCallback(
     (point: Point, color: Cell) => {
-      const step = advance(game.board, point, color, game.turnCount);
-      if (!step) return;
+      const current = live.current;
+      if (current.game.currentColor !== color) return;
+      const played = playMove(current.game, point, color);
+      if (!played) return;
+      const { state, entry } = played;
+      const { record } = entry;
+      applyPosition(state, [...current.history, entry]);
 
-      const who = color === PLAYER ? t.you : t.ai;
-      let msg = t.played(who, cellLabel(point.x, point.y));
-      if (step.mirrored) {
-        msg += ` ${t.mirrored}`;
-        triggerFlipAnim();
-      }
-      if (step.passed) {
-        // `passed` means the mover's OPPONENT had no move, so nextColor is back
-        // to the mover: nextColor === PLAYER implies the AI is the one passing.
-        msg += ` ${step.nextColor === PLAYER ? t.aiPass : t.youPass}`;
-      }
+      if (record.mirrored) triggerFlipAnim();
 
-      if (step.gameOver) {
-        const counts = countDiscs(step.board);
-        const result: GameResult =
-          counts.player > counts.ai
-            ? 'player'
-            : counts.ai > counts.player
-              ? 'ai'
-              : 'draw';
+      if (state.result) {
+        const { result } = state;
+        const counts = countDiscs(state.board);
         setStats((s) => ({
           wins: s.wins + (result === 'player' ? 1 : 0),
           losses: s.losses + (result === 'ai' ? 1 : 0),
@@ -132,34 +123,52 @@ export const MirrorOthello = () => {
         }));
         setMessage(t.gameOver(counts.player, counts.ai));
         setPhase('gameover');
-        setGame({
-          board: step.board,
-          currentColor: EMPTY,
-          validMoves: [],
-          turnCount: step.turnCount,
-          lastMove: point,
-          result,
-        });
         return;
       }
 
-      if (!step.mirrored && !step.passed) {
-        setMessage(step.nextColor === PLAYER ? t.yourTurn : t.aiThinking);
-      } else {
-        setMessage(msg);
+      if (!record.mirrored && !record.passed) {
+        setMessage(state.currentColor === PLAYER ? t.yourTurn : t.aiThinking);
+        return;
       }
 
-      setGame({
-        board: step.board,
-        currentColor: step.nextColor,
-        validMoves: step.nextMoves,
-        turnCount: step.turnCount,
-        lastMove: point,
-        result: null,
-      });
+      const who = color === PLAYER ? t.you : t.ai;
+      let msg = t.played(who, record.label);
+      if (record.mirrored) msg += ` ${t.mirrored}`;
+      if (record.passed) {
+        // `passed` means the mover's OPPONENT had no move, so the turn is back
+        // with the mover: currentColor === PLAYER implies the AI is passing.
+        msg += ` ${state.currentColor === PLAYER ? t.aiPass : t.youPass}`;
+      }
+      setMessage(msg);
     },
-    [game, t, triggerFlipAnim],
+    [applyPosition, t, triggerFlipAnim],
   );
+
+  const undoable = phase !== 'menu' && canUndo(history);
+
+  const undo = useCallback(() => {
+    const undone = undoLastPlayerMove(live.current.history);
+    if (!undone) return;
+    clearTimers();
+    // A finished game that is taken back no longer counts towards the record.
+    const { result } = live.current.game;
+    if (result) {
+      setStats((s) => ({
+        wins: s.wins - (result === 'player' ? 1 : 0),
+        losses: s.losses - (result === 'ai' ? 1 : 0),
+        draws: s.draws - (result === 'draw' ? 1 : 0),
+      }));
+    }
+    setFlipping(false);
+    applyPosition(undone.state, undone.history);
+    setPhase('playing');
+    setMessage(t.undone);
+  }, [applyPosition, clearTimers, t.undone]);
+
+  useEffect(() => {
+    const log = moveLogRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [history.length]);
 
   // AI turn driver.
   useEffect(() => {
@@ -326,6 +335,15 @@ export const MirrorOthello = () => {
                 <RotateCcw size={18} aria-hidden />
                 {phase === 'gameover' ? t.playAgain : t.restart}
               </button>
+              <button
+                type="button"
+                className={styles.undoButton}
+                onClick={undo}
+                disabled={!undoable}
+              >
+                <Undo2 size={18} aria-hidden />
+                {t.undo}
+              </button>
               {phase === 'gameover' && game.result && (
                 <div
                   className={`${styles.result} ${
@@ -344,6 +362,46 @@ export const MirrorOthello = () => {
                 </div>
               )}
             </div>
+
+            <section className={styles.moveLog} aria-label={t.moveLog}>
+              <h2 className={styles.moveLogTitle}>{t.moveLog}</h2>
+              {history.length === 0 ? (
+                <p className={styles.moveLogEmpty}>{t.moveLogEmpty}</p>
+              ) : (
+                <ol
+                  className={styles.moveLogList}
+                  ref={moveLogRef}
+                  // Focusable so the overflowing list can be scrolled by keyboard.
+                  tabIndex={0}
+                  aria-label={t.moveLog}
+                >
+                  {history.map(({ record }) => (
+                    <li
+                      key={record.ply}
+                      className={styles.moveChip}
+                      data-mirrored={record.mirrored}
+                    >
+                      <span className={styles.movePly}>{record.ply}</span>
+                      <span
+                        className={`${styles.disc} ${
+                          record.color === PLAYER
+                            ? styles.discDark
+                            : styles.discLight
+                        }`}
+                        role="img"
+                        aria-label={record.color === PLAYER ? t.you : t.ai}
+                      />
+                      {record.label}
+                      {record.mirrored && (
+                        <span role="img" aria-label={t.mirrored}>
+                          🔄
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
           </>
         )}
       </div>

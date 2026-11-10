@@ -3,8 +3,8 @@
  * looks back at a run (RunRoute.tsx). Read off the tower as it is built (`DISCS`, `LAMP_SETS`), exactly, as fractions;
  * nothing here draws anything or touches the medals.
  *
- * A step is the pocket the ball settled in on one disc. Its chance is how many of the disc's pockets are of the same
- * kind (for a pocket that pays, paying the same multiple) out of the disc's count, each pocket as likely as any other;
+ * A step is the pocket the ball settled in on one disc. Its chance is how many of the disc's pockets are marked the
+ * same (the same kind; for a pocket that pays, the same multiple) out of the disc's count, each pocket as likely as any other;
  * for a "?" pocket, times how many of the roulette's lamps show the multiple it stopped on, out of its lamps. The chance
  * of the whole way down is the steps' chances multiplied together.
  */
@@ -27,7 +27,7 @@ export interface Step {
 
 export interface Route {
   steps: Step[];
-  /** The chance a ball meets the same kinds of pocket (and the same multiples) all the way down. */
+  /** The chance a ball settles in pockets marked the same (a "?" pocket's lamps stopping on the same multiple) all the way down. */
   chance: Fraction;
 }
 

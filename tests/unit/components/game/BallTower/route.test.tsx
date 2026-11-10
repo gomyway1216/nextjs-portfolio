@@ -115,7 +115,7 @@ describe('the panel that shows it', () => {
     }
     expect(markup).toContain('×5 on disc 2: 15 medals');
     expect(markup).toContain('Bet: 3 medals');
-    expect(markup).toMatch(/data-testid="bt-route-chance">[^<]*1\.33% of the time \(1\/75\)/);
+    expect(markup).toMatch(/data-testid="bt-route-chance">[^<]*1\.33% of balls \(1\/75\)/);
   });
 
   it('says the same in Japanese, the jackpot’s chance to the digit', () => {

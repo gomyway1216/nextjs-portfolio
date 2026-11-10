@@ -5,7 +5,7 @@
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Lightbulb, RotateCcw, SlidersHorizontal, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Difficulty,
@@ -17,6 +17,13 @@ import {
 } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { checkWinFromPosition, getBestMove, isBoardFull } from './GomokuAI';
+import {
+  boardFromMoves,
+  canUndo,
+  getHintMove,
+  MoveRecord,
+  undoLastTurn,
+} from './history';
 import { getGomokuStrings } from './i18n';
 import styles from './Gomoku.module.css';
 import { AI, BOARD_SIZE, PLAYER, Player, Position } from './types';
@@ -44,7 +51,14 @@ const Gomoku = () => {
   const [winningLine, setWinningLine] = useState<Position[] | null>(null);
   const [lastMove, setLastMove] = useState<Position | null>(null);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [moves, setMoves] = useState<ReadonlyArray<MoveRecord>>([]);
+  const [hint, setHint] = useState<Position | null>(null);
+  const [isHintThinking, setIsHintThinking] = useState(false);
   const aiBusyRef = useRef(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const interactive =
+    isPlayerTurn && gameStatus === 'playing' && !isAIThinking && !isHintThinking;
 
   const difficultyOptions = useMemo(
     () =>
@@ -58,19 +72,14 @@ const Gomoku = () => {
 
   const handleCellClick = useCallback(
     (row: number, col: number) => {
-      if (
-        !isPlayerTurn ||
-        board[row][col] !== null ||
-        gameStatus !== 'playing' ||
-        isAIThinking
-      ) {
-        return;
-      }
+      if (!interactive || board[row][col] !== null) return;
 
       const newBoard = board.map((r) => [...r]);
       newBoard[row][col] = PLAYER;
       setBoard(newBoard);
       setLastMove({ row, col });
+      setMoves((prev) => [...prev, { row, col, player: 'black' }]);
+      setHint(null);
 
       const winLine = checkWinFromPosition(newBoard, row, col, PLAYER);
       if (winLine) {
@@ -88,7 +97,7 @@ const Gomoku = () => {
 
       setIsPlayerTurn(false);
     },
-    [board, isPlayerTurn, gameStatus, isAIThinking]
+    [board, interactive]
   );
 
   // AI turn.
@@ -109,6 +118,7 @@ const Gomoku = () => {
         newBoard[move.row][move.col] = AI;
         setBoard(newBoard);
         setLastMove(move);
+        setMoves((prev) => [...prev, { ...move, player: 'white' }]);
 
         const winLine = checkWinFromPosition(newBoard, move.row, move.col, AI);
         if (winLine) {
@@ -132,7 +142,62 @@ const Gomoku = () => {
     return () => clearTimeout(timer);
   }, [isPlayerTurn, gameStatus, board, difficulty]);
 
+  const cancelHint = useCallback(() => {
+    if (hintTimerRef.current) {
+      clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    setIsHintThinking(false);
+    setHint(null);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    },
+    []
+  );
+
+  const requestHint = useCallback(() => {
+    if (!interactive || hintTimerRef.current) return;
+    setIsHintThinking(true);
+    // Deferred so the "finding a hint" state paints before the search runs.
+    hintTimerRef.current = setTimeout(() => {
+      hintTimerRef.current = null;
+      setHint(getHintMove(board));
+      setIsHintThinking(false);
+    }, 60);
+  }, [board, interactive]);
+
+  const undoAvailable =
+    canUndo(moves) &&
+    !isAIThinking &&
+    !isHintThinking &&
+    (isPlayerTurn || gameStatus !== 'playing');
+
+  // Take back the player's last move (and the AI's reply to it). Undoing out of
+  // a finished game also withdraws that result, so it is not counted twice.
+  const undoMove = useCallback(() => {
+    if (!undoAvailable) return;
+    const remaining = undoLastTurn(moves);
+    const previous = remaining[remaining.length - 1];
+
+    if (gameStatus !== 'playing') {
+      const key = gameStatus === 'win' ? 'wins' : gameStatus === 'lose' ? 'losses' : 'draws';
+      setStats((prev) => ({ ...prev, [key]: Math.max(0, prev[key] - 1) }));
+    }
+    setMoves(remaining);
+    setBoard(boardFromMoves(remaining));
+    setLastMove(previous ? { row: previous.row, col: previous.col } : null);
+    setWinningLine(null);
+    setGameStatus('playing');
+    setIsPlayerTurn(true);
+    cancelHint();
+  }, [undoAvailable, moves, gameStatus, cancelHint]);
+
   const resetGame = useCallback(() => {
+    cancelHint();
+    setMoves([]);
     setBoard(emptyBoard());
     setIsPlayerTurn(true);
     setGameStatus('playing');
@@ -140,7 +205,7 @@ const Gomoku = () => {
     setLastMove(null);
     setIsAIThinking(false);
     aiBusyRef.current = false;
-  }, []);
+  }, [cancelHint]);
 
   const startGame = useCallback(() => {
     setShowDifficultySelect(false);
@@ -161,8 +226,8 @@ const Gomoku = () => {
   const isLastMoveCell = (row: number, col: number): boolean =>
     lastMove?.row === row && lastMove?.col === col;
 
-  const interactive =
-    isPlayerTurn && gameStatus === 'playing' && !isAIThinking;
+  const isHintCell = (row: number, col: number): boolean =>
+    hint?.row === row && hint?.col === col;
 
   type StatusDot = 'spinner' | 'black' | 'white' | null;
   const statusView = (): {
@@ -188,9 +253,17 @@ const Gomoku = () => {
         dot: 'spinner',
       };
     }
+    if (isHintThinking) {
+      return {
+        main: t.hintThinking,
+        sub: t.youAre,
+        color: '#0ea5e9',
+        dot: 'spinner',
+      };
+    }
     return {
       main: isPlayerTurn ? t.yourTurn : t.aiTurn,
-      sub: t.youAre,
+      sub: hint ? t.hintAt(hint.row + 1, hint.col + 1) : t.youAre,
       color: '#0ea5e9',
       dot: isPlayerTurn ? 'black' : 'white',
     };
@@ -295,7 +368,10 @@ const Gomoku = () => {
                   const last = isLastMoveCell(row, col);
                   const win = isWinningCell(row, col);
                   const stone = cell ? (cell === PLAYER ? t.black : t.white) : null;
-                  const label = t.cellLabel(row + 1, col + 1, stone);
+                  const hinted = cell === null && isHintCell(row, col);
+                  const label = hinted
+                    ? t.hintCellLabel(row + 1, col + 1)
+                    : t.cellLabel(row + 1, col + 1, stone);
                   return (
                     <button
                       key={`${row}-${col}`}
@@ -310,6 +386,7 @@ const Gomoku = () => {
                       {cell === null && interactive && (
                         <span className={`${styles.ghost} ${styles.ghostBlack}`} aria-hidden />
                       )}
+                      {hinted && <span className={styles.hintMark} aria-hidden />}
                       {cell === PLAYER && (
                         <span
                           className={`${styles.stone} ${styles.stoneBlack} ${
@@ -336,9 +413,30 @@ const Gomoku = () => {
           <div className={styles.actions}>
             <button
               type="button"
+              className={`${styles.btn} ${styles.btnSecondary}`}
+              onClick={undoMove}
+              disabled={!undoAvailable}
+            >
+              <Undo2 className={styles.btnIcon} />
+              {t.undo}
+            </button>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnSecondary}`}
+              onClick={requestHint}
+              disabled={!interactive || hint !== null}
+            >
+              <Lightbulb className={styles.btnIcon} />
+              {t.hint}
+            </button>
+          </div>
+
+          <div className={styles.actions}>
+            <button
+              type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={resetGame}
-              disabled={isAIThinking}
+              disabled={isAIThinking || isHintThinking}
             >
               <RotateCcw className={styles.btnIcon} />
               {t.newGame}
@@ -347,7 +445,7 @@ const Gomoku = () => {
               type="button"
               className={`${styles.btn} ${styles.btnSecondary}`}
               onClick={backToMenu}
-              disabled={isAIThinking}
+              disabled={isAIThinking || isHintThinking}
             >
               <SlidersHorizontal className={styles.btnIcon} />
               {t.changeDifficulty}

@@ -24,6 +24,13 @@ export interface GomokuStrings {
   drawSub: string;
   newGame: string;
   changeDifficulty: string;
+  undo: string;
+  hint: string;
+  hintThinking: string;
+  /** Status line naming the suggested intersection (1-based). */
+  hintAt: (row: number, col: number) => string;
+  /** Accessible label for the suggested intersection. */
+  hintCellLabel: (row: number, col: number) => string;
   black: string;
   white: string;
   /** Accessible board label, given the board size (e.g. 15). */
@@ -58,6 +65,11 @@ const en: GomokuStrings = {
   drawSub: 'The board is full.',
   newGame: 'New Game',
   changeDifficulty: 'Change Difficulty',
+  undo: 'Undo',
+  hint: 'Hint',
+  hintThinking: 'Finding a hint…',
+  hintAt: (row, col) => `Hint: row ${row}, column ${col}`,
+  hintCellLabel: (row, col) => `row ${row}, column ${col} — suggested move`,
   black: 'Black',
   white: 'White',
   boardLabel: (size) => `Gomoku ${size} by ${size} board`,
@@ -69,7 +81,7 @@ const en: GomokuStrings = {
     'Be the first to line up five of your stones (black) in a row — horizontally, vertically, or diagonally.',
   howToTitle: 'How to Play',
   howToBody:
-    'Click any intersection to place a black stone. The AI answers with white. Your last move gets a blue ring; a winning line is highlighted in green.',
+    'Click any intersection to place a black stone. The AI answers with white. Your last move gets a blue ring; a winning line is highlighted in green. Undo takes back your last move together with the AI’s reply, and Hint marks a suggested point in amber.',
   tipsTitle: 'Pro Tips',
   tips: [
     'Open threes (three in a row with both ends free) create unstoppable pressure.',
@@ -104,6 +116,11 @@ const ja: GomokuStrings = {
   drawSub: '盤面が埋まりました。',
   newGame: '新しいゲーム',
   changeDifficulty: '難易度を変更',
+  undo: '待った',
+  hint: 'ヒント',
+  hintThinking: 'ヒントを探しています…',
+  hintAt: (row, col) => `ヒント：${row}行 ${col}列`,
+  hintCellLabel: (row, col) => `${row}行 ${col}列 — おすすめの手`,
   black: '黒',
   white: '白',
   boardLabel: (size) => `五目並べ ${size}×${size} の盤面`,
@@ -115,7 +132,7 @@ const ja: GomokuStrings = {
     '黒石を縦・横・斜めのいずれかに先に5つ並べれば勝ちです。',
   howToTitle: '遊び方',
   howToBody:
-    '交点をクリックして黒石を置きます。AIは白石で応じます。最後に置いた石は青い枠、勝利ラインは緑で表示されます。',
+    '交点をクリックして黒石を置きます。AIは白石で応じます。最後に置いた石は青い枠、勝利ラインは緑で表示されます。「待った」で直前の自分の手とAIの応手を取り消せます。「ヒント」はおすすめの交点を琥珀色で示します。',
   tipsTitle: 'コツ',
   tips: [
     '両端が空いた「活三（オープンスリー）」は強力な脅威になります。',

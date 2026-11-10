@@ -90,6 +90,21 @@ export interface CrapsStrings {
   sevenOuts: string;
   recentRolls: string;
   none: string;
+  // What the next roll would do to the bets on the table
+  outlookTitle: string;
+  outlookIntro: string;
+  outlookEmpty: string;
+  outlookAhead: string;
+  outlookBehind: string;
+  outlookLevel: string;
+  outlookAverage: string;
+  /** How many of the 36 ways two dice can land. */
+  outlookWays: (ways: number) => string;
+  /** A total rolled as a pair, and the same total rolled any other way. */
+  outlookHard: (total: number) => string;
+  outlookEasy: (total: number) => string;
+  /** One outcome of the next roll, said whole to a screen reader. */
+  outlookAria: (roll: string, ways: number, net: string, single: boolean) => string;
   hint: string[];
   // Odds
   oddsIntro: string;
@@ -354,6 +369,18 @@ const EN: CrapsStrings = {
   sevenOuts: 'Seven-outs',
   recentRolls: 'Recent rolls',
   none: '(none yet)',
+  outlookTitle: 'Next roll',
+  outlookIntro:
+    'What the bets on the table now would win or lose on the next roll alone, total by total: medals won less medals lost. A bet the roll does not decide counts as 0.',
+  outlookEmpty: 'Put medals on the table to see what each total of the next roll would win or lose.',
+  outlookAhead: 'Ahead',
+  outlookBehind: 'Behind',
+  outlookLevel: 'No change',
+  outlookAverage: 'Average of the 36 ways',
+  outlookWays: (ways) => `${ways}/36`,
+  outlookHard: (total) => `Hard ${total}`,
+  outlookEasy: (total) => `Easy ${total}`,
+  outlookAria: (roll, ways, net, single) => `${roll}, ${ways} of 36 ways: ${net} ${single ? 'medal' : 'medals'}`,
   hint: [
     'Line bets only on the come-out; odds only behind a line bet once the point is ON.',
     'A spot holds up to 50 medals; the odds go up to 3-4-5× the line bet (lay 6×). A spot marked “in 6s” or the like takes medals in those steps, so a press puts on the BET rounded up to the step.',
@@ -563,6 +590,18 @@ const JA: CrapsStrings = {
   sevenOuts: 'セブンアウト',
   recentRolls: '最近の出目',
   none: '（まだなし）',
+  outlookTitle: '次の一投',
+  outlookIntro:
+    'いまテーブルにあるベットが、次の一投だけでどうなるかを出目の合計ごとに示します（勝つメダルから負けるメダルを引いた枚数）。その一投で決着しないベットは 0 と数えます。',
+  outlookEmpty: 'テーブルにメダルを置くと、次の一投の合計ごとに増減が表示されます。',
+  outlookAhead: 'プラス',
+  outlookBehind: 'マイナス',
+  outlookLevel: '変わらず',
+  outlookAverage: '36 通りの平均',
+  outlookWays: (ways) => `${ways}/36`,
+  outlookHard: (total) => `ハード ${total}`,
+  outlookEasy: (total) => `イージー ${total}`,
+  outlookAria: (roll, ways, net) => `${roll}、36 通り中 ${ways} 通り: ${net} 枚`,
   hint: [
     'ラインベットはカムアウトのときだけ、オッズはポイント ON 後にラインベットの後ろにだけ置けます。',
     '1 か所に置けるのは 50 枚まで、オッズはラインベットの 3-4-5 倍まで（レイは 6 倍）です。「6枚単位」などと書かれたエリアはその単位でベットするので、1 回のクリックでベット枚数をその単位に切り上げて置きます。',

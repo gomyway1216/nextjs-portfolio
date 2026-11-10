@@ -98,8 +98,10 @@ describe('the play listed cork by cork', () => {
     expect(latest).toHaveLength(HISTORY.length);
     expect(pressed(render('en', HISTORY, null))).toEqual(['true', 'false', 'false']);
     expect(pressed(render('en', HISTORY, 'a'))).toEqual(['false', 'false', 'true']);
-    expect(latest[1]).toContain('aria-label="2 figures off the shelf, the cat among them, 27 medals"');
+    expect(latest[1]).toContain('title="2 figures off the shelf, the cat among them, 27 medals"');
     expect(latest[1]).toContain('data-cat="true"');
-    expect(latest[2]).toContain('aria-label="Nothing off the shelf"');
+    // The words on a chip are its name (what a voice command says); the longer line is its description.
+    for (const chip of latest) expect(chip).not.toContain('aria-label');
+    expect(latest[2]).toContain('title="Nothing off the shelf"');
   });
 });

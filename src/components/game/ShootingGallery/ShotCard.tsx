@@ -48,7 +48,6 @@ export const PlayReview = ({ t, history, chosen, onChoose }: PlayReviewProps) =>
                 data-won={entry.play.won > 0 ? 'true' : 'false'}
                 data-cat={catDown(entry.play) ? 'true' : 'false'}
                 aria-pressed={entry.id === reviewed?.id}
-                aria-label={t.historyEntryLabel(entry.play)}
                 title={t.historyEntryLabel(entry.play)}
                 onClick={() => onChoose(entry.id)}
               >

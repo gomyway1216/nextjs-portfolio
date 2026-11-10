@@ -32,6 +32,8 @@ export interface TetrisStrings {
   playAgain: string;
   controls: string;
   move: string;
+  moveLeft: string;
+  moveRight: string;
   rotate: string;
   rotateCcw: string;
   softDrop: string;
@@ -53,6 +55,7 @@ export interface TetrisStrings {
   tip2: string;
   tip3: string;
   tip4: string;
+  tip5: string;
 }
 
 const en: TetrisStrings = {
@@ -82,6 +85,8 @@ const en: TetrisStrings = {
   playAgain: 'Play Again',
   controls: 'Controls',
   move: 'Move',
+  moveLeft: 'Move left',
+  moveRight: 'Move right',
   rotate: 'Rotate CW',
   rotateCcw: 'Rotate CCW',
   softDrop: 'Soft drop',
@@ -104,6 +109,7 @@ const en: TetrisStrings = {
   tip2: 'Save the I-piece and Hold to set up Tetrises.',
   tip3: 'Use the ghost piece to line up hard drops.',
   tip4: 'Plan ahead with the 5-piece Next queue.',
+  tip5: 'Hold a move or soft-drop key (or on-screen button) to keep the piece going.',
 };
 
 const ja: TetrisStrings = {
@@ -133,6 +139,8 @@ const ja: TetrisStrings = {
   playAgain: 'もう一度',
   controls: '操作',
   move: '移動',
+  moveLeft: '左へ移動',
+  moveRight: '右へ移動',
   rotate: '右回転',
   rotateCcw: '左回転',
   softDrop: 'ソフトドロップ',
@@ -155,6 +163,7 @@ const ja: TetrisStrings = {
   tip2: 'Iミノとホールドでテトリスを狙う。',
   tip3: 'ゴーストでハードドロップの位置を合わせる。',
   tip4: '5個のネクストで先を読む。',
+  tip5: '移動やソフトドロップのキー(画面のボタン)は押し続けると連続で動く。',
 };
 
 export const getTetrisStrings = (lang: GameLanguage): TetrisStrings =>

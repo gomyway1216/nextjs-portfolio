@@ -4,7 +4,6 @@ import { MINORITY_PROMPTS, THERMOMETER_PROMPTS } from './choice-prompts';
 import { MATCH_PROMPTS } from './match-prompts';
 import { normalizePlayerText } from './text';
 import { isChoiceGame, isWrittenSideGame, MATCH_MAX_LENGTH, type Action, type PartyGameResult, type PartyGameView, type Room, type SideGameRound } from './types';
-import { canonicalWord } from './word-wolf';
 
 const requireThat: (ok: unknown, message: string, status?: number) => asserts ok = (ok, message, status = 400) => {
   if (!ok) throw new GameError(message, status);
@@ -125,13 +124,16 @@ function scoreSideQuestion(room: Room, round: SideGameRound) {
 
 /** Answers that read the same once width, kana and spacing are set aside score together. */
 function scoreMatchRound(room: Room, round: SideGameRound) {
-  const answered = round.players.filter(id => room.players[id] && !room.players[id].kicked && !room.players[id].spectator && round.answers[id]);
+  const participants = round.players.filter(id => room.players[id] && !room.players[id].kicked && !room.players[id].spectator);
+  const answered = participants.filter(id => round.answers[id]);
   const groups = new Map<string, string[]>();
   for (const id of answered) {
-    const key = canonicalWord(round.answers[id]) || round.answers[id];
+    const key = normalizePlayerText(round.answers[id]).toLowerCase()
+      .replace(/[ァ-ヶヽヾ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+      .replace(/\s/gu, '');
     groups.set(key, [...(groups.get(key) ?? []), id]);
   }
-  const everyone = answered.length >= 3 && groups.size === 1;
+  const everyone = answered.length >= 3 && answered.length === participants.length && groups.size === 1;
   const awards = new Map<string, number>();
   for (const ids of groups.values()) if (ids.length > 1)
     for (const id of ids) awards.set(id, (ids.length - 1) * MATCH_POINTS + (everyone ? MATCH_ALL_BONUS : 0));
@@ -153,7 +155,7 @@ function scoreMatchRound(room: Room, round: SideGameRound) {
  * player's answer leaves a せーので reveal too, and whoever matched only them loses those points. */
 export function voidSideResult(room: Room, author: string) {
   const round = currentSideRound(room);
-  if (round?.type === 'match' && round.results.length) {
+  if (round?.type === 'match' && round.results.length && room.phase !== 'finished') {
     for (const { id, points } of round.results[0].result.awards) {
       room.players[id].score -= points;
       room.players[id].roundScore -= points;

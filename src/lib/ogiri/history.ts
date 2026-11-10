@@ -33,7 +33,7 @@ function sideHistory(room: Room): GameHistory['matches'] {
         const players = group.ids.filter(id => room.players[id] && !room.players[id].kicked).map(id => room.players[id]);
         return {
           name: players.map(player => player.name).join('・') || '退出したプレイヤー', avatar: players[0]?.avatar ?? '',
-          text: group.label, votes: players.length,
+          text: players[0] ? round.answers[players[0].id] ?? null : null, votes: players.length,
           points: entry.result.awards.find(award => award.id === players[0]?.id)?.points ?? 0,
         };
       }),

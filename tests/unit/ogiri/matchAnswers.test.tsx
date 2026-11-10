@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { act, createRoom, joinRoom, newPlayer, project } from '@/lib/ogiri/engine';
 import { snapshotHistory } from '@/lib/ogiri/history';
 import { prompts } from '@/lib/ogiri/prompts';
+import { voidSideResult } from '@/lib/ogiri/side-games';
 import { PartyGamePanel } from '@/components/game/Ogiri/PartyGamePanel';
 import type { Room } from '@/lib/ogiri/types';
 
@@ -51,6 +52,45 @@ describe('せーので同じ答え', () => {
     const room = setup(3);
     answerAll(room, ['りんご', 'リンゴ', 'ﾘﾝｺﾞ']);
     expect(['p0', 'p1', 'p2'].map(id => room.players[id].score)).toEqual([300, 300, 300]);
+  });
+
+  it('keeps punctuation and emoji significant when comparing answers', () => {
+    const room = setup(4);
+    answerAll(room, ['Ｃ＋＋', 'C', '☀️', '☁️']);
+    const result = project(room, null, now, prompts).sideGame!.result!;
+    expect(result.groups?.map(group => group.label)).toEqual(['C++', 'C', '☀️', '☁️']);
+    expect(result.awards).toEqual([]);
+  });
+
+  it('awards matching points without an everyone bonus when a player never answers', () => {
+    const room = setup(4, false);
+    answerAll(room, ['りんご', 'リンゴ', 'ﾘﾝｺﾞ']);
+    act(room, 'host', { type: 'next' }, now, prompts);
+    expect(['p0', 'p1', 'p2', 'p3'].map(id => room.players[id].score)).toEqual([200, 200, 200, 0]);
+  });
+
+  it('keeps settled scores even if a finished round is passed to moderation', () => {
+    const room = setup(3);
+    answerAll(room, ['夏', '夏', '夏']);
+    act(room, 'host', { type: 'finish' }, now, prompts);
+    const finished = structuredClone(room.sideRounds);
+    room.players.p2.kicked = true;
+    voidSideResult(room, 'p2');
+    expect(room.sideRounds).toEqual(finished);
+    expect(['p0', 'p1', 'p2'].map(id => room.players[id].score)).toEqual([300, 300, 300]);
+  });
+
+  it('does not show removed players’ answer text in a prior round of the history', () => {
+    const room = setup(5, false);
+    answerAll(room, ['リンゴ', 'りんご', 'なし', '夏', '秋']);
+    for (let i = 0; i < 3; i++) act(room, 'host', { type: 'next' }, now, prompts);
+    expect(room.round).toBe(2);
+    act(room, 'host', { type: 'kick', playerId: 'p0' }, now, prompts);
+    act(room, 'host', { type: 'kick', playerId: 'p2' }, now, prompts);
+    const answers = snapshotHistory(room, 'h', now, prompts).matches[0].answers;
+    expect(answers[0]).toMatchObject({ text: 'りんご', votes: 1, name: '参加者1' });
+    expect(answers).toContainEqual(expect.objectContaining({ text: null, votes: 0 }));
+    expect(answers.map(answer => answer.text)).not.toContain('なし');
   });
 
   it('takes back the points a removed player gave the others they matched', () => {

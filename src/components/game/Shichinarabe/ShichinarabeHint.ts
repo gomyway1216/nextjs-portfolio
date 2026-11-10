@@ -27,7 +27,7 @@ export type ShichinarabeHintReason =
   | 'deadEnd'
   /** No active opponent is likely to hold the card that would follow. */
   | 'safe'
-  /** Every option helps someone; this one costs the least. */
+  /** The card may open a slot for an opponent, but the heuristic rates it the cheapest play. */
   | 'leastHarm';
 
 export interface ShichinarabeHint {

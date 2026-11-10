@@ -99,7 +99,7 @@ describe('getShichinarabeHint', () => {
     expect(hint).toMatchObject({ action: 'play', reason: 'deadEnd', ownCardsBehind: 0 });
   });
 
-  it('admits when every play helps an opponent', () => {
+  it('admits when the suggested play may help an opponent', () => {
     const state = makeState({ hands: { me: [card('H', 8), card('D', 6)], a: concealed(8), b: concealed(8, 'S') } });
     const hint = getShichinarabeHint(state, 'me');
     expect(hint).toMatchObject({ action: 'play', reason: 'leastHarm', ownCardsBehind: 0 });

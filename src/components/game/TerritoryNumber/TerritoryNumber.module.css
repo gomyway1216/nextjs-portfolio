@@ -1,15 +1,17 @@
 /* Territory Number — VS AI board + setup styling. Theme-aware via the
    shared --games-route-* CSS variables set in the /games layout. */
 
+/* In normal flow, under the site's sticky toolbar. (A fixed, full-viewport
+   screen slid its own header — Leave, How to play — beneath that toolbar.) */
 .screen {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  min-height: calc(100vh - 58px);
+  min-height: calc(100dvh - 58px);
   display: flex;
   flex-direction: column;
   background: var(--games-route-bg);
   color: var(--games-route-fg);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  overflow: auto;
 }
 
 /* ---- header ---- */
@@ -496,5 +498,285 @@
   .lineChipCaptured,
   .statusFinished {
     animation: none;
+  }
+}
+
+/* ---- finished actions ---- */
+.finishActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+.finishActions .primaryButton {
+  margin-top: 0;
+}
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  background: var(--games-route-control);
+  border: 1.5px solid #0ea5e9;
+  border-radius: 0.65rem;
+  color: var(--games-route-fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.12s;
+}
+.secondaryButton:hover {
+  background: var(--games-route-control-hover);
+}
+.secondaryButton:active {
+  transform: scale(0.97);
+}
+.secondaryButton:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+
+/* ---- post-game review ---- */
+.reviewBody {
+  flex: 1;
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0));
+  box-sizing: border-box;
+}
+.reviewSummary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-surface-raised);
+  box-sizing: border-box;
+}
+.reviewIntro {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
+.reviewSummaryRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--games-route-fg);
+}
+.reviewDot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  flex: none;
+}
+.reviewPraise {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #16a34a;
+}
+.reviewBoardWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+.reviewBoard {
+  --cell: clamp(3.6rem, 20vw, 5rem);
+}
+.reviewCell {
+  position: relative;
+  box-sizing: border-box;
+}
+.reviewCellLast {
+  box-shadow: 0 0 0 3px #f59e0b;
+}
+.reviewCellBest {
+  border-style: dashed;
+  border-color: #16a34a;
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+}
+.reviewBestBadge {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.reviewScore {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.reviewScoreSep {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--games-route-muted);
+}
+.reviewDetail {
+  width: 100%;
+  min-height: 6.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-control);
+  box-sizing: border-box;
+}
+.reviewDetailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.reviewStepLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--games-route-muted);
+}
+.reviewMoveText {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--games-route-fg);
+}
+.reviewMuted {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--games-route-fg);
+}
+.reviewOutlook {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--games-route-muted);
+}
+.gradeBadge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--grade-color);
+  white-space: nowrap;
+}
+.gradeBest {
+  --grade-color: #15803d;
+  --grade-text: #16a34a;
+}
+.gradeInaccuracy {
+  --grade-color: #b45309;
+  --grade-text: #d97706;
+}
+.gradeMistake {
+  --grade-color: #b91c1c;
+  --grade-text: #ef4444;
+}
+.reviewNav {
+  display: flex;
+  gap: 0.5rem;
+}
+.reviewNavButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.9rem;
+  height: 2.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--games-route-border);
+  background: var(--games-route-control);
+  color: var(--games-route-fg);
+  cursor: pointer;
+  transition: background 0.18s, transform 0.12s;
+}
+.reviewNavButton:hover:not(:disabled) {
+  background: var(--games-route-control-hover);
+}
+.reviewNavButton:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.reviewNavButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.reviewNavButton:focus-visible,
+.reviewMoveChip:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+.reviewMoves {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.reviewMoveChip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 2.75rem;
+  padding: 0.3rem 0.35rem;
+  border-radius: 0.6rem;
+  border: 1.5px solid var(--chip-border);
+  background: var(--chip-soft);
+  color: var(--games-route-fg);
+  cursor: pointer;
+  transition: transform 0.14s, box-shadow 0.18s;
+}
+.reviewMoveChipActive {
+  box-shadow: 0 0 0 3px #f59e0b;
+  transform: translateY(-2px);
+}
+.reviewMoveChipCard {
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.reviewMoveChipGrade {
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--games-route-muted);
+}
+.reviewMoveChipGrade.gradeBest,
+.reviewMoveChipGrade.gradeInaccuracy,
+.reviewMoveChipGrade.gradeMistake {
+  color: var(--grade-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviewMoveChip,
+  .reviewNavButton,
+  .secondaryButton {
+    transition: none;
   }
 }

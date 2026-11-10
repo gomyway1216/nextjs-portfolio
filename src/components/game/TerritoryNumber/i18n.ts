@@ -58,6 +58,34 @@ export interface TerritoryNumberStrings {
   legendYou: string;
   legendAi: string;
   legendTie: string;
+  // Post-game review
+  reviewGame: string;
+  reviewTitle: string;
+  backToResult: string;
+  reviewIntro: string;
+  analysing: string;
+  startPosition: string;
+  moveOf: (n: number, total: number) => string;
+  movePlaced: (who: string, card: number, cell: string) => string;
+  cellName: (row: number, col: number) => string;
+  gradeBest: string;
+  gradeInaccuracy: string;
+  gradeMistake: string;
+  noLoss: string;
+  lossText: (lines: number) => string;
+  bestWas: (card: number, cell: string) => string;
+  /** `margin` is the final line margin from the local player's side. */
+  outlook: (margin: number) => string;
+  reviewSummary: (who: string, best: number, total: number, lost: number) => string;
+  jumpToMistake: string;
+  noMistakes: string;
+  stepFirst: string;
+  stepPrev: string;
+  stepNext: string;
+  stepLast: string;
+  moveList: string;
+  moveChip: (n: number, who: string, grade: string) => string;
+  bestMarker: (card: number) => string;
 }
 
 export function getTerritoryNumberStrings(lang: GameLanguage): TerritoryNumberStrings {
@@ -131,5 +159,60 @@ export function getTerritoryNumberStrings(lang: GameLanguage): TerritoryNumberSt
     legendYou: ja ? 'あなた' : 'You',
     legendAi: ja ? 'AI' : 'AI',
     legendTie: ja ? '引き分けライン' : 'Tied line',
+    reviewGame: ja ? '対局を振り返る' : 'Review the game',
+    reviewTitle: ja ? '対局の振り返り' : 'Game review',
+    backToResult: ja ? '結果に戻る' : 'Back to result',
+    reviewIntro: ja
+      ? '全ての手を、最後まで読み切った最善手と比べて採点します。'
+      : 'Every move is graded against perfect play, solved to the end of the game.',
+    analysing: ja ? '解析中…' : 'Analysing…',
+    startPosition: ja ? '開始局面' : 'Starting position',
+    moveOf: (n: number, total: number) =>
+      ja ? `${n}手目 / 全${total}手` : `Move ${n} of ${total}`,
+    movePlaced: (who: string, card: number, cell: string) =>
+      ja ? `${who}が ${card} を${cell}に置いた` : `${who} placed ${card} on ${cell}`,
+    cellName: (row: number, col: number) =>
+      ja ? `${row}行${col}列` : `row ${row}, column ${col}`,
+    gradeBest: ja ? '最善手' : 'Best move',
+    gradeInaccuracy: ja ? '緩手' : 'Inaccuracy',
+    gradeMistake: ja ? '悪手' : 'Mistake',
+    noLoss: ja ? 'これ以上の手はありませんでした。' : 'Nothing better was available.',
+    lossText: (lines: number) =>
+      ja
+        ? `最善手なら取れた ${lines} ライン分を失いました。`
+        : `Gave away ${lines} ${lines === 1 ? 'line' : 'lines'} against perfect play.`,
+    bestWas: (card: number, cell: string) =>
+      ja ? `最善は ${card} を${cell}。` : `Best was ${card} on ${cell}.`,
+    outlook: (margin: number) => {
+      const n = Math.abs(margin);
+      if (margin > 0) {
+        return ja
+          ? `ここから双方最善なら、あなたが ${n} ライン差で勝ち。`
+          : `With perfect play from here, you win by ${n}.`;
+      }
+      if (margin < 0) {
+        return ja
+          ? `ここから双方最善なら、相手が ${n} ライン差で勝ち。`
+          : `With perfect play from here, your opponent wins by ${n}.`;
+      }
+      return ja
+        ? 'ここから双方最善なら引き分け。'
+        : 'With perfect play from here, it is a draw.';
+    },
+    reviewSummary: (who: string, best: number, total: number, lost: number) =>
+      ja
+        ? `${who}：最善手 ${best}/${total}・失ったライン ${lost}`
+        : `${who}: ${best}/${total} best moves · ${lost} ${lost === 1 ? 'line' : 'lines'} given away`,
+    jumpToMistake: ja ? 'あなたの一番痛い手を見る' : 'Show your costliest move',
+    noMistakes: ja ? 'あなたは全て最善手でした！' : 'You played every move perfectly!',
+    stepFirst: ja ? '最初へ' : 'Start',
+    stepPrev: ja ? '前の手' : 'Previous move',
+    stepNext: ja ? '次の手' : 'Next move',
+    stepLast: ja ? '最後へ' : 'End',
+    moveList: ja ? '手順' : 'Moves',
+    moveChip: (n: number, who: string, grade: string) =>
+      ja ? `${n}手目 ${who} ${grade}` : `Move ${n}, ${who}, ${grade}`,
+    bestMarker: (card: number) =>
+      ja ? `最善は ${card}` : `Best: ${card}`,
   };
 }

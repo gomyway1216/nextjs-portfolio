@@ -15,6 +15,7 @@ import { GUEST, type Player } from '../MedalPusher/account';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { Board } from './Board';
+import { Chances } from './Chances';
 import { DieFace } from './Dice';
 import { BET_IDS, betInfo, drawDice, kindOf, labelOf, sortedDice, totalOf, valueOf, winningAreas, type BetId, type Bets, type Dice, type Face } from './engine';
 import { SECTIONS, getStrings, type Section } from './i18n';
@@ -578,6 +579,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
 
       <div className={styles.side}>
         <Board history={shown.history} t={t} />
+        <Chances bets={shown.bets} t={t} locale={locale} />
 
         <section className={styles.panel} aria-labelledby="sb-stats-title">
           <h2 id="sb-stats-title" className={styles.panelTitle}>

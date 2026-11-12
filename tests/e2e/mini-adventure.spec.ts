@@ -26,7 +26,9 @@ async function enterDungeon(page: Page, language: 'ja' | 'en') {
 /** Where the site toolbar ends, and each status card: its box, and whether it is the topmost thing all over itself. */
 const hud = (page: Page) =>
   page.evaluate(() => {
-    const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+    // The site toolbar, by the classes it has in every build: a production build names it `<hash>_toolbar`, with no
+    // "GlobalToolbar" in it.
+    const bar = document.querySelector('div[class*="toolbar"].sticky.top-0')?.getBoundingClientRect().bottom ?? 0;
     const cards = [...document.querySelectorAll('[data-ma-hud] > *')].map((card) => {
       const box = card.getBoundingClientRect();
       const points = [

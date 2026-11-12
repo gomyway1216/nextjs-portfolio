@@ -22,7 +22,9 @@ const MENU = { ja: { ai: 'AI対戦', back: '← ゲーム一覧へ' }, en: { ai:
 async function place(target: Locator) {
   return target.evaluate((element) => {
     const box = element.getBoundingClientRect();
-    const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+    // The site toolbar, by the classes it has in every build: a production build names it `<hash>_toolbar`, with no
+    // "GlobalToolbar" in it.
+    const bar = document.querySelector('div[class*="toolbar"].sticky.top-0')?.getBoundingClientRect().bottom ?? 0;
     const points = [
       [box.left + box.width / 2, box.top + box.height / 2],
       [box.left + box.width * 0.15, box.top + box.height / 2],

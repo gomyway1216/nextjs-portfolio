@@ -597,8 +597,8 @@ const Tetris = () => {
     const root = rootRef.current;
     if (!root) return;
     const measure = () => {
-      const top = Math.max(0, Math.round(root.getBoundingClientRect().top + window.scrollY));
-      root.style.setProperty('--tetris-top', `${top}px`);
+      const top = `${Math.max(0, Math.round(root.getBoundingClientRect().top + window.scrollY))}px`;
+      if (root.style.getPropertyValue('--tetris-top') !== top) root.style.setProperty('--tetris-top', top);
     };
     measure();
     // The toolbar grows and shrinks with its content; that moves the root and

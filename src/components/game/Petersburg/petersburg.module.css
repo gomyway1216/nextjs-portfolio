@@ -176,8 +176,9 @@
   color: #fff;
   transition: transform 0.12s, filter 0.15s, opacity 0.15s;
 }
-.btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:hover:not(:disabled):not([aria-disabled='true']) { transform: translateY(-1px); filter: brightness(1.08); }
+.btn:disabled,
+.btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
 .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .btnPrimary { background: linear-gradient(135deg, #22c55e, #16a34a); }
 .btnSecondary { background: linear-gradient(135deg, #0ea5e9, #0284c7); }

@@ -159,17 +159,19 @@ export const PlayTab = () => {
             )}
           </div>
 
+          {/* Not `disabled` while the coins are flipping: a disabled button drops keyboard focus, and the next
+              Enter would go nowhere. `playOne` and `playBatch` refuse to start mid-flip themselves. */}
           <div className={styles.controls}>
-            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={playOne} disabled={flipping}>
+            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={playOne} aria-disabled={flipping}>
               🎲 {flipping ? t.flipping : t.flip1}
             </button>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(10)} disabled={flipping}>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(10)} aria-disabled={flipping}>
               {t.play10}
             </button>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(100)} disabled={flipping}>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(100)} aria-disabled={flipping}>
               {t.play100}
             </button>
-            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(1000)} disabled={flipping}>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(1000)} aria-disabled={flipping}>
               {t.play1000}
             </button>
             <button className={`${styles.btn} ${styles.btnGhost}`} onClick={reset}>
@@ -181,7 +183,7 @@ export const PlayTab = () => {
             <div
               className={`${styles.lastGame} ${lastGame.payoff >= entryPrice ? styles.lastWin : styles.lastLoss}`}
             >
-              {t.lastGame}: <strong>{lastGame.n} {t.flips}</strong> → {t.payout}{' '}
+              {t.lastGame}: <strong>{t.flips(lastGame.n)}</strong> → {t.payout}{' '}
               <strong>{fmtMoney(lastGame.payoff)}</strong>
             </div>
           )}
@@ -198,7 +200,7 @@ export const PlayTab = () => {
                   return (
                     <span
                       key={i}
-                      title={`${h.n} ${t.flips} → $${h.payoff.toLocaleString()}`}
+                      title={`${t.flips(h.n)} → $${h.payoff.toLocaleString()}`}
                       className={styles.chip}
                       style={{ background: `hsl(${hue}, 68%, 42%)`, border: `1px solid hsl(${hue}, 68%, 58%)` }}
                     >

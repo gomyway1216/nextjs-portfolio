@@ -139,6 +139,9 @@ export interface KellyStrings {
   simNote: (winRate: string, exact: string) => string;
 }
 
+/** An English count of flips: "1 flip", "2 flips". */
+export const flipCount = (flips: number) => `${flips} ${flips === 1 ? 'flip' : 'flips'}`;
+
 const en: KellyStrings = {
   title: 'Kelly Criterion',
   subtitle:
@@ -191,9 +194,9 @@ const en: KellyStrings = {
   lastFlip: (won, amount) => (won ? `Heads — you win ${amount}` : `Tails — you lose ${amount}`),
   finished: (reason, flips, amount) =>
     reason === 'bust'
-      ? `Bust after ${flips} flips.`
+      ? `Bust after ${flipCount(flips)}.`
       : reason === 'cap'
-        ? `You reached the ${amount} cap in ${flips} flips.`
+        ? `You reached the ${amount} cap in ${flipCount(flips)}.`
         : `All ${flips} flips used: you finish with ${amount}.`,
   finishedKelly: (percent, amount) => `Staking ${percent} on every one of the same flips ends with ${amount}.`,
   kellyToggle: 'Show the Kelly stake',
@@ -201,9 +204,10 @@ const en: KellyStrings = {
   chartTitle: 'Your bankroll, flip by flip',
   chartYou: 'You',
   chartKelly: (percent) => `${percent} every flip (Kelly)`,
-  chartSummary: (flips, you, kelly) => `After ${flips} flips you have ${you}. The Kelly stake on the same flips has ${kelly}.`,
+  chartSummary: (flips, you, kelly) =>
+    `After ${flipCount(flips)} you have ${you}. The Kelly stake on the same ${flips === 1 ? 'flip' : 'flips'} has ${kelly}.`,
   recentTitle: 'Recent flips',
-  recentAria: (flips) => `The last ${flips} flips, oldest first`,
+  recentAria: (flips) => (flips === 1 ? 'The last flip' : `The last ${flips} flips, oldest first`),
   statsTitle: 'This game',
   statFlips: 'Flips',
   statHeads: 'Heads',

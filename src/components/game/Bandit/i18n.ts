@@ -203,7 +203,7 @@ const en: BanditStrings = {
   finishedDetail: (reward, total, pct) => `total ${reward} / ${total} = ${pct}%`,
   trueProbsAre: 'True odds',
   bestArmExpected: (v) => `Always pulling the best arm expects ${v}`,
-  yourRegret: (v) => `your gap (regret) = ${v}`,
+  yourRegret: (v) => `Your gap (regret) = ${v}`,
 
   explainTitle: 'K-armed Bandit:',
   explainBody:

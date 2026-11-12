@@ -63,15 +63,14 @@ export const Petersburg = () => {
           </button>
         </div>
 
-        {tab === 'play' ? (
-          <div role="tabpanel" id="petersburg-panel-play" aria-labelledby="petersburg-tab-play">
-            <PlayTab />
-          </div>
-        ) : (
-          <div role="tabpanel" id="petersburg-panel-sim" aria-labelledby="petersburg-tab-sim">
-            <SimTab />
-          </div>
-        )}
+        {/* Both panels stay mounted (the inactive one is hidden) so switching tabs
+            never drops the session's record or a finished simulation. */}
+        <div role="tabpanel" id="petersburg-panel-play" aria-labelledby="petersburg-tab-play" hidden={tab !== 'play'}>
+          <PlayTab />
+        </div>
+        <div role="tabpanel" id="petersburg-panel-sim" aria-labelledby="petersburg-tab-sim" hidden={tab !== 'sim'}>
+          <SimTab />
+        </div>
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howItWorksTitle}>

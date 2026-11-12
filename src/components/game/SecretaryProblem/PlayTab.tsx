@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameStats } from '../common';
 import { generateCandidates, SUGGESTED_R_RATIO } from './engine';
 import type { SecretaryStrings } from './i18n';
@@ -49,6 +49,19 @@ export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabPr
   const [phase, setPhase] = useState<Phase>('idle');
   const [showHint, setShowHint] = useState(true);
 
+  // The button a player has just pressed is replaced by other buttons when the
+  // phase changes; keyboard focus follows to the one they are most likely to
+  // want next instead of falling back to the page.
+  const passButton = useRef<HTMLButtonElement>(null);
+  const nextRoundButton = useRef<HTMLButtonElement>(null);
+  const followFocus = useRef(false);
+  useEffect(() => {
+    if (!followFocus.current) return;
+    followFocus.current = false;
+    if (phase === 'interviewing') passButton.current?.focus();
+    else if (phase === 'done') nextRoundButton.current?.focus();
+  }, [phase]);
+
   const suggestedR = Math.round(n * SUGGESTED_R_RATIO);
 
   // Best score observed during the (fixed-length) observation phase.
@@ -60,6 +73,7 @@ export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabPr
   const bestSoFarInSkip = round.current >= suggestedR ? skipPhaseMax : null;
 
   const start = () => {
+    followFocus.current = true;
     setRound(freshRound(n));
     setPhase('interviewing');
   };
@@ -97,6 +111,7 @@ export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabPr
     const isBest = currentVal === round.bestValue;
     setRound((r) => ({ ...r, picked: currentVal, pickedIndex: r.current }));
     recordOutcome(isBest, round.current);
+    followFocus.current = true;
     setPhase('done');
   };
 
@@ -115,6 +130,7 @@ export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabPr
         current: r.candidates.length,
       }));
       recordOutcome(isBest, round.candidates.length - 1);
+      followFocus.current = true;
       setPhase('done');
     } else {
       setRound((r) => ({ ...r, current: nextCurrent }));
@@ -174,7 +190,7 @@ export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabPr
                   <span className={styles.hintDot} aria-hidden="true" />
                 )}
               </button>
-              <button className={`${styles.btn} ${styles.btnWarn}`} onClick={reject}>
+              <button ref={passButton} className={`${styles.btn} ${styles.btnWarn}`} onClick={reject}>
                 {t.pass}
                 {showHint && recommendation === 'reject' && (
                   <span className={styles.hintDot} aria-hidden="true" />
@@ -183,7 +199,7 @@ export const PlayTab = ({ t, stats, setStats, ruleWins, setRuleWins }: PlayTabPr
             </>
           )}
           {phase === 'done' && (
-            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={start}>
+            <button ref={nextRoundButton} className={`${styles.btn} ${styles.btnPrimary}`} onClick={start}>
               ▶ {t.nextRound}
             </button>
           )}

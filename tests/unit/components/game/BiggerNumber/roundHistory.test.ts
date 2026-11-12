@@ -38,6 +38,14 @@ describe('trackTiles', () => {
   it('marks everything played for an empty hand', () => {
     expect(trackTiles([]).some((t) => t.inHand)).toBe(false);
   });
+
+  it('counts a tile that was just played as gone, even while the hand still lists it', () => {
+    const played = trackTiles(freshHand(), 7)
+      .filter((t) => !t.inHand)
+      .map((t) => t.card);
+    expect(played).toEqual([7]);
+    expect(trackTiles(freshHand(), null).every((t) => t.inHand)).toBe(true);
+  });
 });
 
 describe('summarizeMatch', () => {

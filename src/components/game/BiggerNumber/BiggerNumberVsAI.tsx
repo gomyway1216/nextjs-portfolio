@@ -27,6 +27,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import type { RoundRecord } from './roundHistory';
 import styles from './BiggerNumberVsAI.module.css';
+import { scrollPageToTop, usePageTop } from './usePageTop';
 
 interface BiggerNumberVsAIProps {
   onBackToMenu: () => void;
@@ -64,6 +65,7 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
   const t = getStrings(language);
 
   const [phase, setPhase] = useState<'setup' | 'playing'>('setup');
+  usePageTop(phase);
   const [rules, setRules] = useState<BiggerNumberRules>({ ...DEFAULT_RULES });
   const [difficulty, setDifficulty] = useState<AIDifficulty>('medium');
 
@@ -120,6 +122,8 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
   const handleStart = useCallback(() => {
     resetMatch();
     setPhase('playing');
+    // "Play again" is pressed at the foot of a finished table.
+    scrollPageToTop();
   }, [resetMatch]);
 
   const handlePickCard = useCallback(

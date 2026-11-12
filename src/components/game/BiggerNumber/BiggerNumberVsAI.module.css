@@ -1,15 +1,17 @@
 /* Bigger Number — VS AI setup screen. */
 
+/* In normal flow under the site's sticky toolbar, like the table. */
 .setupRoot {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  box-sizing: border-box;
+  min-height: calc(100vh - 59px);
+  min-height: calc(100dvh - 59px);
   display: flex;
   flex-direction: column;
   align-items: center;
   background: linear-gradient(160deg, #020617 0%, #0f172a 60%, #131c31 100%);
   color: #f8fafc;
   font-family: system-ui, -apple-system, sans-serif;
-  overflow: auto;
   padding: 1rem;
   gap: 1rem;
 }
@@ -150,6 +152,16 @@
   background: linear-gradient(160deg, #eef2ff 0%, #e2e8f0 60%, #dbe4f0 100%);
   color: #0f172a;
 }
+/* The back button and its caption were pale grey on the light background. */
+:global(html.light) .backBtn,
+:global(html[data-theme='light']) .backBtn {
+  border-color: rgba(71, 85, 105, 0.55);
+  color: #334155;
+}
+:global(html.light) .backBtn:hover,
+:global(html[data-theme='light']) .backBtn:hover { background: rgba(71, 85, 105, 0.12); }
+:global(html.light) .setupKicker,
+:global(html[data-theme='light']) .setupKicker { color: #475569; }
 :global(html.light) .setupCard,
 :global(html[data-theme='light']) .setupCard {
   background: rgba(255, 255, 255, 0.9);

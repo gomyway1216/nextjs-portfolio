@@ -15,12 +15,15 @@ import {
 } from '../contexts/GameLanguageContext';
 import { getGameTranslation } from '../constants/gameTranslations';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import tableStyles from './BiggerNumberTable.module.css';
+import { usePageTop } from './usePageTop';
 
 type Mode = 'menu' | 'ai' | 'online';
 
 function BiggerNumberContent() {
   useFeatureLifecycle('game.bigger-number');
   const [mode, setMode] = useState<Mode>('menu');
+  usePageTop(mode);
   const { language } = useGameLanguage();
   const t = getGameTranslation('bigger-number', language);
 
@@ -30,13 +33,10 @@ function BiggerNumberContent() {
   const ja = language === 'ja';
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
+    <div className={tableStyles.screen} style={{
       display: 'flex',
       flexDirection: 'column',
       background: 'linear-gradient(to bottom, #020617, #0f172a)',
-      overflow: 'auto',
       fontFamily: 'system-ui, -apple-system, sans-serif',
       padding: '1.25rem',
     }}>

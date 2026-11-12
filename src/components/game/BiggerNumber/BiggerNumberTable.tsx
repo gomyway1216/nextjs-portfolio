@@ -191,6 +191,12 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
           : '';
 
   const opponentCards = Array.from({ length: opponentHandCount });
+  // The tile the opponent has just turned over is spent as soon as it is
+  // shown, unless that round was a tie that hands both tiles back.
+  const shownRound = history?.[history.length - 1];
+  const opponentSpent =
+    showingReveal && shownRound && !shownRound.cardsReturnedToHand ? opponentPickShown : null;
+  const opponentTiles = opponentHand ? trackTiles(opponentHand, opponentSpent) : null;
   const tileLabel = (card: CardValue) => (isDragon(card) ? t.dragonCard : t.cardN(card));
 
   // Keep the newest round in view when the log grows past its max height.
@@ -233,10 +239,10 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
             <span className={styles.lockedTag}>✓ {t.locking}</span>
           )}
         </div>
-        {opponentHand ? (
+        {opponentTiles ? (
           <>
             <ul className={styles.tracker} aria-label={t.opponentTiles}>
-              {trackTiles(opponentHand).map(({ card, inHand }) => (
+              {opponentTiles.map(({ card, inHand }) => (
                 <li key={isDragon(card) ? 'dragon' : `n${card}`}>
                   <span className={styles.srOnly}>
                     {inHand ? t.tileInHand(tileLabel(card)) : t.tilePlayed(tileLabel(card))}
@@ -254,7 +260,7 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
               ))}
             </ul>
             <span className={styles.roundMetaSub}>
-              {opponentHand.length === 0 ? t.noCardsLeft : t.opponentTiles}
+              {opponentTiles.some((tile) => tile.inHand) ? t.opponentTiles : t.noCardsLeft}
             </span>
           </>
         ) : (
@@ -350,7 +356,9 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
           </div>
         )}
 
-        {history && history.length > 0 && (
+        {/* Shown from the first round, at a fixed height, so the hand below
+            never moves when a round is added. */}
+        {history && (
           <div className={styles.log}>
             <div className={styles.logHeading}>
               {t.roundLog} <span className={styles.logOrder}>({t.roundLogOrder})</span>
@@ -362,6 +370,7 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
               aria-label={t.roundLog}
               tabIndex={0}
             >
+              {history.length === 0 && <div className={styles.logEmpty}>{t.roundLogEmpty}</div>}
               <ol className={styles.logList}>
                 {history.map((r, i) => (
                   <li

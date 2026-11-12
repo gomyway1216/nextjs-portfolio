@@ -65,6 +65,59 @@ describe('BiggerNumberTable', () => {
     expect(html).not.toContain(t.tilePlayed(t.cardN(9)));
   });
 
+  // The AI mode only takes the tile out of the opponent's hand when the next
+  // round starts; the tracker must not wait for that.
+  it.each(['between-rounds', 'finished'] as const)(
+    'shows the tile the opponent has just revealed as played (%s)',
+    (phase) => {
+      const t = getStrings('en');
+      const html = render({
+        opponentHand: [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'],
+        history: [{ round: 1, yourCard: 9, opponentCard: 3, winner: 'you', cardsReturnedToHand: false }],
+        opponentPickShown: 3,
+        yourPickShown: 9,
+        phase,
+        finalMessage: 'done',
+      });
+      expect(html).toContain(t.tilePlayed(t.cardN(3)));
+      expect(html).not.toContain(t.tileInHand(t.cardN(3)));
+      expect(html).toContain(t.tileInHand(t.cardN(4)));
+    },
+  );
+
+  it('keeps a revealed tile in hand when the tie hands both tiles back', () => {
+    const t = getStrings('en');
+    const html = render({
+      opponentHand: [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'],
+      history: [{ round: 1, yourCard: 3, opponentCard: 3, winner: 'tie', cardsReturnedToHand: true }],
+      opponentPickShown: 3,
+      yourPickShown: 3,
+      phase: 'between-rounds',
+    });
+    expect(html).toContain(t.tileInHand(t.cardN(3)));
+    expect(html).not.toContain(t.tilePlayed(t.cardN(3)));
+  });
+
+  it('does not count a tile as played before it is revealed', () => {
+    const t = getStrings('en');
+    const html = render({
+      opponentHand: [1, 2, 3, 4, 5, 6, 7, 8, 9, 'dragon'],
+      history: [{ round: 1, yourCard: 9, opponentCard: 3, winner: 'you', cardsReturnedToHand: true }],
+      opponentPickCount: 1,
+      phase: 'revealing',
+    });
+    expect(html).not.toContain('(played)');
+    expect(html).toContain(t.tileInHand(t.cardN(3)));
+  });
+
+  it.each(['en', 'ja'] as const)('shows the log from the first round, empty, so the hand never moves (%s)', (language) => {
+    const t = getStrings(language);
+    const html = render({ history: [] }, language);
+    expect(html).toMatch(new RegExp(`role="region"[^>]*aria-label="${t.roundLog}"`));
+    expect(html).toContain(t.roundLogEmpty);
+    expect(render({ history }, language)).not.toContain(t.roundLogEmpty);
+  });
+
   it('lists each round in a focusable, labelled log', () => {
     const t = getStrings('en');
     const html = render({ history });

@@ -43,11 +43,11 @@ export const TimingReview = ({ records, targetHalfWidth, copy }: TimingReviewPro
       <p className={styles.reviewTendency} data-tendency={timing.tendency}>
         {tendency}
       </p>
-      <p className={styles.reviewNote}>
-        {copy.timingCounts(timing.early, timing.late, timing.onTime)}
-        <br />
-        {copy.timingNote(timing.taps)}
-      </p>
+      {/* Two paragraphs, not one with a <br>: the site hides a <br> inside a <p> on phones. */}
+      <div className={styles.reviewNote}>
+        <p>{copy.timingCounts(timing.early, timing.late, timing.onTime)}</p>
+        <p>{copy.timingNote(timing.taps)}</p>
+      </div>
 
       <ol className={styles.reviewList}>
         {records.map((record, index) => (

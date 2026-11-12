@@ -804,7 +804,7 @@ const Othello = () => {
         </div>
 
         {/* Board */}
-        <div className={styles.boardFrame}>
+        <div className={styles.boardFrame} data-testid="othello-board">
           <div className={styles.coordsTop} aria-hidden="true">
             {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((c) => (
               <span key={c} className={styles.coordLabel}>

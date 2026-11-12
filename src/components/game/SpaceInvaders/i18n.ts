@@ -61,6 +61,36 @@ interface SpaceInvadersStrings {
   debriefAccuracyNote: string;
   debriefCoopNote: string;
   enemyNames: Record<EnemyType, string>;
+  lobby: {
+    createRoom: string;
+    joinRoom: string;
+    yourName: string;
+    roomPassword: string;
+    roomCode: string;
+    back: string;
+    create: string;
+    creating: string;
+    join: string;
+    joining: string;
+    waitingRoom: string;
+    roomCodeLabel: string;
+    shareCode: string;
+    players: string;
+    youTag: string;
+    hostTag: string;
+    ready: string;
+    notReady: string;
+    cancelReady: string;
+    waitingForPlayer: string;
+    leave: string;
+    startGame: string;
+    waitingForHost: string;
+    creatingRoom: string;
+    joiningRoom: string;
+    startingGame: string;
+    /** The lobby's own (client-side) error messages, keyed by their English text. */
+    errors: Record<string, string>;
+  };
 }
 
 const STRINGS: Record<GameLanguage, SpaceInvadersStrings> = {
@@ -127,6 +157,35 @@ const STRINGS: Record<GameLanguage, SpaceInvadersStrings> = {
       [EnemyType.CRAB]: 'Crab',
       [EnemyType.OCTOPUS]: 'Octopus',
     },
+    lobby: {
+      createRoom: 'Create Room',
+      joinRoom: 'Join Room',
+      yourName: 'Your Name',
+      roomPassword: 'Room Password',
+      roomCode: 'Room Code',
+      back: 'Back',
+      create: 'Create',
+      creating: 'Creating...',
+      join: 'Join',
+      joining: 'Joining...',
+      waitingRoom: 'Waiting Room',
+      roomCodeLabel: 'Room Code:',
+      shareCode: 'Share this code with your friend',
+      players: 'Players',
+      youTag: '(You)',
+      hostTag: '[Host]',
+      ready: 'Ready',
+      notReady: 'Not Ready',
+      cancelReady: 'Not Ready',
+      waitingForPlayer: 'Waiting for another player...',
+      leave: 'Leave',
+      startGame: 'Start Game',
+      waitingForHost: 'Waiting for host to start...',
+      creatingRoom: 'Creating room...',
+      joiningRoom: 'Joining room...',
+      startingGame: 'Starting game...',
+      errors: {},
+    },
   },
   ja: {
     title: 'スペースインベーダー',
@@ -190,6 +249,40 @@ const STRINGS: Record<GameLanguage, SpaceInvadersStrings> = {
       [EnemyType.SQUID]: 'イカ',
       [EnemyType.CRAB]: 'カニ',
       [EnemyType.OCTOPUS]: 'タコ',
+    },
+    lobby: {
+      createRoom: 'ルームを作る',
+      joinRoom: 'ルームに参加',
+      yourName: 'あなたの名前',
+      roomPassword: 'ルームのパスワード',
+      roomCode: 'ルームコード',
+      back: '戻る',
+      create: '作成',
+      creating: '作成中…',
+      join: '参加',
+      joining: '参加中…',
+      waitingRoom: '待機ルーム',
+      roomCodeLabel: 'ルームコード:',
+      shareCode: 'このコードを友だちに伝えてください',
+      players: 'プレイヤー',
+      youTag: '（あなた）',
+      hostTag: '［ホスト］',
+      ready: '準備OK',
+      notReady: '準備中',
+      cancelReady: '準備を取り消す',
+      waitingForPlayer: 'もう1人の参加を待っています…',
+      leave: '退出',
+      startGame: 'ゲーム開始',
+      waitingForHost: 'ホストの開始を待っています…',
+      creatingRoom: 'ルームを作成中…',
+      joiningRoom: 'ルームに参加中…',
+      startingGame: 'ゲームを開始中…',
+      errors: {
+        'Room was closed': 'ルームが閉じられました',
+        'Failed to create room': 'ルームを作成できませんでした',
+        'Failed to join room': 'ルームに参加できませんでした',
+        'Network error': '通信エラーが発生しました',
+      },
     },
   },
 };

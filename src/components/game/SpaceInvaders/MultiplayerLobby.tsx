@@ -5,6 +5,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getSpaceInvadersStrings } from './i18n';
 import { UseMultiplayerReturn } from './useMultiplayer';
 
 interface MultiplayerLobbyProps {
@@ -19,6 +21,12 @@ export function MultiplayerLobby({
   onGameStart,
 }: MultiplayerLobbyProps) {
   const { context, room, myColor, otherColor } = multiplayer;
+  const { language } = useGameLanguage();
+  const strings = getSpaceInvadersStrings(language);
+  const t = strings.lobby;
+  // The server's own messages are passed through as they are.
+  const lobbyError = (message: string) =>
+    Object.prototype.hasOwnProperty.call(t.errors, message) ? t.errors[message] : message;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');
@@ -75,13 +83,11 @@ export function MultiplayerLobby({
   if (context.lobbyState === 'idle' && mode === 'menu') {
     return (
       <div className="flex flex-col items-center gap-6 p-8">
-        <h2 className="text-3xl font-bold text-green-400 mb-4">SPACE INVADERS</h2>
-
         <button
           onClick={onStartSinglePlayer}
           className="w-64 py-4 px-8 bg-green-600 hover:bg-green-500 text-white font-bold text-xl rounded-lg transition-colors"
         >
-          Single Player
+          {strings.singlePlayer}
         </button>
 
         <div className="flex gap-4">
@@ -89,18 +95,18 @@ export function MultiplayerLobby({
             onClick={() => setMode('create')}
             className="py-3 px-6 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors"
           >
-            Create Room
+            {t.createRoom}
           </button>
           <button
             onClick={() => setMode('join')}
             className="py-3 px-6 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors"
           >
-            Join Room
+            {t.joinRoom}
           </button>
         </div>
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p className="text-red-400 text-sm">{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -110,11 +116,12 @@ export function MultiplayerLobby({
   if (mode === 'create' && context.lobbyState === 'idle') {
     return (
       <div className="flex flex-col items-center gap-4 p-8">
-        <h3 className="text-2xl font-bold text-blue-400 mb-2">Create Room</h3>
+        <h3 className="text-2xl font-bold text-blue-400 mb-2" style={{ color: '#60a5fa' }}>{t.createRoom}</h3>
 
         <input
           type="text"
-          placeholder="Your Name"
+          placeholder={t.yourName}
+          aria-label={t.yourName}
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           className="w-64 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-blue-400 outline-none"
@@ -123,7 +130,8 @@ export function MultiplayerLobby({
 
         <input
           type="password"
-          placeholder="Room Password"
+          placeholder={t.roomPassword}
+          aria-label={t.roomPassword}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-64 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-blue-400 outline-none"
@@ -135,19 +143,19 @@ export function MultiplayerLobby({
             onClick={() => setMode('menu')}
             className="py-2 px-6 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded transition-colors"
           >
-            Back
+            {t.back}
           </button>
           <button
             onClick={handleCreate}
             disabled={isLoading || !playerName.trim() || !password.trim()}
             className="py-2 px-6 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors"
           >
-            {isLoading ? 'Creating...' : 'Create'}
+            {isLoading ? t.creating : t.create}
           </button>
         </div>
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p className="text-red-400 text-sm">{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -157,11 +165,12 @@ export function MultiplayerLobby({
   if (mode === 'join' && context.lobbyState === 'idle') {
     return (
       <div className="flex flex-col items-center gap-4 p-8">
-        <h3 className="text-2xl font-bold text-purple-400 mb-2">Join Room</h3>
+        <h3 className="text-2xl font-bold text-purple-400 mb-2" style={{ color: '#c084fc' }}>{t.joinRoom}</h3>
 
         <input
           type="text"
-          placeholder="Your Name"
+          placeholder={t.yourName}
+          aria-label={t.yourName}
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           className="w-64 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-purple-400 outline-none"
@@ -170,7 +179,8 @@ export function MultiplayerLobby({
 
         <input
           type="text"
-          placeholder="Room Code"
+          placeholder={t.roomCode}
+          aria-label={t.roomCode}
           value={roomCode}
           onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
           className="w-64 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-purple-400 outline-none font-mono"
@@ -179,7 +189,8 @@ export function MultiplayerLobby({
 
         <input
           type="password"
-          placeholder="Room Password"
+          placeholder={t.roomPassword}
+          aria-label={t.roomPassword}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-64 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-purple-400 outline-none"
@@ -191,19 +202,19 @@ export function MultiplayerLobby({
             onClick={() => setMode('menu')}
             className="py-2 px-6 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded transition-colors"
           >
-            Back
+            {t.back}
           </button>
           <button
             onClick={handleJoin}
             disabled={isLoading || !playerName.trim() || !password.trim() || !roomCode.trim()}
             className="py-2 px-6 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors"
           >
-            {isLoading ? 'Joining...' : 'Join'}
+            {isLoading ? t.joining : t.join}
           </button>
         </div>
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p className="text-red-400 text-sm">{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -213,21 +224,21 @@ export function MultiplayerLobby({
   if (context.lobbyState === 'waiting' || context.lobbyState === 'ready') {
     return (
       <div className="flex flex-col items-center gap-6 p-8">
-        <h3 className="text-2xl font-bold text-green-400">Waiting Room</h3>
+        <h3 className="text-2xl font-bold text-green-400" style={{ color: '#4ade80' }}>{t.waitingRoom}</h3>
 
         {context.isHost && context.roomId && (
           <div className="text-center">
-            <p className="text-gray-400 text-sm">Room Code:</p>
+            <p className="text-gray-400 text-sm">{t.roomCodeLabel}</p>
             <p className="text-3xl font-mono font-bold text-yellow-400 tracking-widest">
               {context.roomId}
             </p>
-            <p className="text-gray-500 text-xs mt-1">Share this code with your friend</p>
+            <p className="text-gray-500 text-xs mt-1">{t.shareCode}</p>
           </div>
         )}
 
         {/* Players list */}
         <div className="w-80 bg-gray-800 rounded-lg p-4">
-          <h4 className="text-lg font-bold text-white mb-3">Players</h4>
+          <h4 className="text-lg font-bold text-white mb-3" style={{ color: '#ffffff' }}>{t.players}</h4>
 
           {players.map((player, _index) => (
             <div
@@ -241,19 +252,19 @@ export function MultiplayerLobby({
                 />
                 <span className="text-white">
                   {player.name}
-                  {player.id === context.playerId && ' (You)'}
-                  {room?.hostId === player.id && ' [Host]'}
+                  {player.id === context.playerId && ` ${t.youTag}`}
+                  {room?.hostId === player.id && ` ${t.hostTag}`}
                 </span>
               </div>
               <span className={player.ready ? 'text-green-400' : 'text-gray-500'}>
-                {player.ready ? 'Ready' : 'Not Ready'}
+                {player.ready ? t.ready : t.notReady}
               </span>
             </div>
           ))}
 
           {players.length < 2 && (
             <div className="py-2 text-gray-500 italic">
-              Waiting for another player...
+              {t.waitingForPlayer}
             </div>
           )}
         </div>
@@ -264,7 +275,7 @@ export function MultiplayerLobby({
             onClick={() => multiplayer.leaveRoom()}
             className="py-2 px-6 bg-red-600 hover:bg-red-500 text-white font-bold rounded transition-colors"
           >
-            Leave
+            {t.leave}
           </button>
 
           <button
@@ -276,7 +287,7 @@ export function MultiplayerLobby({
                 : 'bg-green-600 hover:bg-green-500 text-white'
             }`}
           >
-            {myPlayer?.ready ? 'Not Ready' : 'Ready'}
+            {myPlayer?.ready ? t.cancelReady : t.ready}
           </button>
 
           {context.isHost && (
@@ -285,17 +296,17 @@ export function MultiplayerLobby({
               disabled={!allReady || players.length < 2}
               className="py-2 px-6 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors"
             >
-              Start Game
+              {t.startGame}
             </button>
           )}
         </div>
 
         {!context.isHost && allReady && (
-          <p className="text-yellow-400 text-sm">Waiting for host to start...</p>
+          <p className="text-yellow-400 text-sm">{t.waitingForHost}</p>
         )}
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p className="text-red-400 text-sm">{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -307,7 +318,7 @@ export function MultiplayerLobby({
       <div className="flex flex-col items-center gap-4 p-8">
         <div className="animate-spin w-12 h-12 border-4 border-green-400 border-t-transparent rounded-full" />
         <p className="text-gray-400">
-          {context.lobbyState === 'creating' ? 'Creating room...' : 'Joining room...'}
+          {context.lobbyState === 'creating' ? t.creatingRoom : t.joiningRoom}
         </p>
       </div>
     );
@@ -319,7 +330,7 @@ export function MultiplayerLobby({
     return (
       <div className="flex flex-col items-center gap-4 p-8">
         <div className="animate-spin w-12 h-12 border-4 border-green-400 border-t-transparent rounded-full" />
-        <p className="text-gray-400">Starting game...</p>
+        <p className="text-gray-400">{t.startingGame}</p>
       </div>
     );
   }
@@ -331,7 +342,7 @@ export function MultiplayerLobby({
         onClick={onStartSinglePlayer}
         className="w-64 py-4 px-8 bg-green-600 hover:bg-green-500 text-white font-bold text-xl rounded-lg transition-colors"
       >
-        Single Player
+        {strings.singlePlayer}
       </button>
     </div>
   );

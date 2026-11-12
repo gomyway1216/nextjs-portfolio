@@ -163,9 +163,16 @@
 
 /* ---------- Board ---------- */
 .boardFrame {
-  --cell: clamp(34px, min(11vw, 56px), 56px);
+  /*
+   * The frame is 8 cells, the row labels (0.42 of a cell), the grid's gaps and
+   * padding (18px) and its own padding wide. On a phone the cell is what is
+   * left of the screen after the page's 1rem margins, so the whole frame fits
+   * (it used to be 398px wide on a 390px screen).
+   */
+  --frame-pad: clamp(0.5rem, 2.5vw, 0.9rem);
+  --cell: min(56px, calc((100vw - 2rem - 2 * var(--frame-pad) - 19px) / 8.42));
   align-self: center;
-  padding: clamp(0.5rem, 2.5vw, 0.9rem);
+  padding: var(--frame-pad);
   border-radius: 16px;
   background: linear-gradient(160deg, var(--frame), #0a2e1c);
   box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.04);

@@ -229,7 +229,9 @@
   text-align: center;
 }
 
-.pauseTitle {
+.pauseOverlay .pauseTitle {
+  /* Set here: the site-wide heading colour would otherwise win over the overlay's. */
+  color: #f8fafc;
   margin: 0;
   font-size: clamp(1.5rem, 6.4vw, 2rem);
   font-weight: 760;

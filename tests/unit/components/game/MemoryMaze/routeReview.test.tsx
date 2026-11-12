@@ -46,6 +46,13 @@ describe('RouteReview', () => {
     expect(markup).toContain('>Back to result</button>');
   });
 
+  it('uses the singular when every bump was against the same wall', () => {
+    expect(getStrings('en').reviewWallHitsValue(3, 1)).toBe('3 (1 different wall)');
+    expect(getStrings('en').reviewWallHitsValue(3, 2)).toBe('3 (2 different walls)');
+    expect(getStrings('en').reviewWallHitsValue(1, 1)).toBe('1');
+    expect(getStrings('ja').reviewWallHitsValue(3, 1)).toBe('3（壁1か所）');
+  });
+
   it('praises a shortest-route clear and uses the singular for one extra step', () => {
     expect(render('en', { ...cleared, steps: 8, extraSteps: 0 }, breakdown)).toContain('You matched the shortest route.');
     expect(render('en', { ...cleared, steps: 9, extraSteps: 1 }, breakdown)).toContain('1 step longer than the shortest route.');

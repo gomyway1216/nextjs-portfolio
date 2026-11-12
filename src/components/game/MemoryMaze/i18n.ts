@@ -141,7 +141,7 @@ const en: MemoryMazeStrings = {
   reviewShortest: 'Shortest route',
   reviewRepeated: 'Steps onto cells you had already visited',
   reviewWallHits: 'Wall hits',
-  reviewWallHitsValue: (hits, walls) => (hits === walls ? `${hits}` : `${hits} (${walls} different walls)`),
+  reviewWallHitsValue: (hits, walls) => (hits === walls ? `${hits}` : `${hits} (${walls} different ${walls === 1 ? 'wall' : 'walls'})`),
   reviewScoreTitle: 'Stage score',
   reviewBase: 'Stage clear',
   reviewEfficiency: 'Route efficiency',

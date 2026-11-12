@@ -2,6 +2,9 @@ import type { GameLanguage } from '../constants/gameTranslations';
 import type { HandCategoryName, Street } from './engine';
 import type { HandOutcome } from './history';
 
+/** The action-log lines that name a player. */
+export type PlayerLogLine = 'posts' | 'checks' | 'folds' | 'calls' | 'bets' | 'raises' | 'collects';
+
 export interface HoldemStrings {
   title: string;
   eyebrow: string;
@@ -79,6 +82,11 @@ export interface HoldemStrings {
     street: string;
     collects: string;
   };
+  /**
+   * The same lines when the player is the human, for a language whose verb changes with the subject
+   * (English: "You call", not "You calls"). A line left out uses `log`'s.
+   */
+  logYou?: Partial<Record<PlayerLogLine, string>>;
   history: {
     title: string;
     empty: string;
@@ -190,6 +198,15 @@ const en: HoldemStrings = {
     raises: '{{player}} raises to {{amount}}',
     street: '{{street}} dealt',
     collects: '{{player}} collects {{amount}}',
+  },
+  logYou: {
+    posts: '{{player}} post {{blind}} {{amount}}',
+    checks: '{{player}} check',
+    folds: '{{player}} fold',
+    calls: '{{player}} call {{amount}}',
+    bets: '{{player}} bet {{amount}}',
+    raises: '{{player}} raise to {{amount}}',
+    collects: '{{player}} collect {{amount}}',
   },
   history: {
     title: 'Table history',

@@ -5,6 +5,8 @@
 'use client';
 
 import React,{ useState } from 'react';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getOthelloStrings } from './i18n';
 import { BLACK } from './types';
 import { UseOthelloMultiplayerReturn } from './useOthelloMultiplayer';
 
@@ -18,6 +20,12 @@ export function OthelloMultiplayerLobby({
   onGameStart,
 }: OthelloMultiplayerLobbyProps) {
   const { context, room, myColor } = multiplayer;
+  const { language } = useGameLanguage();
+  const strings = getOthelloStrings(language);
+  const t = strings.lobby;
+  // The server's own messages are passed through as they are.
+  const lobbyError = (message: string) =>
+    Object.prototype.hasOwnProperty.call(t.errors, message) ? t.errors[message] : message;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');
@@ -84,7 +92,7 @@ export function OthelloMultiplayerLobby({
           <div style={discStyle(true, 40)} />
           <div style={discStyle(false, 40)} />
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80' }}>OTHELLO</h2>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80' }}>{strings.title.toUpperCase()}</h2>
 
         <div className="flex gap-3">
           <button
@@ -99,7 +107,7 @@ export function OthelloMultiplayerLobby({
               cursor: 'pointer',
             }}
           >
-            Create Room
+            {t.createRoom}
           </button>
           <button
             onClick={() => setMode('join')}
@@ -113,12 +121,12 @@ export function OthelloMultiplayerLobby({
               cursor: 'pointer',
             }}
           >
-            Join Room
+            {t.joinRoom}
           </button>
         </div>
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p className="text-red-400 text-sm">{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -139,11 +147,12 @@ export function OthelloMultiplayerLobby({
   if (mode === 'create' && context.lobbyState === 'idle') {
     return (
       <div className="flex flex-col items-center gap-4 p-4">
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.5rem' }}>Create Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.5rem' }}>{t.createRoom}</h3>
 
         <input
           type="text"
-          placeholder="Your Name"
+          placeholder={t.yourName}
+          aria-label={t.yourName}
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           style={inputStyle}
@@ -152,7 +161,8 @@ export function OthelloMultiplayerLobby({
 
         <input
           type="text"
-          placeholder="Room Password"
+          placeholder={t.roomPassword}
+          aria-label={t.roomPassword}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
@@ -172,7 +182,7 @@ export function OthelloMultiplayerLobby({
               cursor: 'pointer',
             }}
           >
-            Back
+            {t.back}
           </button>
           <button
             onClick={handleCreate}
@@ -187,12 +197,12 @@ export function OthelloMultiplayerLobby({
               cursor: isLoading || !playerName.trim() || !password.trim() ? 'not-allowed' : 'pointer',
             }}
           >
-            {isLoading ? 'Creating...' : 'Create'}
+            {isLoading ? t.creating : t.create}
           </button>
         </div>
 
         {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{context.error}</p>
+          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -202,11 +212,12 @@ export function OthelloMultiplayerLobby({
   if (mode === 'join' && context.lobbyState === 'idle') {
     return (
       <div className="flex flex-col items-center gap-4 p-4">
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.5rem' }}>Join Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.5rem' }}>{t.joinRoom}</h3>
 
         <input
           type="text"
-          placeholder="Your Name"
+          placeholder={t.yourName}
+          aria-label={t.yourName}
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           style={inputStyle}
@@ -215,7 +226,8 @@ export function OthelloMultiplayerLobby({
 
         <input
           type="text"
-          placeholder="Room Code"
+          placeholder={t.roomCode}
+          aria-label={t.roomCode}
           value={roomCode}
           onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
           style={{ ...inputStyle, fontFamily: 'monospace' }}
@@ -224,7 +236,8 @@ export function OthelloMultiplayerLobby({
 
         <input
           type="text"
-          placeholder="Room Password"
+          placeholder={t.roomPassword}
+          aria-label={t.roomPassword}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
@@ -244,7 +257,7 @@ export function OthelloMultiplayerLobby({
               cursor: 'pointer',
             }}
           >
-            Back
+            {t.back}
           </button>
           <button
             onClick={handleJoin}
@@ -259,12 +272,12 @@ export function OthelloMultiplayerLobby({
               cursor: isLoading || !playerName.trim() || !password.trim() || !roomCode.trim() ? 'not-allowed' : 'pointer',
             }}
           >
-            {isLoading ? 'Joining...' : 'Join'}
+            {isLoading ? t.joining : t.join}
           </button>
         </div>
 
         {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{context.error}</p>
+          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -274,21 +287,21 @@ export function OthelloMultiplayerLobby({
   if (context.lobbyState === 'waiting' || context.lobbyState === 'ready') {
     return (
       <div className="flex flex-col items-center gap-5 p-4">
-        <h3 className="text-xl font-bold text-green-400">Waiting Room</h3>
+        <h3 className="text-xl font-bold text-green-400" style={{ color: '#4ade80' }}>{t.waitingRoom}</h3>
 
         {context.isHost && context.roomId && (
           <div className="text-center">
-            <p className="text-gray-400 text-sm">Room Code:</p>
+            <p className="text-gray-400 text-sm">{t.roomCodeLabel}</p>
             <p className="text-2xl font-mono font-bold text-yellow-400 tracking-widest">
               {context.roomId}
             </p>
-            <p className="text-gray-500 text-xs mt-1">Share this code with your friend</p>
+            <p className="text-gray-500 text-xs mt-1">{t.shareCode}</p>
           </div>
         )}
 
         {/* Players list */}
         <div className="w-72 bg-gray-800 rounded-lg p-4">
-          <h4 className="text-base font-bold text-white mb-3">Players</h4>
+          <h4 className="text-base font-bold text-white mb-3" style={{ color: '#ffffff' }}>{t.players}</h4>
 
           {players.map((player) => (
             <div
@@ -300,32 +313,32 @@ export function OthelloMultiplayerLobby({
                 <div>
                   <span className="text-white">
                     {player.name}
-                    {player.id === context.playerId && ' (You)'}
+                    {player.id === context.playerId && ` ${t.youTag}`}
                   </span>
                   <div className="text-xs text-gray-400">
-                    {player.id === room?.hostId ? 'Black (first)' : 'White (second)'}
+                    {player.id === room?.hostId ? t.blackFirst : t.whiteSecond}
                   </div>
                 </div>
               </div>
               <span className={player.ready ? 'text-green-400 text-sm' : 'text-gray-500 text-sm'}>
-                {player.ready ? 'Ready' : 'Not Ready'}
+                {player.ready ? t.ready : t.notReady}
               </span>
             </div>
           ))}
 
           {players.length < 2 && (
             <div className="py-2 text-gray-500 italic text-sm">
-              Waiting for another player...
+              {t.waitingForPlayer}
             </div>
           )}
         </div>
 
         {/* Your color indicator */}
         <div className="flex items-center gap-2 text-sm text-gray-400">
-          <span>You will play as:</span>
+          <span>{t.youPlayAs}</span>
           <div style={discStyle(myColor === BLACK, 20)} />
           <span className="text-white font-medium">
-            {myColor === BLACK ? 'Black (first)' : 'White (second)'}
+            {myColor === BLACK ? t.blackFirst : t.whiteSecond}
           </span>
         </div>
 
@@ -343,7 +356,7 @@ export function OthelloMultiplayerLobby({
               cursor: 'pointer',
             }}
           >
-            Leave
+            {t.leave}
           </button>
 
           <button
@@ -359,7 +372,7 @@ export function OthelloMultiplayerLobby({
               cursor: 'pointer',
             }}
           >
-            {myPlayer?.ready ? 'Not Ready' : 'Ready'}
+            {myPlayer?.ready ? t.cancelReady : t.ready}
           </button>
 
           {context.isHost && (
@@ -376,17 +389,17 @@ export function OthelloMultiplayerLobby({
                 cursor: !allReady || players.length < 2 ? 'not-allowed' : 'pointer',
               }}
             >
-              Start Game
+              {t.startGame}
             </button>
           )}
         </div>
 
         {!context.isHost && allReady && (
-          <p style={{ color: '#facc15', fontSize: '0.875rem' }}>Waiting for host to start...</p>
+          <p style={{ color: '#facc15', fontSize: '0.875rem' }}>{t.waitingForHost}</p>
         )}
 
         {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{context.error}</p>
+          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{lobbyError(context.error)}</p>
         )}
       </div>
     );
@@ -398,7 +411,7 @@ export function OthelloMultiplayerLobby({
       <div className="flex flex-col items-center gap-4 p-6">
         <div className="animate-spin w-10 h-10 border-4 border-green-400 border-t-transparent rounded-full" />
         <p className="text-gray-400">
-          {context.lobbyState === 'creating' ? 'Creating room...' : 'Joining room...'}
+          {context.lobbyState === 'creating' ? t.creatingRoom : t.joiningRoom}
         </p>
       </div>
     );
@@ -407,7 +420,7 @@ export function OthelloMultiplayerLobby({
   // Default: show menu
   return (
     <div className="flex flex-col items-center gap-6 p-4">
-      <p className="text-sm text-gray-400">Choose a multiplayer action above.</p>
+      <p className="text-sm text-gray-400">{t.chooseAction}</p>
     </div>
   );
 }

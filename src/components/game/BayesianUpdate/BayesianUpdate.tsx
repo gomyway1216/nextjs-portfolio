@@ -48,15 +48,14 @@ export const BayesianUpdate = () => {
           </button>
         </div>
 
-        {tab === 'play' ? (
-          <div role="tabpanel" id="panel-play" aria-labelledby="tab-play">
-            <PlayTab t={t} />
-          </div>
-        ) : (
-          <div role="tabpanel" id="panel-sim" aria-labelledby="tab-sim">
-            <SimTab t={t} />
-          </div>
-        )}
+        {/* Both panels stay mounted (the inactive one is hidden) so switching tabs
+            never drops the flips on Play or a finished simulation. */}
+        <div role="tabpanel" id="panel-play" aria-labelledby="tab-play" hidden={tab !== 'play'}>
+          <PlayTab t={t} />
+        </div>
+        <div role="tabpanel" id="panel-sim" aria-labelledby="tab-sim" hidden={tab !== 'sim'}>
+          <SimTab t={t} />
+        </div>
       </div>
     </div>
   );

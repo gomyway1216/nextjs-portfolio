@@ -80,7 +80,7 @@ const en: BirthdayStrings = {
   person: 'Person',
   yourEmpirical: 'Your empirical',
   theoretical: 'Theoretical',
-  trialsLabel: (matches, trials) => `${matches} / ${trials} deals`,
+  trialsLabel: (matches, trials) => `${matches} / ${trials} ${trials === 1 ? 'deal' : 'deals'}`,
   playHintTitle: 'The paradox',
   playHint:
     'With just 23 people the chance of a shared birthday passes 50%. Move the slider and keep dealing — your empirical rate should track the theoretical value.',

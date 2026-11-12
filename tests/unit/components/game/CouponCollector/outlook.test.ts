@@ -7,6 +7,8 @@ import {
   expectedWaitForNext,
   formatChance,
   newCouponChance,
+  paceRatio,
+  paceVerdict,
   waitsPerNewCoupon,
 } from '@/components/game/CouponCollector/outlook';
 import { getStrings } from '@/components/game/CouponCollector/i18n';
@@ -182,7 +184,64 @@ describe('CouponCollector outlook', () => {
     }
     expect(en.luckResult(20, '61', '37.2%')).toContain('37.2%');
     expect(ja.luckResult(20, '61', '37.2%')).toContain('37.2%');
-    expect(en.waitSummary('14', 20, '20.0')).toContain('#20');
-    expect(ja.waitSummary('14', 20, '20.0')).toContain('20 番目');
+    expect(en.waitSummary(14, 20, '20.0')).toContain('#20');
+    expect(ja.waitSummary(14, 20, '20.0')).toContain('20 番目');
+  });
+});
+
+describe('pace against the expected total', () => {
+  it('has no verdict before the first draw', () => {
+    expect(paceRatio(20, 0, 0)).toBeNull();
+  });
+
+  it('uses the projected total, the same figure the "From here" panel shows', () => {
+    // 6 new coupons in 6 draws: 6 + 65.0 still to go = 71.0 against E[T] = 72.0.
+    const ratio = paceRatio(20, 6, 6)!;
+    expect(ratio).toBeCloseTo((6 + expectedRemaining(20, 6)) / expectedDraws(20), 12);
+    expect(ratio).toBeCloseTo(0.987, 3);
+    // Draws made alone (6 / 72 = 0.08×) used to read "ahead" here.
+    expect(paceVerdict(ratio)).toBe('onTrack');
+  });
+
+  it('never calls a run ahead while its projected total is above the expected one', () => {
+    for (const n of [3, 20, 100]) {
+      for (let collected = 1; collected <= n; collected++) {
+        for (const extra of [0, 1, 5, 40, 400]) {
+          const draws = collected + extra;
+          const ratio = paceRatio(n, collected, draws)!;
+          const projected = draws + expectedRemaining(n, collected);
+          expect(ratio).toBeCloseTo(projected / expectedDraws(n), 12);
+          if (projected >= expectedDraws(n)) expect(paceVerdict(ratio)).not.toBe('ahead');
+          if (projected <= expectedDraws(n)) expect(paceVerdict(ratio)).not.toBe('behind');
+        }
+      }
+    }
+  });
+
+  it('is draws over E[T] once the set is complete', () => {
+    expect(paceRatio(20, 20, 36)).toBeCloseTo(36 / expectedDraws(20), 12);
+    expect(paceVerdict(paceRatio(20, 20, 36)!)).toBe('ahead');
+    expect(paceVerdict(paceRatio(20, 20, 72)!)).toBe('onTrack');
+    expect(paceVerdict(paceRatio(20, 20, 120)!)).toBe('behind');
+  });
+
+  it('turns behind mid-run after a long dry spell', () => {
+    // 10 of 20 held after 40 draws: 40 + 58.6 = 98.6 against 72.0.
+    expect(paceVerdict(paceRatio(20, 10, 40)!)).toBe('behind');
+  });
+
+  it('rejects impossible counts', () => {
+    expect(() => paceRatio(20, 5, 4)).toThrow();
+    expect(() => paceRatio(20, 21, 30)).toThrow();
+    expect(() => paceRatio(20, 5, 5.5)).toThrow();
+  });
+
+  it('words one draw in the singular', () => {
+    const en = getStrings('en');
+    expect(en.drawsAxisEnd(1)).toBe('1 draw');
+    expect(en.drawsAxisEnd(1234)).toBe('1,234 draws');
+    expect(en.waitSummary(1, 1, '1.0')).toContain('1 draw for');
+    expect(en.waitSummary(14, 20, '20.0')).toContain('14 draws for');
+    expect(getStrings('ja').behindPace).not.toBe(en.behindPace);
   });
 });

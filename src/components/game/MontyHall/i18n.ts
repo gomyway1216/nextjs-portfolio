@@ -13,6 +13,8 @@ export interface MontyHallStrings {
   howToPlay: string;
   // Play tab
   doors: string;
+  /** Unit after the trial count on the convergence chart's x axis. */
+  trialsAxisUnit: string;
   doorLabel: (n: number) => string;
   pickedSuffix: string;
   pickPrompt: string;
@@ -74,6 +76,7 @@ const en: MontyHallStrings = {
   tabSim: 'Simulate',
   howToPlay: 'How it works',
   doors: 'Doors',
+  trialsAxisUnit: 'trials',
   doorLabel: (n) => `Door ${n}`,
   pickedSuffix: ' (picked)',
   pickPrompt: 'One door hides a prize 🎁, the rest hide goats 🐐. Pick a door to begin.',
@@ -142,7 +145,7 @@ const en: MontyHallStrings = {
   theoreticalLine: 'theory',
   infoTitle: 'How Monty Hall works',
   infoIntro:
-    'There are 3 doors. One hides a car, two hide goats. You pick a door. The host — who knows what is behind every door — always opens a different door to reveal a goat, then asks if you want to switch.',
+    'There are 3 doors. One hides a prize, two hide goats. You pick a door. The host — who knows what is behind every door — always opens a different door to reveal a goat, then asks if you want to switch.',
   infoWhy: 'Why switching wins 2/3',
   infoWhyBody:
     'Your first pick is right 1/3 of the time and wrong 2/3 of the time. The host never opens the prize, so whenever your first pick was wrong (2/3), the prize is guaranteed to be behind the one door you can switch to. So switching wins exactly when your first guess was wrong — 2/3 of the time.',
@@ -162,6 +165,7 @@ const ja: MontyHallStrings = {
   tabSim: 'シミュレーション',
   howToPlay: '仕組み',
   doors: 'ドア',
+  trialsAxisUnit: '試行',
   doorLabel: (n) => `ドア${n}`,
   pickedSuffix: '（選択中）',
   pickPrompt: '1つのドアの後ろに🎁、残りに🐐がいます。まずは1つ選んでください。',
@@ -229,7 +233,7 @@ const ja: MontyHallStrings = {
   theoreticalLine: '理論値',
   infoTitle: 'モンティ・ホールの仕組み',
   infoIntro:
-    '3つのドアがあり、1つに車、2つに🐐がいます。あなたが1つ選ぶと、中身を知っているホストが必ず別のドアを開けて🐐を見せ、「変えますか？」と尋ねます。',
+    '3つのドアがあり、1つに景品、2つに🐐がいます。あなたが1つ選ぶと、中身を知っているホストが必ず別のドアを開けて🐐を見せ、「変えますか？」と尋ねます。',
   infoWhy: 'なぜ変えると2/3で勝てるのか',
   infoWhyBody:
     '最初の選択が当たる確率は1/3、外れる確率は2/3。ホストは絶対に景品のドアを開けないので、最初に外していた場合（2/3）は、変えられる残り1つのドアに必ず景品があります。つまり「最初に外していたとき」＝2/3の確率で、変えると勝てるのです。',

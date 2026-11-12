@@ -35,7 +35,9 @@ const STRINGS = {
   sessionReached: { ja: 'セッション達成', en: 'Session reaches' },
   bankrollTrend: { ja: '資金の推移', en: 'Bankroll path' },
   ruinedMsg: { ja: '破産 — {steps} ステップで $0', en: 'Ruined — hit $0 in {steps} steps' },
+  ruinedMsgOne: { ja: '破産 — {steps} ステップで $0', en: 'Ruined — hit $0 in {steps} step' },
   reachedMsg: { ja: '目標達成 — {steps} ステップで ${target}', en: 'Reached ${target} in {steps} steps' },
+  reachedMsgOne: { ja: '目標達成 — {steps} ステップで ${target}', en: 'Reached ${target} in {steps} step' },
   cappedMsg: { ja: '未決着 — {steps} ステップの上限に到達', en: 'Undecided — stopped after {steps} steps (cap reached)' },
 
   // play: live odds, run review, session log
@@ -81,6 +83,7 @@ const STRINGS = {
   logClear: { ja: '記録を消す', en: 'Clear record' },
   logRegionLabel: { ja: 'このセッションの記録', en: 'Runs this session' },
   logSteps: { ja: '{steps} ステップ', en: '{steps} steps' },
+  logStepsOne: { ja: '{steps} ステップ', en: '{steps} step' },
   logRange: { ja: '最高 ${peak} / 最低 ${low}', en: 'peak ${peak} / low ${low}' },
   logSettings: { ja: 'a={a}, N={n}, p={p}', en: 'a={a}, N={n}, p={p}' },
 

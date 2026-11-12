@@ -197,11 +197,15 @@ export const PlayTab = ({ t, session, onSessionChange }: PlayTabProps) => {
           <Stat label={t('liveReach')} value={liveReachText} color="var(--gr-reach)" />
           <Stat label={t('liveSteps')} value={live.expectedSteps.toFixed(1)} color="var(--gr-accent-strong)" />
         </div>
-        <p className={`${styles.caption} ${styles.liveShift}`}>
-          {t('liveShift', { from: formatChance(1 - theoreticalRuin), to: liveReachText })}
-          <br />
-          {t('liveNote')}
-        </p>
+        {/* Two paragraphs, not a <br>: the site hides <br> inside <p> on phones. */}
+        <div className={styles.liveCaption}>
+          <p className={`${styles.caption} ${styles.liveShift}`} data-testid="gr-live-shift">
+            {t('liveShift', { from: formatChance(1 - theoreticalRuin), to: liveReachText })}
+          </p>
+          <p className={`${styles.caption} ${styles.liveShift}`} data-testid="gr-live-note">
+            {t('liveNote')}
+          </p>
+        </div>
 
         <div className={styles.resultArea}>
           {!result && <p className={styles.resultPlaceholder}>{t('reviewPlaceholder')}</p>}
@@ -217,9 +221,9 @@ export const PlayTab = ({ t, session, onSessionChange }: PlayTabProps) => {
               role="status"
             >
               {result.outcome === 'ruined'
-                ? `💥 ${t('ruinedMsg', { steps })}`
+                ? `💥 ${t(steps === 1 ? 'ruinedMsgOne' : 'ruinedMsg', { steps })}`
                 : result.outcome === 'reached'
-                  ? `🏆 ${t('reachedMsg', { steps, target: config.target })}`
+                  ? `🏆 ${t(steps === 1 ? 'reachedMsgOne' : 'reachedMsg', { steps, target: config.target })}`
                   : `⏱️ ${t('cappedMsg', { steps })}`}
             </div>
           )}
@@ -302,7 +306,7 @@ export const PlayTab = ({ t, session, onSessionChange }: PlayTabProps) => {
                     #{entry.id} {outcomeLabel(entry.review.outcome)}
                   </span>
                   <span className={styles.logDetail}>
-                    {t('logSteps', { steps: entry.review.steps })}
+                    {t(entry.review.steps === 1 ? 'logStepsOne' : 'logSteps', { steps: entry.review.steps })}
                     {' · '}
                     {t('logRange', { peak: entry.review.peak, low: entry.review.low })}
                   </span>

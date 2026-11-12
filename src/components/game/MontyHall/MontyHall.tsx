@@ -55,6 +55,8 @@ export const MontyHall = () => {
         <div className={styles.tabs} role="tablist" aria-label="Monty Hall modes">
           <button
             role="tab"
+            id="mh-tab-play"
+            aria-controls="mh-panel-play"
             aria-selected={tab === 'play'}
             className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
             onClick={() => setTab('play')}
@@ -63,6 +65,8 @@ export const MontyHall = () => {
           </button>
           <button
             role="tab"
+            id="mh-tab-sim"
+            aria-controls="mh-panel-sim"
             aria-selected={tab === 'sim'}
             className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
             onClick={() => setTab('sim')}
@@ -71,7 +75,16 @@ export const MontyHall = () => {
           </button>
         </div>
 
-        <div className={styles.panel}>{tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} />}</div>
+        {/* Both panels stay mounted (the inactive one is hidden) so switching tabs
+            never drops the record on Play or a finished simulation. */}
+        <div className={styles.panel}>
+          <div role="tabpanel" id="mh-panel-play" aria-labelledby="mh-tab-play" hidden={tab !== 'play'}>
+            <PlayTab t={t} />
+          </div>
+          <div role="tabpanel" id="mh-panel-sim" aria-labelledby="mh-tab-sim" hidden={tab !== 'sim'}>
+            <SimTab t={t} />
+          </div>
+        </div>
       </div>
 
       <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.infoTitle}>

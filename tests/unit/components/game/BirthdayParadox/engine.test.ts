@@ -4,6 +4,7 @@ import {
   dayLabel,
   estimateMatchProb,
   findFirstCollision,
+  formatProbability,
   generateBirthdays,
   hasCollision,
   runBirthdaySweepAsync,
@@ -151,5 +152,34 @@ describe('BirthdayParadox engine', () => {
     const at = (n: number) => pts.find((p) => p.n === n)!;
     expect(at(23).empirical).toBeCloseTo(0.507, 1);
     expect(at(70).empirical).toBeCloseTo(0.999, 1);
+  });
+});
+
+describe('formatProbability', () => {
+  it('never rounds a chance below 1 up to 100%', () => {
+    const p100 = theoreticalMatchProb(100);
+    expect(p100).toBeLessThan(1);
+    expect((p100 * 100).toFixed(2)).toBe('100.00');
+    expect(formatProbability(p100, 2)).toBe('>99.99%');
+    expect(formatProbability(theoreticalMatchProb(70), 1)).toBe('99.9%');
+    expect(formatProbability(theoreticalMatchProb(80), 1)).toBe('>99.9%');
+  });
+
+  it('says 100% only when it is certain', () => {
+    expect(formatProbability(theoreticalMatchProb(366), 2)).toBe('100%');
+    expect(formatProbability(1, 2)).toBe('100%');
+  });
+
+  it('never rounds a chance above 0 down to 0%', () => {
+    expect(formatProbability(0.00001, 2)).toBe('<0.01%');
+    expect(formatProbability(0, 2)).toBe('0%');
+    expect(formatProbability(theoreticalMatchProb(1), 2)).toBe('0%');
+  });
+
+  it('prints ordinary values unchanged', () => {
+    expect(formatProbability(theoreticalMatchProb(23), 2)).toBe('50.73%');
+    expect(formatProbability(theoreticalMatchProb(2), 2)).toBe('0.27%');
+    expect(formatProbability(0.5, 1)).toBe('50.0%');
+    expect(formatProbability(Number.NaN)).toBe('—');
   });
 });

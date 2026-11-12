@@ -76,7 +76,7 @@ export interface BayesianStrings {
   simStatSpread: string;
   simStatTheory: string;
   simFinalCaption: string;
-  flipsAxis: (n: string) => string;
+  flipsAxis: (n: number) => string;
   posteriorMeanAxis: (trials: number) => string;
 }
 
@@ -161,7 +161,7 @@ const ja: BayesianStrings = {
   simStatTheory: '理論 std ≈ √(p(1−p)/N)',
   simFinalCaption:
     '試行間 std が理論値 √(p(1−p)/N) と一致すれば、ベイズ推定が最尤推定 (単純平均) と漸近的に同じ収束率を持つことが分かります。',
-  flipsAxis: (n) => `${n} 回`,
+  flipsAxis: (n) => `${n.toLocaleString('ja-JP')} 回`,
   posteriorMeanAxis: (trials) => `事後平均 / 試行 (${trials} 試行)`,
 };
 
@@ -248,7 +248,7 @@ const en: BayesianStrings = {
   simStatTheory: 'Theory std ≈ √(p(1−p)/N)',
   simFinalCaption:
     'When the across-trial std matches the theoretical √(p(1−p)/N), it shows the Bayesian estimate converges at the same asymptotic rate as the MLE (the simple average).',
-  flipsAxis: (n) => `${n} flips`,
+  flipsAxis: enFlips,
   posteriorMeanAxis: (trials) => `posterior mean / trial (${trials} trials)`,
 };
 

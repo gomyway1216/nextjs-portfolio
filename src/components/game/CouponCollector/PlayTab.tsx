@@ -10,6 +10,8 @@ import {
   expectedWaitForNext,
   formatChance,
   newCouponChance,
+  paceRatio,
+  paceVerdict,
   waitsPerNewCoupon,
 } from './outlook';
 import type { CouponStrings } from './i18n';
@@ -84,9 +86,9 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
   );
   const complete = uniqueCount === n;
   const expected = expectedDraws(n);
-  const ratio = run.draws === 0 ? null : run.draws / expected;
-
   const remaining = expectedRemaining(n, uniqueCount);
+  // Same basis as the "From here" panel: the projected total against E[T].
+  const ratio = paceRatio(n, uniqueCount, run.draws);
   const waits = useMemo(() => waitsPerNewCoupon(run.uniqueCurve), [run.uniqueCurve]);
   const dryStreak = useMemo(() => currentDryStreak(run.uniqueCurve), [run.uniqueCurve]);
   // T has no upper bound, so a finished run is never "100%" even if the float rounds to 1.
@@ -99,7 +101,7 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
     waits.length === 0
       ? t.waitSummaryEmpty
       : t.waitSummary(
-          waits[longestIdx].toLocaleString(),
+          waits[longestIdx],
           longestIdx + 1,
           expectedWaitForNext(n, longestIdx).toFixed(1),
         );
@@ -108,8 +110,9 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
 
   const pace = (() => {
     if (ratio === null) return null;
-    if (ratio < 0.9) return { text: t.luckyFast, color: '#22c55e' };
-    if (ratio > 1.15) return { text: t.unlucky, color: '#f472b6' };
+    const verdict = paceVerdict(ratio);
+    if (verdict === 'ahead') return { text: t.luckyFast, color: '#22c55e' };
+    if (verdict === 'behind') return { text: complete ? t.unlucky : t.behindPace, color: '#f472b6' };
     return { text: t.onTrack, color: '#38bdf8' };
   })();
 
@@ -233,7 +236,7 @@ export const PlayTab = ({ t }: { t: CouponStrings }) => {
             n={n}
             labelUnique={t.uniqueAxis(n)}
             labelStart={t.drawsAxisStart}
-            labelEnd={t.drawsAxisEnd(run.draws.toLocaleString())}
+            labelEnd={t.drawsAxisEnd(run.draws)}
           />
           <p className={styles.note}>{t.curveNote}</p>
         </div>

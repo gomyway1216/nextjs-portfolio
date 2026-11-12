@@ -446,12 +446,14 @@ const MemoryBattle = () => {
                   disabled={!clickable}
                   onClick={() => onCardClick(index)}
                   aria-label={ariaLabel}
+                  data-testid="mb-card"
+                  data-state={card.matched ? 'matched' : isFaceUp ? 'up' : 'down'}
                 >
                   <span className={styles.cardInner} data-flipped={isFaceUp}>
-                    <span className={`${styles.cardFace} ${styles.cardBack}`} aria-hidden>
+                    <span className={`${styles.cardFace} ${styles.cardBack}`} aria-hidden data-testid="mb-card-back">
                       ?
                     </span>
-                    <span className={`${styles.cardFace} ${styles.cardFront}`} aria-hidden>
+                    <span className={`${styles.cardFace} ${styles.cardFront}`} aria-hidden data-testid="mb-card-front">
                       {symbol}
                     </span>
                   </span>

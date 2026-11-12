@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   AI_MARK,
   boardAfter,
+  clearCounted,
+  countResult,
+  emptyTally,
   evaluatePosition,
   getHint,
   HUMAN_MARK,
   reviewGame,
   undoLastPlayerMove,
+  withdrawCounted,
   type Mark,
   type MoveRecord
 } from '@/components/game/TicTacToe/analysis';
@@ -196,5 +200,77 @@ describe('reviewGame', () => {
     expect(reviewGame(game([4, 4, 0]))).toHaveLength(1);
     // X wins on move 5; anything recorded after that is ignored.
     expect(reviewGame(game([0, 3, 1, 4, 2, 5]))).toHaveLength(5);
+  });
+});
+
+describe('undo out of a finished game', () => {
+  it('reopens a game the human won, before the winning move', () => {
+    // X: 4, 0, 8 wins on the diagonal; O: 1, 2.
+    const moves = game([4, 1, 0, 2, 8]);
+    expect(checkWinner(boardAfter(moves)).winner).toBe('X');
+    const kept = undoLastPlayerMove(moves);
+    expect(kept).toEqual(game([4, 1, 0, 2]));
+    const board = boardAfter(kept);
+    expect(checkWinner(board).winner).toBeNull();
+    expect(isBoardFull(board)).toBe(false);
+    expect(board[8]).toBeNull();
+  });
+
+  it('reopens a game the AI won, before the human move that allowed it', () => {
+    // X: 0, 1, 8; O: 4, 3, 5 completes the middle row.
+    const moves = game([0, 4, 1, 3, 8, 5]);
+    expect(checkWinner(boardAfter(moves)).winner).toBe('O');
+    const kept = undoLastPlayerMove(moves);
+    expect(kept).toEqual(game([0, 4, 1, 3]));
+    expect(checkWinner(boardAfter(kept)).winner).toBeNull();
+    // The human is to move: both sides have played the same number of marks.
+    expect(kept.filter(m => m.mark === HUMAN_MARK)).toHaveLength(2);
+    expect(kept.filter(m => m.mark === AI_MARK)).toHaveLength(2);
+  });
+
+  it('reopens a full-board draw that the AI opened, keeping its opening move', () => {
+    const moves = game([4, 0, 2, 6, 3, 5, 1, 7, 8], AI_MARK);
+    expect(isBoardFull(boardAfter(moves))).toBe(true);
+    expect(checkWinner(boardAfter(moves)).winner).toBeNull();
+    const kept = undoLastPlayerMove(moves);
+    expect(kept).toEqual(moves.slice(0, 7));
+    expect(kept[0]).toEqual({ cell: 4, mark: AI_MARK });
+    expect(boardAfter(kept).filter(cell => cell === null)).toHaveLength(2);
+  });
+});
+
+describe('session tally', () => {
+  it('counts a result and remembers which counter holds it', () => {
+    expect(countResult(emptyTally(), 'losses')).toEqual({ wins: 0, losses: 1, draws: 0, counted: 'losses' });
+  });
+
+  it('withdraws a counted result exactly once', () => {
+    const earlier = { wins: 2, losses: 1, draws: 1, counted: null };
+    const finished = countResult(earlier, 'draws');
+    expect(finished.draws).toBe(2);
+    const resumed = withdrawCounted(finished);
+    expect(resumed).toEqual(earlier);
+    // A further undo (now of an unfinished game) leaves earlier games alone.
+    expect(withdrawCounted(resumed)).toBe(resumed);
+  });
+
+  it('never goes negative', () => {
+    let tally = countResult(emptyTally(), 'wins');
+    for (let i = 0; i < 3; i++) tally = withdrawCounted(tally);
+    expect(tally).toEqual(emptyTally());
+    expect(withdrawCounted({ wins: 0, losses: 0, draws: 0, counted: 'wins' })).toEqual(emptyTally());
+  });
+
+  it('counts a replayed ending once, not twice', () => {
+    let tally = countResult(emptyTally(), 'losses');
+    tally = withdrawCounted(tally);
+    tally = countResult(tally, 'draws');
+    expect(tally).toEqual({ wins: 0, losses: 0, draws: 1, counted: 'draws' });
+  });
+
+  it('keeps a finished result when a new game starts', () => {
+    const next = clearCounted(countResult(emptyTally(), 'wins'));
+    expect(next).toEqual({ wins: 1, losses: 0, draws: 0, counted: null });
+    expect(withdrawCounted(next)).toBe(next);
   });
 });

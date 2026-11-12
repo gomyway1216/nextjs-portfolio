@@ -13,7 +13,7 @@
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { CircleHelp, Cpu, Lightbulb, Loader2, Play, RotateCcw, Undo2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Difficulty, GameStats, GameTopBar, InfoModal } from '../common';
+import { Difficulty, GameTopBar, InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { OthelloAI } from './AI';
 import { Board } from './Board';
@@ -23,7 +23,17 @@ import { initMobilityTables } from './MobilityTable';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
 import styles from './Othello.module.css';
 import type { MoveHistoryEntry } from './multiplayerTypes';
-import { lastPlacement, replayHistory, takebackLength } from './takeback';
+import {
+  clearCounted,
+  countResult,
+  emptyTally,
+  lastPlacement,
+  replayHistory,
+  resultKey,
+  SessionTally,
+  takebackLength,
+  withdrawCounted,
+} from './takeback';
 import { BLACK, BOARD_SIZE, Color, EMPTY, Point, pointToString, WHITE } from './types';
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 
@@ -76,7 +86,7 @@ const Othello = () => {
   const [selectedPlayerColor, setSelectedPlayerColor] = useState<Color>(BLACK);
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
-  const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [stats, setStats] = useState<SessionTally>(emptyTally);
   const [gameMode, setGameMode] = useState<GameMode>('menu');
 
   const multiplayer = useOthelloMultiplayer();
@@ -144,6 +154,7 @@ const Othello = () => {
       lastMove: null,
       moveHistory: [],
     });
+    setStats(clearCounted);
   }, []);
 
   // Terminal / turn evaluation returning a language-independent status.
@@ -200,9 +211,7 @@ const Othello = () => {
         }));
 
         if (gameMode === 'ai') {
-          if (winner === playerColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
-          else if (winner === aiColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
-          else setStats((p) => ({ ...p, draws: p.draws + 1 }));
+          setStats((p) => countResult(p, resultKey(winner, playerColor)));
         } else if (gameMode === 'multiplayer') {
           if (winner === multiplayer.myColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
           else if (winner === multiplayer.opponentColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
@@ -226,7 +235,7 @@ const Othello = () => {
         isAIThinking: gameMode === 'ai',
       }));
     },
-    [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer]
+    [gameState, checkGameState, playerColor, gameMode, multiplayer]
   );
 
   // ---- Multiplayer sync from Firebase (unchanged logic) ----
@@ -401,9 +410,7 @@ const Othello = () => {
           moveHistory: appendEntry(prev.moveHistory, aiColor, bestMove),
           isAIThinking: false,
         }));
-        if (winner === playerColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
-        else if (winner === aiColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
-        else setStats((p) => ({ ...p, draws: p.draws + 1 }));
+        setStats((p) => countResult(p, resultKey(winner, playerColor)));
         return;
       }
 
@@ -442,7 +449,13 @@ const Othello = () => {
     !gameState.gameOver &&
     !gameState.isAIThinking &&
     gameState.board.getCurrentColor() === playerColor;
-  const canUndo = canAct && takebackLength(gameState.moveHistory, playerColor) !== null;
+  // A finished game can be taken back too: play resumes from before the
+  // player's last move and that game's result leaves the session record.
+  const canUndo =
+    gameMode === 'ai' &&
+    (canAct || gameState.gameOver) &&
+    !gameState.isAIThinking &&
+    takebackLength(gameState.moveHistory, playerColor) !== null;
   const shownHint = canAct && hint?.board === gameState.board ? hint.move : null;
   const isHintThinking = canAct && hintRequest === gameState.board && shownHint === null;
 
@@ -463,6 +476,9 @@ const Othello = () => {
       lastMove: lastPlacement(moveHistory),
       moveHistory,
     });
+    // Only a finished game has a counted result, and withdrawing clears the
+    // marker, so a second call from a stale render withdraws nothing.
+    setStats(withdrawCounted);
   }, [canUndo, gameState.moveHistory, playerColor]);
 
   const handleHint = useCallback(() => {
@@ -853,6 +869,12 @@ const Othello = () => {
               <RotateCcw size={18} />
               {gameMode === 'multiplayer' ? t.backToLobby : t.playAgain}
             </button>
+            {gameMode === 'ai' && (
+              <button type="button" className={styles.btnGhost} onClick={handleUndo} disabled={!canUndo}>
+                <Undo2 size={17} />
+                {t.undo}
+              </button>
+            )}
             {gameMode === 'ai' && (
               <button
                 className={styles.btnGhost}

@@ -54,3 +54,42 @@ export function lastPlacement(history: readonly RecordedMove[]): Point | null {
   }
   return null;
 }
+
+export type ResultKey = 'wins' | 'losses' | 'draws';
+
+/**
+ * The session record plus which of its counters, if any, holds the result of
+ * the game currently on the board. Keeping the two together lets a take-back
+ * out of a finished game withdraw that result in one pure update, so a
+ * repeated or stale take-back cannot withdraw it a second time.
+ */
+export interface SessionTally {
+  wins: number;
+  losses: number;
+  draws: number;
+  counted: ResultKey | null;
+}
+
+export const emptyTally = (): SessionTally => ({ wins: 0, losses: 0, draws: 0, counted: null });
+
+export function resultKey(winner: Color | null, playerColor: Color): ResultKey {
+  if (winner === null) return 'draws';
+  return winner === playerColor ? 'wins' : 'losses';
+}
+
+/** Add the result of the game on the board to the record. */
+export function countResult(tally: SessionTally, key: ResultKey): SessionTally {
+  return { ...tally, [key]: tally[key] + 1, counted: key };
+}
+
+/** Remove the result of the game on the board from the record, if it was counted. */
+export function withdrawCounted(tally: SessionTally): SessionTally {
+  const { counted } = tally;
+  if (counted === null) return tally;
+  return { ...tally, [counted]: Math.max(0, tally[counted] - 1), counted: null };
+}
+
+/** A new game is on the board: its result is not in the record yet. */
+export function clearCounted(tally: SessionTally): SessionTally {
+  return tally.counted === null ? tally : { ...tally, counted: null };
+}

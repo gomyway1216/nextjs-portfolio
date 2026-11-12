@@ -11,7 +11,6 @@ import {
   Difficulty,
   DifficultyOption,
   DifficultySelector,
-  GameStats,
   GameStatus,
   GameTopBar,
   InfoModal
@@ -20,12 +19,17 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 import {
   AI_MARK,
   boardAfter,
+  clearCounted,
+  countResult,
+  emptyTally,
   getHint,
   Hint,
   HUMAN_MARK,
   MoveRecord,
   reviewGame,
-  undoLastPlayerMove
+  SessionTally,
+  undoLastPlayerMove,
+  withdrawCounted
 } from './analysis';
 import GameReview from './GameReview';
 import { checkWinner, getBestMove, isBoardFull } from './TicTacToeAI';
@@ -49,7 +53,7 @@ const TicTacToe = () => {
   const [playerFirst, setPlayerFirst] = useState(true);
   const [showDifficultySelect, setShowDifficultySelect] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
-  const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [stats, setStats] = useState<SessionTally>(emptyTally);
   const [winningLine, setWinningLine] = useState<number[] | null>(null);
   const [lastMove, setLastMove] = useState<number | null>(null);
   const [moves, setMoves] = useState<readonly MoveRecord[]>([]);
@@ -71,18 +75,18 @@ const TicTacToe = () => {
     if (winner === PLAYER) {
       setGameStatus('win');
       setWinningLine(line);
-      setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+      setStats(prev => countResult(prev, 'wins'));
       return true;
     }
     if (winner === AI) {
       setGameStatus('lose');
       setWinningLine(line);
-      setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+      setStats(prev => countResult(prev, 'losses'));
       return true;
     }
     if (isBoardFull(newBoard)) {
       setGameStatus('draw');
-      setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
+      setStats(prev => countResult(prev, 'draws'));
       return true;
     }
     setIsPlayerTurn(mover === AI);
@@ -101,7 +105,9 @@ const TicTacToe = () => {
   };
 
   const playing = gameStatus === 'playing';
-  const canUndo = playing && isPlayerTurn && moves.some(move => move.mark === HUMAN_MARK);
+  // Undo also works on a finished game: play resumes from before the player's
+  // last move. It stays off while the AI is choosing its reply.
+  const canUndo = (!playing || isPlayerTurn) && moves.some(move => move.mark === HUMAN_MARK);
   const canHint = playing && isPlayerTurn;
 
   const undoMove = () => {
@@ -112,6 +118,14 @@ const TicTacToe = () => {
     // No cell is "just played" after a take-back, so nothing replays its pop.
     setLastMove(null);
     setHint(null);
+    // Leaving a finished game: the player is to move again, the review closes
+    // and that game's result leaves the session record. Withdrawing clears the
+    // marker, so a second call from a stale render withdraws nothing.
+    setGameStatus('playing');
+    setIsPlayerTurn(true);
+    setWinningLine(null);
+    setReviewIndex(null);
+    setStats(withdrawCounted);
   };
 
   const showHint = () => {
@@ -154,6 +168,7 @@ const TicTacToe = () => {
     setHint(null);
     setReviewIndex(null);
     setIsPlayerTurn(playerFirst);
+    setStats(clearCounted);
   }, [playerFirst]);
 
   const startGame = () => {
@@ -336,6 +351,17 @@ const TicTacToe = () => {
           )}
 
           <div className={styles.actions}>
+            {!playing && (
+              <button
+                type="button"
+                onClick={undoMove}
+                disabled={!canUndo}
+                className={`${styles.btn} ${styles.btnSecondary}`}
+              >
+                <Undo2 className={styles.icon} aria-hidden />
+                {copy.undo}
+              </button>
+            )}
             <button type="button" onClick={resetGame} className={`${styles.btn} ${styles.btnPrimary}`}>
               <RotateCcw className={styles.icon} aria-hidden />
               {copy.playAgain}

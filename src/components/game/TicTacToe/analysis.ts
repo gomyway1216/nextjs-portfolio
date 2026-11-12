@@ -146,6 +146,41 @@ export const undoLastPlayerMove = (moves: readonly MoveRecord[]): readonly MoveR
   return moves;
 };
 
+export type ResultKey = 'wins' | 'losses' | 'draws';
+
+/**
+ * The session record plus which of its counters, if any, holds the result of
+ * the game currently on the board. Keeping the two together lets an undo out
+ * of a finished game withdraw that result in one pure update, so a repeated
+ * or stale undo cannot withdraw it a second time.
+ */
+export interface SessionTally {
+  wins: number;
+  losses: number;
+  draws: number;
+  counted: ResultKey | null;
+}
+
+export const emptyTally = (): SessionTally => ({ wins: 0, losses: 0, draws: 0, counted: null });
+
+/** Add the result of the game on the board to the record. */
+export const countResult = (tally: SessionTally, key: ResultKey): SessionTally => ({
+  ...tally,
+  [key]: tally[key] + 1,
+  counted: key
+});
+
+/** Remove the result of the game on the board from the record, if it was counted. */
+export const withdrawCounted = (tally: SessionTally): SessionTally => {
+  const { counted } = tally;
+  if (counted === null) return tally;
+  return { ...tally, [counted]: Math.max(0, tally[counted] - 1), counted: null };
+};
+
+/** A new game is on the board: its result is not in the record yet. */
+export const clearCounted = (tally: SessionTally): SessionTally =>
+  tally.counted === null ? tally : { ...tally, counted: null };
+
 /**
  * Grade every move of a game against perfect play. Moves that are illegal for
  * the position reached (occupied cell, or played after the game ended) stop

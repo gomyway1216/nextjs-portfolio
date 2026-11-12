@@ -6,7 +6,7 @@
 
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { EnemyTrait } from './Sight';
-import type { EnemyType, MiniAdventureDifficulty, StatusEffect } from './types';
+import type { EnemyType, MiniAdventureDifficulty, PetType, StatusEffect } from './types';
 
 export interface MiniAdventureStrings {
   title: string;
@@ -27,6 +27,8 @@ export interface MiniAdventureStrings {
   turn: string;
   surface: string;
   pet: string;
+  /** The hatched pet shown in the status row. */
+  petNames: Record<PetType, string>;
   none: string;
   // Inventory
   inventory: string;
@@ -113,6 +115,7 @@ const en: MiniAdventureStrings = {
   turn: 'Turn',
   surface: 'Surface',
   pet: 'Pet',
+  petNames: { grabber_bird: 'Grabber Bird', python: 'Python', teddy: 'Teddy' },
   none: 'None',
   inventory: 'Inventory',
   equipped: 'Equipped',
@@ -226,6 +229,7 @@ const ja: MiniAdventureStrings = {
   turn: 'ターン',
   surface: '地上',
   pet: 'ペット',
+  petNames: { grabber_bird: 'つかみ鳥', python: 'ニシキヘビ', teddy: 'テディ' },
   none: 'なし',
   inventory: '持ち物',
   equipped: '装備中',

@@ -49,6 +49,7 @@ export interface BiggerNumberStrings {
   tilePlayed: (label: string) => string;
   roundLog: string;
   roundLogOrder: string;
+  roundLogEmpty: string;
   resultMark: Record<RoundWinner, string>;
   roundLogEntry: (
     round: number,
@@ -132,6 +133,7 @@ export function getStrings(language: 'ja' | 'en'): BiggerNumberStrings {
     tilePlayed: (label: string) => (ja ? `${label}（使用済み）` : `${label} (played)`),
     roundLog: ja ? 'ラウンド履歴' : 'Round log',
     roundLogOrder: ja ? 'あなた – 相手' : 'you – opponent',
+    roundLogEmpty: ja ? 'まだ勝負なし' : 'No rounds played yet',
     resultMark: {
       you: ja ? '勝' : 'W',
       opponent: ja ? '負' : 'L',

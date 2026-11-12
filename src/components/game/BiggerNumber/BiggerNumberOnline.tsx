@@ -19,6 +19,8 @@ import { cardLabel } from './gameLogic';
 import { historyFromLog } from './roundHistory';
 import type { CardValue } from './types';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import tableStyles from './BiggerNumberTable.module.css';
+import { usePageTop } from './usePageTop';
 
 const REVEAL_HOLD_MS = 1500;
 
@@ -37,6 +39,9 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
     otherPlayerId,
     otherPlayerName,
   } = multiplayer;
+
+  const inMatch = context.lobbyState === 'playing' || context.lobbyState === 'finished';
+  usePageTop(inMatch ? 'match' : 'lobby');
 
   const myId = context.playerId;
   const opponentId = otherPlayerId;
@@ -84,18 +89,15 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
 
   // === Render ===
 
-  if (context.lobbyState !== 'playing' && context.lobbyState !== 'finished') {
+  if (!inMatch) {
     return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
+      <div className={tableStyles.screen} style={{
         display: 'flex',
         flexDirection: 'column',
         background: 'linear-gradient(to bottom, #020617, #0f172a)',
         color: '#f8fafc',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         padding: '1.25rem',
-        overflow: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
@@ -129,8 +131,8 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
 
   if (!gameState || !opponentId) {
     return (
-      <div style={{
-        position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      <div className={tableStyles.screen} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: '#020617', color: '#f8fafc', fontFamily: 'system-ui',
       }}>
         {ja ? 'ゲーム状態を読み込み中…' : 'Loading game state…'}

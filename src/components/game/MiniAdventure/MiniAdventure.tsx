@@ -69,6 +69,7 @@ const MiniAdventure: React.FC = () => {
   const [difficulty, setDifficulty] = useState<MiniAdventureDifficulty>('normal');
   const [showSight, setShowSight] = useState(readSightOpen);
   const gameContainerRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
 
   // gameStateRef mirrors gameState synchronously so rapid dispatches (key
   // repeat before React commits a re-render) act on the latest snapshot
@@ -205,9 +206,20 @@ const MiniAdventure: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // The start screen and the dungeon are separate blocks in the page's flow:
+  // open each at its top (the status cards are the dungeon's first row), and
+  // take the keyboard focus without letting that scroll the page.
   useEffect(() => {
-    if (gameContainerRef.current && !showStartScreen) gameContainerRef.current.focus();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (gameContainerRef.current && !showStartScreen) gameContainerRef.current.focus({ preventScroll: true });
   }, [showStartScreen]);
+
+  // The log has a fixed height: keep its newest line in view when wrapped
+  // lines make the last few messages taller than that.
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [gameState]);
 
   // ---- Rendering ----
   const renderMap = () => {
@@ -288,7 +300,7 @@ const MiniAdventure: React.FC = () => {
 
     return (
       <>
-        <div className={styles.hud}>
+        <div className={styles.hud} data-ma-hud="">
           <div className={styles.statCard}>
             <div className={styles.statHead}><Heart size={13} color="var(--ma-hp)" />{t.hp}</div>
             <div className={styles.statValue}>{Math.max(0, player.hp)}/{player.maxHp}</div>
@@ -320,10 +332,10 @@ const MiniAdventure: React.FC = () => {
           </span>
           <span className={styles.metaPill}><Timer size={12} /> {turn}</span>
           {player.status !== StatusEffect.NONE && (
-            <span className={`${styles.metaPill} ${styles.statusPill}`}>{player.status}</span>
+            <span className={`${styles.metaPill} ${styles.statusPill}`}>{t.sight.status[player.status]}</span>
           )}
           {player.pet && (
-            <span className={`${styles.metaPill} ${styles.petPill}`}><PawPrint size={12} /> {player.pet.replace(/_/g, ' ')}</span>
+            <span className={`${styles.metaPill} ${styles.petPill}`}><PawPrint size={12} /> {t.petNames[player.pet]}</span>
           )}
         </div>
       </>
@@ -334,7 +346,7 @@ const MiniAdventure: React.FC = () => {
     if (!gameState) return null;
     const recent = gameState.messages.slice(-6);
     return (
-      <div className={styles.log} aria-live="polite">
+      <div ref={logRef} className={styles.log} aria-live="polite">
         {recent.map((msg, i) => (
           <div
             key={`${msg.turn}-${i}`}

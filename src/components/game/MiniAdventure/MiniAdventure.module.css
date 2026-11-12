@@ -13,7 +13,11 @@
   outline-offset: 2px;
 }
 
-.root {
+/* The palette, for both screens. (The start screen is not inside .root: without
+   these it took the site's own text colour, which is dark in the light theme,
+   and its difficulty names and tagline were dark on dark.) */
+.root,
+.startScreen {
   --ma-bg: #0b0f1a;
   --ma-panel: rgba(17, 24, 39, 0.9);
   --ma-panel-solid: #111827;
@@ -26,20 +30,26 @@
   --ma-atk: #60a5fa;
   --ma-def: #34d399;
   --ma-torch: #fbbf24;
+  color: var(--ma-text);
+}
 
-  position: fixed;
-  inset: 0;
+.root {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* In normal flow, under the site's sticky toolbar. (A fixed, full-viewport
+     root slid the HP / torch / attack / defence cards beneath that toolbar,
+     which is two rows tall on a phone, with no way to scroll them out.) */
+  position: relative;
+  box-sizing: border-box;
+  min-height: calc(100vh - 59px);
+  min-height: calc(100dvh - 59px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   gap: 0.5rem;
-  overflow-y: auto;
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(59, 130, 246, 0.12), transparent 60%),
     linear-gradient(to bottom, #0b0f1a, #05070d);
-  color: var(--ma-text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   padding: 0.75rem clamp(0.5rem, 3vw, 1.5rem) 1.25rem;
   outline: none;
 }
@@ -326,7 +336,10 @@
   border: 1px solid var(--ma-border);
   border-radius: 0.7rem;
   padding: 0.5rem 0.75rem;
-  max-height: 118px;
+  /* A fixed height: the controls below must not slide down under the thumb
+     as the first messages arrive. */
+  box-sizing: border-box;
+  height: 118px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -560,12 +573,13 @@
 
 /* ---- Start screen ---- */
 .startScreen {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  box-sizing: border-box;
+  min-height: calc(100vh - 59px);
+  min-height: calc(100dvh - 59px);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow-y: auto;
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(59, 130, 246, 0.14), transparent 60%),
     linear-gradient(to bottom, #0b0f1a, #05070d);
@@ -659,16 +673,60 @@
 .ghostBtn:hover { color: var(--ma-text); border-color: var(--ma-border-strong); }
 
 /* ---- Info modal content ---- */
-.infoBlock { color: #d1d5db; }
+/* Shown in the shared how-to-play dialog, which follows the site theme (light
+   or dark), not the dungeon's dark palette. */
+.infoBlock { color: var(--games-route-fg, #d1d5db); }
 .infoBlock p { margin-bottom: 0.5rem; }
 .infoBlock ul { margin: 0 0 0.75rem 1.1rem; }
 .infoBlock li { margin-bottom: 0.2rem; }
-.infoHead { font-weight: 700; color: #fff; margin-top: 0.5rem; }
+.infoHead { font-weight: 700; color: var(--games-route-fg, #fff); margin-top: 0.5rem; }
 
 @media (max-width: 480px) {
   .dpad {
     grid-template-columns: repeat(3, 42px);
     grid-template-rows: repeat(3, 42px);
   }
-  .statCard { min-width: 70px; }
+  /* A phone shows the site toolbar's second row above the dungeon, so the
+     rows are packed tighter: the four status cards always share one line
+     (they wrapped to two at 360px) and the gaps and the log are smaller. */
+  .root { padding-top: 0.5rem; }
+  .frame { gap: 0.45rem; }
+  .hud {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+  .statCard {
+    min-width: 0;
+    gap: 0.15rem;
+    padding: 0.35rem 0.4rem;
+  }
+  .statHead {
+    gap: 0.2rem;
+    font-size: 0.62rem;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .statHead svg { flex: 0 0 auto; }
+  .statValue { white-space: nowrap; }
+  .log { height: 94px; }
+  /* The map is only ~230px tall here, so a panel held inside it hid its own
+     buttons (Play again, Back to menu, Close) behind an inner scroll. Let the
+     inventory and game-over panels grow downwards past the map instead. */
+  .overlay {
+    bottom: auto;
+    min-height: 100%;
+    box-sizing: border-box;
+    align-items: flex-start;
+  }
+  .panel { max-height: none; }
+  /* Keep the action buttons beside the d-pad at 360px instead of under it. */
+  .actionCol { flex-basis: 180px; }
+  .actionBtn { gap: 0.25rem; padding: 0.55rem 0.3rem; }
+}
+
+@media (max-width: 340px) {
+  /* No room for the icon next to the longest label ("DEFENSE"). */
+  .statHead svg { display: none; }
 }

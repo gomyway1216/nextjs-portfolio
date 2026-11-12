@@ -24,9 +24,13 @@ export interface TileStatus {
   inHand: boolean;
 }
 
-/** Every tile of the full set, flagged by whether `hand` still holds it. */
-export function trackTiles(hand: readonly CardValue[]): TileStatus[] {
-  return ALL_CARDS.map((card) => ({ card, inHand: hand.includes(card) }));
+/**
+ * Every tile of the full set, flagged by whether `hand` still holds it.
+ * `spent` is a tile that has just been played for good but may still be listed
+ * in `hand` (the hand is only updated when the next round starts).
+ */
+export function trackTiles(hand: readonly CardValue[], spent: CardValue | null = null): TileStatus[] {
+  return ALL_CARDS.map((card) => ({ card, inHand: card !== spent && hand.includes(card) }));
 }
 
 export interface MatchSummary {

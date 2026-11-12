@@ -5,6 +5,8 @@
 }
 
 .shell {
+  /* Clear of the site's sticky toolbar when a new run scrolls back to the top. */
+  scroll-margin-top: 67px;
   max-width: 940px;
   margin: 0 auto;
   display: flex;
@@ -83,6 +85,8 @@
 
 .boardWrap {
   position: relative;
+  /* Clear of the site's sticky toolbar when the reveal scrolls it into view. */
+  scroll-margin: 67px 0 8px;
   border-radius: 16px;
   padding: 0.7rem;
   background: var(--games-route-surface, rgba(2, 6, 23, 0.6));
@@ -98,14 +102,6 @@
   background: color-mix(in srgb, var(--games-route-fg, #64748b) 8%, transparent);
   border-radius: 10px;
   padding: 2px;
-}
-
-/* Sized from what is left of the viewport after the page padding, the frame
-   and the gaps, so the 10 columns never overflow a narrow phone. */
-@media (max-width: 720px) {
-  .board {
-    --cell: min(calc((100vw - 84px) / 10), 30px);
-  }
 }
 
 .cell {
@@ -206,13 +202,14 @@
 
 .nextGrid {
   display: grid;
-  gap: 3px;
+  grid-template-columns: repeat(4, var(--next-cell, 20px));
+  gap: var(--next-gap, 3px);
   justify-content: center;
 }
 
 .nextCell {
-  width: 20px;
-  height: 20px;
+  width: var(--next-cell, 20px);
+  height: var(--next-cell, 20px);
   border-radius: 4px;
 }
 
@@ -416,6 +413,7 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0.5rem;
+    grid-column: 1 / -1;
     width: 100%;
     max-width: 360px;
     margin: 0.25rem auto 0;
@@ -453,6 +451,211 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.75;
+}
+
+/* Phones. During play the board and the touch pad have to be on screen
+   together, so everything from the site's toolbar down to the pad is given a
+   fixed height and the cells take what is left of the viewport: toolbar, this
+   page's header, a one-line strip with the stats and the next piece, the
+   board, the pad. Restart / Pause and the key list follow below the pad. */
+@media (max-width: 720px) {
+  .page {
+    --gt-toolbar: 59px; /* the site's sticky toolbar */
+    --gt-gap: 8px;
+    --gt-head: 44px;
+    --gt-hud: 54px;
+    --gt-pad: 52px;
+    /* Board frame around the 20 rows: wrap padding and border, grid padding, 19 gaps. */
+    --gt-frame-y: 56px;
+    --gt-frame-x: 36px;
+    --gt-vh: 100vh;
+    padding: var(--gt-gap) 0.75rem 1.5rem;
+  }
+  /* The smallest viewport (browser bars showing), so nothing is cut off before
+     they retract and the board does not resize when they do. */
+  @supports (height: 100svh) {
+    .page {
+      --gt-vh: 100svh;
+    }
+  }
+
+  .shell {
+    gap: var(--gt-gap);
+  }
+
+  .header {
+    flex-wrap: nowrap;
+    align-items: center;
+    min-height: var(--gt-head);
+  }
+  .titleBlock {
+    min-width: 0;
+  }
+  .title {
+    font-size: clamp(1.1rem, 5.5vw, 1.4rem);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* The start screen on the board and How to play both carry this line. */
+  .tagline {
+    display: none;
+  }
+  .infoBtn {
+    flex: none;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .layout {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--gt-gap);
+    justify-items: stretch;
+  }
+  .sidebar {
+    display: contents;
+  }
+  .card {
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border-radius: 12px;
+  }
+  .statsCard {
+    grid-area: 1 / 1;
+    align-self: stretch;
+    min-height: var(--gt-hud);
+    display: grid;
+    align-items: center;
+  }
+  .nextCard {
+    grid-area: 1 / 2;
+    align-self: stretch;
+    min-height: var(--gt-hud);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    --next-cell: 6px;
+    --next-gap: 1px;
+  }
+  .boardWrap {
+    grid-area: 2 / 1 / auto / -1;
+    justify-self: center;
+    padding: 6px;
+  }
+  .touchPad {
+    grid-area: 3 / 1 / auto / -1;
+    height: var(--gt-pad);
+    margin: 0 auto;
+  }
+  .buttons {
+    grid-area: 4 / 1 / auto / -1;
+    flex-direction: row;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .keysCard {
+    grid-area: 5 / 1 / auto / -1;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+  }
+
+  .board {
+    --cell: clamp(
+      12px,
+      min(
+        calc((100vw - 1.5rem - var(--gt-frame-x)) / 10),
+        calc(
+          (
+              var(--gt-vh) - var(--gt-toolbar) - var(--gt-head) - var(--gt-hud) - var(--gt-pad) -
+                var(--gt-frame-y) - 5 * var(--gt-gap)
+            ) / 20
+        )
+      ),
+      30px
+    );
+  }
+  .boardFlash {
+    inset: 6px;
+  }
+
+  .stats {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .statLabel {
+    font-size: 0.6rem;
+    line-height: 1.2;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+  .statValue {
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+  .nextTitle {
+    margin: 0;
+    font-size: 0.6rem;
+    line-height: 1.2;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+  .nextCell {
+    border-radius: 2px;
+  }
+
+  .touchBtn {
+    padding: 0;
+    min-height: 44px;
+  }
+  .primaryBtn,
+  .secondaryBtn,
+  .overlayBtn {
+    min-height: 44px;
+  }
+
+  .overlay {
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+  .overlayTitle {
+    font-size: 1.3rem;
+  }
+}
+
+/* The board is too narrow here for four clear names side by side. */
+@media (max-width: 374px) {
+  .overlay {
+    gap: 0.3rem;
+    padding: 0.5rem;
+  }
+  .overlayTitle {
+    font-size: 1.15rem;
+  }
+  .overlayText {
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  .overlayScore {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .overlayBtn {
+    margin-top: 0;
+  }
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.15rem 0.3rem;
+  }
+  .summaryItem dd {
+    font-size: 0.95rem;
+    line-height: 1.2;
+  }
 }
 
 .infoModalBody {

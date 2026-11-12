@@ -62,19 +62,45 @@ export const GhostTetris = () => {
   const revealNoteId = useId();
   const revealBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
+  const boardWrapRef = useRef<HTMLDivElement>(null);
   const wasRevealedRef = useRef(false);
   // Each of the two buttons replaces the other, so hand focus across instead
   // of letting it fall back to the page.
   useEffect(() => {
-    if (revealed) backBtnRef.current?.focus();
-    else if (wasRevealedRef.current) revealBtnRef.current?.focus();
+    if (revealed) {
+      // The back button sits under the board. Left to scroll to it, the browser
+      // would slide the board the player asked to see off the top of a phone,
+      // so the scroll is ours: the whole frame if it fits, else from its top.
+      backBtnRef.current?.focus({ preventScroll: true });
+      const wrap = boardWrapRef.current;
+      if (wrap) {
+        const style = window.getComputedStyle(wrap);
+        const room =
+          window.innerHeight - parseFloat(style.scrollMarginTop) - parseFloat(style.scrollMarginBottom);
+        const fits = wrap.getBoundingClientRect().height <= room;
+        wrap.scrollIntoView({ block: fits ? 'nearest' : 'start' });
+      }
+    } else if (wasRevealedRef.current) {
+      revealBtnRef.current?.focus();
+    }
     wasRevealedRef.current = revealed;
   }, [revealed]);
 
+  const [runId, setRunId] = useState(0);
   const start = useCallback(() => {
     setRevealed(false);
     setGame({ ...createGame(), phase: 'playing' });
+    setRunId((n) => n + 1);
   }, []);
+
+  // On a phone the board and the touch pad fill the screen from the top of the
+  // game down, and a run can be started from further down the page (Restart
+  // under the pad, Play again after the reveal scrolled): go back to the top.
+  const shellRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (runId === 0 || !window.matchMedia('(max-width: 720px)').matches) return;
+    shellRef.current?.scrollIntoView({ block: 'start' });
+  }, [runId]);
 
   // Wall-clock time when the game was paused, so we can shift lockedAt
   // timestamps forward on resume and the ghosts don't jump ahead in their fade.
@@ -265,7 +291,7 @@ export const GhostTetris = () => {
 
   return (
     <div className={styles.page}>
-      <div className={styles.shell}>
+      <div className={styles.shell} ref={shellRef}>
         <header className={styles.header}>
           <div className={styles.titleBlock}>
             <h1 className={styles.title}>{t.title}</h1>
@@ -283,9 +309,10 @@ export const GhostTetris = () => {
         </header>
 
         <div className={styles.layout}>
-          <div className={styles.boardWrap}>
+          <div className={styles.boardWrap} ref={boardWrapRef}>
             <div
               className={styles.board}
+              data-testid="ghost-tetris-board"
               role="img"
               aria-label={
                 `${t.title} — ${t.score} ${game.score}, ${t.lines} ${game.lines}` +
@@ -351,11 +378,13 @@ export const GhostTetris = () => {
           </div>
 
           <aside className={styles.sidebar}>
-            <div className={styles.card}>
+            <div className={`${styles.card} ${styles.statsCard}`}>
               <div className={styles.stats}>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>{t.score}</span>
-                  <span className={styles.statValue}>{game.score}</span>
+                  <span className={styles.statValue} data-testid="ghost-tetris-score">
+                    {game.score}
+                  </span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>{t.best}</span>
@@ -376,7 +405,7 @@ export const GhostTetris = () => {
               </div>
             </div>
 
-            <div className={styles.card}>
+            <div className={`${styles.card} ${styles.nextCard}`}>
               <p className={styles.nextTitle}>{t.next}</p>
               <NextPreview id={game.next.id} />
             </div>
@@ -400,7 +429,7 @@ export const GhostTetris = () => {
               )}
             </div>
 
-            <div className={styles.card}>
+            <div className={`${styles.card} ${styles.keysCard}`}>
               <div className={styles.keyList}>
                 <div className={styles.keyRow}>
                   <span>{t.move}</span>
@@ -425,41 +454,46 @@ export const GhostTetris = () => {
               </div>
             </div>
           </aside>
-        </div>
 
-        <div className={styles.touchPad} aria-hidden={game.phase !== 'playing'}>
-          <button
-            type="button"
-            className={styles.touchBtn}
-            onClick={touch.left}
-            aria-label={t.move}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            className={styles.touchBtn}
-            onClick={touch.rotate}
-            aria-label={t.rotate}
-          >
-            ⟳<span className={styles.touchLabel}>{t.touchRotate}</span>
-          </button>
-          <button
-            type="button"
-            className={styles.touchBtn}
-            onClick={touch.drop}
-            aria-label={t.hardDrop}
-          >
-            ⤓<span className={styles.touchLabel}>{t.touchDrop}</span>
-          </button>
-          <button
-            type="button"
-            className={styles.touchBtn}
-            onClick={touch.right}
-            aria-label={t.move}
-          >
-            →
-          </button>
+          {/* Inside the layout so a phone can keep it right under the board. */}
+          <div className={styles.touchPad} aria-hidden={game.phase !== 'playing'}>
+            <button
+              type="button"
+              className={styles.touchBtn}
+              onClick={touch.left}
+              data-testid="ghost-tetris-touch-left"
+              aria-label={t.move}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              className={styles.touchBtn}
+              onClick={touch.rotate}
+              data-testid="ghost-tetris-touch-rotate"
+              aria-label={t.rotate}
+            >
+              ⟳<span className={styles.touchLabel}>{t.touchRotate}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.touchBtn}
+              onClick={touch.drop}
+              data-testid="ghost-tetris-touch-drop"
+              aria-label={t.hardDrop}
+            >
+              ⤓<span className={styles.touchLabel}>{t.touchDrop}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.touchBtn}
+              onClick={touch.right}
+              data-testid="ghost-tetris-touch-right"
+              aria-label={t.move}
+            >
+              →
+            </button>
+          </div>
         </div>
       </div>
 
@@ -511,11 +545,7 @@ const NextPreview = ({ id }: { id: number }) => {
   }
 
   return (
-    <div
-      className={styles.nextGrid}
-      style={{ gridTemplateColumns: 'repeat(4, 20px)' }}
-      aria-hidden
-    >
+    <div className={styles.nextGrid} data-testid="ghost-tetris-next" aria-hidden>
       {grid.flatMap((row, y) =>
         row.map((cell, x) => (
           <div

@@ -5,7 +5,7 @@ import { bank as medalBank, useBank, type Seat } from '../MedalCenter/bank';
 import { useCountUp } from '../MedalCenter/countUp';
 import { KeysHint, RefillWords } from '../MedalCenter/KeysHint';
 import { REFILL } from '../MedalCenter/ledger';
-import { useMachineKeys } from '../MedalCenter/machineKeys';
+import { forTheMachine, useMachineKeys } from '../MedalCenter/machineKeys';
 import { useMachineSound, type MachineSound } from '../MedalCenter/machineSounds';
 import { MedalsOut } from '../MedalCenter/MedalsOut';
 import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
@@ -302,6 +302,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const angleRef = useRef<number | null>(null);
   /** Whether the last press of FIRE fired by its pointer: the click that follows it is that same press. */
   const firedByPointer = useRef(false);
+  /** START pressed by Space or Enter on FIRE while it was off: until that key is let go, FIRE's click is not a shot. */
+  const startedByKey = useRef(false);
   /** Sets the frame loop going again, where it has stopped because nothing on the stall moved (it stops itself again then). */
   const wake = useRef<(() => void) | null>(null);
   const live = useRef({ t, player, calm });
@@ -872,11 +874,33 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       firedByPointer.current = false;
       return;
     }
+    // The click of the key press that started the play (below) is not a shot.
+    if (startedByKey.current) return;
     fire();
   };
   const onFireKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== ' ' && event.key !== 'Enter') return;
     // A key held down repeats: the trigger is pulled once.
-    if ((event.key === ' ' || event.key === 'Enter') && event.repeat) event.preventDefault();
+    if (event.repeat) {
+      event.preventDefault();
+      return;
+    }
+    // With no play under way FIRE is off (aria-disabled) and has nothing of its own to do: Space or Enter on it is the
+    // machine's key, START, as it is anywhere else on the page. (A mouse's last press leaves the focus here.) The same
+    // press must not go on to fire the first cork, so the click a browser makes of it is kept back until it is let go.
+    if (flightRef.current) return;
+    event.preventDefault();
+    if (!forTheMachine({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, isComposing: event.nativeEvent.isComposing })) return;
+    startedByKey.current = true;
+    start();
+  };
+  const onFireKeyUp = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!startedByKey.current || (event.key !== ' ' && event.key !== 'Enter')) return;
+    event.preventDefault();
+    // After the click this key would make as it is let go, if the browser makes one all the same.
+    window.setTimeout(() => {
+      startedByKey.current = false;
+    }, 0);
   };
 
   // ── What is on the screen ──
@@ -969,6 +993,10 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
               onPointerDown={onFireDown}
               onClick={onFireClick}
               onKeyDown={onFireKeyDown}
+              onKeyUp={onFireKeyUp}
+              onBlur={() => {
+                startedByKey.current = false;
+              }}
               onContextMenu={(event) => event.preventDefault()}
             >
               <span className={styles.gauge} ref={gaugeRef} data-level="-1" aria-hidden="true">
@@ -1075,8 +1103,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             <div>
               <dt>{t.net}</dt>
               <dd className={net >= 0 ? styles.pos : styles.neg}>
-                {net > 0 ? '+' : ''}
-                {fmt(net)}
+                {net > 0 ? '+' : net < 0 ? '−' : ''}
+                {fmt(Math.abs(net))}
               </dd>
             </div>
             <div>

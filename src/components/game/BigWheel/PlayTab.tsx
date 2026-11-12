@@ -797,8 +797,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             <div>
               <dt>{t.net}</dt>
               <dd className={net >= 0 ? styles.pos : styles.neg}>
-                {net > 0 ? '+' : ''}
-                {fmt(net)}
+                {net > 0 ? '+' : net < 0 ? '−' : ''}
+                {fmt(Math.abs(net))}
               </dd>
             </div>
             <div>

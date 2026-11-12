@@ -60,7 +60,8 @@ describe('the cabinet', () => {
     expect(markup).toContain('釣果ノート');
     expect(markup).toContain('釣り上げ 1／8');
     expect(markup).toContain(`釣った種類：0／${FISH.length}`);
-    expect(markup).toContain('港のヌシ ツキウロコ');
+    // The name as it is read: where a narrow column may wrap it (FishName.tsx) is not part of it.
+    expect(markup.replace(/<wbr\/>/g, '')).toContain('港のヌシ ツキウロコ');
     expect(markup).toContain(NOT_MONEY.ja);
   });
 });

@@ -212,11 +212,11 @@ const EN: SlotStrings = {
   chartAverage: (edge) => `Long-run average (−${edge} of the medals bet)`,
   chartEmpty: 'Spin to start the chart.',
   chartAria: (spins, net, average) =>
-    `Net medals over ${spins} spins: now ${net}. The long-run average for the medals bet so far is ${average}.`,
+    `Net medals over ${spins} ${spins === '1' ? 'spin' : 'spins'}: now ${net}. The long-run average for the medals bet so far is ${average}.`,
   tallyTitle: 'Wins by line',
   tallyYours: 'Yours',
   tallyExpected: 'Average',
-  tallyNote: (spins) => `Average = each line’s exact chance × the ${spins} spins of this session.`,
+  tallyNote: (spins) => `Average = each line’s exact chance × the ${spins} ${spins === '1' ? 'spin' : 'spins'} of this session.`,
   oddsIntro: [
     'Each reel has 22 physical stops, but the random number generator picks one of 64 virtual stops that map onto them. Counting every combination of virtual stops (64³ = 262,144) gives the exact odds below.',
   ],

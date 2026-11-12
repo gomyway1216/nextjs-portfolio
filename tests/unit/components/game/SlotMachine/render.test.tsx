@@ -81,6 +81,18 @@ describe('SessionRecord', () => {
     return recordSpin(log, { bet: 1, win: cherry.pays, rule: cherry });
   };
 
+  it('says “1 spin” after the first spin and “spins” after that, in the chart’s label and under the tally', () => {
+    const t = getStrings('en');
+    expect(t.chartAria('1', '−1', '−0.05')).toBe('Net medals over 1 spin: now −1. The long-run average for the medals bet so far is −0.05.');
+    expect(t.chartAria('2', '+3', '−0.10')).toContain('over 2 spins:');
+    expect(t.chartAria('1,000', '−40', '−50.00')).toContain('over 1,000 spins:');
+    expect(t.tallyNote('1')).toBe('Average = each line’s exact chance × the 1 spin of this session.');
+    expect(t.tallyNote('21')).toContain('the 21 spins of');
+    expect(t.rtpGapNote(1, '3,000')).toContain('After 1 spin your');
+    // Japanese counts the same way whatever the number.
+    expect(getStrings('ja').chartAria('1', '−1', '−0.05')).toContain('1 回のスピン');
+  });
+
   it('is on the play tab before the first spin, with an empty chart that says how to start it and a tally of noughts', () => {
     const markup = render(<PlayTab />);
     expect(markup).toContain('data-testid="slot-session-chart"');

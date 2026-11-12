@@ -347,6 +347,36 @@ test('smart-ball: the day’s bonus taken at the medal center in another tab whi
 });
 
 /** A phone, in a language, with the floor faked; with less motion asked for when `calm`. */
+const focused = (page: Page) => page.evaluate(() => `${document.activeElement?.getAttribute('data-testid')} ${document.activeElement?.getAttribute('aria-disabled')}`);
+
+test('smart-ball: with the focus left on the plunger, which is off between plays, Space or Enter held there starts the next play, five medals a press, and shoots no marble', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openTable(page);
+  for (const key of [' ', 'Enter']) {
+    // Where a play shot with the mouse leaves the focus: on the plunger, which is off (aria-disabled) until a marble is on it.
+    await page.getByTestId('smb-plunger').focus();
+    expect(await focused(page)).toBe('smb-plunger true');
+    const before = { id: (await record(page))?.id ?? null, medals: await bankBalance(page) };
+    // Held, as a key is: it repeats, the first marble is on the plunger while it is still down, and then it is let go.
+    await page.keyboard.down(key);
+    await page.keyboard.down(key);
+    await onPlunger(page, 0);
+    await page.keyboard.down(key);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(500);
+    // One play, five medals: the press that started it shot nothing, and no second play follows it.
+    const now = await record(page);
+    expect(now?.id).not.toBe(before.id);
+    expect(now).toMatchObject({ shots: [], paid: false });
+    expect(await bankBalance(page)).toBe(before.medals - STAKE);
+    await expect(machine(page)).toHaveAttribute('data-marble', '0');
+    // The plunger, on again, is pressed by its own key as ever: held and let go, the same key shoots the marble.
+    await shootAll(page);
+    await ended(page);
+  }
+});
+
 async function phone(browser: Browser, width: number, language: 'en' | 'ja', calm: boolean) {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true, reducedMotion: calm ? 'reduce' : 'no-preference' });
   await instantScroll(context);
@@ -384,7 +414,11 @@ test('smart-ball fits 375 and 320 px phones in English and Japanese: the board a
     const inView = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
         const r = el.getBoundingClientRect();
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return r.top >= bar - 1 && r.bottom <= window.innerHeight + 1;
       });
     await expect.poll(() => inView('smb-board'), { message: `${where}: the board` }).toBe(true);

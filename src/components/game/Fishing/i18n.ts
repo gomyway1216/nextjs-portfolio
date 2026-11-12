@@ -366,7 +366,8 @@ const ja: FishingStrings = {
   catches: '釣れた回数',
   biggest: '最大の獲得',
   cameBack: '戻った割合',
-  machineReturn: 'マシンの還元率',
+  // A zero-width space: where the label may wrap on a narrow phone (Fishing.module.css `.statList dt`).
+  machineReturn: 'マシンの\u200B還元率',
   recentTitle: '最近のキャスト',
   recentNothing: 'アタリなし',
   recentAway: 'バラシ',

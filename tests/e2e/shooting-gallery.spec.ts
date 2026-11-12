@@ -338,6 +338,44 @@ test('shooting-gallery: the day’s bonus taken at the medal center in another t
 });
 
 /** A phone, in a language, with the floor faked; with less motion asked for when `calm`. */
+const focused = (page: Page) => page.evaluate(() => `${document.activeElement?.getAttribute('data-testid')} ${document.activeElement?.getAttribute('aria-disabled')}`);
+
+test('shooting-gallery: a play fired with the mouse leaves the focus on FIRE, which is off: Space or Enter held there starts the next play, six medals a press, and fires no cork', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openStall(page);
+  /** Fires the play under way out with the mouse on FIRE, as a player with a mouse does: the last click leaves the focus there. */
+  const fireOut = async () => {
+    await expect(async () => {
+      if ((await machine(page).getAttribute('data-phase')) === 'aim') await page.getByTestId('sht-fire').click();
+      expect(await machine(page).getAttribute('data-phase')).toBe('idle');
+    }).toPass({ timeout: 50_000, intervals: [150] });
+    expect(await focused(page)).toBe('sht-fire true');
+  };
+  await start(page, SWEEP);
+  await fireOut();
+  for (const key of [' ', 'Enter']) {
+    const before = { id: (await record(page))!.id, medals: await bankBalance(page) };
+    // Held, as a key is: it repeats, the first cork is in the gun while it is still down, and then it is let go.
+    await page.keyboard.down(key);
+    await page.keyboard.down(key);
+    await inGun(page, 0);
+    await page.keyboard.down(key);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(500);
+    // One play, six medals: the press that started it fired nothing, and no second play follows it.
+    const now = await record(page);
+    expect(now?.id).not.toBe(before.id);
+    expect(now).toMatchObject({ shots: [], paid: false });
+    expect(await bankBalance(page)).toBe(before.medals - STAKE);
+    await expect(machine(page)).toHaveAttribute('data-cork', '0');
+    // FIRE, on again, is pressed by its own key as ever: the same key now fires the first cork.
+    await page.keyboard.press(key === ' ' ? 'Space' : key);
+    await expect.poll(async () => (await record(page))?.shots.length).toBe(1);
+    await fireOut();
+  }
+});
+
 async function phone(browser: Browser, width: number, language: 'en' | 'ja', calm: boolean) {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true, reducedMotion: calm ? 'reduce' : 'no-preference' });
   await instantScroll(context);
@@ -377,7 +415,11 @@ test('shooting-gallery fits 375 and 320 px phones in English and Japanese: the s
     const inView = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
         const r = el.getBoundingClientRect();
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return r.top >= bar - 1 && r.bottom <= window.innerHeight + 1;
       });
     await expect.poll(() => inView('sht-stage'), { message: `${where}: the stall` }).toBe(true);

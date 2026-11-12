@@ -119,7 +119,11 @@ for (const [width, height] of [
     const board = page.getByTestId('smb-board');
     const covered = () =>
       board.evaluate((el) => {
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return el.getBoundingClientRect().top < bar - 1;
       });
     expect(await covered()).toBe(true);
@@ -151,7 +155,11 @@ for (const [width, height] of [
     const tower = page.getByTestId('bt-board');
     const covered = () =>
       tower.evaluate((el) => {
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return el.getBoundingClientRect().top < bar - 1;
       });
     expect(await covered()).toBe(true);
@@ -184,7 +192,11 @@ for (const [width, height] of [
     const stall = page.getByTestId('sht-stage');
     const covered = () =>
       stall.evaluate((el) => {
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return el.getBoundingClientRect().top < bar - 1;
       });
     expect(await covered()).toBe(true);
@@ -216,7 +228,11 @@ for (const [width, height] of [
     const board = page.getByTestId('pk-board');
     const covered = () =>
       board.evaluate((el) => {
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return el.getBoundingClientRect().top < bar - 1;
       });
     expect(await covered()).toBe(true);
@@ -251,7 +267,11 @@ for (const [width, height] of [
     const panel = page.getByTestId('cp-panel');
     const covered = () =>
       panel.evaluate((el) => {
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return el.getBoundingClientRect().top < bar - 1;
       });
     expect(await covered()).toBe(true);

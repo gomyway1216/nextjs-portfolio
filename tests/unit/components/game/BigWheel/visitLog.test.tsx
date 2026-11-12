@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { LAMPS, SPOTS, WHEEL, drawSpin, resultOf, seeded, winOf, type Spin } from '@/components/game/BigWheel/engine';
 import { getStrings } from '@/components/game/BigWheel/i18n';
 import { betsOf, type PlacedBet } from '@/components/game/BigWheel/medalTable';
-import { NumberTally, SpinLog, type LoggedSpin } from '@/components/game/BigWheel/VisitLog';
+import { NumberTally, SpinLog, signed, type LoggedSpin } from '@/components/game/BigWheel/VisitLog';
 import { END_CHANCE, emptyTally, expectedDigits, expectedOf, linesOf, tallyWith } from '@/components/game/BigWheel/visitTally';
 
 const BONUS_STOP = WHEEL.indexOf('bonus');
@@ -151,7 +151,7 @@ describe('the spin record beside the machine', () => {
 
     const lost = show('a');
     expect(lost).toContain('data-testid="bw-detail-title">Before this visit<');
-    expect(lost).toContain('data-testid="bw-detail-net">-1<');
+    expect(lost).toContain('data-testid="bw-detail-net">−1<');
     expect(show('gone')).toContain('data-testid="bw-spin-detail" data-spin="c"');
   });
 
@@ -187,7 +187,7 @@ describe('the numbers of this visit', () => {
     expect(one).toContain('data-testid="bw-tally-expected-2">0.4<');
     expect(one).toContain('data-testid="bw-tally-expected-40">0.02<');
     expect(one).toContain('data-testid="bw-tally-net-8">+21<');
-    expect(one).toContain('data-testid="bw-tally-net-2">-10<');
+    expect(one).toContain('data-testid="bw-tally-net-2">−10<');
     expect(one).toContain('data-testid="bw-tally-net-40">0<');
 
     for (let i = 0; i < 53; i++) tally = tallyWith(tally, { spot: 2, multiplier: 1, bets: [] });
@@ -196,5 +196,23 @@ describe('the numbers of this visit', () => {
     expect(many).toContain('data-testid="bw-tally-expected-2">21.6<');
     expect(many).toContain('出た回数');
     expect(many).toContain(getStrings('ja').tallyNote);
+  });
+});
+
+describe('a net with its sign', () => {
+  const fmt = (n: number) => n.toLocaleString('en-US');
+
+  it('has a plus for medals ahead, a real minus sign for medals behind, and no sign for level', () => {
+    expect(signed(21, fmt)).toBe('+21');
+    expect(signed(0, fmt)).toBe('0');
+    expect(signed(-10, fmt)).toBe('\u221210');
+    expect(signed(-1234, fmt)).toBe('\u22121,234');
+    // Never the keyboard's hyphen, which is what a number turned into text has.
+    expect(signed(-10, fmt)).not.toContain('-');
+  });
+
+  it('says one medal, not “1 medals”, where the count can be one', () => {
+    expect(getStrings('en').rebetShort(1)).toBe('The same bets need 1 medal.');
+    expect(getStrings('en').rebetShort(12)).toBe('The same bets need 12 medals.');
   });
 });

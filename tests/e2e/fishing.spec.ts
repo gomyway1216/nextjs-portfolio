@@ -172,6 +172,31 @@ test('a reload in the middle of a cast pays it once as the page goes, and shows 
   expect(await bankBalance(page)).toBe(WELCOME + 57);
 });
 
+/**
+ * The words of the fish's names on show that are drawn across two lines (「みかづきカジ｜キ」): an English word, or a run
+ * of katakana. A name may wrap between its words; none may be broken inside one. Nine names in the fish board, nine in
+ * the catch log, nine in the odds table: an empty list from a page that shows none would prove nothing, so it throws.
+ */
+const brokenNames = (page: Page) =>
+  page.evaluate(() => {
+    const names = [...document.querySelectorAll<HTMLElement>('[class*="fishName"]')].filter((el) => el.getClientRects().length > 0);
+    if (names.length < 9) throw new Error(`only ${names.length} fish names are on show`);
+    const broken: string[] = [];
+    for (const name of names) {
+      const walker = document.createTreeWalker(name, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        for (const word of (node.textContent ?? '').matchAll(/[A-Za-z,]+|[\u30A0-\u30FF]+/g)) {
+          const range = document.createRange();
+          range.setStart(node, word.index);
+          range.setEnd(node, word.index + word[0].length);
+          const lines = new Set([...range.getClientRects()].filter((box) => box.width > 0.5).map((box) => Math.round(box.top)));
+          if (lines.size > 1) broken.push(`${word[0]} in ${name.textContent}`);
+        }
+      }
+    }
+    return broken;
+  });
+
 for (const width of [375, 320]) {
   for (const language of ['en', 'ja'] as const) {
     test(`fits a ${width} px phone in ${language === 'en' ? 'English' : 'Japanese'}, and nothing moves while a cast plays`, async ({ page }) => {
@@ -198,10 +223,12 @@ for (const width of [375, 320]) {
       seen.add(JSON.stringify(await where()));
       expect([...seen]).toEqual([JSON.stringify(before)]);
       expect(await sideways(page)).toBeLessThanOrEqual(width);
+      expect(await brokenNames(page), 'the fish board and the catch log').toEqual([]);
       // The Odds tab fits too.
       await page.locator('#fishing-tab-odds').click();
       await expect(page.getByTestId('fishing-rtp')).toHaveText('90%');
       expect(await sideways(page)).toBeLessThanOrEqual(width);
+      expect(await brokenNames(page), 'the odds table').toEqual([]);
     });
   }
 }

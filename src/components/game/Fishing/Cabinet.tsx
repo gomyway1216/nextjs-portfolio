@@ -13,6 +13,7 @@ import { MEDAL_CENTER_PATH } from '../MedalCenter/paths';
 import { SoundSwitch } from '../MedalCenter/SoundSwitch';
 import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { FishArt, FloatArt, MedalArt, ShadowArt } from './art';
+import { FishName } from './FishName';
 import { emptyLog, kindsLanded, logged, type CatchLog } from './catchLog';
 import { BET_OPTIONS, CHEST, FISH, analyzeMachine, drawCast, fishOf, resolveCast, valueOf, type Bet, type CastResult, type Shadow } from './engine';
 import { getStrings } from './i18n';
@@ -726,7 +727,7 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
                   <th scope="row" className={styles.boardFish}>
                     <FishArt id={fish.id} className={styles.boardArt} />
                     <span>
-                      {t.fishNames[fish.id]}
+                      <FishName name={t.fishNames[fish.id]} />
                       <small className={styles.boardShadow}>
                         {t.colShadow}: {t.shadowNames[fish.shadow]}
                       </small>
@@ -829,7 +830,7 @@ export const Cabinet = ({ player = GUEST_PLAYER, active = true }: CabinetProps) 
                     <th scope="row" className={styles.boardFish}>
                       <FishArt id={fish.id} className={`${styles.boardArt} ${styles.logArt}`} />
                       <span>
-                        {t.fishNames[fish.id]}
+                        <FishName name={t.fishNames[fish.id]} />
                         <small className={styles.boardShadow}>{t.logLands(fish.lands.num, fish.lands.den)}</small>
                       </span>
                     </th>

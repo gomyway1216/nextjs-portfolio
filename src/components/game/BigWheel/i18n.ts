@@ -59,7 +59,7 @@ const en = {
   notEnough: 'Not enough medals for that.',
   spotFull: (max: number) => `A number holds ${max} medals at most.`,
   noneLeft: 'All your medals are on the board.',
-  rebetShort: (total: number) => `The same bets need ${total} medals.`,
+  rebetShort: (total: number) => `The same bets need ${total} ${total === 1 ? 'medal' : 'medals'}.`,
   refill: (medals: number) => `Out of medals — take ${medals} more`,
   cardAway: 'Your medals are in a machine in another tab.',
   playHere: 'Play here',

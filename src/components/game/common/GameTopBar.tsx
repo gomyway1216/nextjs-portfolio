@@ -47,8 +47,19 @@ function readLayout(narrowQuery: string): TopBarLayout {
 function subscribeLayout(narrowQuery: string, onChange: () => void): () => void {
   if (!canMatchMedia()) return () => {};
   const queries = [window.matchMedia(COMPACT_QUERY), window.matchMedia(narrowQuery)];
-  queries.forEach((query) => query.addEventListener('change', onChange));
-  return () => queries.forEach((query) => query.removeEventListener('change', onChange));
+  // Safari before 14 has only the older addListener: without it the bar keeps the layout it opened with.
+  const stops = queries.map((query) => {
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', onChange);
+      return () => query.removeEventListener('change', onChange);
+    }
+    if (typeof query.addListener === 'function') {
+      query.addListener(onChange);
+      return () => query.removeListener(onChange);
+    }
+    return () => {};
+  });
+  return () => stops.forEach((stop) => stop());
 }
 
 const serverLayout = (): TopBarLayout => 'wide';

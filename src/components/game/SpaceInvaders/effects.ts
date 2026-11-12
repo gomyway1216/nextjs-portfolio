@@ -6,7 +6,7 @@
  * display refresh rate.
  */
 
-import { CANVAS_WIDTH, Enemy, EnemyType, GameState } from './types';
+import { CANVAS_WIDTH, ENEMY_CONFIGS, Enemy, EnemyType, GameState } from './types';
 
 export const BURST_MS = 320;
 export const PLAYER_BURST_MS = 520;
@@ -60,6 +60,25 @@ export function stepEffects(effects: Effect[], deltaMs: number): void {
   effects.length = kept;
 }
 
+/**
+ * Whether anything is still on screen. With reduced motion the bursts are not
+ * drawn at all, so only the pop-ups count.
+ */
+export function hasVisibleEffects(effects: Effect[], reducedMotion: boolean): boolean {
+  return reducedMotion ? effects.some(effect => effect.kind === 'popup') : effects.length > 0;
+}
+
+/**
+ * One frame of letting the effects play out once the game has ended. Returns
+ * whether another frame is needed. Every call ages the effects by at least a
+ * millisecond, so the caller's loop ends after a bounded number of frames
+ * even if the clock stands still.
+ */
+export function stepEffectsTail(effects: Effect[], deltaMs: number, reducedMotion: boolean): boolean {
+  stepEffects(effects, Math.max(1, deltaMs));
+  return hasVisibleEffects(effects, reducedMotion);
+}
+
 /** 0 at spawn → 1 at expiry. */
 export function effectProgress(effect: Effect): number {
   if (effect.life <= 0) return 1;
@@ -95,6 +114,8 @@ export function captureFormation(state: GameState, snapshot: FormationSnapshot):
 }
 
 export interface DestroyedEnemy {
+  /** Position in the formation it belonged to at the start of the frame. */
+  index: number;
   /** Centre of the invader where it was at the start of the frame. */
   x: number;
   y: number;
@@ -118,10 +139,65 @@ export function destroyedSince(snapshot: FormationSnapshot, state: GameState): D
     if (!now || now.active) continue;
     const before = snapshot.enemies[i];
     destroyed.push({
+      index: i,
       x: snapshot.x[i] + before.width / 2,
       y: snapshot.y[i] + before.height / 2,
       type: before.type,
     });
   }
   return destroyed;
+}
+
+/**
+ * Most invaders a co-op joiner will show as "cleared by the host" on a wave
+ * change. The host has one bullet in flight and publishes ten times a second,
+ * so normally exactly one is left; more than a few means the joiner fell
+ * behind and the old formation says nothing about what just happened.
+ */
+export const WAVE_CLEAR_MAX = 3;
+
+/**
+ * Co-op joiner only: the invaders the host destroyed to clear the wave.
+ *
+ * The host starts the next wave in the same frame as its last kill, so the
+ * joiner never receives a snapshot with that invader gone, only the next
+ * wave. A wave advances only once every invader is destroyed, so whatever was
+ * still standing here at the start of the frame is what the host just shot.
+ * Returns nothing unless the level advanced by exactly one.
+ */
+export function clearedByHostWaveChange(snapshot: FormationSnapshot, state: GameState): DestroyedEnemy[] {
+  if (state.level !== snapshot.level + 1) return [];
+  const cleared: DestroyedEnemy[] = [];
+  for (let i = 0; i < snapshot.enemies.length; i++) {
+    const before = snapshot.enemies[i];
+    // `before.active` is false for a kill `destroyedSince` already reports.
+    if (!snapshot.active[i] || !before.active) continue;
+    if (cleared.length === WAVE_CLEAR_MAX) return [];
+    cleared.push({
+      index: i,
+      x: snapshot.x[i] + before.width / 2,
+      y: snapshot.y[i] + before.height / 2,
+      type: before.type,
+    });
+  }
+  return cleared;
+}
+
+/**
+ * Feedback for destroyed invaders: a burst for each, and a score pop-up only
+ * for those in `ownKills` (formation indices), because only those points went
+ * to the local player's score.
+ */
+export function spawnKillFeedback(
+  effects: Effect[],
+  destroyed: DestroyedEnemy[],
+  ownKills: readonly number[]
+): void {
+  for (const hit of destroyed) {
+    const config = ENEMY_CONFIGS[hit.type];
+    spawnBurst(effects, hit.x, hit.y, config.accentColor);
+    if (ownKills.includes(hit.index)) {
+      spawnPopup(effects, hit.x, hit.y - 12, `+${config.points}`, config.accentColor);
+    }
+  }
 }

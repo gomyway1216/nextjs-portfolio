@@ -32,12 +32,16 @@ import {
   Effect,
   PLAYER_BURST_MS,
   captureFormation,
+  clearedByHostWaveChange,
   createFormationSnapshot,
   destroyedSince,
   effectProgress,
+  hasVisibleEffects,
   spawnBurst,
+  spawnKillFeedback,
   spawnPopup,
   stepEffects,
+  stepEffectsTail,
 } from './effects';
 import { RunStats, accuracyPercent, createRunStats, formatDuration, recordFrame, totalKills } from './runStats';
 import { Sounds, initAudio } from './sounds';
@@ -299,6 +303,8 @@ const SpaceInvaders: React.FC = () => {
   const runStatsRef = useRef<RunStats>(createRunStats());
   const reducedMotionRef = useRef(false);
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
+  // Bumped by "play again" so the frame loop is torn down and started afresh.
+  const [runId, setRunId] = useState(0);
   const [touchActive, setTouchActive] = useState({ left: false, right: false, shoot: false });
 
   // WAI-ARIA radio-group keyboard navigation for the difficulty selector:
@@ -412,6 +418,7 @@ const SpaceInvaders: React.FC = () => {
     runStartHighScoreRef.current = highScore;
     resetRunFeedback();
     setActiveGame(createGameState(1, 0, undefined, difficulty));
+    setRunId(id => id + 1);
   }, [difficulty, highScore, resetRunFeedback, setActiveGame]);
 
   // Toggle pause. Disabled in multiplayer: there is no shared pause protocol,
@@ -678,21 +685,35 @@ const SpaceInvaders: React.FC = () => {
 
       const mp = multiplayerRef.current;
       const isMulti = gameModeRef.current === 'multi';
+      const effects = effectsRef.current;
       // Fresh room data straight from the RTDB subscription (no re-render lag)
       const liveRoom = isMulti ? mp.latestRoomRef.current : null;
       const liveOther = liveRoom
         ? Object.values(liveRoom.players || {}).find(p => p.id !== mp.context.playerId) || null
         : null;
 
+      if (state.gameOver && finishedRef.current) {
+        // The run is over and already wrapped up below: no simulation, sounds
+        // or network writes, only the effects still on screen playing out.
+        const more = stepEffectsTail(effects, deltaTime, reducedMotionRef.current);
+        render(ctx, state, isMulti ? liveOther : null, mp.myColor, mp.otherColor);
+        if (more) animationFrameRef.current = requestAnimationFrame(gameLoop);
+        return;
+      }
+
       if (!state.isPaused) {
         let soundEvents;
+        // Formation indices of the invaders the local player's own bullet
+        // destroyed this frame (they are the ones that scored).
+        let ownKills: readonly number[] = [];
+        const isJoiner = isMulti && !mp.context.isHost;
 
         // Where things were before this frame, for the hit feedback below.
         captureFormation(state, formationSnapshotRef.current);
         const ufoBefore = state.ufo ? { x: state.ufo.x, y: state.ufo.y } : null;
         const playerXBefore = state.player.x;
 
-        if (isMulti && !mp.context.isHost) {
+        if (isJoiner) {
           // JOINER: apply the host's latest snapshot of the shared entities,
           // then run the local-only frame (own ship/bullets + extrapolation).
           const net = liveRoom?.gameState;
@@ -712,6 +733,7 @@ const SpaceInvaders: React.FC = () => {
 
           // Report locally-resolved hits to the host (level-scoped, idempotent).
           const ev = frame.events;
+          ownKills = ev.kills;
           if (ev.kills.length > 0 || ev.shieldHits.length > 0 || ev.ufoKilled) {
             const pending = pendingEffectsRef.current
               ?? (pendingEffectsRef.current = createPendingLocalEffects(state.level));
@@ -739,6 +761,11 @@ const SpaceInvaders: React.FC = () => {
           // running while either ship is alive.
           const coop = isMulti ? { teammateAlive: isTeammateAlive(liveOther) } : undefined;
           soundEvents = updateGame(state, inputRef.current, deltaTime, Date.now(), coop);
+          // Read before the joiner's report is applied: so far only the local
+          // bullet can have destroyed anything.
+          if (soundEvents.enemyHitType !== null) {
+            ownKills = destroyedSince(formationSnapshotRef.current, state).map(hit => hit.index);
+          }
 
           if (isMulti) {
             // Apply the joiner's reported kills, then publish the snapshot.
@@ -764,12 +791,11 @@ const SpaceInvaders: React.FC = () => {
 
         recordFrame(runStatsRef.current, soundEvents, deltaTime);
 
-        const effects = effectsRef.current;
         stepEffects(effects, deltaTime);
-        for (const hit of destroyedSince(formationSnapshotRef.current, state)) {
-          const config = ENEMY_CONFIGS[hit.type];
-          spawnBurst(effects, hit.x, hit.y, config.accentColor);
-          spawnPopup(effects, hit.x, hit.y - 12, `+${config.points}`, config.accentColor);
+        spawnKillFeedback(effects, destroyedSince(formationSnapshotRef.current, state), ownKills);
+        if (isJoiner) {
+          // The host's wave-clearing shot never arrives as a destroyed invader.
+          spawnKillFeedback(effects, clearedByHostWaveChange(formationSnapshotRef.current, state), []);
         }
         if (soundEvents.ufoHitPoints > 0 && ufoBefore) {
           const cx = ufoBefore.x + UFO_WIDTH / 2;
@@ -806,7 +832,9 @@ const SpaceInvaders: React.FC = () => {
 
       if (!state.gameOver) {
         animationFrameRef.current = requestAnimationFrame(gameLoop);
-      } else if (!finishedRef.current) {
+        return;
+      }
+      if (!finishedRef.current) {
         finishedRef.current = true;
         setGameState({ ...state });
         const tally = runStatsRef.current;
@@ -819,16 +847,23 @@ const SpaceInvaders: React.FC = () => {
           mp.endGame(null);
         }
       }
+      // Keep drawing until the last burst and pop-up have faded (see the top
+      // of the loop), then stop for good.
+      if (hasVisibleEffects(effects, reducedMotionRef.current)) {
+        animationFrameRef.current = requestAnimationFrame(gameLoop);
+      }
     };
 
     animationFrameRef.current = requestAnimationFrame(gameLoop);
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-    // Restart the loop only when a new game begins or we leave the start screen,
+    // Restart the loop only when a new game begins (`runId` covers "play
+    // again", which can arrive while the post-game effects are still playing
+    // or after the loop has stopped) or we leave the start screen,
     // NOT on every score/HUD update — the loop reads live state from refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showStartScreen, gameState === null, render]);
+  }, [showStartScreen, gameState === null, runId, render]);
 
   // Touch control handlers
   const setTouch = useCallback((key: 'left' | 'right' | 'shoot', value: boolean) => {

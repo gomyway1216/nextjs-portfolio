@@ -12,6 +12,49 @@
   white-space: nowrap;
 }
 
+/* The stats pill and the game's extra content, side by side, where the toolbar's own slot has no room for the extra. */
+.group {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.group > .statsPill {
+  flex: 0 0 auto;
+}
+
+/* A badge or button a little taller than the pill must not make the row, and so the sticky bar, any taller. */
+.group > .extra {
+  margin-block: -0.2rem;
+}
+
+.groupEnd {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* A game's extra content (a mode badge, a turn counter, a button). It stays on one line; what cannot fit is cut with
+   an ellipsis rather than wrapped a character at a time, which made the sticky bar several lines tall. */
+.extra {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.extra > * {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .statsIcon {
   width: 0.875rem;
   height: 0.875rem;
@@ -72,6 +115,20 @@
   }
 
   .infoLabel {
+    display: none;
+  }
+}
+
+/* Tablets: the toolbar is one row again, and the group sits between the site name and the controls. The toolbar lets
+   that middle slot take whatever it asks for and gives the site name the rest, so the group is held to what the row
+   can spare (the 37.5rem is the padding, the site name, the Games link, the controls and the gaps) and the How to play button drops
+   its label to make room. Extra content that still cannot fit is cut with an ellipsis. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .group {
+    max-width: max(8rem, calc(100vw - 37.5rem));
+  }
+
+  .infoButtonCompact .infoLabel {
     display: none;
   }
 }

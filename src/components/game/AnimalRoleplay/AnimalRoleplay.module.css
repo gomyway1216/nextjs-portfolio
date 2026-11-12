@@ -1,7 +1,9 @@
+/* In normal flow, under the site's sticky toolbar. (A fixed, full-viewport root slid its own header, the back link
+   and the title, beneath that toolbar.) */
 .root {
-  position: fixed;
-  inset: 0;
-  overflow-y: auto;
+  position: relative;
+  min-height: calc(100vh - 58px);
+  min-height: calc(100dvh - 58px);
   background: radial-gradient(circle at top, #164e63 0%, #0f172a 50%, #020617 100%);
   padding: 1rem;
   font-family: system-ui, -apple-system, sans-serif;
@@ -594,7 +596,6 @@
 }
 
 .turnPill {
-  color: #93c5fd;
   border: 1px solid rgba(59, 130, 246, 0.4);
   border-radius: 9999px;
   padding: 0.2rem 0.7rem;

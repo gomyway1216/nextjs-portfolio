@@ -6,7 +6,7 @@ import { getBanditStrings } from './i18n';
 import { StrategyName, chooseArm, mulberry32, wilsonInterval } from './engine';
 import { ReviewPanel, type ReviewState } from './ReviewPanel';
 import { type GameReview, type Pull, reviewGame } from './review';
-import { DEFAULT_PULL_LIMIT, MAX_PULL_LIMIT, MIN_PULL_LIMIT, clampPullLimit, pullProgress } from './playHelpers';
+import { DEFAULT_PULL_LIMIT, MAX_PULL_LIMIT, MIN_PULL_LIMIT, isLivePullLimit, pullProgress, settlePullLimit } from './playHelpers';
 
 const ARM_PALETTE = ['#67e8f9', '#a78bfa', '#f472b6', '#4ade80', '#fbbf24'];
 const T_DEFAULT = DEFAULT_PULL_LIMIT;
@@ -36,6 +36,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
 
   const [k, setK] = useState(K_DEFAULT);
   const [T, setT] = useState(T_DEFAULT);
+  // What is typed in the limit field. `T` follows it only once it is a usable
+  // limit, so a half-typed number never ends the game.
+  const [limitText, setLimitText] = useState(String(T_DEFAULT));
   const [probs, setProbs] = useState(() => randomProbs(K_DEFAULT));
   const [arms, setArms] = useState<ArmState[]>(() => freshArms(probs));
   const [step, setStep] = useState(0);
@@ -107,6 +110,16 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     setFlash(null);
   }, [k]);
 
+  const onLimitChange = (text: string) => {
+    setLimitText(text);
+    if (isLivePullLimit(text, step)) setT(Number(text));
+  };
+  const settleLimit = () => {
+    const next = settlePullLimit(limitText, step, T);
+    setT(next);
+    setLimitText(String(next));
+  };
+
   const onKChange = (nextK: number) => {
     setK(nextK);
     newGame(nextK);
@@ -150,10 +163,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             <input
               type="number"
               aria-label={t.pullLimit}
-              value={T}
+              value={limitText}
               min={Math.max(MIN_PULL_LIMIT, Math.min(MAX_PULL_LIMIT, step))}
               max={MAX_PULL_LIMIT}
-              onChange={(e) => setT(clampPullLimit(Number(e.target.value), step))}
+              onChange={(e) => onLimitChange(e.target.value)}
+              onBlur={settleLimit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') settleLimit();
+              }}
               style={inputStyle(80)}
             />
           </label>

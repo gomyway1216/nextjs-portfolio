@@ -6,7 +6,9 @@ import {
   MAX_PULL_LIMIT,
   MIN_PULL_LIMIT,
   clampPullLimit,
+  isLivePullLimit,
   pullProgress,
+  settlePullLimit,
 } from '@/components/game/Bandit/playHelpers';
 
 describe('Bandit pull limit', () => {
@@ -40,6 +42,34 @@ describe('Bandit pull limit', () => {
     expect(pullProgress(12, 10)).toEqual({ remaining: 0, fraction: 1 });
     expect(pullProgress(-1, 10)).toEqual({ remaining: 10, fraction: 0 });
     expect(pullProgress(3, 0)).toEqual({ remaining: 0, fraction: 1 });
+  });
+});
+
+describe('Bandit pull limit while typing', () => {
+  it('takes effect at once only for a whole limit in range that keeps the game going', () => {
+    expect(isLivePullLimit('30', 12)).toBe(true);
+    expect(isLivePullLimit('500', 0)).toBe(true);
+    expect(isLivePullLimit('10', 0)).toBe(true);
+    // On the way to "30", or emptied.
+    expect(isLivePullLimit('3', 0)).toBe(false);
+    expect(isLivePullLimit('', 0)).toBe(false);
+    expect(isLivePullLimit('1e2', 0)).toBe(false);
+    expect(isLivePullLimit('12.5', 0)).toBe(false);
+    expect(isLivePullLimit('501', 0)).toBe(false);
+    // Would end the game: waits for the field to be left.
+    expect(isLivePullLimit('10', 12)).toBe(false);
+    expect(isLivePullLimit('12', 12)).toBe(false);
+  });
+
+  it('settles on the clamped limit, or keeps the current one when nothing usable was typed', () => {
+    expect(settlePullLimit('30', 12, 50)).toBe(30);
+    expect(settlePullLimit('10', 12, 50)).toBe(12);
+    expect(settlePullLimit('3', 0, 50)).toBe(MIN_PULL_LIMIT);
+    expect(settlePullLimit('9999', 0, 50)).toBe(MAX_PULL_LIMIT);
+    expect(settlePullLimit('', 12, 50)).toBe(50);
+    expect(settlePullLimit('   ', 12, 80)).toBe(80);
+    expect(settlePullLimit('0', 12, 80)).toBe(80);
+    expect(settlePullLimit('-4', 12, 80)).toBe(80);
   });
 });
 

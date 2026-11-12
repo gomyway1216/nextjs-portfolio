@@ -100,7 +100,12 @@ test('bandit: a pull limit lowered below the pulls made ends the game on those p
   await expect(arm1).toHaveAccessibleName(/pulled 12 /);
 
   const limit = banditPlay(page).getByRole('spinbutton', { name: 'Pull limit T' });
+  // A half-typed limit below the pulls made changes nothing until the field is left.
+  await limit.fill('1');
+  await expect(banditPlay(page).getByText('38 / 50', { exact: true })).toBeVisible();
+  await expect(banditPlay(page).getByTestId('bandit-finished')).toHaveCount(0);
   await limit.fill('10');
+  await limit.press('Enter');
   await expect(limit).toHaveValue('12');
   await expect(banditPlay(page).getByText('0 / 12', { exact: true })).toBeVisible();
   const banner = banditPlay(page).getByTestId('bandit-finished');

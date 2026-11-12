@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { FishArt } from './art';
+import { FishName } from './FishName';
 import { analyzeMachine, seeded, simulateSessions, valueOf, type Fraction, type SessionSummary } from './engine';
 import { getStrings } from './i18n';
 import styles from './Fishing.module.css';
@@ -140,7 +141,7 @@ export const OddsTab = () => {
                 <tr key={fish.id} data-fish={fish.id}>
                   <td className={styles.oddsFish}>
                     <FishArt id={fish.id} className={styles.oddsArt} />
-                    <span>{t.fishNames[fish.id]}</span>
+                    <FishName name={t.fishNames[fish.id]} />
                   </td>
                   <td className={styles.num}>{fish.pays === null ? t.chestPays : `×${fish.pays}`}</td>
                   <td className={styles.num}>{chance(fish.bite)}</td>

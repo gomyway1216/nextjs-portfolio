@@ -819,7 +819,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const onPlungerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== ' ' && event.key !== 'Enter') return;
     event.preventDefault();
-    if (!event.repeat && pull()) keyPulled.current = true;
+    if (event.repeat) return;
+    // With no play under way the plunger is off (aria-disabled) and has nothing of its own to do: Space or Enter on it
+    // is the machine's key, START, as it is anywhere else on the page. (A mouse's last press leaves the focus here.)
+    if (!flightRef.current) {
+      if (forTheMachine({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, isComposing: event.nativeEvent.isComposing })) start();
+    } else if (pull()) keyPulled.current = true;
   };
   const onPlungerKeyUp = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== ' ' && event.key !== 'Enter') return;
@@ -1072,8 +1077,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             <div>
               <dt>{t.net}</dt>
               <dd className={net >= 0 ? styles.pos : styles.neg}>
-                {net > 0 ? '+' : ''}
-                {fmt(net)}
+                {net > 0 ? '+' : net < 0 ? '−' : ''}
+                {fmt(Math.abs(net))}
               </dd>
             </div>
             <div>

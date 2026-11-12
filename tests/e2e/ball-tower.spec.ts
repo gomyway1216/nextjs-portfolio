@@ -311,7 +311,11 @@ test('ball-tower fits 375 and 320 px phones in English and Japanese: the whole t
     const inView = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
         const r = el.getBoundingClientRect();
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return r.top >= bar - 1 && r.bottom <= window.innerHeight + 1;
       });
     await expect.poll(() => inView('bt-board'), { message: `${where}: the tower` }).toBe(true);

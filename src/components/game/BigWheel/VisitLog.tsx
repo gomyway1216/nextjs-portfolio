@@ -17,7 +17,8 @@ export interface LoggedSpin extends EndedSpin {
   wagered: number;
 }
 
-const signed = (n: number, fmt: (n: number) => string): string => `${n > 0 ? '+' : ''}${fmt(n)}`;
+/** A net with its sign: a plus for medals ahead, a minus sign (U+2212, not a hyphen) for medals behind, none for level. */
+export const signed = (n: number, fmt: (n: number) => string): string => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(n))}`;
 
 export interface SpinLogProps {
   t: BigWheelStrings;

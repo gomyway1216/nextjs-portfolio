@@ -1044,6 +1044,10 @@
   margin: 0 0 0.35rem;
 }
 .cabinetLink {
+  /* The link's words are kept whole (「メダルゲームセン｜ターへ」): it goes to the next line when it does not fit at
+     the end of this one. It stays an inline link in its sentence. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   color: #ffe1a1;
   font-weight: 700;
 }
@@ -1130,6 +1134,13 @@
   font-weight: 700;
   line-height: 1.25;
 }
+/* A fish's name wraps between its words (FishName.tsx marks where), not inside one (「みかづきカジ｜キ」). Only a word
+   wider than its column is broken (`break-word`, which unlike `anywhere` does not let a table squeeze the column down
+   to a letter's width). */
+.fishName {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
 .boardArt {
   width: 2.6rem;
   height: 1.7rem;
@@ -1176,6 +1187,10 @@
 }
 .statList dt {
   color: var(--games-route-muted);
+  /* A label too long for its half of a 320 px phone wraps where its words meet (「マシンの｜還元率」), not one
+     character short (「マシンの還元｜率」). */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .statList dd {
   margin: 0;

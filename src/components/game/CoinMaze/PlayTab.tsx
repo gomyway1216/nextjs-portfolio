@@ -506,6 +506,12 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             restRef.current = restingPose(ended.play.outAt, ended.play.bin);
             setOutcome(ended);
             setHistory((before) => (before.some((entry) => entry.id === ended.id) ? before : [ended, ...before].slice(0, HISTORY_LIMIT)));
+            // Finished by the page that went (reloaded, closed or hidden mid-play), the levers still to come flicked
+            // blind: said here as that page would have, since the flicks that ended it were not the player's.
+            if (record.own !== undefined) {
+              setResumed(true);
+              setMessage(live.current.t.finishedAway);
+            }
           }
         } while (again);
       } finally {
@@ -747,6 +753,17 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     flickNow();
   };
   const onLeverKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    // With no play under way the lever is off (aria-disabled) and has nothing of its own to do: Space or Enter on it is
+    // the machine's key, DROP, as it is anywhere else on the page. (A mouse's last press leaves the focus here.)
+    if ((event.key === ' ' || event.key === 'Enter') && !flightRef.current) {
+      event.preventDefault();
+      if (forTheMachine({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, repeat: event.repeat, isComposing: event.nativeEvent.isComposing })) {
+        // The click a browser may still make of this press is not a flick.
+        lastFlickAt.current = performance.now();
+        drop(null);
+      }
+      return;
+    }
     if (event.key === ' ') {
       event.preventDefault();
       if (!event.repeat) pull();
@@ -979,8 +996,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
             <div>
               <dt>{t.net}</dt>
               <dd className={net >= 0 ? styles.pos : styles.neg}>
-                {net > 0 ? '+' : ''}
-                {fmt(net)}
+                {net > 0 ? '+' : net < 0 ? '−' : ''}
+                {fmt(Math.abs(net))}
               </dd>
             </div>
             <div>

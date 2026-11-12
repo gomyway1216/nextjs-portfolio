@@ -314,6 +314,72 @@ test('the day’s bonus taken at the medal center in another tab while the medal
 });
 
 /** A phone, in a language, with the floor faked. */
+const focused = (page: Page) => page.evaluate(() => `${document.activeElement?.getAttribute('data-testid')} ${document.activeElement?.getAttribute('aria-disabled')}`);
+
+test('a play flicked with the mouse leaves the focus on the lever, which is off: Enter and Space there drop the next medal, one medal a press', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMaze(page);
+  /** Plays the play under way out with the mouse on the lever, as a player with a mouse does: the last click leaves the focus there. */
+  const flickOut = async () => {
+    await expect(async () => {
+      if ((await machine(page).getAttribute('data-phase')) === 'wait') await page.getByTestId('cm-lever').click();
+      expect(await machine(page).getAttribute('data-phase')).toBe('idle');
+    }).toPass({ timeout: 40_000, intervals: [150] });
+    expect(await focused(page)).toBe('cm-lever true');
+  };
+  // Wherever the mouse's flicks take the medal (through all four gates, or OUT at one), the last of them was on the lever.
+  await drop(page, play());
+  await flickOut();
+  for (const key of ['Enter', 'Space']) {
+    const before = { id: (await record(page))!.id, medals: await bankBalance(page) };
+    await page.keyboard.press(key);
+    // One play, one medal: the press is not also a flick, and no second play follows it.
+    await expect.poll(async () => (await record(page))?.id).not.toBe(before.id);
+    await expect(machine(page)).toHaveAttribute('data-phase', 'wait', { timeout: 10_000 });
+    await page.waitForTimeout(500);
+    expect(await record(page)).toMatchObject({ flicks: [], paid: false });
+    expect(await bankBalance(page)).toBe(before.medals - 1);
+    // A key with Ctrl held is the browser's, not the machine's; and the lever, on again, is pressed by the mouse as ever.
+    await flickOut();
+    const after = { id: (await record(page))!.id, medals: await bankBalance(page) };
+    await page.keyboard.press(`Control+${key}`);
+    await page.waitForTimeout(300);
+    expect((await record(page))!.id).toBe(after.id);
+    expect(await bankBalance(page)).toBe(after.medals);
+  }
+});
+
+test('a reload in the middle of a play says, when the page is back, that the play was finished while the player was away, in English and in Japanese', async ({ page }) => {
+  test.setTimeout(90_000);
+  for (const [language, words] of [
+    ['en', 'The play was finished while you were away: the levers left were flicked blind.'],
+    ['ja', '離れている間にプレイを終えました。残りのレバーは目をつぶってはじきました。'],
+  ] as const) {
+    await openMaze(page, language);
+    // Every blind flick drawn into a shut window: finished as the page goes, the play goes OUT at the first gate.
+    await drop(page, play({ blinds: [7, 7, 7, 7] }));
+    await atGate(page, 0);
+    await expect(page.getByTestId('cm-message')).toHaveText('');
+    await page.reload();
+    await arrived(page);
+    await expect(machine(page)).toHaveAttribute('data-playable', 'true', { timeout: 20_000 });
+    await expect.poll(async () => (await record(page))?.paid).toBe(true);
+    expect(await record(page)).toMatchObject({ flicks: [7], own: 0 });
+    await expect(page.getByTestId('cm-resumed')).toBeVisible();
+    // The words as the player reads them: the zero-width spaces that say where a Japanese line may break are not words.
+    await expect.poll(async () => ((await page.getByTestId('cm-message').textContent()) ?? '').replace(/\u200B/g, '')).toBe(words);
+    // The message is the page's own width, on screen.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    // The next play clears it.
+    await drop(page, play());
+    await expect(page.getByTestId('cm-message')).toHaveText('');
+    await atGate(page, 0);
+    await flickWhen(page, 'shut');
+    await ended(page);
+  }
+});
+
 async function phone(browser: Browser, width: number, language: 'en' | 'ja') {
   const context = await browser.newContext({ viewport: { width, height: width === 320 ? 640 : 812 }, isMobile: true, hasTouch: true });
   await instantScroll(context);
@@ -350,7 +416,11 @@ test('fits 375 and 320 px phones in English and Japanese: the case and the lever
     const inView = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
         const r = el.getBoundingClientRect();
-        const bar = document.querySelector('[class*="GlobalToolbar"]')?.getBoundingClientRect().bottom ?? 0;
+        // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`, with no
+        // "GlobalToolbar" in it). Not found, the check fails: it is never made against the top of the window instead.
+        const toolbar = document.querySelector('div[class*="toolbar"].sticky.top-0');
+        if (!toolbar) throw new Error('the site toolbar was not found');
+        const bar = toolbar.getBoundingClientRect().bottom;
         return r.top >= bar - 1 && r.bottom <= window.innerHeight + 1;
       });
     await expect.poll(() => inView('cm-board'), { message: `${where}: the case` }).toBe(true);

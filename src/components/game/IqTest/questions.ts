@@ -240,12 +240,32 @@ const generateAlternating = (tier: QuestionTier): Question => {
 // Odd-one-out
 // --------------------------------------------------------------------------
 
-const generateOddOneOut = (tier: QuestionTier): Question => {
-  const variants =
-    tier === 'easy'
-      ? (['parity', 'multiple'] as const)
-      : (['parity', 'square', 'multiple', 'prime'] as const);
-  const variant = pick(variants);
+type OddVariant = 'parity' | 'square' | 'multiple' | 'prime';
+
+const isPerfectSquare = (n: number): boolean => Number.isInteger(Math.sqrt(n));
+
+/** Properties three of the four items may share, as the variants below build them. */
+const ODD_ONE_OUT_PROPERTIES: ((n: number) => boolean)[] = [
+  (n) => n % 2 === 1,
+  ...[2, 3, 4, 5, 6, 7, 8, 9, 10].map((k) => (n: number) => n % k === 0),
+  isPerfectSquare,
+  isPrime,
+];
+
+/**
+ * True when some item other than `oddItem` is the only one lacking a property
+ * the other three share (e.g. [12, 20, 6, 24] keyed 20 as "not a multiple of
+ * 6", where 6 is the only non-multiple of 4): a second defensible answer.
+ */
+export const hasRivalOddItem = (items: readonly number[], oddItem: number): boolean =>
+  ODD_ONE_OUT_PROPERTIES.some((has) => {
+    const lacking = items.filter((n) => !has(n));
+    return lacking.length === 1 && lacking[0] !== oddItem;
+  });
+
+const buildOddOneOut = (
+  variant: OddVariant,
+): { items: number[]; oddItem: number; explanation: Bilingual } => {
   let items: number[];
   let oddItem: number;
   let explanation: Bilingual;
@@ -307,6 +327,21 @@ const generateOddOneOut = (tier: QuestionTier): Question => {
     };
   }
 
+  return { items, oddItem, explanation };
+};
+
+export const generateOddOneOut = (tier: QuestionTier): Question => {
+  const variants: readonly OddVariant[] =
+    tier === 'easy' ? ['parity', 'multiple'] : ['parity', 'square', 'multiple', 'prime'];
+  const variant = pick(variants);
+  let built = buildOddOneOut(variant);
+  // Redraw (same variant) while another item could also be argued to be the
+  // odd one. Roughly one draw in ten is rejected, so this ends quickly.
+  for (let tries = 0; tries < 200 && hasRivalOddItem(built.items, built.oddItem); tries += 1) {
+    built = buildOddOneOut(variant);
+  }
+  const { items, oddItem, explanation } = built;
+
   const shuffled = shuffle(items);
   return {
     type: 'odd-one-out',
@@ -324,7 +359,38 @@ const generateOddOneOut = (tier: QuestionTier): Question => {
 // Analogy
 // --------------------------------------------------------------------------
 
-const generateAnalogy = (tier: QuestionTier): Question => {
+/**
+ * Every value a solver could defend for `a : b = c : ?` from the first pair
+ * alone: the same difference (add / subtract), the same ratio (multiply /
+ * divide, including a non-integer ratio such as 8 : 12 = 6 : 9), squaring and
+ * its inverse. Only whole-number results count, since every option is one.
+ */
+export const analogyReadings = (a: number, b: number, c: number): number[] => {
+  const values = [c + (b - a)];
+  if ((c * b) % a === 0) values.push((c * b) / a);
+  if (b === a * a) values.push(c * c);
+  if (a === b * b && isPerfectSquare(c)) values.push(Math.sqrt(c));
+  return Array.from(new Set(values));
+};
+
+/**
+ * The three distractors for an analogy: the nearest positive neighbours of the
+ * answer (+1, -1, +2, -2, ...) that no reading of the first pair produces, so
+ * the keyed answer is the only defensible option (`8 : 16 = 9 : ?` keyed 17
+ * must not also offer 18).
+ */
+export const analogyDistractors = (a: number, b: number, c: number, answer: number): number[] => {
+  const defensible = new Set(analogyReadings(a, b, c));
+  const out: number[] = [];
+  for (let step = 1; out.length < 3; step += 1) {
+    for (const candidate of [answer + step, answer - step]) {
+      if (out.length < 3 && candidate >= 1 && !defensible.has(candidate)) out.push(candidate);
+    }
+  }
+  return out;
+};
+
+export const generateAnalogy = (tier: QuestionTier): Question => {
   const ops =
     tier === 'easy'
       ? (['add', 'sub'] as const)
@@ -388,7 +454,7 @@ const generateAnalogy = (tier: QuestionTier): Question => {
     };
   }
 
-  const distractors = [answer + 1, answer - 1, answer + 2, Math.max(0, answer - 2)].map(String);
+  const distractors = analogyDistractors(a, b, c, answer).map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'analogy',

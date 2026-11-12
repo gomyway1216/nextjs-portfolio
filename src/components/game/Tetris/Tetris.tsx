@@ -589,9 +589,30 @@ const Tetris = () => {
     setShowDifficultySelect(true);
   };
 
-  // --- Rendering ------------------------------------------------------------
-  const cellPx = 'clamp(16px, 4.4vw, 30px)';
+  // The phone layout sits in normal flow under the site's sticky toolbar and
+  // sizes the board from the room left below it, so it needs that toolbar's
+  // height: the root's offset from the top of the document.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const measure = () => {
+      const top = `${Math.max(0, Math.round(root.getBoundingClientRect().top + window.scrollY))}px`;
+      if (root.style.getPropertyValue('--tetris-top') !== top) root.style.setProperty('--tetris-top', top);
+    };
+    measure();
+    // The toolbar grows and shrinks with its content; that moves the root and
+    // changes the height of <body>, which is what the observer sees.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(document.body);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
 
+  // --- Rendering ------------------------------------------------------------
   const renderBoard = () => {
     if (!view) return null;
     type Disp = { color: string | null; ghost: boolean; clearing: boolean };
@@ -634,10 +655,7 @@ const Tetris = () => {
     return (
       <div
         className={styles.board}
-        style={{
-          gridTemplateColumns: `repeat(${BOARD_WIDTH}, var(--cell))`,
-          ['--cell' as string]: cellPx,
-        }}
+        style={{ gridTemplateColumns: `repeat(${BOARD_WIDTH}, var(--cell))` }}
         role="img"
         aria-label={`${t.title} board`}
       >
@@ -674,7 +692,7 @@ const Tetris = () => {
       <div
         key={key}
         className={styles.previewGrid}
-        style={{ gridTemplateColumns: `repeat(${cols.length}, 16px)` }}
+        style={{ gridTemplateColumns: `repeat(${cols.length}, var(--preview-cell))` }}
       >
         {rows.flatMap((r, y) =>
           cols.map(c => (
@@ -692,18 +710,18 @@ const Tetris = () => {
   const nextTypes = view ? view.queue.slice(0, NEXT_QUEUE_SIZE) : [];
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} ref={rootRef} data-testid="tetris-root">
       <GameTopBar
         stats={stats}
         onInfoClick={() => setShowInfo(true)}
         additionalContent={
           view &&
           !showDifficultySelect && (
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', fontWeight: 600 }}>
-              <span style={{ color: '#38bdf8' }}>
+            <div className={styles.topInfo}>
+              <span className={styles.topLevel}>
                 {t.level} {view.level}
               </span>
-              <span style={{ color: '#fbbf24' }}>
+              <span className={styles.topLines}>
                 {t.lines} {view.lines}
               </span>
             </div>
@@ -729,7 +747,7 @@ const Tetris = () => {
           <div className={styles.game}>
             {/* Board column */}
             <div className={styles.boardCol}>
-              <div className={styles.boardWrap}>
+              <div className={styles.boardWrap} data-testid="tetris-board">
                 {renderBoard()}
 
                 {view?.gameOver && (
@@ -755,7 +773,7 @@ const Tetris = () => {
               </div>
 
               {/* Action buttons */}
-              <div className={styles.actionRow}>
+              <div className={styles.actionRow} data-testid="tetris-actions">
                 <button
                   type="button"
                   className={styles.actionBtn}
@@ -775,7 +793,7 @@ const Tetris = () => {
               </div>
 
               {/* Touch controls (mobile only) */}
-              <div className={styles.touch} role="group" aria-label={t.controls}>
+              <div className={styles.touch} role="group" aria-label={t.controls} data-testid="tetris-touch">
                 <button
                   type="button"
                   className={styles.touchBtn}
@@ -833,10 +851,10 @@ const Tetris = () => {
             </div>
 
             {/* Side panel */}
-            <div className={styles.side}>
+            <div className={styles.side} data-testid="tetris-side">
               <div className={styles.panel}>
                 <div className={styles.panelLabel}>{t.score}</div>
-                <div className={`${styles.statValue} ${styles.scoreValue}`}>{view?.score ?? 0}</div>
+                <div className={`${styles.statValue} ${styles.scoreValue}`} data-testid="tetris-score">{view?.score ?? 0}</div>
               </div>
 
               <div className={styles.panel}>
@@ -859,7 +877,7 @@ const Tetris = () => {
 
               <div className={styles.panel}>
                 <div className={styles.panelLabel}>{t.hold}</div>
-                <div style={{ display: 'flex', justifyContent: 'center', minHeight: 40, alignItems: 'center' }}>
+                <div className={styles.holdSlot}>
                   {renderMini(view?.hold ?? null)}
                 </div>
               </div>

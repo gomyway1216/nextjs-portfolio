@@ -26,7 +26,24 @@
   gap: clamp(0.75rem, 3vw, 1.75rem);
   align-items: start;
   max-width: 100%;
+  /* One board cell; the phone layout below derives it from the room left on screen. */
+  --cell: clamp(16px, 4.4vw, 30px);
+  /* One cell of the Hold / Next previews. */
+  --preview-cell: 16px;
 }
+
+/* Level / lines shown in the site toolbar. Kept on one line each: the toolbar's
+   slot is narrow on phones and would otherwise break the text per character. */
+.topInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.topLevel { color: #38bdf8; }
+.topLines { color: #fbbf24; }
 
 /* Board column */
 .boardCol {
@@ -221,8 +238,8 @@
   justify-content: center;
 }
 .previewCell {
-  width: 16px;
-  height: 16px;
+  width: var(--preview-cell);
+  height: var(--preview-cell);
   border-radius: 2px;
 }
 
@@ -231,6 +248,13 @@
   flex-direction: column;
   gap: 0.6rem;
   align-items: center;
+}
+
+.holdSlot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 40px;
 }
 
 .holdEmpty {
@@ -278,9 +302,124 @@
 .touchBtn:active { background: rgba(56, 189, 248, 0.3); }
 .touchWide { grid-column: span 2; }
 
+/* Phones: the board and the Hold / Next / score column share the first row, the
+   action buttons and the touch pad span the full width below, and the board is
+   sized so all of it fits between the site toolbar and the bottom of the screen. */
 @media (max-width: 640px) {
-  .touch { display: grid; }
+  .root {
+    /* In normal flow, under the site's sticky toolbar (a fixed, full-viewport
+       root slid the top of the board beneath it). --tetris-top is that
+       toolbar's measured height; the fallback is its usual phone height. */
+    position: relative;
+    inset: auto;
+    overflow: visible;
+    min-height: calc(100vh - var(--tetris-top, 106px));
+    min-height: calc(100dvh - var(--tetris-top, 106px));
+    padding: 8px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .game {
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "board side"
+      "actions actions"
+      "touch touch";
+    gap: 8px;
+    /* Width: 10 cells + the board frame (8px) + gap (8px) + page padding (16px)
+       must leave at least 104px for the side column.
+       Height: 20 cells + everything else stacked on screen (padding 20px,
+       frame 8px, two gaps 16px, action row 44px, touch pad 112px = 200px). */
+    --cell: clamp(
+      12px,
+      min(
+        (100vw - 136px) / 10,
+        (100vh - var(--tetris-top, 106px) - 200px - env(safe-area-inset-bottom, 0px)) / 20
+      ),
+      30px
+    );
+    --preview-cell: clamp(7px, var(--cell) * 0.5, 12px);
+  }
+
+  .boardCol { display: contents; }
+  .boardWrap { grid-area: board; padding: 4px; }
+
+  .overlay { gap: 0.5rem; padding: 0.5rem; }
+  .overlayTitle { font-size: clamp(1.05rem, 6vw, 1.75rem); }
+  .overlayScore { font-size: 0.95rem; }
+  .primaryBtn { min-height: 44px; padding: 0.5rem 0.9rem; white-space: nowrap; }
+
+  .actionRow { grid-area: actions; flex-wrap: nowrap; gap: 6px; }
+  .actionBtn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.4rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .touch {
+    grid-area: touch;
+    display: grid;
+    max-width: none;
+    margin-top: 0;
+    gap: 8px;
+  }
+
+  .side {
+    grid-area: side;
+    min-width: 0;
+    max-width: none;
+    gap: 5px;
+  }
+  .panel { padding: 4px 8px; border-radius: 0.5rem; }
+  .panelLabel {
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+  .statValue { font-size: 1.05rem; }
+  .statGrid { gap: 5px; }
+  .miniStat { min-width: 0; padding: 4px 2px; border-radius: 0.5rem; }
+  .miniStat .panelLabel { margin-bottom: 1px; }
+  .miniValue { font-size: 1rem; line-height: 1.1; }
+  .holdSlot,
+  .holdEmpty,
+  .nextList .previewGrid {
+    /* Two preview rows, so the column keeps its height as pieces change. */
+    height: auto;
+    min-height: calc(var(--preview-cell) * 2 + 2px);
+    align-content: center;
+  }
+  .nextList { gap: 5px; }
   .controlsPanel { display: none; }
+
+  .topInfo {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+}
+
+/* The small viewport (browser bars showing), where the browser knows it, so the
+   touch pad is on screen with the board whatever the address bar is doing. */
+@supports (height: 100svh) {
+  @media (max-width: 640px) {
+    .game {
+      --cell: clamp(
+        12px,
+        min(
+          (100vw - 136px) / 10,
+          (100svh - var(--tetris-top, 106px) - 200px - env(safe-area-inset-bottom, 0px)) / 20
+        ),
+        30px
+      );
+    }
+  }
 }
 
 /* Modal content */

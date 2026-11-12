@@ -2,8 +2,11 @@
  * The machine's data counter (データカウンター), as a hall hangs one over each machine: the spins since the last hit,
  * the hits with the spins each took, the longest wait and the longest run, and where the balls went.
  *
- * It only writes down what the page has shown, for this visit: nothing here is read by the rules, the draw or the
- * medals, and nothing is kept between visits.
+ * It writes down, once each, the slots this page ran one at a time this visit: as the slot is shown, or, where the
+ * card was given up or came back with its ball still on the way, without its having been shown (dueTally.ts). A hit's
+ * rounds played out all at once as the page is hidden or left (medalTable.ts `leaving`, `open`) are not among them, and
+ * a reset of the medals empties it. Nothing here is read by the rules, the draw or the medals, and nothing is kept
+ * between visits.
  */
 
 import type { Fired, HitKind, Mode, Pocket, Tick } from './engine';

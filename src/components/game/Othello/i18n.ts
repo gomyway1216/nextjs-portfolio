@@ -58,6 +58,39 @@ export interface OthelloStrings {
   strategyTitle: string;
   strategies: string[];
   difficultyLabels: Record<Difficulty, { label: string; description: string }>;
+  /** The online (two-player room) lobby. */
+  lobby: {
+    createRoom: string;
+    joinRoom: string;
+    yourName: string;
+    roomPassword: string;
+    roomCode: string;
+    back: string;
+    create: string;
+    creating: string;
+    join: string;
+    joining: string;
+    waitingRoom: string;
+    roomCodeLabel: string;
+    shareCode: string;
+    players: string;
+    youTag: string;
+    blackFirst: string;
+    whiteSecond: string;
+    ready: string;
+    notReady: string;
+    cancelReady: string;
+    waitingForPlayer: string;
+    youPlayAs: string;
+    leave: string;
+    startGame: string;
+    waitingForHost: string;
+    creatingRoom: string;
+    joiningRoom: string;
+    chooseAction: string;
+    /** The lobby's own (client-side) error messages, keyed by their English text. */
+    errors: Record<string, string>;
+  };
 }
 
 const en: OthelloStrings = {
@@ -126,6 +159,37 @@ const en: OthelloStrings = {
     expert: { label: 'Expert', description: '~1s/move, deepens adaptively' },
     master: { label: 'Master', description: '~2.5s/move, strongest search' },
   },
+  lobby: {
+    createRoom: 'Create Room',
+    joinRoom: 'Join Room',
+    yourName: 'Your Name',
+    roomPassword: 'Room Password',
+    roomCode: 'Room Code',
+    back: 'Back',
+    create: 'Create',
+    creating: 'Creating...',
+    join: 'Join',
+    joining: 'Joining...',
+    waitingRoom: 'Waiting Room',
+    roomCodeLabel: 'Room Code:',
+    shareCode: 'Share this code with your friend',
+    players: 'Players',
+    youTag: '(You)',
+    blackFirst: 'Black (first)',
+    whiteSecond: 'White (second)',
+    ready: 'Ready',
+    notReady: 'Not Ready',
+    cancelReady: 'Not Ready',
+    waitingForPlayer: 'Waiting for another player...',
+    youPlayAs: 'You will play as:',
+    leave: 'Leave',
+    startGame: 'Start Game',
+    waitingForHost: 'Waiting for host to start...',
+    creatingRoom: 'Creating room...',
+    joiningRoom: 'Joining room...',
+    chooseAction: 'Choose a multiplayer action above.',
+    errors: {},
+  },
 };
 
 const ja: OthelloStrings = {
@@ -193,6 +257,42 @@ const ja: OthelloStrings = {
     hard: { label: '上級', description: '深さ6＋終盤完全読み' },
     expert: { label: 'エキスパート', description: '約1秒/手・可変深さ' },
     master: { label: 'マスター', description: '約2.5秒/手・最強探索' },
+  },
+  lobby: {
+    createRoom: 'ルームを作る',
+    joinRoom: 'ルームに参加',
+    yourName: 'あなたの名前',
+    roomPassword: 'ルームのパスワード',
+    roomCode: 'ルームコード',
+    back: '戻る',
+    create: '作成',
+    creating: '作成中…',
+    join: '参加',
+    joining: '参加中…',
+    waitingRoom: '待機ルーム',
+    roomCodeLabel: 'ルームコード:',
+    shareCode: 'このコードを友だちに伝えてください',
+    players: 'プレイヤー',
+    youTag: '（あなた）',
+    blackFirst: '黒（先手）',
+    whiteSecond: '白（後手）',
+    ready: '準備OK',
+    notReady: '準備中',
+    cancelReady: '準備を取り消す',
+    waitingForPlayer: 'もう1人の参加を待っています…',
+    youPlayAs: 'あなたの石:',
+    leave: '退出',
+    startGame: 'ゲーム開始',
+    waitingForHost: 'ホストの開始を待っています…',
+    creatingRoom: 'ルームを作成中…',
+    joiningRoom: 'ルームに参加中…',
+    chooseAction: '上のボタンからオンライン対戦を選んでください。',
+    errors: {
+      'Room was closed': 'ルームが閉じられました',
+      'Failed to create room': 'ルームを作成できませんでした',
+      'Failed to join room': 'ルームに参加できませんでした',
+      'Network error': '通信エラーが発生しました',
+    },
   },
 };
 

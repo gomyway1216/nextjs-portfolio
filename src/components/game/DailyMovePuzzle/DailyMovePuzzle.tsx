@@ -13,6 +13,7 @@ import {
   recordHint,
   recordSolve,
   recordWrongPick,
+  restoreDay,
   summarize,
   type StatsSession,
   type StatsStore,
@@ -50,10 +51,19 @@ export const DailyMovePuzzle = () => {
   const dateKey = useMemo(() => getDateKey(), []);
   const puzzle = useMemo(() => getPuzzleForDate(dateKey), [dateKey]);
 
-  const [attempts, setAttempts] = useState(0);
-  const [wrongPicks, setWrongPicks] = useState<number[]>([]);
-  const [solved, setSolved] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback>('idle');
+  const [statsSession] = useState(openStatsSession);
+  const [stats, setStats] = useState<StatsStore>(() => statsSession.current());
+
+  // What the record already holds for today (after a reload, or on coming
+  // back): the board starts from it, so the result shown here and the record
+  // below never disagree about today.
+  const [restored] = useState(() =>
+    restoreDay(stats, dateKey, (index) => puzzle.board[index] === null && index !== puzzle.correctMove),
+  );
+  const [attempts, setAttempts] = useState(restored.attempts);
+  const [wrongPicks, setWrongPicks] = useState<number[]>(restored.wrong);
+  const [solved, setSolved] = useState(restored.solved);
+  const [feedback, setFeedback] = useState<Feedback>(restored.solved ? 'solved' : 'idle');
   const [lastWrong, setLastWrong] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -62,9 +72,6 @@ export const DailyMovePuzzle = () => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(STORAGE_KEY) === dateKey;
   });
-
-  const [statsSession] = useState(openStatsSession);
-  const [stats, setStats] = useState<StatsStore>(() => statsSession.current());
 
   const updateStats = useCallback(
     (apply: (store: StatsStore) => StatsStore) => {

@@ -117,10 +117,41 @@
 .message[data-tone='good'] { color: #4ade80; }
 .message[data-tone='bad'] { color: #f87171; }
 
+/* Kept for the screen reader only (the status line once the result block shows the outcome). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---- Card grid ---- */
+/*
+ * The cards are 3:4, so a grid as wide as the panel can be taller than the
+ * screen (4x4 on a 1280x800 laptop put its fourth row below the fold). The
+ * grid is therefore no wider than the width at which all its rows fit in the
+ * height left after the toolbar, the score row, the status line and the
+ * buttons (about 345px), and never so narrow that a card is under 3rem.
+ */
 .grid {
+  --mb-gap: clamp(0.35rem, 1.8vw, 0.6rem);
+  --mb-room: calc(100vh - 345px);
+  --mb-card: max(3rem, calc((var(--mb-room) - (var(--mb-rows, 4) - 1) * var(--mb-gap)) / var(--mb-rows, 4) * 0.75));
   display: grid;
-  gap: clamp(0.35rem, 1.8vw, 0.6rem);
+  gap: var(--mb-gap);
+  max-width: calc(var(--mb-card) * var(--mb-cols, 4) + (var(--mb-cols, 4) - 1) * var(--mb-gap));
+  margin-inline: auto;
+}
+
+@supports (height: 100dvh) {
+  .grid {
+    --mb-room: calc(100dvh - 345px);
+  }
 }
 
 .cardCell {
@@ -175,6 +206,25 @@
   background: linear-gradient(150deg, #1e293b, #334155);
   border: 2px solid rgba(148, 163, 184, 0.3);
   color: rgba(148, 163, 184, 0.55);
+}
+
+/* The card's keyboard key, over the corner of its back. Not shown where there is no keyboard to speak of. */
+.cardKey {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.45rem;
+  z-index: 1;
+  pointer-events: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(203, 213, 225, 0.85);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cardKey {
+    display: none;
+  }
 }
 
 .cardCell:not(:disabled):hover .cardBack {

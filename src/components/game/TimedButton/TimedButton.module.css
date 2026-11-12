@@ -512,6 +512,13 @@
   color: var(--games-route-muted);
 }
 
+.reviewNote p {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
 .reviewList {
   display: flex;
   flex-direction: column;

@@ -23,6 +23,7 @@ import {
   isBoardCleared,
   isMatch,
 } from './engine';
+import { cardIndexForKey, cardKeyLabel } from './cardKeys';
 import {
   AI_CONFIG,
   AIMemory,
@@ -266,17 +267,16 @@ const MemoryBattle = () => {
     }, 260);
   }, [flipped, turn, phase, locked, board, resolveFlip, later]);
 
-  // Keyboard: number keys flip the corresponding card (1-indexed, in-play only).
+  // Keyboard: each card has a key by board position (1-9, 0, then A, B, ...;
+  // see cardKeys.ts). The key is printed on the face-down card.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (phase !== 'playing' || turn !== 'player' || locked) return;
+      if (phase !== 'playing' || turn !== 'player' || locked || showInfo) return;
       // Don't hijack browser/OS shortcuts such as Cmd/Ctrl/Alt + number.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const n = Number(e.key);
-      if (!Number.isInteger(n) || n < 1) return;
-      // Key n maps to fixed board position n-1, matching the "card N" aria
-      // labels; matched or already-flipped positions are ignored.
-      const target = n - 1;
+      const target = cardIndexForKey(e.key);
+      if (target === null) return;
+      // Matched or already-flipped positions are ignored.
       if (target < board.length && !board[target].matched && !flipped.includes(target)) {
         e.preventDefault();
         onCardClick(target);
@@ -284,7 +284,7 @@ const MemoryBattle = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [board, flipped, locked, onCardClick, phase, turn]);
+  }, [board, flipped, locked, onCardClick, phase, showInfo, turn]);
 
   const scores = useMemo(() => countScores(board), [board]);
   const pairsLeft = spec.pairs - scores.player - scores.ai;
@@ -401,13 +401,20 @@ const MemoryBattle = () => {
             </div>
           </div>
 
-          <div className={styles.message} data-tone={tone} role="status" aria-live="polite">
-            {message}
+          {/* Once the game is over the result block below shows the outcome; the status line then only
+              announces it (it is the live region), so the same sentence is not on screen twice. The line
+              keeps its height, so the cards do not jump. */}
+          <div className={styles.message} data-tone={tone} role="status" aria-live="polite" data-testid="mb-status">
+            <span className={phase === 'over' ? styles.srOnly : undefined}>{message}</span>
           </div>
 
           <div
             className={styles.grid}
-            style={{ gridTemplateColumns: `repeat(${spec.cols}, minmax(0, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(${spec.cols}, minmax(0, 1fr))`,
+              ['--mb-cols' as string]: spec.cols,
+              ['--mb-rows' as string]: spec.rows,
+            }}
             role="group"
             aria-label={t.title}
           >
@@ -422,6 +429,7 @@ const MemoryBattle = () => {
                 !flipped.includes(index) &&
                 flipped.length < 2;
               const symbol = faceSymbol(card.value);
+              const keyLabel = cardKeyLabel(index);
               const cellClass = [
                 styles.cardCell,
                 card.matched ? styles.cardMatched : '',
@@ -446,6 +454,7 @@ const MemoryBattle = () => {
                   disabled={!clickable}
                   onClick={() => onCardClick(index)}
                   aria-label={ariaLabel}
+                  aria-keyshortcuts={clickable && keyLabel ? keyLabel : undefined}
                   data-testid="mb-card"
                   data-state={card.matched ? 'matched' : isFaceUp ? 'up' : 'down'}
                 >
@@ -457,14 +466,20 @@ const MemoryBattle = () => {
                       {symbol}
                     </span>
                   </span>
+                  {keyLabel && !isFaceUp && (
+                    <span className={styles.cardKey} aria-hidden data-testid="mb-card-key">
+                      {keyLabel}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
 
           {phase === 'over' && (
-            <div className={styles.result}>
+            <div className={styles.result} data-testid="mb-result">
               <div
+                aria-hidden
                 className={`${styles.resultTitle} ${
                   winner === 'player'
                     ? styles.resultWin

@@ -183,6 +183,17 @@ describe('TimingReview', () => {
     expect(render([])).toBe('');
   });
 
+  it('puts the counts and the note in separate paragraphs, with no <br> (the site hides those in a <p> on phones)', () => {
+    for (const language of ['en', 'ja'] as const) {
+      const copy = getTimedButtonCopy(language);
+      const timing = summarizeTiming(lateRun.map((r) => r.offsetMs));
+      const html = render(lateRun, language);
+      expect(html).not.toContain('<br');
+      expect(html).toContain(`<p>${copy.timingCounts(timing.early, timing.late, timing.onTime)}</p>`);
+      expect(html).toContain(`<p>${copy.timingNote(timing.taps)}</p>`);
+    }
+  });
+
   it('lists every round with its rating, timing and score', () => {
     const html = render(lateRun);
     expect(html.match(/<li/g)).toHaveLength(5);

@@ -14,6 +14,8 @@
 
 import type { JSX } from 'react';
 
+import type { GameLanguage } from '../constants/gameTranslations';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { isHonor, isRedFive, kindOf, rankOf, suitOf } from './engine/tiles';
 import type { TileId, TileKind } from './engine/types';
 import styles from './TileSvg.module.css';
@@ -53,6 +55,16 @@ const SUIT_NAME: Record<'m' | 'p' | 's', string> = {
   s: 'bamboo',
 };
 
+const SUIT_NAME_JA: Record<'m' | 'p' | 's', string> = {
+  m: '萬',
+  p: '筒',
+  s: '索',
+};
+
+const RANK_JA = ['一', '二', '三', '四', '五', '六', '七', '八', '九'] as const;
+
+const HONOUR_NAME_JA = ['東', '南', '西', '北', '白', '發', '中'] as const;
+
 const HONOUR_NAME = [
   'East wind',
   'South wind',
@@ -65,8 +77,13 @@ const HONOUR_NAME = [
 
 const HONOUR_GLYPH = ['東', '南', '西', '北', '', '發', '中'] as const;
 
-/** Default accessible name for a tile. */
-export function tileLabel(kind: TileKind, red = false): string {
+/** Default accessible name for a tile: "5 of characters (red)", or 「赤五萬」 in Japanese. */
+export function tileLabel(kind: TileKind, red = false, language: GameLanguage = 'en'): string {
+  if (language === 'ja') {
+    if (isHonor(kind)) return HONOUR_NAME_JA[rankOf(kind) - 1] ?? '不明な牌';
+    const suit = suitOf(kind) as 'm' | 'p' | 's';
+    return `${red ? '赤' : ''}${RANK_JA[rankOf(kind) - 1] ?? rankOf(kind)}${SUIT_NAME_JA[suit]}`;
+  }
   if (isHonor(kind)) return HONOUR_NAME[rankOf(kind) - 1] ?? 'unknown tile';
   const suit = suitOf(kind) as 'm' | 'p' | 's';
   return `${rankOf(kind)} of ${SUIT_NAME[suit]}${red ? ' (red)' : ''}`;
@@ -74,6 +91,13 @@ export function tileLabel(kind: TileKind, red = false): string {
 
 /** Accessible name used for a face-down tile. */
 export const FACE_DOWN_LABEL = 'Face-down tile';
+
+const FACE_DOWN_LABEL_JA = '伏せ牌';
+
+/** {@link FACE_DOWN_LABEL} in the given language. */
+export function faceDownLabel(language: GameLanguage = 'en'): string {
+  return language === 'ja' ? FACE_DOWN_LABEL_JA : FACE_DOWN_LABEL;
+}
 
 // ---------------------------------------------------------------------------
 // Geometry
@@ -405,7 +429,8 @@ export function TileSvg({
   className,
   ariaLabel,
 }: TileSvgProps): JSX.Element {
-  const defaultLabel = faceDown ? FACE_DOWN_LABEL : tileLabel(kind, red);
+  const { language } = useGameLanguage();
+  const defaultLabel = faceDown ? faceDownLabel(language) : tileLabel(kind, red, language);
   const label = ariaLabel === undefined ? defaultLabel : ariaLabel;
   const decorative = label === '';
 

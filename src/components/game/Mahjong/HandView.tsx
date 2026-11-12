@@ -30,6 +30,7 @@ import type {
 } from './engine/types';
 import type { MahjongCopy } from './i18n';
 import styles from './HandView.module.css';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { TileById, tileLabel } from './TileSvg';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,10 @@ export interface HandShape {
  * minimum shanten over every distinct discard, and — when that minimum is
  * tenpai — the union of the waits those discards produce. That is the number a
  * player actually cares about while deciding what to throw.
+ *
+ * A player in riichi has no such choice: the drawn tile is the only discard
+ * (unless it wins), so the hand is read without it. Taking the union there
+ * listed tiles that would only be waits after a discard riichi forbids.
  */
 export function handShape(player: PlayerState): HandShape {
   const meldCount = player.melds.length;
@@ -106,6 +111,11 @@ export function handShape(player: PlayerState): HandShape {
     return { shanten: shantenOf(counts, meldCount), waits: waitsOf(counts, meldCount) };
   }
   if (isComplete(counts, meldCount)) return { shanten: -1, waits: [] };
+
+  if (player.riichi !== null && player.drawn !== null) {
+    counts[kindOf(player.drawn)] -= 1;
+    return { shanten: shantenOf(counts, meldCount), waits: waitsOf(counts, meldCount) };
+  }
 
   const seen = new Set<TileKind>();
   let best = Number.POSITIVE_INFINITY;
@@ -194,6 +204,7 @@ export function HandView({
   guideEnabled = false,
   onToggleGuide,
 }: HandViewProps): JSX.Element {
+  const { language } = useGameLanguage();
   const player = state.players[seat];
   const drawn = player.drawn;
   const rest = drawn === null ? player.hand : player.hand.filter((tile) => tile !== drawn);
@@ -222,7 +233,7 @@ export function HandView({
   const renderTile = (tile: TileId, isDrawn: boolean): JSX.Element => {
     const action = discardMap.get(discardGroupKey(tile, state.rules.redFives));
     const playable = interactive && action !== undefined;
-    const name = tileLabel(kindOf(tile), isRedFive(tile));
+    const name = tileLabel(kindOf(tile), isRedFive(tile), language);
     const tip = playable ? adviceByKind.get(kindOf(tile)) : undefined;
     // Only discards that keep the best shanten get a number; the others set
     // the hand back, and a count of what would undo that is not comparable.

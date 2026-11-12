@@ -164,6 +164,35 @@ export const recordSolve = (store: StatsStore, dateKey: string): StatsStore => {
   return { results, progress: null };
 };
 
+export interface DayState {
+  /** True when `dateKey` already has its recorded (first) solve. */
+  solved: boolean;
+  /** The attempt count to show: the recorded one once solved, else the wrong squares tapped so far. */
+  attempts: number;
+  /** The wrong squares still marked on the board (none once solved: the record does not keep them). */
+  wrong: number[];
+}
+
+/**
+ * Where `dateKey`'s puzzle stands according to the record, for a visit that
+ * starts with part of the day already played (a reload, or coming back later).
+ * The board starts from this so that what it says about today agrees with the
+ * record: a recorded solve is shown as solved with its recorded attempt count,
+ * and wrong squares tapped before leaving are still marked and still counted.
+ * `isOpenSquare` filters out stored squares that are not playable wrong
+ * squares of today's puzzle.
+ */
+export const restoreDay = (
+  store: StatsStore,
+  dateKey: string,
+  isOpenSquare: (index: number) => boolean = () => true,
+): DayState => {
+  const result = store.results[dateKey];
+  if (result) return { solved: true, attempts: result.attempts, wrong: [] };
+  const wrong = progressFor(store, dateKey).wrong.filter(isOpenSquare);
+  return { solved: false, attempts: wrong.length, wrong };
+};
+
 export interface StatsSession {
   /** The record as this visit currently knows it. */
   current: () => StatsStore;

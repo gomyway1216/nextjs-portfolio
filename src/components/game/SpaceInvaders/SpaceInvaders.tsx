@@ -28,6 +28,7 @@ import {
 } from './types';
 import { createGameState, updateGame, updateJoinerGame } from './GameEngine';
 import { getSpaceInvadersStrings } from './i18n';
+import { controlOf, isKeyboardFocusedControl } from './keyboardFocus';
 import {
   Effect,
   PLAYER_BURST_MS,
@@ -444,6 +445,25 @@ const SpaceInvaders: React.FC = () => {
     setShowStartScreen(true);
   }, [resetRunFeedback, setActiveGame]);
 
+  // The control the pointer last put the focus on (a clicked Pause button
+  // keeps the focus while play goes on). Tab hands the focus back to the
+  // keyboard.
+  const pointerFocusedRef = useRef<unknown>(null);
+  useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      pointerFocusedRef.current = controlOf(e.target);
+    };
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') pointerFocusedRef.current = null;
+    };
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('keydown', handleTab, true);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('keydown', handleTab, true);
+    };
+  }, []);
+
   // Keyboard input
   useEffect(() => {
     // Don't swallow keys while the user types into a form field (e.g. the
@@ -456,6 +476,10 @@ const SpaceInvaders: React.FC = () => {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
+      // Space / Enter on a control the keyboard focus is on (Tab to "How to
+      // Play", "Pause", a difficulty…) presses that control: don't fire, start
+      // a game or cancel the press.
+      if (isKeyboardFocusedControl(e.target, e.key, pointerFocusedRef.current)) return;
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         inputRef.current.left = true;
         e.preventDefault();
@@ -621,6 +645,9 @@ const SpaceInvaders: React.FC = () => {
     if (state.gameOver) {
       ctx.fillStyle = 'rgba(3, 6, 16, 0.85)';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // The run usually ends on a hit: draw that last burst (and any pop-up
+      // still fading) again above the dimming, or it is never seen.
+      drawEffects(ctx, effectsRef.current, reducedMotionRef.current);
       ctx.fillStyle = '#ef4444';
       ctx.font = 'bold 48px Arial';
       ctx.textAlign = 'center';

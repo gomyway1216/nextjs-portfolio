@@ -15,8 +15,9 @@ import { SegmentDisplay } from '../MedalPusher/SegmentDisplay';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { valueOf } from './analysis';
 import { Board } from './Board';
-import { EMPTY_COUNTER, barOf, counted, landed, shareOf } from './dataCounter';
+import { EMPTY_COUNTER, barOf, landed, shareOf } from './dataCounter';
 import { drawMoving, drawStill, type BoardLook } from './draw';
+import { EMPTY_STATS, createDueQueue, writeDown, type Due, type SessionStats } from './dueTally';
 import {
   BALLS_PER_MEDAL,
   DEFAULT_STRENGTH,
@@ -35,10 +36,9 @@ import {
   type Mode,
   type Pocket,
   type SpinKind,
-  type Tick,
 } from './engine';
 import { getStrings } from './i18n';
-import { PACHINKO_GAME, QUEUE, createTable, roundId, sameSkip, skippable, type SessionRecord, type Slot, type Table } from './medalTable';
+import { PACHINKO_GAME, QUEUE, createTable, roundId, sameSkip, skippable, type SessionRecord, type Table } from './medalTable';
 import { PUBLISHED_PACHINKO_ODDS } from './published';
 import { BOARD_H, BOARD_W, FLIGHT_MS, ballAt, createMachineClock, reelFaces, wayOf, type Point, type Way } from './scene';
 import selectStyles from '../common/select.module.css';
@@ -110,24 +110,6 @@ interface Flying {
   /** The machine's moment it was fired, in ms. */
   at: number;
 }
-/** What the page shows a slot's flight after it: the machine as it stood, and what happened. */
-interface Due {
-  at: number;
-  machine: Machine;
-  ticks: Tick[];
-  ball: Slot['ball'];
-}
-
-interface SessionStats {
-  lent: number;
-  counted: number;
-  fired: number;
-  paid: number;
-  spins: number;
-  hits: number;
-}
-const EMPTY_STATS: SessionStats = { lent: 0, counted: 0, fired: 0, paid: 0, spins: 0, hits: 0 };
-
 const POCKET_SOUND: Readonly<Record<Pocket, MachineSound | null>> = { heso: 'chucker', side: 'pocket', denchu: 'tulip', attacker: 'catch', out: null };
 
 /**
@@ -240,7 +222,9 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const reread = useRef(false);
   const nextSlot = useRef<number | null>(null);
   const flying = useRef<Flying[]>([]);
-  const due = useRef<Due[]>([]);
+  /** The slots still to be shown, and written down as they are (dueTally.ts). */
+  const [dueQueue] = useState(createDueQueue);
+  const due = useRef(dueQueue);
   const inFlight = useRef(0);
   const facesRef = useRef<[number, number, number]>(REST_FACES);
   const wonRef = useRef<HitKind | null>(null);
@@ -286,17 +270,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   const { pay: payMedals } = meter;
 
   /** Writes a slot down in this visit's figures and its data counter, as it is shown (or dropped unshown: `showNow`). */
-  const tally = useCallback((d: Due) => {
-    const paid = d.ball?.fired.paid ?? 0;
-    let spins = 0;
-    let hits = 0;
-    for (const tk of d.ticks) {
-      if (tk.type === 'start') spins += 1;
-      else if (tk.type === 'stop' && tk.kind) hits += 1;
-    }
-    if (paid > 0 || spins > 0 || hits > 0) setStats((st) => ({ ...st, paid: st.paid + paid, spins: st.spins + spins, hits: st.hits + hits }));
-    if (d.ball || d.ticks.length > 0) setCounter((c) => counted(c, d.ball?.fired ?? null, d.ticks));
-  }, []);
+  const tally = useCallback((d: Due) => writeDown(d, { stats: setStats, counter: setCounter }), []);
 
   /** The tray as shown: the balls in it now, less those still on their way to a pocket that pays. */
   const showTray = useCallback(() => setTray(Math.max(0, (session.current?.tray ?? 0) - inFlight.current)), []);
@@ -304,9 +278,8 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
   /** Shows the machine as it stands now, every flight cut short: after a skip, a page given back the card, a reset. */
   const showNow = useCallback(() => {
     // What was still on its way to the screen has happened all the same: it is written down, though never shown.
-    for (const d of due.current) tally(d);
+    due.current.flush(tally);
     flying.current = [];
-    due.current = [];
     inFlight.current = 0;
     const m = session.current?.machine;
     const next = m ? shownOf(m, facesRef.current, wonRef.current) : EMPTY_SHOWN;
@@ -450,7 +423,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
       }
       // A page that fell far behind (a slow phone) catches up from now, not slot by slot from long ago.
       if (nextSlot.current !== null && now - nextSlot.current > 4 * SLOT_MS) nextSlot.current = now;
-      while (due.current.length > 0 && due.current[0].at <= now) showDue(due.current.shift()!);
+      for (let d = due.current.next(now); d; d = due.current.next(now)) showDue(d);
       flying.current = flying.current.filter((ball) => now - ball.at < FLIGHT_MS);
     }
     paint(now);
@@ -586,16 +559,14 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     // gone past it (the reach shown has stopped, the fanfare shown is over), the screen is brought up to them and
     // nothing more is cut: a hit's fanfare is not cut short by a press on the reach before it.
     if (!sameSkip(onScreen, s.machine)) {
-      for (const d of due.current) showDue(d);
-      due.current = [];
+      due.current.flush(showDue);
       return;
     }
     const done = tab.skip(s);
     if (!done) return;
     session.current = done.record;
     // Everything waiting to be shown is shown now, the skip's own end with it.
-    for (const d of due.current) showDue(d);
-    due.current = [];
+    due.current.flush(showDue);
     showDue({ at: clock.now(), machine: done.record.machine, ticks: done.ticks, ball: null });
     nextSlot.current = running() ? clock.now() + SLOT_MS : null;
     kick();
@@ -625,7 +596,7 @@ export const PlayTab = ({ player = GUEST, active = true }: PlayTabProps) => {
     (said: boolean) => {
       letGo();
       // Nothing of the session reset is written down: what was on its way to the screen goes with it.
-      due.current = [];
+      due.current.discard();
       table.current?.clear();
       session.current = null;
       nextSlot.current = null;

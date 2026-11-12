@@ -13,6 +13,10 @@ import { rankToLabel, SUITS } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import type { Card, CardSuit } from './types';
 import type { ShichinarabeLogEntry } from './multiplayerTypes';
+import screenStyles from './ShichinarabeScreen.module.css';
+import { usePageTop } from './usePageTop';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getShichinarabeLobbyStrings, getShichinarabeStrings } from './i18n';
 
 function suitLabel(suit: CardSuit): string {
   if (suit === 'S') return '♠';
@@ -38,6 +42,11 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
 
   const room = multiplayer.room;
   const gameState = multiplayer.gameState;
+  const inMatch = multiplayer.context.lobbyState === 'playing' || multiplayer.context.lobbyState === 'finished';
+  usePageTop(inMatch ? 'match' : 'lobby');
+  const { language } = useGameLanguage();
+  const t = getShichinarabeStrings(language);
+  const lobbyT = getShichinarabeLobbyStrings(language);
 
   const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || 'You';
 
@@ -221,6 +230,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
       fontWeight: 700,
       fontFamily: 'monospace',
       letterSpacing: '0.12em',
+      whiteSpace: 'nowrap',
     }}>
       ROOM {multiplayer.context.roomId}
     </div>
@@ -236,25 +246,10 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
+    <div className={screenStyles.screen}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} additionalContent={roomBadge} />
 
-      <div style={{
-        flex: 1,
-        paddingTop: '4rem',
-        paddingBottom: '1.25rem',
-        display: 'flex',
-        justifyContent: 'center',
-        overflow: 'auto',
-      }}>
+      <div className={screenStyles.area}>
         <div style={{ width: 'min(1100px, 100%)', padding: '1rem' }}>
           {/* Lobby */}
           {(multiplayer.context.lobbyState === 'idle' ||
@@ -281,7 +276,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Back
+                  {lobbyT.back}
                 </button>
               </div>
               <ShichinarabeMultiplayerLobby multiplayer={multiplayer} onGameStart={handleStartGame} />
@@ -663,34 +658,26 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
       <InfoModal
         isOpen={showInfo}
         onClose={() => setShowInfo(false)}
-        title="How to Play Shichinarabe"
+        title={t.howToTitle}
       >
         <div style={{ color: '#e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Goal</div>
-            <div style={{ color: '#cbd5e1' }}>Get rid of all your cards first.</div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.goalHeading}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.goalBody}</div>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Setup</div>
-            <div style={{ color: '#cbd5e1' }}>
-              7 of each suit is placed on the table at the start.
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.setupHeading}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.setupBody}</div>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Play</div>
-            <div style={{ color: '#cbd5e1' }}>
-              On your turn, play one card adjacent to the current run of that suit (e.g., 6 or 8 next to 7).
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.playHeading}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.playBody}</div>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Pass</div>
-            <div style={{ color: '#cbd5e1' }}>
-              You may pass up to {gameState?.maxPasses ?? 3} times. Reaching the limit eliminates you.
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.passHeading}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.passBody(gameState?.maxPasses ?? 3)}</div>
           </div>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            Note: Host is authoritative. Keep the host tab open during play.
-          </div>
+          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{lobbyT.hostNote}</div>
         </div>
       </InfoModal>
 

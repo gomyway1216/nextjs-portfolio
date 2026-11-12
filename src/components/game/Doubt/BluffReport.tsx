@@ -12,6 +12,7 @@ import { summarizeClaims, type ClaimRecord } from './claimHistory';
 import { isDefaultYouName, type DoubtStrings } from './i18n';
 import { rankToLabel, SUIT_SYMBOL } from './types';
 import type { Card, CardRank } from './types';
+import styles from './BluffReport.module.css';
 
 interface BluffReportProps {
   history: ClaimRecord[];
@@ -88,8 +89,6 @@ export function BluffReport({ history, playerOrder, humanId, nameOf, strings: t,
     return t.reportUnchallenged;
   };
 
-  const cell: React.CSSProperties = { padding: '0.3rem 0.6rem', textAlign: 'center', whiteSpace: 'nowrap' };
-  const headCell: React.CSSProperties = { ...cell, color: '#9ca3af', fontWeight: 700, fontSize: '0.75rem' };
 
   return (
     <section
@@ -111,16 +110,16 @@ export function BluffReport({ history, playerOrder, humanId, nameOf, strings: t,
         <StatTile label={t.reportMissed} value={t.reportMissedValue(mine.liesAccepted)} />
       </div>
 
-      <div style={{ overflowX: 'auto', marginTop: '0.65rem' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', color: '#e5e7eb', fontSize: '0.85rem' }}>
+      <div data-testid="doubt-bluff-table" className={styles.tableWrap}>
+        <table className={styles.table}>
           <thead>
             <tr>
-              <th scope="col" style={{ ...headCell, textAlign: 'left' }}>{t.reportColPlayer}</th>
-              <th scope="col" style={headCell}>{t.reportColClaims}</th>
-              <th scope="col" style={headCell}>{t.reportColBluffs}</th>
-              <th scope="col" style={headCell}>{t.reportColCaught}</th>
-              <th scope="col" style={headCell}>{t.reportColDoubts}</th>
-              <th scope="col" style={headCell}>{t.reportColPickedUp}</th>
+              <th scope="col" className={styles.nameHead}>{t.reportColPlayer}</th>
+              <th scope="col">{t.reportColClaims}</th>
+              <th scope="col">{t.reportColBluffs}</th>
+              <th scope="col">{t.reportColCaught}</th>
+              <th scope="col">{t.reportColDoubts}</th>
+              <th scope="col">{t.reportColPickedUp}</th>
             </tr>
           </thead>
           <tbody>
@@ -128,15 +127,15 @@ export function BluffReport({ history, playerOrder, humanId, nameOf, strings: t,
               const s = summary[id];
               if (!s) return null;
               return (
-                <tr key={id} style={{ borderTop: `1px solid ${BORDER}` }}>
-                  <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: 800, color: id === humanId ? '#fbbf24' : '#e5e7eb' }}>
+                <tr key={id}>
+                  <th scope="row" className={styles.name} data-me={id === humanId ? 'true' : 'false'}>
                     {nameOf(id)}{id === humanId && !isDefaultYouName(nameOf(id)) ? t.youSuffix : ''}
                   </th>
-                  <td style={cell}>{s.claims}</td>
-                  <td style={cell}>{s.bluffs}</td>
-                  <td style={cell}>{s.bluffsCaught}</td>
-                  <td style={cell}>{s.doubtsCorrect}/{s.doubts}</td>
-                  <td style={cell}>{s.cardsPickedUp}</td>
+                  <td data-label={t.reportColClaims}>{s.claims}</td>
+                  <td data-label={t.reportColBluffs}>{s.bluffs}</td>
+                  <td data-label={t.reportColCaught}>{s.bluffsCaught}</td>
+                  <td data-label={t.reportColDoubts}>{s.doubtsCorrect}/{s.doubts}</td>
+                  <td data-label={t.reportColPickedUp}>{s.cardsPickedUp}</td>
                 </tr>
               );
             })}

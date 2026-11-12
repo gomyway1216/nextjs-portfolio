@@ -1,9 +1,14 @@
+/*
+ * In normal flow, under the site's sticky toolbar, whatever that toolbar's height is. As a fixed, full-viewport layer
+ * the game slid its own first row (the turn, Restart, Back) beneath it. 59px is the toolbar at its shortest.
+ */
 .root {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  box-sizing: border-box;
+  min-height: calc(100vh - 59px);
+  min-height: calc(100dvh - 59px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color: #e5e7eb;
   background:
@@ -14,11 +19,10 @@
 
 .scroll {
   flex: 1;
-  padding-top: 4rem;
+  min-width: 0;
   padding-bottom: 1.25rem;
   display: flex;
   justify-content: center;
-  overflow: auto;
 }
 
 .container {
@@ -359,6 +363,11 @@
   border-radius: 8px;
 }
 
+/* A card on the table: the full card on a wide screen, its rank and suit on a phone (see the media query below). */
+.slotCardMini {
+  display: none;
+}
+
 .slotEnd {
   width: var(--slot-w, 44px);
   height: var(--slot-h, 62px);
@@ -503,7 +512,66 @@
   overflow-y: auto;
 }
 
+/*
+ * A phone has no room for thirteen 48px cards side by side: the board used to run off the right edge of its panel,
+ * reachable only by scrolling the panel sideways, with the 7s (where every suit starts) half out of sight. Here the
+ * thirteen columns share the panel's width instead, and a card on the table is drawn as its rank over its suit.
+ */
 @media (max-width: 640px) {
-  .tableauGrid { --slot-w: 38px; --slot-h: 54px; }
-  .slotEmpty, .slotEnd { --slot-w: 38px; --slot-h: 54px; }
+  .panel { padding: 0.75rem; }
+
+  .tableauScroll { overflow-x: visible; }
+
+  .tableauGrid {
+    --slot-h: 2.4rem;
+    grid-template-columns: 1.1rem repeat(13, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .suitLabel { font-size: 0.9rem; }
+
+  .slotEmpty,
+  .slotEnd {
+    width: auto;
+    height: var(--slot-h);
+    border-radius: 5px;
+  }
+
+  .slotEnd { font-size: 0.7rem; }
+
+  .slotSeven { border-radius: 5px; }
+
+  .slotCardFull { display: none; }
+
+  .slotCardMini {
+    height: var(--slot-h);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    border-radius: 5px;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    color: #1a1a2e;
+    font-family: Georgia, serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .slotCardMini[data-red='true'] { color: #dc2626; }
+
+  /* The card played last. */
+  .slotCardMini[data-last='true'] {
+    background: #fef3c7;
+    border-color: #f59e0b;
+  }
+
+  /* The hand wraps onto as many rows as it needs, instead of scrolling sideways inside its panel. */
+  .hand {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
 }

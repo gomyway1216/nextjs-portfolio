@@ -1,0 +1,102 @@
+/* The bluff report's table of players: a table where there is room for six columns, a list of players on a phone. */
+
+.tableWrap {
+  margin-top: 0.65rem;
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+}
+
+.table th,
+.table td {
+  padding: 0.3rem 0.6rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: #9ca3af;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.table tbody tr {
+  border-top: 1px solid rgba(55, 65, 81, 1);
+}
+
+.table .nameHead,
+.table .name {
+  text-align: left;
+}
+
+.table .name {
+  font-weight: 800;
+  color: #e5e7eb;
+}
+
+.table .name[data-me='true'] {
+  color: #fbbf24;
+}
+
+/*
+ * A phone's panel is about 290px wide (220px on a 320px screen), and the six columns need more than that in either
+ * language: the table used to run out of the panel's right edge. Here each player is a block instead: the name on
+ * its own line, then each figure with its column's heading in front of it, wrapping as the width allows.
+ */
+@media (max-width: 480px) {
+  .tableWrap {
+    overflow-x: visible;
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  /* Still read out as the column headings; each figure shows its own heading instead. */
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.9rem;
+    padding: 0.45rem 0;
+  }
+
+  .table th,
+  .table td {
+    padding: 0;
+    white-space: normal;
+  }
+
+  .table .name {
+    flex: 0 0 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .table td {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-weight: 700;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    color: #9ca3af;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+}

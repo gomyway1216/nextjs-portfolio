@@ -6,6 +6,8 @@
 
 import React, { useMemo, useState } from 'react';
 import type { UseShichinarabeMultiplayerReturn } from './useShichinarabeMultiplayer';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getShichinarabeLobbyStrings } from './i18n';
 
 interface ShichinarabeMultiplayerLobbyProps {
   multiplayer: UseShichinarabeMultiplayerReturn;
@@ -14,6 +16,9 @@ interface ShichinarabeMultiplayerLobbyProps {
 
 export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: ShichinarabeMultiplayerLobbyProps) {
   const { context, room } = multiplayer;
+  const { language } = useGameLanguage();
+  const t = getShichinarabeLobbyStrings(language);
+  const errorText = context.error ? (t.errors[context.error] ?? context.error) : null;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');
@@ -65,12 +70,12 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', padding: '1rem' }}>
         <div style={{ fontSize: '3rem' }}>🃏</div>
-        <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#fbbf24', margin: 0 }}>Shichinarabe (七並べ)</h2>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#fbbf24', margin: 0 }}>{t.title}</h2>
         <p style={{ color: '#9ca3af', margin: 0, textAlign: 'center', maxWidth: '28rem', fontSize: '0.9rem' }}>
-          Online mode ({minPlayers}–{maxPlayers} players). Create a room, share the code, and play together.
+          {t.intro(minPlayers, maxPlayers)}
         </p>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.75rem' }}>
           <button
             onClick={() => setMode('create')}
             style={{
@@ -81,9 +86,10 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               borderRadius: '0.5rem',
               border: 'none',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            Create Room
+            {t.createRoom}
           </button>
           <button
             onClick={() => setMode('join')}
@@ -95,14 +101,15 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               borderRadius: '0.5rem',
               border: 'none',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            Join Room
+            {t.joinRoom}
           </button>
         </div>
 
-        {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{context.error}</p>
+        {errorText && (
+          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{errorText}</p>
         )}
       </div>
     );
@@ -111,11 +118,12 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
   if (mode === 'create' && context.lobbyState === 'idle') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem', padding: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa', margin: 0 }}>Create Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa', margin: 0 }}>{t.createRoom}</h3>
 
         <input
           type="text"
-          placeholder="Your Name"
+          placeholder={t.yourName}
+          aria-label={t.yourName}
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           style={inputStyle}
@@ -124,7 +132,8 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
 
         <input
           type="text"
-          placeholder="Room Password"
+          placeholder={t.roomPassword}
+          aria-label={t.roomPassword}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
@@ -144,7 +153,7 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               cursor: 'pointer',
             }}
           >
-            Back
+            {t.back}
           </button>
           <button
             onClick={handleCreate}
@@ -159,12 +168,12 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               cursor: isLoading || !playerName.trim() || !password.trim() ? 'not-allowed' : 'pointer',
             }}
           >
-            {isLoading ? 'Creating...' : 'Create'}
+            {isLoading ? t.creating : t.create}
           </button>
         </div>
 
-        {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{context.error}</p>
+        {errorText && (
+          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{errorText}</p>
         )}
       </div>
     );
@@ -173,11 +182,12 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
   if (mode === 'join' && context.lobbyState === 'idle') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem', padding: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc', margin: 0 }}>Join Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc', margin: 0 }}>{t.joinRoom}</h3>
 
         <input
           type="text"
-          placeholder="Your Name"
+          placeholder={t.yourName}
+          aria-label={t.yourName}
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           style={inputStyle}
@@ -186,7 +196,8 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
 
         <input
           type="text"
-          placeholder="Room Code"
+          placeholder={t.roomCode}
+          aria-label={t.roomCode}
           value={roomCode}
           onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
           style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '0.12em' }}
@@ -195,7 +206,8 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
 
         <input
           type="text"
-          placeholder="Room Password"
+          placeholder={t.roomPassword}
+          aria-label={t.roomPassword}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
@@ -215,7 +227,7 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               cursor: 'pointer',
             }}
           >
-            Back
+            {t.back}
           </button>
           <button
             onClick={handleJoin}
@@ -230,12 +242,12 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               cursor: isLoading || !playerName.trim() || !password.trim() || !roomCode.trim() ? 'not-allowed' : 'pointer',
             }}
           >
-            {isLoading ? 'Joining...' : 'Join'}
+            {isLoading ? t.joining : t.join}
           </button>
         </div>
 
-        {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{context.error}</p>
+        {errorText && (
+          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{errorText}</p>
         )}
       </div>
     );
@@ -244,20 +256,20 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
   if (context.lobbyState === 'waiting' || context.lobbyState === 'ready') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#4ade80', margin: 0 }}>Waiting Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#4ade80', margin: 0 }}>{t.waitingRoom}</h3>
 
         {context.isHost && context.roomId && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Room Code</div>
+            <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>{t.roomCode}</div>
             <div style={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.15em' }}>
               {context.roomId}
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>Share this code with your friends</div>
+            <div style={{ color: '#6b7280', fontSize: '0.75rem' }}>{t.shareCode}</div>
           </div>
         )}
 
         <div style={{ width: '18rem', background: '#111827', border: '1px solid #374151', borderRadius: '0.75rem', padding: '1rem' }}>
-          <div style={{ color: '#fff', fontWeight: 800, marginBottom: '0.75rem' }}>Players</div>
+          <div style={{ color: '#fff', fontWeight: 800, marginBottom: '0.75rem' }}>{t.players}</div>
           {players.map((p) => (
             <div
               key={p.id}
@@ -271,25 +283,25 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <span style={{ color: '#fff' }}>
-                  {p.name}{p.id === context.playerId ? ' (You)' : ''}
+                  {p.name}{p.id === context.playerId ? t.youSuffix : ''}
                 </span>
                 <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
-                  {p.id === room?.hostId ? 'Host' : 'Guest'}
+                  {p.id === room?.hostId ? t.host : t.guest(0)}
                 </span>
               </div>
               <span style={{ color: p.ready ? '#4ade80' : '#9ca3af', fontSize: '0.875rem', fontWeight: 700 }}>
-                {p.ready ? 'Ready' : 'Not Ready'}
+                {p.ready ? t.ready : t.notReady}
               </span>
             </div>
           ))}
           {players.length < minPlayers && (
             <div style={{ paddingTop: '0.5rem', color: '#6b7280', fontStyle: 'italic', fontSize: '0.85rem' }}>
-              Need {minPlayers - players.length} more player(s) (min {minPlayers}, max {maxPlayers})
+              {t.needMore(minPlayers - players.length, minPlayers, maxPlayers)}
             </div>
           )}
           {players.length >= maxPlayers && (
             <div style={{ paddingTop: '0.5rem', color: '#6b7280', fontStyle: 'italic', fontSize: '0.85rem' }}>
-              Room is full ({maxPlayers}/{maxPlayers})
+              {t.roomFull(maxPlayers)}
             </div>
           )}
         </div>
@@ -307,7 +319,7 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               cursor: 'pointer',
             }}
           >
-            Leave
+            {t.leave}
           </button>
           <button
             onClick={handleReady}
@@ -323,7 +335,7 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
               opacity: isLoading ? 0.8 : 1,
             }}
           >
-            {myPlayer?.ready ? 'Not Ready' : 'Ready'}
+            {myPlayer?.ready ? t.cancelReady : t.ready}
           </button>
           {context.isHost && (
             <button
@@ -339,17 +351,17 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
                 cursor: !allReady ? 'not-allowed' : 'pointer',
               }}
             >
-              Start Game
+              {t.startGame}
             </button>
           )}
         </div>
 
         {!context.isHost && allReady && (
-          <p style={{ color: '#fbbf24', fontSize: '0.875rem', margin: 0 }}>Waiting for host to start...</p>
+          <p style={{ color: '#fbbf24', fontSize: '0.875rem', margin: 0 }}>{t.waitingForHost}</p>
         )}
 
-        {context.error && (
-          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{context.error}</p>
+        {errorText && (
+          <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{errorText}</p>
         )}
       </div>
     );
@@ -367,7 +379,7 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
           animation: 'spin 1s linear infinite',
         }} />
         <p style={{ color: '#9ca3af', margin: 0 }}>
-          {context.lobbyState === 'creating' ? 'Creating room...' : 'Joining room...'}
+          {context.lobbyState === 'creating' ? t.creatingRoom : t.joiningRoom}
         </p>
         <style jsx>{`
           @keyframes spin {
@@ -380,8 +392,8 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
-      {context.error && (
-        <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{context.error}</p>
+      {errorText && (
+        <p style={{ color: '#f87171', fontSize: '0.875rem', margin: 0 }}>{errorText}</p>
       )}
       <button
         onClick={() => setMode('menu')}
@@ -395,7 +407,7 @@ export function ShichinarabeMultiplayerLobby({ multiplayer, onGameStart }: Shich
           cursor: 'pointer',
         }}
       >
-        Back to Menu
+        {t.backToMenu}
       </button>
     </div>
   );

@@ -103,3 +103,28 @@ export function formatChance(p: number): string {
   const pct = Math.min(99.9, Math.max(0.1, Number((p * 100).toFixed(1))));
   return `${pct.toFixed(1)}%`;
 }
+
+export type Pace = 'ahead' | 'onTrack' | 'behind';
+
+/**
+ * Where the run is heading against the theoretical mean E[T] = n·Hₙ: the
+ * projected total (draws made + expected draws still to go) over E[T].
+ * Draws made alone would call every unfinished run "ahead", since the
+ * expensive last coupons are still to come. On a finished run nothing is
+ * left to go, so this is simply draws / E[T]. Null before the first draw.
+ */
+export function paceRatio(n: number, collected: number, draws: number): number | null {
+  assertCounts(n, collected);
+  if (!Number.isInteger(draws) || draws < collected) {
+    throw new Error('outlook: draws must be an integer of at least collected');
+  }
+  if (draws === 0) return null;
+  return (draws + expectedRemaining(n, collected)) / expectedRemaining(n, 0);
+}
+
+/** Under 0.9× the expected total is ahead, over 1.15× behind. */
+export function paceVerdict(ratio: number): Pace {
+  if (ratio < 0.9) return 'ahead';
+  if (ratio > 1.15) return 'behind';
+  return 'onTrack';
+}

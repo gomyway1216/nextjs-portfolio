@@ -182,7 +182,7 @@ const Results = ({ summary, t }: { summary: SimSummary; t: MontyHallStrings }) =
       <div>
         <h3 className={styles.sectionTitle}>{t.convergenceTitle}</h3>
         <ConvergenceChart
-          trialsLabelSuffix={t.doors}
+          trialsLabelSuffix={t.trialsAxisUnit}
           series={[
             {
               label: `${t.labelStay} (${(theoreticalStay(n) * 100).toFixed(1)}%)`,

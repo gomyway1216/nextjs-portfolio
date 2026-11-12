@@ -124,8 +124,8 @@ const Results = ({ summary, t }: { summary: ConvergenceSummary; t: BayesianStrin
           trajectories={summary.trajectories}
           trueP={summary.trueP}
           axisLabel={t.posteriorMeanAxis(summary.trials)}
-          startLabel={t.flipsAxis('0')}
-          endLabel={t.flipsAxis((summary.steps).toLocaleString())}
+          startLabel={t.flipsAxis(0)}
+          endLabel={t.flipsAxis(summary.steps)}
           ariaLabel={t.chartAriaTrajectories(summary.trials, summary.trueP.toFixed(3))}
         />
         <p className={styles.caption}>{t.simTrajCaption(summary.trueP.toFixed(2))}</p>

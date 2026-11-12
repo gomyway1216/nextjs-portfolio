@@ -118,6 +118,11 @@
   position: relative;
   aspect-ratio: 3 / 4;
   min-height: 96px;
+  /* Without a width the min-height carries over through the aspect ratio as
+     a 72px width, wider than a column of four on a narrow phone: the doors
+     overlapped and the last one stuck out of the row. */
+  width: 100%;
+  min-width: 0;
   font-size: clamp(2.4rem, 8vw, 3.4rem);
   display: flex;
   align-items: center;
@@ -183,6 +188,9 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #f59e0b;
+  /* Centred with left: 50%, which caps the width at half the door: without
+     this a four-character label breaks in two on narrow doors. */
+  white-space: nowrap;
 }
 
 .prompt {

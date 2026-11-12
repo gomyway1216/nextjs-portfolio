@@ -440,6 +440,13 @@
   color: var(--gr-text-dim);
   font-variant-numeric: tabular-nums;
 }
+/* The two caption lines sit as close as the single wrapped paragraph did. */
+.liveCaption {
+  margin-top: 0.45rem;
+}
+.liveCaption .caption {
+  margin: 0;
+}
 
 /* Reserved so the page below does not jump when a run ends. */
 .resultArea { min-height: 8.5rem; }

@@ -7,6 +7,7 @@ import {
   findFirstCollision,
   findSharedBirthdays,
   generateBirthdays,
+  formatProbability,
   theoreticalMatchProb,
 } from './engine';
 import type { BirthdayStrings } from './i18n';
@@ -22,7 +23,13 @@ interface Stats {
   matches: number;
 }
 
-export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
+interface PlayTabProps {
+  t: BirthdayStrings;
+  /** False while another tab is shown: the panel stays mounted but hidden. */
+  active?: boolean;
+}
+
+export const PlayTab = ({ t, active = true }: PlayTabProps) => {
   const [n, setN] = useState(DEFAULT_N);
   const [birthdays, setBirthdays] = useState<number[]>(() =>
     generateBirthdays(DEFAULT_N, createSeededRng(0x5eed1234)),
@@ -81,8 +88,10 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
   };
 
   // Auto-deal loop: rapid trials to watch empirical converge on theory.
+  // Paused while the tab is hidden, so trials are never recorded out of sight;
+  // it picks up again when the player comes back.
   useEffect(() => {
-    if (!autoDeal) return;
+    if (!autoDeal || !active) return;
     // Cancel any in-flight animated deal so the two intervals don't race on
     // the `revealed` counter.
     clearDealTimer();
@@ -96,7 +105,7 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
       if (autoTimer.current) clearInterval(autoTimer.current);
       autoTimer.current = null;
     };
-  }, [autoDeal, n]);
+  }, [autoDeal, n, active]);
 
   useEffect(() => () => {
     clearDealTimer();
@@ -215,7 +224,7 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
           <div className={styles.stat}>
             <div className={styles.statLabel}>{t.theoretical}</div>
             <div className={styles.statValue} style={{ color: 'var(--bp-accent-strong)' }}>
-              {(theoretical * 100).toFixed(2)}%
+              {formatProbability(theoretical, 2)}
             </div>
             <div className={styles.statSub}>n = {n}</div>
           </div>

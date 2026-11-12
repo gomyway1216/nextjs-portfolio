@@ -11,7 +11,7 @@ import {
   posteriorMode,
   posteriorStd,
 } from './engine';
-import { EMPTY_TRACE, FlipTrace, beliefPath, extendTrace, formatWidth } from './trace';
+import { EMPTY_TRACE, FlipTrace, beliefPath, extendTrace, formatInterval, formatWidth } from './trace';
 import styles from './BayesianUpdate.module.css';
 
 const DEFAULT_TRUE_P = 0.7;
@@ -183,8 +183,8 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
           path={path}
           trueP={reveal ? trueP : null}
           axisLabel={t.traceAxis}
-          startLabel={t.flipsAxis('0')}
-          endLabel={t.flipsAxis(trace.n.toLocaleString())}
+          startLabel={t.flipsAxis(0)}
+          endLabel={t.flipsAxis(trace.n)}
           ariaLabel={
             trace.n === 0
               ? t.chartAriaTraceEmpty
@@ -283,7 +283,7 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
           <Stat label={t.statMean} value={stats.mean.toFixed(3)} />
           <Stat label={t.statMode} value={stats.mode === null ? t.statModeNone : stats.mode.toFixed(3)} />
           <Stat label={t.statStd} value={stats.std.toFixed(3)} />
-          <Stat label={t.statCI} value={`[${stats.ci[0].toFixed(2)}, ${stats.ci[1].toFixed(2)}]`} />
+          <Stat label={t.statCI} value={formatInterval(stats.ci[0], stats.ci[1])} />
         </div>
 
         <div style={{ marginTop: '1rem' }}>

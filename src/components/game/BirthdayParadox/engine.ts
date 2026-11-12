@@ -220,3 +220,20 @@ export function estimateMatchProb(
   }
   return matches / trials;
 }
+
+/**
+ * A probability as a percentage with `digits` decimals that never rounds an
+ * uncertain value to a certain one: a chance below 1 that would print as 100%
+ * reads ">99.99%", and a chance above 0 that would print as 0% reads "<0.01%".
+ */
+export function formatProbability(p: number, digits = 2): string {
+  if (!Number.isFinite(p)) return '—';
+  if (p <= 0) return '0%';
+  if (p >= 1) return '100%';
+  const step = 10 ** -digits;
+  const pct = p * 100;
+  const rounded = Number(pct.toFixed(digits));
+  if (rounded >= 100) return `>${(100 - step).toFixed(digits)}%`;
+  if (rounded <= 0) return `<${step.toFixed(digits)}%`;
+  return `${pct.toFixed(digits)}%`;
+}

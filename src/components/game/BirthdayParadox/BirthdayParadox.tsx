@@ -41,6 +41,8 @@ export const BirthdayParadox = () => {
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           <button
             role="tab"
+            id="bp-tab-play"
+            aria-controls="bp-panel-play"
             aria-selected={tab === 'play'}
             className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
             onClick={() => setTab('play')}
@@ -49,6 +51,8 @@ export const BirthdayParadox = () => {
           </button>
           <button
             role="tab"
+            id="bp-tab-sim"
+            aria-controls="bp-panel-sim"
             aria-selected={tab === 'sim'}
             className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
             onClick={() => setTab('sim')}
@@ -57,7 +61,14 @@ export const BirthdayParadox = () => {
           </button>
         </div>
 
-        {tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} language={language} />}
+        {/* Both panels stay mounted (the inactive one is hidden) so switching tabs
+            never drops the deal record on Play or a finished simulation. */}
+        <div role="tabpanel" id="bp-panel-play" aria-labelledby="bp-tab-play" hidden={tab !== 'play'}>
+          <PlayTab t={t} active={tab === 'play'} />
+        </div>
+        <div role="tabpanel" id="bp-panel-sim" aria-labelledby="bp-tab-sim" hidden={tab !== 'sim'}>
+          <SimTab t={t} language={language} />
+        </div>
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.infoTitle}>

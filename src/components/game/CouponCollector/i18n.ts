@@ -23,13 +23,15 @@ export interface CouponStrings {
   youVsExpected: string;
   luckyFast: string;
   unlucky: string;
+  /** Behind while the run is still going (the finished-run wording talks about the last coupons). */
+  behindPace: string;
   onTrack: string;
   completeBanner: (n: number, draws: number, ratio: string) => string;
   curveTitle: string;
   curveNote: string;
   uniqueAxis: (n: number) => string;
   drawsAxisStart: string;
-  drawsAxisEnd: (draws: string) => string;
+  drawsAxisEnd: (draws: number) => string;
   gridHint: string;
   outlookHeading: string;
   nextNewChance: string;
@@ -44,7 +46,7 @@ export interface CouponStrings {
   waitLegendPending: string;
   waitLegendExpected: string;
   waitSummaryEmpty: string;
-  waitSummary: (longest: string, which: number, expected: string) => string;
+  waitSummary: (longest: number, which: number, expected: string) => string;
   // Sim tab
   simSizeLabel: string;
   trialsLabel: string;
@@ -96,9 +98,10 @@ const en: CouponStrings = {
   collected: 'Collected / n',
   totalDraws: 'Total draws',
   expected: 'Expected E[T]',
-  youVsExpected: 'You vs expected',
+  youVsExpected: 'Projected vs expected',
   luckyFast: 'Lucky — ahead of the curve',
   unlucky: 'Unlucky — the last few are hiding',
+  behindPace: 'Behind the expected pace',
   onTrack: 'Right around the expected pace',
   completeBanner: (n, draws, ratio) =>
     `🎉 All ${n} collected in ${draws} draws (${ratio}× the expected value).`,
@@ -107,7 +110,7 @@ const en: CouponStrings = {
     'The curve shoots up early, then flattens: collecting the last one or two coupons eats an enormous number of draws — the "gacha completion" problem made visible.',
   uniqueAxis: (n) => `Distinct collected (max n = ${n})`,
   drawsAxisStart: '0 draws',
-  drawsAxisEnd: (draws) => `${draws} draws`,
+  drawsAxisEnd: (draws) => `${draws.toLocaleString('en-US')} ${draws === 1 ? 'draw' : 'draws'}`,
   gridHint: 'Each cell is a coupon; the number below is how many copies you have drawn.',
   outlookHeading: 'From here',
   nextNewChance: 'Chance the next draw is new',
@@ -125,7 +128,7 @@ const en: CouponStrings = {
   waitSummaryEmpty:
     'Draw to fill in the bars. The line is the expected wait for each new coupon; it reaches n for the last one.',
   waitSummary: (longest, which, expected) =>
-    `Longest finished wait: ${longest} draws for new coupon #${which} (expected ${expected}).`,
+    `Longest finished wait: ${longest.toLocaleString('en-US')} ${longest === 1 ? 'draw' : 'draws'} for new coupon #${which} (expected ${expected}).`,
   simSizeLabel: 'Collection size n',
   trialsLabel: 'Trials',
   runSim: 'Run simulation',
@@ -181,9 +184,10 @@ const ja: CouponStrings = {
   collected: '集めた / n',
   totalDraws: '総 draws',
   expected: '理論期待値 E[T]',
-  youVsExpected: 'あなた vs 期待値',
+  youVsExpected: '見込み vs 期待値',
   luckyFast: 'ラッキー — 期待値より速い',
   unlucky: 'アンラッキー — 最後の数種が出ない',
+  behindPace: '期待値より遅いペース',
   onTrack: 'ほぼ期待値どおりのペース',
   completeBanner: (n, draws, ratio) =>
     `🎉 全 ${n} 種コンプ！ ${draws} draws（期待値の ${ratio}×）`,
@@ -192,7 +196,7 @@ const ja: CouponStrings = {
     '序盤は急上昇するが、やがて平坦化する。ラスト 1〜2 種を引くのに大量の draws がかかる「コンプガチャ問題」がカーブの平坦化で見える。',
   uniqueAxis: (n) => `ユニーク数（上限 n = ${n}）`,
   drawsAxisStart: '0 draws',
-  drawsAxisEnd: (draws) => `${draws} draws`,
+  drawsAxisEnd: (draws) => `${draws.toLocaleString('ja-JP')} draws`,
   gridHint: '各マスがクーポン。下の数字はそのクーポンを引いた枚数です。',
   outlookHeading: 'ここからの見通し',
   nextNewChance: '次の1回が新種である確率',
@@ -210,7 +214,7 @@ const ja: CouponStrings = {
   waitSummaryEmpty:
     '引くと棒が埋まっていきます。線は新種ごとの期待待ち回数で、最後の1種では n に達します。',
   waitSummary: (longest, which, expected) =>
-    `確定済みの最長待ち：${which} 番目の新種で ${longest} 回（期待値 ${expected}）。`,
+    `確定済みの最長待ち：${which} 番目の新種で ${longest.toLocaleString('ja-JP')} 回（期待値 ${expected}）。`,
   simSizeLabel: 'コレクションのサイズ n',
   trialsLabel: '試行回数',
   runSim: 'シミュレーション実行',

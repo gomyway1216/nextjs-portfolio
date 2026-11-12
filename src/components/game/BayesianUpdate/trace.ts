@@ -80,3 +80,17 @@ export function formatWidth(width: number): string {
   if (width < 1e-6) return width.toExponential(1);
   return width.toPrecision(2);
 }
+
+/**
+ * An interval as "[lo, hi]" with enough decimals to tell its ends apart: two
+ * by default, more (up to six) once the interval is narrower than two units
+ * of the last digit shown — after ~100,000 flips a 95% interval of
+ * [0.6972, 0.7028] would otherwise print as the degenerate "[0.70, 0.70]".
+ */
+export function formatInterval(lo: number, hi: number): string {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '–';
+  const width = Math.abs(hi - lo);
+  let digits = 2;
+  while (digits < 6 && (width < 2 * 10 ** -digits || lo.toFixed(digits) === hi.toFixed(digits))) digits++;
+  return `[${lo.toFixed(digits)}, ${hi.toFixed(digits)}]`;
+}

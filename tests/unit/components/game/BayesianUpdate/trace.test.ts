@@ -5,6 +5,7 @@ import {
   TRACE_MAX_POINTS,
   beliefPath,
   extendTrace,
+  formatInterval,
   formatWidth,
 } from '@/components/game/BayesianUpdate/trace';
 
@@ -121,5 +122,33 @@ describe('formatWidth', () => {
     expect(formatWidth(0.0000001234)).toBe('1.2e-7');
     expect(formatWidth(0)).toBe('0.000');
     expect(formatWidth(Number.NaN)).toBe('–');
+  });
+});
+
+describe('formatInterval', () => {
+  it('keeps two decimals while the ends are clearly apart', () => {
+    expect(formatInterval(0.0253, 0.9747)).toBe('[0.03, 0.97]');
+    expect(formatInterval(0.6709, 0.7276)).toBe('[0.67, 0.73]');
+  });
+
+  it('adds decimals instead of printing a degenerate interval', () => {
+    expect(formatInterval(0.69094, 0.7089)).toBe('[0.691, 0.709]');
+    expect(formatInterval(0.69715, 0.70283)).toBe('[0.697, 0.703]');
+    expect(formatInterval(0.6991, 0.7009)).toBe('[0.6991, 0.7009]');
+  });
+
+  it('shows distinct ends for the real posterior after 100,000 flips', () => {
+    const [lo, hi] = credibleIntervalExact({ alpha: 70_001, beta: 30_001 }, 0.95);
+    expect(`[${lo.toFixed(2)}, ${hi.toFixed(2)}]`).toBe('[0.70, 0.70]');
+    const text = formatInterval(lo, hi);
+    const [a, b] = text.slice(1, -1).split(', ').map(Number);
+    expect(a).toBeLessThan(b);
+    expect(a).toBeCloseTo(lo, 3);
+    expect(b).toBeCloseTo(hi, 3);
+  });
+
+  it('stops at six decimals and handles non-finite input', () => {
+    expect(formatInterval(0.5, 0.5)).toBe('[0.500000, 0.500000]');
+    expect(formatInterval(Number.NaN, 0.5)).toBe('–');
   });
 });

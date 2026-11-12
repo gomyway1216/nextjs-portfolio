@@ -52,6 +52,8 @@ export const CouponCollector = () => {
         <div className={styles.tabs} role="tablist" aria-label="Coupon Collector modes">
           <button
             role="tab"
+            id="cc-tab-play"
+            aria-controls="cc-panel-play"
             aria-selected={tab === 'play'}
             className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
             onClick={() => setTab('play')}
@@ -60,6 +62,8 @@ export const CouponCollector = () => {
           </button>
           <button
             role="tab"
+            id="cc-tab-sim"
+            aria-controls="cc-panel-sim"
             aria-selected={tab === 'sim'}
             className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
             onClick={() => setTab('sim')}
@@ -68,7 +72,16 @@ export const CouponCollector = () => {
           </button>
         </div>
 
-        <div className={styles.panel}>{tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} />}</div>
+        {/* Both panels stay mounted (the inactive one is hidden) so switching tabs
+            never drops the record on Play or a finished simulation. */}
+        <div className={styles.panel}>
+          <div role="tabpanel" id="cc-panel-play" aria-labelledby="cc-tab-play" hidden={tab !== 'play'}>
+            <PlayTab t={t} />
+          </div>
+          <div role="tabpanel" id="cc-panel-sim" aria-labelledby="cc-tab-sim" hidden={tab !== 'sim'}>
+            <SimTab t={t} />
+          </div>
+        </div>
       </div>
 
       <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.infoTitle}>

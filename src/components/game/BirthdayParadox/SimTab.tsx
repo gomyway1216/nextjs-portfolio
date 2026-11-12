@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CurveChart } from './charts';
-import { SweepSummary, runBirthdaySweepAsync } from './engine';
+import { SweepSummary, formatProbability, runBirthdaySweepAsync } from './engine';
 import type { BirthdayStrings } from './i18n';
 import type { GameLanguage } from '../constants/gameTranslations';
 import styles from './BirthdayParadox.module.css';
@@ -189,7 +189,7 @@ const Snapshot = ({
   <div className={styles.stat}>
     <div className={styles.statLabel}>n = {n}</div>
     <div className={styles.statValue} style={{ color: accent, fontSize: '1.4rem' }}>
-      {(p.theoretical * 100).toFixed(1)}%
+      {formatProbability(p.theoretical, 1)}
     </div>
     <div className={styles.statSub}>{simLabel}: {(p.empirical * 100).toFixed(1)}%</div>
   </div>

@@ -3,6 +3,7 @@
 import type { DaifugoUITranslations } from '../constants/gameTranslations';
 import type { DaifugoNetworkState,DaifugoRank } from './multiplayerTypes';
 import { daifugoRankToLabel } from './multiplayerTypes';
+import styles from './DaifugoTableView.module.css';
 import { CardBack,PlayingCard } from './PlayingCard';
 import type { Card } from './types';
 import { rankToLabel } from './types';
@@ -142,21 +143,14 @@ function PlayerAvatar({
           {Array.from({ length: Math.min(player.handCount, 4) }).map((_, i) => (
             <div
               key={i}
-              style={{
-                marginLeft: i > 0 ? '-12px' : 0,
-                transform: `rotate(${(i - 1.5) * 4}deg)`,
-              }}
+              className={styles.fanCard}
+              style={{ transform: `rotate(${(i - 1.5) * 4}deg)` }}
             >
               <CardBack size="small" />
             </div>
           ))}
           {player.handCount > 4 && (
-            <div style={{
-              color: '#9ca3af',
-              fontSize: '0.55rem',
-              marginLeft: '0.2rem',
-              alignSelf: 'center',
-            }}>
+            <div className={styles.fanMore}>
               +{player.handCount - 4}
             </div>
           )}
@@ -206,14 +200,7 @@ export function DaifugoTableView({
       }}
     >
       {/* Top row - opponent avatars */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '1.5rem',
-          padding: '0 1rem',
-        }}
-      >
+      <div className={styles.topRow}>
         {topPlayers.map((player) => {
           const originalIndex = playerSummaries.findIndex(p => p.id === player.id);
           return (
@@ -229,15 +216,9 @@ export function DaifugoTableView({
       </div>
 
       {/* Middle row - left player, table, right player */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}
-      >
+      <div className={styles.middleRow}>
         {/* Left player */}
-        <div style={{ width: '6rem', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+        <div className={leftPlayer ? styles.sideSeat : `${styles.sideSeat} ${styles.sideSeatEmpty}`}>
           {leftPlayer && (
             <PlayerAvatar
               player={leftPlayer}
@@ -250,8 +231,8 @@ export function DaifugoTableView({
 
         {/* Table */}
         <div
+          className={styles.table}
           style={{
-            flex: 1,
             minHeight: '12rem',
             background: 'radial-gradient(ellipse at center, #1a472a 0%, #0f2b1a 70%, #0a1f12 100%)',
             borderRadius: '1rem',
@@ -297,15 +278,7 @@ export function DaifugoTableView({
           </div>
 
           {/* Pile cards */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              minHeight: '5.5rem',
-              zIndex: 1,
-            }}
-          >
+          <div className={styles.pile}>
             {pileCards.length === 0 ? (
               <div
                 style={{
@@ -326,8 +299,8 @@ export function DaifugoTableView({
               pileCards.map((c, idx) => (
                 <div
                   key={c.id}
+                  className={styles.pileCard}
                   style={{
-                    marginLeft: idx > 0 ? '-1rem' : 0,
                     transform: `rotate(${(idx - Math.floor(pileCards.length / 2)) * 3}deg)`,
                     zIndex: idx,
                   }}
@@ -425,7 +398,7 @@ export function DaifugoTableView({
         </div>
 
         {/* Right player */}
-        <div style={{ width: '6rem', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+        <div className={rightPlayer ? styles.sideSeat : `${styles.sideSeat} ${styles.sideSeatEmpty}`}>
           {rightPlayer && (
             <PlayerAvatar
               player={rightPlayer}

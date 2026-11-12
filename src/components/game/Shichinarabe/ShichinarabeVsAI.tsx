@@ -15,7 +15,7 @@ import { decideShichinarabeAction, ShichinarabeAIDifficulty } from './Shichinara
 import { getShichinarabeHint, type ShichinarabeHint } from './ShichinarabeHint';
 import { cardToShortLabel, rankToLabel, SUITS, SUIT_SYMBOL } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
-import { getShichinarabeStrings, DIFFICULTY_ORDER } from './i18n';
+import { getShichinarabeStrings, isDefaultYouName, DIFFICULTY_ORDER } from './i18n';
 import styles from './ShichinarabeVsAI.module.css';
 import type { Card, CardSuit } from './types';
 import type { ShichinarabeAction, ShichinarabeLogEntry, ShichinarabeNetworkState } from './multiplayerTypes';
@@ -514,7 +514,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                 {playerSummaries.map((p) => (
                   <div key={p.id} className={styles.playerChip} data-turn={p.isTurn ? 'true' : 'false'} data-out={p.statusKind !== 'active' ? 'true' : 'false'}>
                     <div className={styles.playerName} data-me={p.isMe ? 'true' : 'false'}>
-                      {p.name}{p.isMe ? ` (${t.you})` : ''}
+                      {p.name}{p.isMe && !isDefaultYouName(p.name) ? ` (${t.you})` : ''}
                     </div>
                     <div className={styles.playerMeta}>
                       {t.cardsLeft(p.handCount)}

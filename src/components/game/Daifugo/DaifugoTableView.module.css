@@ -1,0 +1,99 @@
+/*
+ * Daifugo table: the parts of the layout that change on a phone.
+ * Wide screens keep the seats around the table (three on top, one each side); on a phone the two side seats move
+ * to their own row above the table, so the table gets the whole width and nothing is pushed off the screen.
+ */
+
+.topRow {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 0 1rem;
+}
+
+.middleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sideSeat {
+  width: 6rem;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.table {
+  flex: 1;
+}
+
+.fanCard + .fanCard {
+  margin-left: -12px;
+}
+
+.fanMore {
+  color: #9ca3af;
+  font-size: 0.55rem;
+  margin-left: 0.2rem;
+  align-self: center;
+}
+
+.pile {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 5.5rem;
+  z-index: 1;
+}
+
+.pileCard + .pileCard {
+  margin-left: -1rem;
+}
+
+@media (max-width: 640px) {
+  .topRow {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0;
+  }
+
+  .middleRow {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .sideSeat {
+    width: auto;
+  }
+
+  .sideSeatEmpty {
+    display: none;
+  }
+
+  .table {
+    order: 1;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  /* A tighter fan of card backs: three seats fit side by side at 320px. */
+  .fanCard + .fanCard {
+    margin-left: -38px;
+  }
+
+  /* The seat's label already says how many cards are left. */
+  .fanMore {
+    display: none;
+  }
+
+  .pile {
+    flex-wrap: wrap;
+    max-width: 100%;
+    row-gap: 0.25rem;
+  }
+
+  .pileCard + .pileCard {
+    margin-left: -1.75rem;
+  }
+}

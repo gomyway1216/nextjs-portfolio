@@ -16,7 +16,7 @@ import { rankToLabel } from './types';
 import type { Card } from './types';
 import type { DoubtAction, DoubtLogEntry, DoubtNetworkState } from './multiplayerTypes';
 import { CardBack, PlayingCard, PlayingCardStyles } from './PlayingCard';
-import { getDoubtStrings } from './i18n';
+import { getDoubtStrings, isDefaultYouName } from './i18n';
 
 interface DoubtVsAIProps {
   onBackToMenu: () => void;
@@ -610,7 +610,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
-                            {p.name}{p.isMe ? t.youSuffix : ''}
+                            {p.name}{p.isMe && !isDefaultYouName(p.name) ? t.youSuffix : ''}
                           </span>
                           {p.isTurn && <span aria-hidden style={{ fontSize: '0.7rem' }}>🎯</span>}
                         </div>

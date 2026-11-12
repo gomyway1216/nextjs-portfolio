@@ -8,6 +8,13 @@ import type { ShichinarabeAIDifficulty } from './ShichinarabeAI';
 import type { ShichinarabeHintReason } from './ShichinarabeHint';
 
 export interface ShichinarabeStrings {
+  // Mode select
+  menuBackToGames: string;
+  menuTitle: string;
+  menuChooseMode: string;
+  menuVsAi: string;
+  menuOnline: string;
+  menuDescription: string;
   title: string;
   subtitle: string;
   yourName: string;
@@ -77,6 +84,12 @@ export interface ShichinarabeStrings {
 
 export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
   en: {
+    menuBackToGames: '← Back to Games',
+    menuTitle: 'Shichinarabe (七並べ)',
+    menuChooseMode: 'Choose a mode to start playing.',
+    menuVsAi: 'Play vs AI (3–6 players)',
+    menuOnline: 'Online Room (3–6 players)',
+    menuDescription: 'AI mode lets you choose how many AI opponents to include (minimum 2, maximum 5). Online mode uses room codes to play with friends (3–6 players).',
     title: 'Sevens vs AI',
     subtitle: 'Empty your hand first. Build each suit outward from the seven.',
     yourName: 'Your name',
@@ -162,6 +175,12 @@ export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
     },
   },
   ja: {
+    menuBackToGames: '← ゲーム一覧へ',
+    menuTitle: '七並べ',
+    menuChooseMode: 'モードを選んでプレイ開始',
+    menuVsAi: 'AI対戦 (3〜6人)',
+    menuOnline: 'オンライン対戦 (3〜6人)',
+    menuDescription: 'AIモードではAI対戦相手の人数を選べます（2〜5人）。オンラインモードではルームコードを共有して友達と対戦できます（3〜6人）。',
     title: '七並べ vs AI',
     subtitle: '手札を最初になくそう。7から外側へ各スートを並べていきます。',
     yourName: 'あなたの名前',
@@ -247,6 +266,15 @@ export const STRINGS: Record<GameLanguage, ShichinarabeStrings> = {
     },
   },
 };
+
+/**
+ * True when a player's name is just the default "You" / "あなた" (the name used when the field is left empty), so a
+ * "(You)" marker next to it would only repeat it.
+ */
+export function isDefaultYouName(name: string): boolean {
+  const trimmed = name.trim().toLowerCase();
+  return Object.values(STRINGS).some((s) => s.namePlaceholder.toLowerCase() === trimmed || s.you.toLowerCase() === trimmed);
+}
 
 export function getShichinarabeStrings(language: GameLanguage): ShichinarabeStrings {
   return STRINGS[language] ?? STRINGS.en;

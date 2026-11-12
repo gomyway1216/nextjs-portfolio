@@ -59,3 +59,22 @@ export function formatDaifugoLogCards(entry: DaifugoLogEntry): string {
 
   return rankToLabel(rankKey);
 }
+
+/**
+ * The engine writes a few log entries with a fixed English `detail` (stored as-is in a room's state, so the
+ * strings themselves stay). Resolve the known ones to the viewer's language; anything else is shown unchanged.
+ */
+export function formatDaifugoLogDetail(translate: TranslateFn, detail: string): string {
+  const roundStarted = /^Round (\d+) started$/.exec(detail);
+  if (roundStarted) return `${translate('games.daifugo.ui.round')} ${roundStarted[1]}`;
+  switch (detail) {
+    case 'Round finished':
+      return translate('games.daifugo.ui.logRoundEnd');
+    case 'Revolution toggled':
+      return translate('games.daifugo.ui.status.revolution');
+    case 'Eleven-back active':
+      return translate('games.daifugo.ui.status.elevenBack');
+    default:
+      return detail;
+  }
+}

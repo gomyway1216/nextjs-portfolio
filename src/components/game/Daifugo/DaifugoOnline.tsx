@@ -10,7 +10,7 @@ import { GameTopBar, InfoModal, GameStats } from '../common';
 import { DaifugoMultiplayerLobby } from './DaifugoMultiplayerLobby';
 import { useDaifugoMultiplayer } from './useDaifugoMultiplayer';
 import { getPlayShape, getSelectedCards, getNextPlayerId, sortHand } from './gameLogic';
-import { formatDaifugoLogCards } from './errorMessages';
+import { formatDaifugoLogCards, formatDaifugoLogDetail } from './errorMessages';
 import { rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
@@ -340,7 +340,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     const log: DaifugoLogEntry[] = gameState?.log ?? [];
     return log.slice(-10).map((entry) => {
       const name = playerNameOf(entry.playerId);
-      if (entry.detail) return `${name}: ${entry.detail}`;
+      if (entry.detail) return `${name}: ${formatDaifugoLogDetail(translate, entry.detail)}`;
       if (entry.type === 'play' && entry.cardCount && entry.rankKey) {
         const cards = formatDaifugoLogCards(entry);
         const key = entry.playKind === 'straight' ? 'logStraight' : 'logPlayed';
@@ -497,7 +497,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
           {(multiplayer.context.lobbyState === 'playing' || multiplayer.context.lobbyState === 'finished') && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr',
+              gridTemplateColumns: 'minmax(0, 1fr)',
               gap: '1rem',
             }}>
               <div style={{
@@ -597,7 +597,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                   </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem', marginTop: '1rem' }}>
                   {/* Table / pile */}
                   <div style={{
                     background: 'rgba(17, 24, 39, 0.6)',
@@ -788,8 +788,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                         marginTop: '0.5rem',
                         display: 'flex',
                         gap: '0.5rem',
-                        flexWrap: 'nowrap',
-                        overflowX: 'auto',
+                        flexWrap: 'wrap',
                         paddingBottom: '0.25rem',
                       }}>
                         {sevenGiveCandidates.map((card, idx) => (
@@ -826,8 +825,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                         marginTop: '0.5rem',
                         display: 'flex',
                         gap: '0.5rem',
-                        flexWrap: 'nowrap',
-                        overflowX: 'auto',
+                        flexWrap: 'wrap',
                         paddingBottom: '0.25rem',
                       }}>
                         {tenDiscardCandidates.map((card, idx) => (
@@ -850,8 +848,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                     marginTop: '0.75rem',
                     display: 'flex',
                     gap: '0.5rem',
-                    flexWrap: 'nowrap',
-                    overflowX: 'auto',
+                    flexWrap: 'wrap',
                     paddingBottom: '0.25rem',
                   }}>
                     {myHand.map(renderCard)}

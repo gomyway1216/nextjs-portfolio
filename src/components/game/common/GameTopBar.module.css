@@ -121,11 +121,16 @@
 
 /* Tablets: the toolbar is one row again, and the group sits between the site name and the controls. The toolbar lets
    that middle slot take whatever it asks for and gives the site name the rest, so the group is held to what the row
-   can spare (the 37.5rem is the padding, the site name, the Games link, the controls and the gaps) and the How to play button drops
-   its label to make room. Extra content that still cannot fit is cut with an ellipsis. */
+   can spare (the 37.5rem is the padding, the site name, the Games link, the controls and the gaps; the Japanese site
+   name is 2.25rem shorter) and the How to play button drops its label to make room. Extra content that still cannot
+   fit is cut with an ellipsis. */
 @media (min-width: 768px) and (max-width: 1023px) {
   .group {
     max-width: max(8rem, calc(100vw - 37.5rem));
+  }
+
+  .group[data-language='ja'] {
+    max-width: max(8rem, calc(100vw - 35.25rem));
   }
 
   .infoButtonCompact .infoLabel {

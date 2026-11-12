@@ -272,11 +272,13 @@ export const PlayTab = () => {
         </div>
 
         <div className={styles.actions}>
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => run(1)} disabled={busy || finished}>
+          {/* Not `disabled` while the coin is in the air or once the game is over: a disabled button drops keyboard
+              focus, and the next Enter would go nowhere. `run` itself refuses to start in both cases. */}
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => run(1)} aria-disabled={busy || finished}>
             {busy ? t.flipping : t.flip}
           </button>
           {RUN_LENGTHS.map((count) => (
-            <button key={count} type="button" className={styles.btn} onClick={() => run(count)} disabled={busy || finished} aria-label={t.flipManyAria(count)} data-run={count}>
+            <button key={count} type="button" className={styles.btn} onClick={() => run(count)} aria-disabled={busy || finished} aria-label={t.flipManyAria(count)} data-run={count}>
               {t.flipMany(count)}
             </button>
           ))}

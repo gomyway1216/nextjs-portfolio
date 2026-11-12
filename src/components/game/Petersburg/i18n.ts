@@ -16,7 +16,8 @@ export interface PetersburgStrings {
   reset: string;
   flipping: string;
   lastGame: string;
-  flips: string;
+  /** A count of coin flips, with its unit. */
+  flips: (n: number) => string;
   payout: string;
   recentPayouts: string;
   sessionStats: string;
@@ -75,6 +76,9 @@ export interface PetersburgStrings {
   howItWorks: string[];
 }
 
+/** An English count with its noun: "1 flip", "2 flips". */
+export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 const en: PetersburgStrings = {
   title: 'St. Petersburg Paradox',
   subtitle:
@@ -91,7 +95,7 @@ const en: PetersburgStrings = {
   reset: 'Reset',
   flipping: 'Flipping…',
   lastGame: 'Last game',
-  flips: 'flips',
+  flips: (n) => plural(n, 'flip', 'flips'),
   payout: 'payout',
   recentPayouts: 'Recent payouts',
   sessionStats: 'Session stats',
@@ -147,7 +151,7 @@ const en: PetersburgStrings = {
   bankrollCaption:
     'The line is winnings minus entry prices paid, game by game — the same figure as "Net". Each game is charged the entry price set when it was played. In long sessions the line is drawn through evenly spaced samples; the lowest and highest balances are exact and marked with dots.',
   bankrollAria: (games, net, low, high) =>
-    `Running balance over ${games} games: now ${net}, lowest ${low}, highest ${high}.`,
+    `Running balance over ${games} ${games === '1' ? 'game' : 'games'}: now ${net}, lowest ${low}, highest ${high}.`,
   howItWorksTitle: 'The St. Petersburg Paradox',
   howItWorks: [
     'A fair coin is flipped until it lands tails. If the first tails is on flip k, you win 2^(k-1) dollars: T → $1, HT → $2, HHT → $4, HHHT → $8, …',
@@ -174,7 +178,7 @@ const ja: PetersburgStrings = {
   reset: 'リセット',
   flipping: '投げています…',
   lastGame: '最後のゲーム',
-  flips: '回',
+  flips: (n) => `${n} 回`,
   payout: '配当',
   recentPayouts: '最近の配当',
   sessionStats: 'セッション統計',

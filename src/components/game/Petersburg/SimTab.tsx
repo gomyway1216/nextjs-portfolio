@@ -155,7 +155,7 @@ const Results = ({
           <Stat label={t.fairTheory} value={`$${last.fairPrice.toFixed(2)}`} color="#f59e0b" />
           <Stat label={t.medianLabel} value={`$${last.median.toFixed(2)}`} color="#22c55e" />
           <Stat label={t.maxPayout} value={fmtMoney(last.max)} color="#ec4899" />
-          <Stat label={t.longestStreak} value={`${summary.maxFlips} ${t.flips}`} color="#a78bfa" />
+          <Stat label={t.longestStreak} value={t.flips(summary.maxFlips)} color="#a78bfa" />
         </div>
       </div>
 

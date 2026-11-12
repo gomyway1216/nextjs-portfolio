@@ -6,9 +6,10 @@ import { getBanditStrings } from './i18n';
 import { StrategyName, chooseArm, mulberry32, wilsonInterval } from './engine';
 import { ReviewPanel, type ReviewState } from './ReviewPanel';
 import { type GameReview, type Pull, reviewGame } from './review';
+import { DEFAULT_PULL_LIMIT, MAX_PULL_LIMIT, MIN_PULL_LIMIT, isLivePullLimit, pullProgress, settlePullLimit } from './playHelpers';
 
 const ARM_PALETTE = ['#67e8f9', '#a78bfa', '#f472b6', '#4ade80', '#fbbf24'];
-const T_DEFAULT = 50;
+const T_DEFAULT = DEFAULT_PULL_LIMIT;
 const K_DEFAULT = 3;
 const MIN_K = 2;
 const MAX_K = 5;
@@ -17,6 +18,10 @@ const MAX_K = 5;
 const HINT_STRATEGY: StrategyName = 'ucb1';
 const HINT_LABEL: Record<'ja' | 'en', string> = { ja: 'UCB1', en: 'UCB1' };
 
+// As many arm cards per row as fit at a readable width; the rest wrap, so five
+// arms never push the page sideways on a phone.
+const ARM_GRID_COLUMNS = 'repeat(auto-fit, minmax(min(100%, 6.25rem), 1fr))';
+
 interface ArmState { trueP: number; pulls: number; rewards: number }
 
 const randomProbs = (k: number): number[] =>
@@ -24,12 +29,16 @@ const randomProbs = (k: number): number[] =>
 
 const freshArms = (probs: number[]): ArmState[] => probs.map((p) => ({ trueP: p, pulls: 0, rewards: 0 }));
 
-export const PlayTab = () => {
+/** `active` is false while another tab is showing: the game stays mounted (and keeps its state) but ignores the keyboard. */
+export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const { language } = useGameLanguage();
   const t = getBanditStrings(language);
 
   const [k, setK] = useState(K_DEFAULT);
   const [T, setT] = useState(T_DEFAULT);
+  // What is typed in the limit field. `T` follows it only once it is a usable
+  // limit, so a half-typed number never ends the game.
+  const [limitText, setLimitText] = useState(String(T_DEFAULT));
   const [probs, setProbs] = useState(() => randomProbs(K_DEFAULT));
   const [arms, setArms] = useState<ArmState[]>(() => freshArms(probs));
   const [step, setStep] = useState(0);
@@ -46,6 +55,7 @@ export const PlayTab = () => {
   const optimalReward = bestP * step; // expected reward of always-best-arm
   const regret = optimalReward - totalReward;
   const done = step >= T;
+  const { remaining, fraction: progressFraction } = pullProgress(step, T);
 
   // Deterministic hint: which arm the UCB1 policy would pull right now. Uses a
   // seeded RNG so the suggestion is stable between renders (only tie-breaks use
@@ -100,6 +110,16 @@ export const PlayTab = () => {
     setFlash(null);
   }, [k]);
 
+  const onLimitChange = (text: string) => {
+    setLimitText(text);
+    if (isLivePullLimit(text, step)) setT(Number(text));
+  };
+  const settleLimit = () => {
+    const next = settlePullLimit(limitText, step, T);
+    setT(next);
+    setLimitText(String(next));
+  };
+
   const onKChange = (nextK: number) => {
     setK(nextK);
     newGame(nextK);
@@ -107,6 +127,7 @@ export const PlayTab = () => {
 
   // Keyboard: number keys 1..K pull the corresponding arm; R starts a new game.
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       // Don't hijack browser/OS shortcuts like Cmd+R / Ctrl+R.
@@ -119,7 +140,7 @@ export const PlayTab = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [arms.length, pull, newGame]);
+  }, [active, arms.length, pull, newGame]);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: '1.25rem' }}>
@@ -142,10 +163,14 @@ export const PlayTab = () => {
             <input
               type="number"
               aria-label={t.pullLimit}
-              value={T}
-              min={10}
-              max={500}
-              onChange={(e) => setT(Math.max(10, Math.min(500, Number(e.target.value) || 50)))}
+              value={limitText}
+              min={Math.max(MIN_PULL_LIMIT, Math.min(MAX_PULL_LIMIT, step))}
+              max={MAX_PULL_LIMIT}
+              onChange={(e) => onLimitChange(e.target.value)}
+              onBlur={settleLimit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') settleLimit();
+              }}
               style={inputStyle(80)}
             />
           </label>
@@ -166,7 +191,7 @@ export const PlayTab = () => {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${arms.length}, 1fr)`, gap: '0.5rem', marginBottom: '0.8rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: ARM_GRID_COLUMNS, gap: '0.5rem', marginBottom: '0.8rem' }} data-testid="bandit-arms">
           {arms.map((arm, i) => {
             const empMean = arm.pulls === 0 ? null : arm.rewards / arm.pulls;
             const [lo, hi] = wilsonInterval(arm.rewards, arm.pulls);
@@ -191,6 +216,9 @@ export const PlayTab = () => {
                   alignItems: 'center',
                   gap: '0.3rem',
                   color: '#fff',
+                  minWidth: 0,
+                  textAlign: 'center',
+                  overflowWrap: 'anywhere',
                   transition: 'box-shadow 0.15s, transform 0.1s',
                   transform: isFlashing ? 'translateY(-2px)' : 'none',
                 }}
@@ -246,7 +274,7 @@ export const PlayTab = () => {
       <div>
         <h3 style={{ margin: '0 0 0.6rem', color: '#fbbf24' }}>{t.progress}</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <Stat label={t.remainingPulls} value={`${T - step} / ${T}`} color="#67e8f9" />
+          <Stat label={t.remainingPulls} value={`${remaining} / ${T}`} color="#67e8f9" />
           <Stat label={t.cumReward} value={`${totalReward}`} color="#4ade80" />
           <Stat label={t.optimalReward} value={optimalReward.toFixed(1)} color="#fbbf24" />
           <Stat label={t.cumRegret} value={regret.toFixed(2)} color={regret < 0.5 ? '#4ade80' : '#f472b6'} />
@@ -254,16 +282,17 @@ export const PlayTab = () => {
 
         {step > 0 && (
           <div style={{ marginTop: '0.6rem', height: 6, borderRadius: 3, background: '#1e293b', overflow: 'hidden' }} aria-hidden>
-            <div style={{ width: `${(step / T) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #22c55e, #67e8f9)', transition: 'width 0.2s' }} />
+            <div style={{ width: `${progressFraction * 100}%`, height: '100%', background: 'linear-gradient(90deg, #22c55e, #67e8f9)', transition: 'width 0.2s' }} />
           </div>
         )}
 
         {done && (
-          <div style={{ marginTop: '0.8rem', padding: '0.7rem 0.9rem', borderRadius: 10, background: '#15803d44', border: '1px solid #4ade80', color: '#4ade80', fontWeight: 700 }} role="status">
-            ✓ {t.finished} {t.finishedDetail(totalReward, T, ((totalReward / T) * 100).toFixed(1))}
+          <div style={{ marginTop: '0.8rem', padding: '0.7rem 0.9rem', borderRadius: 10, background: '#15803d44', border: '1px solid #4ade80', color: '#4ade80', fontWeight: 700 }} role="status" data-testid="bandit-finished">
+            ✓ {t.finished} {t.finishedDetail(totalReward, step, ((totalReward / step) * 100).toFixed(1))}
             <div style={{ fontSize: '0.85rem', fontWeight: 400, color: '#cbd5e1', marginTop: '0.4rem' }}>
-              {t.trueProbsAre}: {probs.map((p, i) => `${t.armLabel(i + 1)}=${p.toFixed(2)}`).join(' / ')}
-              <br />{t.bestArmExpected(optimalReward.toFixed(1))}。{t.yourRegret(regret.toFixed(2))}
+              <div>{t.trueProbsAre}: {probs.map((p, i) => `${t.armLabel(i + 1)}=${p.toFixed(2)}`).join(' / ')}</div>
+              <div>{t.bestArmExpected(optimalReward.toFixed(1))}</div>
+              <div>{t.yourRegret(regret.toFixed(2))}</div>
             </div>
           </div>
         )}

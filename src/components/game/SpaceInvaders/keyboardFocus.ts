@@ -9,8 +9,11 @@
  * passes it as `pointerFocused`.
  */
 
-export const CONTROL_SELECTOR =
-  'button, a[href], summary, [role="button"], [role="radio"], [role="link"], [role="tab"]';
+/** What Space presses. Not a link: Space on a link only scrolls the page, so the game keeps that one. */
+const SPACE_CONTROLS = 'button, summary, [role="button"], [role="radio"], [role="tab"]';
+
+/** What Enter presses: the same, and links. */
+export const CONTROL_SELECTOR = `${SPACE_CONTROLS}, a[href], [role="link"]`;
 
 export function isActivationKey(key: string): boolean {
   return key === ' ' || key === 'Spacebar' || key === 'Enter';
@@ -25,12 +28,12 @@ function hasClosest(target: unknown): target is ClosestTarget {
 }
 
 /** The button / link / radio the event target is (or is inside), if any. */
-export function controlOf(target: unknown): unknown {
-  return hasClosest(target) ? target.closest(CONTROL_SELECTOR) ?? null : null;
+export function controlOf(target: unknown, selector: string = CONTROL_SELECTOR): unknown {
+  return hasClosest(target) ? target.closest(selector) ?? null : null;
 }
 
 export function isKeyboardFocusedControl(target: unknown, key: string, pointerFocused: unknown = null): boolean {
   if (!isActivationKey(key)) return false;
-  const control = controlOf(target);
+  const control = controlOf(target, key === 'Enter' ? CONTROL_SELECTOR : SPACE_CONTROLS);
   return control !== null && control !== pointerFocused;
 }

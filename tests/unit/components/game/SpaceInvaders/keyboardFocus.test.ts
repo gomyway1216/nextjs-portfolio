@@ -13,9 +13,12 @@ import {
   isKeyboardFocusedControl,
 } from '@/components/game/SpaceInvaders/keyboardFocus';
 
-/** An element whose `closest(CONTROL_SELECTOR)` finds `control` (itself, an ancestor, or nothing). */
-const target = (control: unknown) => ({
-  closest: (selector: string) => (selector === CONTROL_SELECTOR ? control : null),
+/** An element inside (or being) `control`, a button unless said to be a link; `closest` answers by the selector asked. */
+const target = (control: unknown, kind: 'button' | 'link' = 'button') => ({
+  closest: (selector: string) => {
+    const asked = selector.split(',').map((part) => part.trim());
+    return asked.includes(kind === 'link' ? 'a[href]' : 'button') ? control : null;
+  },
 });
 
 describe('isActivationKey', () => {
@@ -46,6 +49,14 @@ describe('isKeyboardFocusedControl', () => {
     expect(isKeyboardFocusedControl(target(button), ' ', button)).toBe(false);
     // …but another control, reached with Tab since, gets its key.
     expect(isKeyboardFocusedControl(target({ id: 'other' }), ' ', button)).toBe(true);
+  });
+
+  it('leaves Enter to a focused link, but not Space (which would only scroll the page)', () => {
+    const link = { id: 'games' };
+    expect(CONTROL_SELECTOR.split(',').map((part) => part.trim())).toContain('a[href]');
+    expect(controlOf(target(link, 'link'))).toBe(link);
+    expect(isKeyboardFocusedControl(target(link, 'link'), 'Enter')).toBe(true);
+    expect(isKeyboardFocusedControl(target(link, 'link'), ' ')).toBe(false);
   });
 
   it('never takes the movement, fire-by-arrow or pause keys', () => {

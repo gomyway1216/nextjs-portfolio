@@ -782,6 +782,25 @@ a.historyCard:hover {
   font-size: 14px;
   text-align: center;
 }
+.lobbyActions {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  background: #0003;
+  border: 1px solid #ffffff40;
+  border-radius: 12px;
+}
+.lobbyActions p { display: grid; gap: 4px; margin: 0; }
+.lobbyActions p span { font-size: 14px; }
+.lobbyActions input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  color: #19162f;
+  background: #fff;
+  border-radius: 6px;
+}
 .qrCard {
   background: var(--lime);
   color: #28183f;

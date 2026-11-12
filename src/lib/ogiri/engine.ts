@@ -538,6 +538,7 @@ export function act(
       p.answerReady = false;
     }
   } else if (action.type === 'kick') {
+    requireThat(room.phase !== 'finished', '参加者の管理は次のゲームの受付で行えます。', 409);
     requireThat(
       typeof action.playerId === 'string' &&
         action.playerId !== room.hostId &&

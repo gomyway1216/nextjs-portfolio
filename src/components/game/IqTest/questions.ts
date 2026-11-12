@@ -330,7 +330,7 @@ const buildOddOneOut = (
   return { items, oddItem, explanation };
 };
 
-const generateOddOneOut = (tier: QuestionTier): Question => {
+export const generateOddOneOut = (tier: QuestionTier): Question => {
   const variants: readonly OddVariant[] =
     tier === 'easy' ? ['parity', 'multiple'] : ['parity', 'square', 'multiple', 'prime'];
   const variant = pick(variants);

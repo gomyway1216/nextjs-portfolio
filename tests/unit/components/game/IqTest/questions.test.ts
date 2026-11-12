@@ -6,6 +6,7 @@ import {
   analogyReadings,
   cellKey,
   generateAnalogy,
+  generateOddOneOut,
   hasRivalOddItem,
   generateQuestion,
   generateQuestionForTier,
@@ -277,30 +278,31 @@ describe('analogy questions have a single defensible option', () => {
       vi.spyOn(Math, 'random').mockImplementation(seededRandom(20240 + tier.length));
       for (let i = 0; i < 4000; i += 1) {
         const q = generateAnalogy(tier);
-        expect(q.type).toBe('analogy');
-        expect(q.tier).toBe(tier);
-        expect(validateQuestion(q)).toBe(true);
+        // Plain checks that throw: thousands of `expect` calls per test are slow.
+        const must = (ok: boolean, what: string) => {
+          if (!ok) throw new Error(`${what}: ${q.display} [${q.fingerprint}] options ${q.options.join(', ')}`);
+        };
+        must(q.type === 'analogy' && q.tier === tier, 'type / tier');
+        must(validateQuestion(q), 'validateQuestion');
         const [, op, fa, fb, fc] = q.fingerprint.split(':');
-        expect(opsByTier[tier]).toContain(op);
+        must(opsByTier[tier].includes(op), 'op allowed at this tier');
         const [a, b, c] = parseAnalogy(q.display);
-        expect([Number(fa), Number(fb), Number(fc)]).toEqual([a, b, c]);
-        if (op === 'square') expect(b).toBe(a * a);
-        if (op === 'mul') expect(b % a).toBe(0);
-        if (op === 'sub') expect(b).toBeLessThan(a);
-        if (op === 'add') expect(b).toBeGreaterThan(a);
+        must(Number(fa) === a && Number(fb) === b && Number(fc) === c, 'fingerprint matches display');
+        if (op === 'square') must(b === a * a, 'first pair is a square');
+        if (op === 'mul') must(b % a === 0, 'first pair is a whole multiple');
+        if (op === 'sub') must(b < a, 'first pair decreases');
+        if (op === 'add') must(b > a, 'first pair increases');
 
         const answer = keyed[op](a, b, c);
-        expect(Number(q.options[q.answerIndex])).toBe(answer);
+        must(Number(q.options[q.answerIndex]) === answer, 'keyed answer follows the rule');
 
         const nums = q.options.map(Number);
-        expect(nums).toHaveLength(4);
-        expect(new Set(nums).size).toBe(4);
-        for (const n of nums) {
-          expect(Number.isInteger(n)).toBe(true);
-          expect(n).toBeGreaterThanOrEqual(1);
-          // At most three other readings can be skipped, so a distractor is never far.
-          expect(Math.abs(n - answer)).toBeLessThanOrEqual(4);
-        }
+        must(nums.length === 4 && new Set(nums).size === 4, 'four unique options');
+        // At most three other readings can be skipped, so a distractor is never far.
+        must(
+          nums.every((n) => Number.isInteger(n) && n >= 1 && Math.abs(n - answer) <= 4),
+          'options are positive whole numbers near the answer',
+        );
         const sorted = [...nums].sort((x, y) => x - y).join(',');
         if (sorted !== [answer - 1, answer, answer + 1, answer + 2].join(',')) moved += 1;
       }
@@ -360,11 +362,8 @@ describe('odd-one-out has no rival odd item', () => {
     let total = 0;
     for (const tier of TIERS) {
       vi.spyOn(Math, 'random').mockImplementation(seededRandom(4242 + tier.length));
-      let seen = 0;
-      for (let i = 0; i < 200000 && seen < 7000; i += 1) {
-        const q = generateQuestionForTier(tier);
-        if (q.type !== 'odd-one-out') continue;
-        seen += 1;
+      for (let i = 0; i < 7000; i += 1) {
+        const q = generateOddOneOut(tier);
         total += 1;
         const variant = q.fingerprint.split(':')[1];
         perVariant[variant] = (perVariant[variant] ?? 0) + 1;
@@ -379,7 +378,7 @@ describe('odd-one-out has no rival odd item', () => {
           }
           keyStandsOut = true;
         }
-        expect(keyStandsOut).toBe(true);
+        if (!keyStandsOut) throw new Error(`keyed item does not stand out: ${nums.join(', ')} keyed ${key}`);
       }
       vi.restoreAllMocks();
     }

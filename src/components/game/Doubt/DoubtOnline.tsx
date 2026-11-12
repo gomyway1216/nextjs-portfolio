@@ -12,6 +12,10 @@ import { rankToLabel } from './types';
 import type { Card } from './types';
 import type { DoubtLogEntry } from './multiplayerTypes';
 import { CardBack, PlayingCard, PlayingCardStyles } from './PlayingCard';
+import screenStyles from './DoubtScreen.module.css';
+import { usePageTop } from './usePageTop';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getDoubtLobbyStrings, getDoubtStrings } from './i18n';
 
 interface DoubtOnlineProps {
   onBackToMenu: () => void;
@@ -29,6 +33,11 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
 
   const room = multiplayer.room;
   const gameState = multiplayer.gameState;
+  const inMatch = multiplayer.context.lobbyState === 'playing' || multiplayer.context.lobbyState === 'finished';
+  usePageTop(inMatch ? 'match' : 'lobby');
+  const { language } = useGameLanguage();
+  const t = getDoubtStrings(language);
+  const lobbyT = getDoubtLobbyStrings(language);
 
   const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || 'You';
 
@@ -162,6 +171,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
       fontWeight: 700,
       fontFamily: 'monospace',
       letterSpacing: '0.12em',
+      whiteSpace: 'nowrap',
     }}>
       ROOM {multiplayer.context.roomId}
     </div>
@@ -241,25 +251,10 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
   );
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
+    <div className={screenStyles.screen}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} additionalContent={roomBadge} />
 
-      <div style={{
-        flex: 1,
-        paddingTop: '4rem',
-        paddingBottom: '1.25rem',
-        display: 'flex',
-        justifyContent: 'center',
-        overflow: 'auto',
-      }}>
+      <div className={screenStyles.area}>
         <div style={{ width: 'min(1100px, 100%)', padding: '1rem' }}>
           {/* Lobby */}
           {(multiplayer.context.lobbyState === 'idle' ||
@@ -286,7 +281,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Back
+                  {lobbyT.back}
                 </button>
               </div>
               <DoubtMultiplayerLobby multiplayer={multiplayer} onGameStart={handleStartGame} />
@@ -647,28 +642,22 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
       <InfoModal
         isOpen={showInfo}
         onClose={() => setShowInfo(false)}
-        title="How to Play Doubt (ダウト)"
+        title={t.howToTitle}
       >
         <div style={{ color: '#e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Goal</div>
-            <div style={{ color: '#cbd5e1' }}>Get rid of all your cards.</div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.goalTitle}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.goalBody}</div>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Play</div>
-            <div style={{ color: '#cbd5e1' }}>
-              On your turn, place 1–4 cards face-down and declare them as the required rank (A→K loop).
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.playTitle}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.playBody}</div>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Challenge</div>
-            <div style={{ color: '#cbd5e1' }}>
-              The next player may Accept or call Doubt. If the claim was true, the doubter takes the pile. If it was a lie, the claimant takes the pile.
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24' }}>{t.challengeTitle}</div>
+            <div style={{ color: '#cbd5e1' }}>{t.challengeBody}</div>
           </div>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            Note: Host is authoritative. Keep the host tab open during play.
-          </div>
+          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{lobbyT.hostNote}</div>
         </div>
       </InfoModal>
 

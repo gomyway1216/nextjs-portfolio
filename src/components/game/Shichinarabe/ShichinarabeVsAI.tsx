@@ -17,6 +17,7 @@ import { cardToShortLabel, rankToLabel, SUITS, SUIT_SYMBOL } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { getShichinarabeStrings, isDefaultYouName, DIFFICULTY_ORDER } from './i18n';
 import styles from './ShichinarabeVsAI.module.css';
+import { usePageTop } from './usePageTop';
 import type { Card, CardSuit } from './types';
 import type { ShichinarabeAction, ShichinarabeLogEntry, ShichinarabeNetworkState } from './multiplayerTypes';
 
@@ -56,6 +57,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
   const [humanId] = useState(() => createLocalId('human'));
   const [players, setPlayers] = useState<Record<string, LocalPlayerMeta>>({});
   const [gameState, setGameState] = useState<ShichinarabeNetworkState | null>(null);
+  usePageTop(gameState ? 'table' : 'setup');
   // The difficulty the current game is being played at (locked in at start).
   const [activeDifficulty, setActiveDifficulty] = useState<ShichinarabeAIDifficulty>('hard');
   const difficultyRef = useRef<ShichinarabeAIDifficulty>('hard');
@@ -325,6 +327,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
       fontWeight: 700,
       fontFamily: 'monospace',
       letterSpacing: '0.06em',
+      whiteSpace: 'nowrap',
     }}>
       {t.difficultyNames[activeDifficulty]} · {gameState.playerOrder.length}P
     </div>
@@ -464,7 +467,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
           {gameState && (
             <>
               {/* Status bar */}
-              <div className={styles.statusBar}>
+              <div className={styles.statusBar} data-testid="shichinarabe-status">
                 <div className={styles.turnPill} data-mine={isMyTurn ? 'true' : 'false'}>
                   {!gameState.finished && <span className={styles.turnDot} aria-hidden />}
                   <span aria-live="polite">
@@ -551,7 +554,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                   </span>
                 </div>
 
-                <div className={styles.tableauScroll}>
+                <div className={styles.tableauScroll} data-testid="shichinarabe-board">
                   {SUITS.map((suit) => {
                     const bounds = table?.[suit];
                     const low = bounds?.low ?? 7;
@@ -570,13 +573,30 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                           if (played) {
                             const tableCard: Card = { id: `table_${suit}_${rank}`, suit, rank };
                             return (
-                              <div key={slotKey} className={rank === 7 ? styles.slotSeven : undefined}>
-                                <PlayingCard
-                                  card={tableCard}
-                                  size="small"
-                                  disabled
-                                  variant={isLast ? 'table' : 'static'}
-                                />
+                              <div
+                                key={slotKey}
+                                data-testid={`shichinarabe-table-${suit}-${rank}`}
+                                className={rank === 7 ? `${styles.slotCard} ${styles.slotSeven}` : styles.slotCard}
+                              >
+                                {/* A full card where there is room for thirteen of them; on a phone, its rank and suit. */}
+                                <div className={styles.slotCardFull}>
+                                  <PlayingCard
+                                    card={tableCard}
+                                    size="small"
+                                    disabled
+                                    variant={isLast ? 'table' : 'static'}
+                                  />
+                                </div>
+                                <div
+                                  className={styles.slotCardMini}
+                                  data-red={RED_SUITS[suit]}
+                                  data-last={isLast ? 'true' : 'false'}
+                                  role="img"
+                                  aria-label={`${rankToLabel(rank)}${SUIT_SYMBOL[suit]}`}
+                                >
+                                  <span>{rankToLabel(rank)}</span>
+                                  <span aria-hidden>{SUIT_SYMBOL[suit]}</span>
+                                </div>
                               </div>
                             );
                           }
@@ -678,7 +698,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                       : t.selectCard}
                   </span>
                 </div>
-                <div className={styles.hand}>
+                <div className={styles.hand} data-testid="shichinarabe-hand">
                   {myHand.length === 0
                     ? <span className={styles.hint}>—</span>
                     : myHand.map(renderCard)}

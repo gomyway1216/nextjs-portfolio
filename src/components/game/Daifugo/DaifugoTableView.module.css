@@ -18,10 +18,19 @@
 }
 
 .sideSeat {
-  width: 6rem;
+  width: 8rem;
   flex-shrink: 0;
   display: flex;
   justify-content: center;
+}
+
+/*
+ * A side seat's fan of card backs is closed up to fit the seat. At the top row's spacing it was half as wide again
+ * as the seat, and with a fourth and fifth opponent it hung over the table on one side and out of the panel on the
+ * other.
+ */
+.sideSeat .fanCard + .fanCard {
+  margin-left: -30px;
 }
 
 .table {
@@ -65,6 +74,10 @@
 
   .sideSeat {
     width: auto;
+  }
+
+  .sideSeat .fanCard + .fanCard {
+    margin-left: -38px;
   }
 
   .sideSeatEmpty {

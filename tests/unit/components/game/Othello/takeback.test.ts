@@ -8,7 +8,16 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Board } from '@/components/game/Othello/Board';
 import { initMobilityTables } from '@/components/game/Othello/MobilityTable';
-import { lastPlacement, replayHistory, takebackLength } from '@/components/game/Othello/takeback';
+import {
+  clearCounted,
+  countResult,
+  emptyTally,
+  lastPlacement,
+  replayHistory,
+  resultKey,
+  takebackLength,
+  withdrawCounted,
+} from '@/components/game/Othello/takeback';
 import { BLACK, Color, MAX_TURNS, Point, WHITE } from '@/components/game/Othello/types';
 
 beforeAll(() => {
@@ -156,5 +165,79 @@ describe('lastPlacement', () => {
         { color: BLACK, move: null },
       ])
     ).toEqual({ x: 3, y: 3 });
+  });
+});
+
+describe('taking back a finished game', () => {
+  it('returns to the position before the last placement of the player, with the game live again', () => {
+    let checked = 0;
+    for (let seed = 200; seed < 230; seed++) {
+      const { history, before, final } = playout(seed);
+      if (!final.isGameOver()) continue;
+      for (const player of [BLACK, WHITE] as Color[]) {
+        const keep = takebackLength(history, player);
+        if (keep === null) continue;
+        checked++;
+        const board = replayHistory(history.slice(0, keep))!;
+        expect(snapshot(board)).toBe(before[keep]);
+        expect(board.isGameOver()).toBe(false);
+        expect(board.getCurrentColor()).toBe(player);
+        expect(board.getMovablePos().length).toBeGreaterThan(0);
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
+  });
+});
+
+describe('session tally', () => {
+  it('names the result from the side of the player', () => {
+    expect(resultKey(BLACK, BLACK)).toBe('wins');
+    expect(resultKey(WHITE, BLACK)).toBe('losses');
+    expect(resultKey(BLACK, WHITE)).toBe('losses');
+    expect(resultKey(null, WHITE)).toBe('draws');
+  });
+
+  it('counts a result and remembers which counter holds it', () => {
+    expect(countResult(emptyTally(), 'losses')).toEqual({ wins: 0, losses: 1, draws: 0, counted: 'losses' });
+  });
+
+  it('withdraws a counted result exactly once', () => {
+    const earlier = { wins: 2, losses: 1, draws: 1, counted: null };
+    const finished = countResult(earlier, 'wins');
+    expect(finished.wins).toBe(3);
+    const resumed = withdrawCounted(finished);
+    expect(resumed).toEqual(earlier);
+    // A second take-back (now of an unfinished game) leaves earlier games alone.
+    expect(withdrawCounted(resumed)).toBe(resumed);
+    expect(withdrawCounted(withdrawCounted(resumed))).toEqual(earlier);
+  });
+
+  it('never goes negative', () => {
+    let tally = countResult(emptyTally(), 'draws');
+    for (let i = 0; i < 3; i++) tally = withdrawCounted(tally);
+    expect(tally).toEqual(emptyTally());
+    expect(withdrawCounted({ wins: 0, losses: 0, draws: 0, counted: 'wins' })).toEqual(emptyTally());
+  });
+
+  it('counts a replayed ending once, not twice', () => {
+    let tally = countResult(emptyTally(), 'losses');
+    tally = withdrawCounted(tally);
+    tally = countResult(tally, 'wins');
+    expect(tally).toEqual({ wins: 1, losses: 0, draws: 0, counted: 'wins' });
+  });
+
+  it('keeps a finished result when a new game starts', () => {
+    const next = clearCounted(countResult(emptyTally(), 'wins'));
+    expect(next).toEqual({ wins: 1, losses: 0, draws: 0, counted: null });
+    expect(withdrawCounted(next)).toBe(next);
+    expect(clearCounted(next)).toBe(next);
+  });
+
+  it('does not mutate its input', () => {
+    const tally = countResult(emptyTally(), 'wins');
+    withdrawCounted(tally);
+    clearCounted(tally);
+    countResult(tally, 'draws');
+    expect(tally).toEqual({ wins: 1, losses: 0, draws: 0, counted: 'wins' });
   });
 });

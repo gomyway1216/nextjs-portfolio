@@ -10,6 +10,7 @@ import {
   BULLET_HEIGHT,
   BULLET_WIDTH,
   CANVAS_WIDTH,
+  ENEMY_CONFIGS,
   EnemyType,
   GameState,
   InputState,
@@ -21,14 +22,20 @@ import {
   BURST_MS,
   Effect,
   MAX_EFFECTS,
+  PLAYER_BURST_MS,
   POPUP_MS,
+  WAVE_CLEAR_MAX,
   captureFormation,
+  clearedByHostWaveChange,
   createFormationSnapshot,
   destroyedSince,
   effectProgress,
+  hasVisibleEffects,
   spawnBurst,
+  spawnKillFeedback,
   spawnPopup,
   stepEffects,
+  stepEffectsTail,
 } from '@/components/game/SpaceInvaders/effects';
 import {
   accuracyPercent,
@@ -37,7 +44,12 @@ import {
   recordFrame,
   totalKills,
 } from '@/components/game/SpaceInvaders/runStats';
-import { applyNetworkGameState, toNetworkGameState } from '@/components/game/SpaceInvaders/multiplayerTypes';
+import {
+  applyJoinerReport,
+  applyNetworkGameState,
+  createPendingLocalEffects,
+  toNetworkGameState,
+} from '@/components/game/SpaceInvaders/multiplayerTypes';
 
 const NO_INPUT: InputState = { left: false, right: false, shoot: false };
 const FRAME_60 = 16.67;
@@ -280,7 +292,7 @@ describe('destroyedSince', () => {
     captureFormation(state, snapshot);
     updateGame(state, NO_INPUT, FRAME_60, 1000);
 
-    expect(destroyedSince(snapshot, state)).toEqual([{ ...centre, type: EnemyType.CRAB }]);
+    expect(destroyedSince(snapshot, state)).toEqual([{ index: 12, ...centre, type: EnemyType.CRAB }]);
 
     // Already gone at the start of the next frame, so not reported twice.
     captureFormation(state, snapshot);
@@ -326,5 +338,257 @@ describe('destroyedSince', () => {
     const destroyed = destroyedSince(snapshot, joiner);
     expect(destroyed).toHaveLength(1);
     expect(destroyed[0].type).toBe(host.formation.enemies[20].type);
+  });
+});
+
+describe('effects playing out after game over', () => {
+  /** Run the post-game frames; returns how many it took. */
+  function playOut(effects: Effect[], frameMs: number, reducedMotion = false): number {
+    let frames = 0;
+    while (stepEffectsTail(effects, frameMs, reducedMotion)) {
+      frames++;
+      if (frames > 10_000) throw new Error('effects never expired');
+    }
+    return frames + 1;
+  }
+
+  it('animates the final-death burst to its end, then asks for no more frames', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    const state = createGameState(1, 0, 1, 'normal');
+    state.bullets.push({
+      x: state.player.x + state.player.width / 2,
+      y: state.player.y,
+      width: BULLET_WIDTH,
+      height: BULLET_HEIGHT + 5,
+      isEnemy: true,
+    });
+    const events = updateGame(state, NO_INPUT, FRAME_60, 1000);
+    expect(events.playerHit).toBe(true);
+    expect(state.gameOver).toBe(true);
+
+    const effects: Effect[] = [];
+    spawnBurst(effects, state.player.x, state.player.y, '#22c55e', 44, PLAYER_BURST_MS);
+    expect(hasVisibleEffects(effects, false)).toBe(true);
+
+    expect(stepEffectsTail(effects, FRAME_60, false)).toBe(true);
+    expect(effectProgress(effects[0])).toBeGreaterThan(0);
+    const frames = 1 + playOut(effects, FRAME_60);
+    expect(effects).toHaveLength(0);
+    expect(frames).toBe(Math.ceil(PLAYER_BURST_MS / FRAME_60));
+    // Nothing left: a further frame (e.g. a redraw) does not restart the loop.
+    expect(stepEffectsTail(effects, FRAME_60, false)).toBe(false);
+  });
+
+  it('takes the same elapsed time at 120 Hz and 30 Hz', () => {
+    const make = (): Effect[] => {
+      const effects: Effect[] = [];
+      spawnBurst(effects, 0, 0, '#fff', 44, PLAYER_BURST_MS);
+      spawnPopup(effects, 100, 100, '+30', '#fff');
+      return effects;
+    };
+    const at120 = playOut(make(), FRAME_60 / 2) * (FRAME_60 / 2);
+    const at30 = playOut(make(), FRAME_60 * 2) * (FRAME_60 * 2);
+    expect(at120).toBeGreaterThanOrEqual(POPUP_MS);
+    expect(at120).toBeLessThan(POPUP_MS + FRAME_60);
+    expect(at30).toBeGreaterThanOrEqual(POPUP_MS);
+    expect(at30).toBeLessThan(POPUP_MS + FRAME_60 * 2);
+  });
+
+  it('ends after a bounded number of frames even if the clock does not advance', () => {
+    const effects: Effect[] = [];
+    spawnBurst(effects, 0, 0, '#fff', 44, PLAYER_BURST_MS);
+    spawnPopup(effects, 100, 100, '+30', '#fff');
+    expect(playOut(effects, 0)).toBeLessThanOrEqual(POPUP_MS);
+    expect(effects).toHaveLength(0);
+
+    spawnPopup(effects, 100, 100, '+30', '#fff');
+    expect(playOut(effects, -5)).toBeLessThanOrEqual(POPUP_MS);
+    expect(effects).toHaveLength(0);
+  });
+
+  it('with reduced motion waits only for pop-ups, since bursts are not drawn', () => {
+    const effects: Effect[] = [];
+    spawnBurst(effects, 0, 0, '#fff', 44, PLAYER_BURST_MS);
+    expect(hasVisibleEffects(effects, true)).toBe(false);
+    expect(stepEffectsTail(effects, FRAME_60, true)).toBe(false);
+
+    spawnPopup(effects, 100, 100, '+30', '#fff');
+    expect(hasVisibleEffects(effects, true)).toBe(true);
+    const frames = playOut(effects, FRAME_60, true);
+    expect(frames).toBe(Math.ceil(POPUP_MS / FRAME_60));
+    expect(hasVisibleEffects(effects, true)).toBe(false);
+  });
+});
+
+describe('score pop-ups only for kills credited to the local player', () => {
+  const popups = (effects: Effect[]) => effects.filter(e => e.kind === 'popup');
+  const bursts = (effects: Effect[]) => effects.filter(e => e.kind === 'burst');
+
+  it("host: own kill gets burst and pop-up, the joiner's reported kill only a burst", () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    const state = createGameState(1, 0, 3, 'normal');
+    const snapshot = createFormationSnapshot();
+    const own = state.formation.enemies[0];
+    const ownCentre = own.x + own.width / 2;
+    aimBulletAt(state, 0);
+
+    captureFormation(state, snapshot);
+    const events = updateGame(state, NO_INPUT, FRAME_60, 1000, { teammateAlive: true });
+    expect(events.enemyHitType).toBe(EnemyType.SQUID);
+    const ownKills = destroyedSince(snapshot, state).map(hit => hit.index);
+    expect(ownKills).toEqual([0]);
+    const scoreAfterOwnKill = state.score;
+    applyJoinerReport(state, { level: 1, kills: { e50: true } }, 0);
+    expect(state.score).toBe(scoreAfterOwnKill);
+
+    const effects: Effect[] = [];
+    const destroyed = destroyedSince(snapshot, state);
+    expect(destroyed.map(hit => hit.index)).toEqual([0, 50]);
+    spawnKillFeedback(effects, destroyed, ownKills);
+
+    expect(bursts(effects)).toHaveLength(2);
+    expect(popups(effects)).toHaveLength(1);
+    expect(popups(effects)[0].text).toBe(`+${ENEMY_CONFIGS[EnemyType.SQUID].points}`);
+    expect(popups(effects)[0].x).toBeCloseTo(ownCentre);
+  });
+
+  it("joiner: the host's kill from a snapshot only bursts; the joiner's own kill pops up", () => {
+    const host = createGameState(1, 0, 3, 'normal');
+    const joiner = createGameState(1, 0, 3, 'normal');
+    const pending = createPendingLocalEffects(1);
+    applyNetworkGameState(joiner, toNetworkGameState(host), pending);
+
+    const snapshot = createFormationSnapshot();
+    captureFormation(joiner, snapshot);
+    host.formation.enemies[20].active = false;
+    applyNetworkGameState(joiner, toNetworkGameState(host), pending);
+    aimBulletAt(joiner, 54);
+    const frame = updateJoinerGame(joiner, NO_INPUT, FRAME_60, 1000);
+    expect(frame.events.kills).toEqual([54]);
+
+    const effects: Effect[] = [];
+    spawnKillFeedback(effects, destroyedSince(snapshot, joiner), frame.events.kills);
+    expect(bursts(effects)).toHaveLength(2);
+    expect(popups(effects).map(e => e.text)).toEqual([`+${ENEMY_CONFIGS[EnemyType.OCTOPUS].points}`]);
+    expect(joiner.score).toBe(ENEMY_CONFIGS[EnemyType.OCTOPUS].points);
+  });
+
+  it("shows no pop-up at all when every kill was the teammate's", () => {
+    const effects: Effect[] = [];
+    spawnKillFeedback(
+      effects,
+      [
+        { index: 3, x: 50, y: 60, type: EnemyType.SQUID },
+        { index: 9, x: 90, y: 60, type: EnemyType.CRAB },
+      ],
+      []
+    );
+    expect(effects.map(e => e.kind)).toEqual(['burst', 'burst']);
+  });
+});
+
+describe('clearedByHostWaveChange (co-op joiner)', () => {
+  /** A host and a synced joiner with only the given invaders left. */
+  function coopWithRemaining(remaining: number[]) {
+    const host = createGameState(1, 0, 3, 'normal');
+    host.formation.enemies.forEach((e, i) => { e.active = remaining.includes(i); });
+    const joiner = createGameState(1, 0, 3, 'normal');
+    const pending = createPendingLocalEffects(1);
+    applyNetworkGameState(joiner, toNetworkGameState(host), pending);
+    return { host, joiner, pending };
+  }
+
+  it("finds the last invader when the host's shot clears the wave", () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    const { host, joiner, pending } = coopWithRemaining([7]);
+    const last = joiner.formation.enemies[7];
+    const centre = { x: last.x + last.width / 2, y: last.y + last.height / 2 };
+
+    // The host kills it and starts the next wave within one frame, so the
+    // only snapshot the joiner ever gets is the new wave.
+    aimBulletAt(host, 7);
+    updateGame(host, NO_INPUT, FRAME_60, 1000, { teammateAlive: true });
+    expect(host.level).toBe(2);
+
+    const snapshot = createFormationSnapshot();
+    captureFormation(joiner, snapshot);
+    applyNetworkGameState(joiner, toNetworkGameState(host), pending);
+    const frame = updateJoinerGame(joiner, NO_INPUT, FRAME_60, 1000);
+    expect(joiner.level).toBe(2);
+    expect(frame.events.kills).toEqual([]);
+
+    expect(destroyedSince(snapshot, joiner)).toEqual([]);
+    expect(clearedByHostWaveChange(snapshot, joiner)).toEqual([{ index: 7, ...centre, type: last.type }]);
+
+    // The next frame starts inside the new wave: nothing more to report.
+    captureFormation(joiner, snapshot);
+    updateJoinerGame(joiner, NO_INPUT, FRAME_60, 1017);
+    expect(clearedByHostWaveChange(snapshot, joiner)).toEqual([]);
+  });
+
+  it('reports nothing while the wave is unchanged', () => {
+    const { host, joiner, pending } = coopWithRemaining([7, 8]);
+    const snapshot = createFormationSnapshot();
+    captureFormation(joiner, snapshot);
+    host.formation.enemies[8].active = false;
+    applyNetworkGameState(joiner, toNetworkGameState(host), pending);
+    expect(clearedByHostWaveChange(snapshot, joiner)).toEqual([]);
+    expect(destroyedSince(snapshot, joiner)).toHaveLength(1);
+  });
+
+  it('does not repeat an invader the joiner itself had already destroyed', () => {
+    const { host, joiner, pending } = coopWithRemaining([7, 8]);
+    aimBulletAt(joiner, 8);
+    const own = updateJoinerGame(joiner, NO_INPUT, FRAME_60, 1000);
+    expect(own.events.kills).toEqual([8]);
+    pending.killedEnemies.add(8);
+
+    host.formation.enemies[8].active = false; // the joiner's report, applied
+    host.formation.enemies[7].active = false; // the host's own shot
+    nextLevel(host);
+
+    const snapshot = createFormationSnapshot();
+    captureFormation(joiner, snapshot);
+    applyNetworkGameState(joiner, toNetworkGameState(host), pending);
+    expect(clearedByHostWaveChange(snapshot, joiner).map(hit => hit.index)).toEqual([7]);
+  });
+
+  it('shows nothing when the joiner was too far behind to know what was shot', () => {
+    const tooMany = Array.from({ length: WAVE_CLEAR_MAX + 1 }, (_, i) => i);
+    const behind = coopWithRemaining(tooMany);
+    let snapshot = createFormationSnapshot();
+    captureFormation(behind.joiner, snapshot);
+    nextLevel(behind.host);
+    applyNetworkGameState(behind.joiner, toNetworkGameState(behind.host), behind.pending);
+    expect(clearedByHostWaveChange(snapshot, behind.joiner)).toEqual([]);
+
+    const atLimit = coopWithRemaining(tooMany.slice(1));
+    snapshot = createFormationSnapshot();
+    captureFormation(atLimit.joiner, snapshot);
+    nextLevel(atLimit.host);
+    applyNetworkGameState(atLimit.joiner, toNetworkGameState(atLimit.host), atLimit.pending);
+    expect(clearedByHostWaveChange(snapshot, atLimit.joiner)).toHaveLength(WAVE_CLEAR_MAX);
+
+    // Two waves on in one snapshot: the old formation is not the one cleared.
+    const skipped = coopWithRemaining([7]);
+    snapshot = createFormationSnapshot();
+    captureFormation(skipped.joiner, snapshot);
+    nextLevel(skipped.host);
+    nextLevel(skipped.host);
+    applyNetworkGameState(skipped.joiner, toNetworkGameState(skipped.host), skipped.pending);
+    expect(clearedByHostWaveChange(snapshot, skipped.joiner)).toEqual([]);
+  });
+
+  it('adds nothing on the host, whose own wave-clearing shot is already reported', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    const state = createGameState(1, 0, 3, 'normal');
+    state.formation.enemies.forEach((e, i) => { e.active = i === 3; });
+    const snapshot = createFormationSnapshot();
+    aimBulletAt(state, 3);
+    captureFormation(state, snapshot);
+    updateGame(state, NO_INPUT, FRAME_60, 1000);
+    expect(state.level).toBe(2);
+    expect(destroyedSince(snapshot, state)).toHaveLength(1);
+    expect(clearedByHostWaveChange(snapshot, state)).toEqual([]);
   });
 });

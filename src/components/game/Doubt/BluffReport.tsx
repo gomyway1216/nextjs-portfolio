@@ -9,7 +9,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { summarizeClaims, type ClaimRecord } from './claimHistory';
-import type { DoubtStrings } from './i18n';
+import { isDefaultYouName, type DoubtStrings } from './i18n';
 import { rankToLabel, SUIT_SYMBOL } from './types';
 import type { Card, CardRank } from './types';
 
@@ -130,7 +130,7 @@ export function BluffReport({ history, playerOrder, humanId, nameOf, strings: t,
               return (
                 <tr key={id} style={{ borderTop: `1px solid ${BORDER}` }}>
                   <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: 800, color: id === humanId ? '#fbbf24' : '#e5e7eb' }}>
-                    {nameOf(id)}{id === humanId ? t.youSuffix : ''}
+                    {nameOf(id)}{id === humanId && !isDefaultYouName(nameOf(id)) ? t.youSuffix : ''}
                   </th>
                   <td style={cell}>{s.claims}</td>
                   <td style={cell}>{s.bluffs}</td>

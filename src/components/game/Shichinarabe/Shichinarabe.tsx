@@ -8,6 +8,8 @@ import Link from 'next/link';
 import React, { useState } from 'react';
 import { ShichinarabeOnline } from './ShichinarabeOnline';
 import { ShichinarabeVsAI } from './ShichinarabeVsAI';
+import { getShichinarabeStrings } from './i18n';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type ShichinarabeMode = 'menu' | 'ai' | 'online';
@@ -15,6 +17,8 @@ type ShichinarabeMode = 'menu' | 'ai' | 'online';
 export function Shichinarabe() {
   useFeatureLifecycle('game.shichinarabe');
   const [mode, setMode] = useState<ShichinarabeMode>('menu');
+  const { language } = useGameLanguage();
+  const t = getShichinarabeStrings(language);
 
   if (mode === 'ai') {
     return <ShichinarabeVsAI onBackToMenu={() => setMode('menu')} />;
@@ -45,9 +49,9 @@ export function Shichinarabe() {
             fontWeight: 700,
           }}
         >
-          ← Back to Games
+          {t.menuBackToGames}
         </Link>
-        <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>Shichinarabe (七並べ)</div>
+        <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>{t.menuTitle}</div>
       </div>
 
       <div style={{
@@ -67,10 +71,10 @@ export function Shichinarabe() {
         }}>
           <div style={{ fontSize: '4rem', marginBottom: '0.75rem' }}>🃏</div>
           <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 900, color: '#fbbf24' }}>
-            Shichinarabe (七並べ)
+            {t.menuTitle}
           </h1>
           <p style={{ marginTop: '0.75rem', color: '#9ca3af', fontSize: '1rem' }}>
-            Choose a mode to start playing.
+            {t.menuChooseMode}
           </p>
 
           <div style={{
@@ -93,7 +97,7 @@ export function Shichinarabe() {
                 minWidth: '16rem',
               }}
             >
-              Play vs AI (3–6 players)
+              {t.menuVsAi}
             </button>
             <button
               onClick={() => setMode('online')}
@@ -108,13 +112,12 @@ export function Shichinarabe() {
                 minWidth: '16rem',
               }}
             >
-              Online Room (3–6 players)
+              {t.menuOnline}
             </button>
           </div>
 
           <div style={{ marginTop: '1.25rem', color: '#6b7280', fontSize: '0.875rem', lineHeight: 1.6 }}>
-            AI mode lets you choose how many AI opponents to include (minimum 2, maximum 5).
-            Online mode uses room codes to play with friends (3–6 players).
+            {t.menuDescription}
           </div>
         </div>
       </div>

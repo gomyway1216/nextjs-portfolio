@@ -15,7 +15,7 @@ import {
   getNextPlayerId,
   sortHand,
 } from './gameLogic';
-import { daifugoErrorMessage, formatDaifugoLogCards } from './errorMessages';
+import { daifugoErrorMessage, formatDaifugoLogCards, formatDaifugoLogDetail } from './errorMessages';
 import { decideDaifugoAction } from './DaifugoAI';
 import type { DaifugoDifficulty } from './DaifugoAI';
 import { getDaifugoHint } from './hint';
@@ -35,6 +35,12 @@ interface DaifugoVsAIProps {
 }
 
 type LocalPlayerMeta = { name: string; isAI: boolean };
+
+/**
+ * How far each card in the hand slides under its left neighbour. Every card carries the negative margin and the
+ * row is padded by the same amount, so the first card of each wrapped line starts at the row's left edge.
+ */
+const HAND_OVERLAP = '1.1rem';
 
 function createActionId(): string {
   return `act_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -514,7 +520,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     const log: DaifugoLogEntry[] = gameState?.log ?? [];
     return log.slice(-10).map((entry) => {
       const name = playerNameOf(entry.playerId);
-      if (entry.detail) return `${name}: ${entry.detail}`;
+      if (entry.detail) return `${name}: ${formatDaifugoLogDetail(translate, entry.detail)}`;
       if (entry.type === 'play' && entry.cardCount && entry.rankKey) {
         const cards = formatDaifugoLogCards(entry);
         const key = entry.playKind === 'straight' ? 'logStraight' : 'logPlayed';
@@ -570,8 +576,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       <div
         key={card.id}
         style={{
-          marginLeft: idx > 0 ? '-1.1rem' : 0,
-          transition: 'margin 0.15s ease',
+          marginLeft: `-${HAND_OVERLAP}`,
           flex: '0 0 auto',
         }}
       >
@@ -602,7 +607,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     }}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} additionalContent={modeBadge} />
 
-      <div style={{
+      <div data-testid="daifugo-game-area" style={{
         flex: 1,
         paddingTop: '4rem',
         paddingBottom: '1.25rem',
@@ -751,7 +756,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
           {gameState && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr',
+              gridTemplateColumns: 'minmax(0, 1fr)',
               gap: '1rem',
             }}>
               <div style={{
@@ -856,7 +861,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   translations={d}
                 />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem', marginTop: '1rem' }}>
                   {/* Controls */}
 	                  <div style={{
 	                    display: 'flex',
@@ -915,6 +920,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                       </button>
 
                       <button
+                        data-testid="daifugo-hint"
                         onClick={handleHint}
                         disabled={!isMyTurn}
                         style={{
@@ -960,6 +966,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                         </button>
                       )}
                       <button
+                        data-testid="daifugo-new-game"
                         onClick={resetToSetup}
                         style={{
                           padding: '0.6rem 1.25rem',
@@ -1068,8 +1075,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                        marginTop: '0.5rem',
 	                        display: 'flex',
 	                        gap: '0.5rem',
-	                        flexWrap: 'nowrap',
-	                        overflowX: 'auto',
+	                        flexWrap: 'wrap',
 	                        paddingBottom: '0.25rem',
 	                      }}>
 	                        {sevenGiveCandidates.map((card, idx) => (
@@ -1106,8 +1112,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                        marginTop: '0.5rem',
 	                        display: 'flex',
 	                        gap: '0.5rem',
-	                        flexWrap: 'nowrap',
-	                        overflowX: 'auto',
+	                        flexWrap: 'wrap',
 	                        paddingBottom: '0.25rem',
 	                      }}>
 	                        {tenDiscardCandidates.map((card, idx) => (
@@ -1128,15 +1133,16 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 
 	                  <div
 	                    role="group"
-	                    aria-label={d.yourHand}
+	                    aria-label={d.yourHand} data-testid="daifugo-hand"
 	                    style={{
 	                    marginTop: '0.75rem',
 	                    display: 'flex',
-                    flexWrap: 'nowrap',
-                    overflowX: 'auto',
+                    flexWrap: 'wrap',
+                    rowGap: '0.75rem',
                     alignItems: 'flex-end',
                     paddingTop: '0.75rem',
                     paddingBottom: '0.5rem',
+                    paddingLeft: HAND_OVERLAP,
                   }}>
                     {myHand.map(renderCard)}
                   </div>

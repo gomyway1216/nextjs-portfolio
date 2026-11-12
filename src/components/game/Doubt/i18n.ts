@@ -8,6 +8,14 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 
 export interface DoubtStrings {
+  // Mode select
+  menuBackToGames: string;
+  menuTitle: string;
+  menuChooseMode: string;
+  menuVsAi: string;
+  menuOnline: string;
+  menuDescription: string;
+
   title: string;
   subtitle: string;
   gameSetup: string;
@@ -127,6 +135,13 @@ export interface DoubtStrings {
 }
 
 const en: DoubtStrings = {
+  menuBackToGames: '← Back to Games',
+  menuTitle: 'Doubt (ダウト)',
+  menuChooseMode: 'Choose a mode to start playing.',
+  menuVsAi: 'Play vs AI (3–6 players)',
+  menuOnline: 'Online Room (3–6 players)',
+  menuDescription: 'Place 1–4 cards face-down and claim the required rank. If you suspect a bluff, call Doubt!',
+
   title: 'Doubt',
   subtitle: 'Bluff, read your opponents, and empty your hand first.',
   gameSetup: 'Game setup',
@@ -237,6 +252,13 @@ const en: DoubtStrings = {
 };
 
 const ja: DoubtStrings = {
+  menuBackToGames: '← ゲーム一覧へ',
+  menuTitle: 'ダウト',
+  menuChooseMode: 'モードを選んでプレイ開始',
+  menuVsAi: 'AI対戦 (3〜6人)',
+  menuOnline: 'オンライン対戦 (3〜6人)',
+  menuDescription: 'カードを1〜4枚、裏向きに出して決められたランクを宣言します。ブラフだと思ったら「ダウト！」と宣言しましょう。',
+
   title: 'ダウト',
   subtitle: 'ブラフと読み合いで、いち早く手札を出し切ろう。',
   gameSetup: 'ゲーム設定',
@@ -345,6 +367,15 @@ const ja: DoubtStrings = {
   reportDoubtedBy: (doubter, taker, count) => `${doubter} がダウト — ${taker} が ${count} 枚引き取り`,
   reportUnchallenged: '判定する相手なし',
 };
+
+/**
+ * True when a player's name is just the default "You" / "あなた" (the name used when the field is left empty), so the
+ * "(You)" marker next to it would only repeat it.
+ */
+export function isDefaultYouName(name: string): boolean {
+  const trimmed = name.trim().toLowerCase();
+  return [en, ja].some((s) => s.yourNamePlaceholder.toLowerCase() === trimmed);
+}
 
 export function getDoubtStrings(language: GameLanguage): DoubtStrings {
   return language === 'ja' ? ja : en;

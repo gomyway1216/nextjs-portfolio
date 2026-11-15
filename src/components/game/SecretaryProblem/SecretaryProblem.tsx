@@ -56,21 +56,21 @@ export const SecretaryProblem = () => {
           </button>
         </div>
 
+        {/* Both panels stay mounted (the inactive one is hidden) so switching tabs
+            never drops the round in progress, its result or a finished simulation. */}
         <div
           role="tabpanel"
           id="sp-panel-play"
           aria-labelledby="sp-tab-play"
           hidden={tab !== 'play'}
         >
-          {tab === 'play' && (
-            <PlayTab
-              t={t}
-              stats={stats}
-              setStats={setStats}
-              ruleWins={ruleWins}
-              setRuleWins={setRuleWins}
-            />
-          )}
+          <PlayTab
+            t={t}
+            stats={stats}
+            setStats={setStats}
+            ruleWins={ruleWins}
+            setRuleWins={setRuleWins}
+          />
         </div>
         <div
           role="tabpanel"
@@ -78,7 +78,7 @@ export const SecretaryProblem = () => {
           aria-labelledby="sp-tab-sim"
           hidden={tab !== 'sim'}
         >
-          {tab === 'sim' && <SimTab t={t} />}
+          <SimTab t={t} />
         </div>
       </div>
 

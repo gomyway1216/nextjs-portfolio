@@ -182,3 +182,46 @@ test('secretary problem: focus follows the buttons through a round', async ({ pa
   await page.keyboard.press('Enter');
   await expect(play.getByRole('button', { name: '見送り' })).toBeFocused();
 });
+
+test('secretary problem: the round in progress and its result survive a visit to the Simulation tab', async ({ page }) => {
+  await open(page, '/games/secretary-problem');
+  const play = page.locator('#sp-panel-play');
+  const pass = play.getByRole('button', { name: 'Pass', exact: true });
+  await expect(async () => {
+    await play.getByRole('button', { name: /Start interviewing/ }).click({ timeout: 1_000 });
+    await expect(pass).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(pass).toBeFocused();
+  const readout = play.locator('[aria-live="polite"]');
+  for (let i = 0; i < 3; i += 1) {
+    await pass.click();
+    await expect(readout).toContainText(`${i + 2} / 20`);
+  }
+
+  const cells = play.locator('span[title]');
+  const seen = await readout.textContent();
+  const strip = await cells.allTextContents();
+  expect(strip.slice(0, 4).every((cell) => /^\d+$/.test(cell))).toBe(true);
+  expect(strip[4]).toBe('?');
+
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await expect(play).toBeHidden();
+  // Nothing in the hidden panel holds focus while the Simulation tab is shown.
+  expect(await play.evaluate((panel) => panel.contains(document.activeElement))).toBe(false);
+  await page.getByRole('tab', { name: 'Play' }).click();
+
+  await expect(play).toBeVisible();
+  await expect(readout).toHaveText(seen!);
+  expect(await cells.allTextContents()).toEqual(strip);
+
+  // A finished round keeps its result too.
+  await play.getByRole('button', { name: /^Hire/ }).click();
+  const banner = play.getByText(/You hired score/);
+  await expect(banner).toBeVisible();
+  const result = await banner.textContent();
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await expect(play).toBeHidden();
+  await page.getByRole('tab', { name: 'Play' }).click();
+  await expect(banner).toHaveText(result!);
+  await expect(play.getByRole('button', { name: /Next round/ })).toBeVisible();
+});

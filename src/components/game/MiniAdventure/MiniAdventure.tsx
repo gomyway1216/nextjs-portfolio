@@ -18,7 +18,9 @@ import { getEnemyChar, getEnemyColor } from './Enemies';
 import {
   createGameState, getDirectionFromKey, getPlayerAttack, getPlayerDefense, processAction,
 } from './GameEngine';
-import { getMiniAdventureStrings } from './i18n';
+import {
+  getMiniAdventureStrings, localizeItemDescription, localizeItemName, localizeLogText,
+} from './i18n';
 import { getItemChar, getItemColor } from './Items';
 import { describeSight } from './Sight';
 import { SightPanel } from './SightPanel';
@@ -356,7 +358,7 @@ const MiniAdventure: React.FC = () => {
               msg.type === 'important' ? styles.logImportant : styles.logInfo
             }`}
           >
-            {msg.text}
+            {localizeLogText(msg.text, language)}
           </div>
         ))}
       </div>
@@ -431,8 +433,8 @@ const MiniAdventure: React.FC = () => {
 
           <div className={styles.equipBox}>
             <span className={styles.equipLabel}>{t.equipped}</span>
-            <span style={{ color: 'var(--ma-atk)' }}>{t.weapon}: {player.weapon?.name || t.none}</span>
-            <span style={{ color: 'var(--ma-def)' }}>{t.armor}: {player.armor?.name || t.none}</span>
+            <span style={{ color: 'var(--ma-atk)' }}>{t.weapon}: {player.weapon ? localizeItemName(player.weapon, language) : t.none}</span>
+            <span style={{ color: 'var(--ma-def)' }}>{t.armor}: {player.armor ? localizeItemName(player.armor, language) : t.none}</span>
           </div>
 
           {player.inventory.length === 0 ? (
@@ -448,12 +450,12 @@ const MiniAdventure: React.FC = () => {
                   onClick={() => setSelectedItemIndex(i)}
                 >
                   <span className={styles.itemGlyph} style={{ color: getItemColor(item) }}>{getItemChar(item)}</span>
-                  <span className={styles.itemName}>{item.name}</span>
+                  <span className={styles.itemName}>{localizeItemName(item, language)}</span>
                   {item.type === ItemType.EGG && item.eggTurns !== undefined && (
                     <span className={styles.itemMeta}>{item.eggTurns}/60</span>
                   )}
                   {item.description && item.type !== ItemType.EGG && (
-                    <span className={styles.itemMeta}>{item.description}</span>
+                    <span className={styles.itemMeta}>{localizeItemDescription(item, language)}</span>
                   )}
                 </button>
               ))}

@@ -3,13 +3,41 @@ import { describe, expect, it } from 'vitest';
 import { getBanditStrings } from '@/components/game/Bandit/i18n';
 import {
   DEFAULT_PULL_LIMIT,
+  MAX_ARMS,
   MAX_PULL_LIMIT,
+  MIN_ARMS,
   MIN_PULL_LIMIT,
   clampPullLimit,
+  isLiveArmCount,
   isLivePullLimit,
   pullProgress,
+  settleArmCount,
   settlePullLimit,
 } from '@/components/game/Bandit/playHelpers';
+
+describe('Bandit arms K field', () => {
+  it('applies a typed count at once only when it is a whole number in range', () => {
+    for (let k = MIN_ARMS; k <= MAX_ARMS; k++) expect(isLiveArmCount(String(k))).toBe(true);
+    // Clearing the field, or a digit out of range, waits for blur / Enter.
+    expect(isLiveArmCount('')).toBe(false);
+    expect(isLiveArmCount('1')).toBe(false);
+    expect(isLiveArmCount('9')).toBe(false);
+    expect(isLiveArmCount('45')).toBe(false);
+    expect(isLiveArmCount('3.5')).toBe(false);
+    expect(isLiveArmCount('-3')).toBe(false);
+  });
+
+  it('settles on the typed count, clamped, or keeps the current one', () => {
+    expect(settleArmCount('4', 3)).toBe(4);
+    expect(settleArmCount('1', 3)).toBe(MIN_ARMS);
+    expect(settleArmCount('9', 3)).toBe(MAX_ARMS);
+    expect(settleArmCount('3.6', 2)).toBe(4);
+    expect(settleArmCount('', 4)).toBe(4);
+    expect(settleArmCount('  ', 4)).toBe(4);
+    expect(settleArmCount('0', 4)).toBe(4);
+    expect(settleArmCount('-2', 4)).toBe(4);
+  });
+});
 
 describe('Bandit pull limit', () => {
   it('keeps a typed limit inside the field range', () => {

@@ -39,3 +39,27 @@ export const settlePullLimit = (text: string, pullsMade: number, current: number
   const value = Number(text);
   return text.trim() === '' || !Number.isFinite(value) || value <= 0 ? current : clampPullLimit(value, pullsMade);
 };
+
+/** Limits of the Play tab's "arms K" field. */
+export const MIN_ARMS = 2;
+export const MAX_ARMS = 5;
+export const DEFAULT_ARMS = 3;
+
+/**
+ * Whether a typed arm count can take effect while the player is still typing:
+ * a whole number inside the field's range. Anything else (an emptied field, a
+ * digit out of range) waits until the field is left or Enter is pressed, so
+ * typing never deals a new set of arms by accident.
+ */
+export const isLiveArmCount = (text: string): boolean => {
+  if (!/^\d+$/.test(text.trim())) return false;
+  const value = Number(text);
+  return value >= MIN_ARMS && value <= MAX_ARMS;
+};
+
+/** The arm count the field settles on when it is left: the typed one, clamped, or `current` when nothing usable was typed. */
+export const settleArmCount = (text: string, current: number): number => {
+  const value = Number(text);
+  if (text.trim() === '' || !Number.isFinite(value) || value <= 0) return current;
+  return Math.max(MIN_ARMS, Math.min(MAX_ARMS, Math.round(value)));
+};

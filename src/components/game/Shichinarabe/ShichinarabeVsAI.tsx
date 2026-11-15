@@ -317,8 +317,9 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
   };
 
   const modeBadge = gameState ? (
-    <div style={{
-      background: 'rgba(251, 191, 36, 0.12)',
+    <div data-testid="shichinarabe-mode-badge" style={{
+      // Opaque, like the online room badge: the top bar is light in the light theme, and amber on it could not be read.
+      background: '#3b2a06',
       border: '1px solid rgba(251, 191, 36, 0.35)',
       borderRadius: '0.5rem',
       padding: '0.35rem 0.75rem',

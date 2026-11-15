@@ -22,10 +22,10 @@ interface GameTopBarProps {
 /**
  * Where the site toolbar has room for what. From 1024px it is one row with a wide slot beside the site name, and the
  * game's extra content goes there. Below that the slot is whatever the site name and the controls leave over (on a
- * phone, about one character), so the extra content joins the stats pill instead: the toolbar gives that group the
- * whole second row on phones, and room of its own on tablets. On the narrowest phones the first row cannot hold the
- * How to play button beside the site name either (it sat on top of the name's last letters), so the button moves to
- * the end of the second row as well.
+ * phone, about one character), so the extra content joins the stats pill instead, and the toolbar gives that group the
+ * whole second row: on phones, and on tablets when there is extra content (GlobalToolbar.module.css). On the narrowest
+ * phones the first row cannot hold the How to play button beside the site name either (it sat on top of the name's last
+ * letters), so the button moves to the end of the second row as well.
  */
 type TopBarLayout = 'wide' | 'compact' | 'narrow';
 
@@ -103,7 +103,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
       <button
         type="button"
         onClick={onInfoClick}
-        className={extra && layout !== 'wide' ? `${styles.infoButton} ${styles.infoButtonCompact}` : styles.infoButton}
+        className={styles.infoButton}
         aria-label={ui.howToPlay}
       >
         <Info className={styles.infoIcon} />
@@ -115,7 +115,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         ? { left: extra, center: statsPill, right: infoButton }
         : {
           center: (
-            <div className={styles.group} data-language={language}>
+            <div className={styles.group}>
               {statsPill}
               {extra}
               {layout === 'narrow' && <span className={styles.groupEnd}>{infoButton}</span>}
@@ -125,7 +125,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         }
     );
     return () => setContent(null);
-  }, [stats, statsLabel, onInfoClick, additionalContent, setContent, layout, language, ui.howToPlay, ui.winShort, ui.lossShort, ui.drawShort]);
+  }, [stats, statsLabel, onInfoClick, additionalContent, setContent, layout, ui.howToPlay, ui.winShort, ui.lossShort, ui.drawShort]);
 
   return null;
 };

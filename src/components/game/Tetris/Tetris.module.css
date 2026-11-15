@@ -305,9 +305,9 @@
 /* Phones: the board and the Hold / Next / score column share the first row, the
    action buttons and the touch pad span the full width below, and the board is
    sized so all of it fits between the site toolbar and the bottom of the screen. */
-/* Tablet widths: the site toolbar is two rows (~99px) here because Tetris puts
+/* Above the phone layout and below desktop: the site toolbar is two rows (~99px) here because Tetris puts
    level / lines in it, so the fixed root needs more room above the board. */
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 641px) and (max-width: 1023px) {
   .root {
     padding-top: 6.75rem;
   }

@@ -12,7 +12,14 @@ type AudioProbe = {
 
 for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, remembers volume, closes and resumes`, async ({ page }, info) => {
   const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
+  let reloading = false;
+  let roomPath = '';
+  // WebKit logs "Fetch API cannot load <url> due to access control checks." when a navigation cancels an in-flight
+  // fetch, and Playwright reports that log line as a page error (split at its first colon into name and message).
+  // Only the room poll cancelled by the reload below is expected; any other error, or this one at any other time, counts.
+  const cancelledRoomPoll = (error: Error) => reloading && /^Fetch API cannot load https?$/.test(error.name)
+    && new RegExp(`^/[^/\\s]+${roomPath}(\\?\\S*)? due to access control checks\\.$`).test(error.message);
+  page.on('pageerror', error => { if (!cancelledRoomPoll(error)) errors.push(error.message); });
   await page.setViewportSize({ width, height: width === 390 ? 844 : 1080 });
   await page.addInitScript(() => {
     const probe: AudioProbe = { contexts: [], maxRms: 0, maxPeak: 0, samples: 0 };
@@ -47,6 +54,7 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
   const room = await (await page.request.post('/api/ogiri', {
     data: { name: '音の進行役', avatar: '🐱', hostPlays: false },
   })).json();
+  roomPath = `/api/ogiri/${room.code}`;
   await page.goto(`/games/ogiri/${room.code}${width === 1920 ? '/tv' : ''}`);
   const snapshot = () => page.evaluate(() => {
     const probe = (window as unknown as { __partyAudioProbe: AudioProbe }).__partyAudioProbe;
@@ -142,8 +150,10 @@ for (const width of [390, 1920]) test(`sound on a ${width}px device is audible, 
 
   await page.getByRole('button', { name: '効果音をオン', exact: true }).click();
   await volume.fill('85');
+  reloading = true;
   await page.reload();
   await expect(page.getByRole('button', { name: '効果音をオン', exact: true })).toContainText('音OFF');
+  reloading = false;
   expect((await snapshot()).states).toEqual([]);
   await page.getByRole('button', { name: '効果音をオン', exact: true }).click();
   await expect(volume).toHaveValue('85');

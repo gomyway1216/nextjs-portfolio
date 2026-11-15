@@ -39,7 +39,7 @@ test('result cards select every next game in the same room with one request', as
     expect(members.every(player => player.partyPoints === 10)).toBe(true);
     const history = await (await host.request.get(`/api/ogiri/history/${room.history![0].id}`)).json();
     const chooser = host.getByRole('region', { name: '次のゲーム', exact: true });
-    const sent: unknown[] = [];
+    const sent: { type?: string }[] = [];
     host.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === path) sent.push(request.postDataJSON());
     });
@@ -61,13 +61,16 @@ test('result cards select every next game in the same room with one request', as
       }
       const previousTurn = room.turn;
       const before = sent.length;
-      const response = host.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === path);
+      // The page also POSTs a presence heartbeat every ~30s to the same path; this test is about the rematch request.
+      const response = host.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === path
+        && response.request().postDataJSON()?.type === 'rematch');
       await chooser.getByRole('button', { name: `${GAME_TITLES[gameType]}で次のゲームへ`, exact: true }).click();
       const selected = await response;
       expect(selected.ok()).toBe(true);
       room = await selected.json();
-      expect(sent.slice(before)).toHaveLength(1);
-      expect(sent.at(-1)).toMatchObject({ type: 'rematch', gameType });
+      const actions = sent.slice(before).filter(body => body.type !== 'heartbeat');
+      expect(actions).toHaveLength(1);
+      expect(actions[0]).toMatchObject({ type: 'rematch', gameType });
       expect(room).toMatchObject({ code, phase: 'lobby', gameType });
       expect(room.players.map(player => ({ id: player.id, name: player.name, avatar: player.avatar, partyPoints: player.partyPoints }))).toEqual(members);
       expect((await host.request.post(path, { data: { type: 'rematch', gameType, turn: previousTurn } })).status()).toBe(409);

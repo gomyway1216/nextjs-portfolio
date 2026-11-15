@@ -192,11 +192,13 @@ test('secretary problem: the round in progress and its result survive a visit to
     await expect(pass).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 20_000 });
   await expect(pass).toBeFocused();
-  for (let i = 0; i < 3; i += 1) await pass.click();
-
   const readout = play.locator('[aria-live="polite"]');
+  for (let i = 0; i < 3; i += 1) {
+    await pass.click();
+    await expect(readout).toContainText(`${i + 2} / 20`);
+  }
+
   const cells = play.locator('span[title]');
-  await expect(readout).toContainText('4 / 20');
   const seen = await readout.textContent();
   const strip = await cells.allTextContents();
   expect(strip.slice(0, 4).every((cell) => /^\d+$/.test(cell))).toBe(true);

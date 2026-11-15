@@ -9,21 +9,18 @@ import { GameTopBar, InfoModal, GameStats } from '../common';
 import { ShichinarabeMultiplayerLobby } from './ShichinarabeMultiplayerLobby';
 import { useShichinarabeMultiplayer } from './useShichinarabeMultiplayer';
 import { getPlayableCardsForPlayer } from './gameLogic';
-import { rankToLabel, SUITS } from './types';
+import { rankToLabel, SUITS, SUIT_SYMBOL } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import type { Card, CardSuit } from './types';
 import type { ShichinarabeLogEntry } from './multiplayerTypes';
 import screenStyles from './ShichinarabeScreen.module.css';
+import styles from './ShichinarabeVsAI.module.css';
 import { usePageTop } from './usePageTop';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { getShichinarabeLobbyStrings, getShichinarabeStrings } from './i18n';
+import { formatShichinarabeLog, getShichinarabeLobbyStrings, getShichinarabeStrings, isDefaultYouName } from './i18n';
 
-function suitLabel(suit: CardSuit): string {
-  if (suit === 'S') return '♠';
-  if (suit === 'H') return '♥';
-  if (suit === 'D') return '♦';
-  return '♣';
-}
+const RED_SUITS: Record<CardSuit, boolean> = { S: false, H: true, D: true, C: false };
+const cardLabel = (card: { suit: CardSuit; rank: number }) => `${rankToLabel(card.rank)}${SUIT_SYMBOL[card.suit]}`;
 
 interface ShichinarabeOnlineProps {
   onBackToMenu: () => void;
@@ -48,7 +45,9 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
   const t = getShichinarabeStrings(language);
   const lobbyT = getShichinarabeLobbyStrings(language);
 
-  const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || 'You';
+  const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || t.you;
+  /** A message to show: the hook's own (English) messages translated, a server's message as sent. */
+  const errorText = (message: string) => lobbyT.errors[message] ?? message;
 
   const myHand = useMemo<Card[]>(() => {
     if (!gameState) return [];
@@ -69,29 +68,34 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
 
   const playableIdSet = useMemo(() => new Set(playableCards.map(c => c.id)), [playableCards]);
 
+  const selectedCard = useMemo(
+    () => (selectedCardId ? myHand.find((c) => c.id === selectedCardId) ?? null : null),
+    [myHand, selectedCardId],
+  );
+
   const draggingCard = useMemo(() => {
     if (!draggingCardId) return null;
     return myHand.find(c => c.id === draggingCardId) ?? null;
   }, [draggingCardId, myHand]);
 
   const canPlaySelected = useMemo<{ ok: boolean; error: string | null }>(() => {
-    if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
-    if (!selectedCardId) return { ok: false, error: 'Select a card' };
+    if (!gameState || !isMyTurn) return { ok: false, error: t.notYourTurn };
+    if (!selectedCardId) return { ok: false, error: t.selectCardFirst };
     const card = myHand.find((c) => c.id === selectedCardId);
-    if (!card) return { ok: false, error: 'Card not in hand' };
+    if (!card) return { ok: false, error: lobbyT.cardNotInHand };
     const bounds = gameState.table[card.suit];
     const playable =
       (bounds.low > 1 && card.rank === bounds.low - 1) ||
       (bounds.high < 13 && card.rank === bounds.high + 1);
-    return playable ? { ok: true, error: null } : { ok: false, error: 'Card not adjacent' };
-  }, [gameState, isMyTurn, myHand, selectedCardId]);
+    return playable ? { ok: true, error: null } : { ok: false, error: lobbyT.cardNotAdjacent };
+  }, [gameState, isMyTurn, myHand, selectedCardId, t, lobbyT]);
 
   const playerSummaries = useMemo(() => {
     if (!gameState) return [];
     return gameState.playerOrder.map((id) => {
       const finishedPos = gameState.finishedOrder.indexOf(id);
       const eliminatedPos = gameState.eliminatedOrder.indexOf(id);
-      const status = finishedPos >= 0 ? 'Finished' : eliminatedPos >= 0 ? 'Eliminated' : 'Active';
+      const status = finishedPos >= 0 ? 'finished' : eliminatedPos >= 0 ? 'eliminated' : 'active';
       const place = gameState.ranks?.[id] ?? null;
       return {
         id,
@@ -121,11 +125,11 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
     if (!room || !multiplayer.context.isHost) return;
     const playerCount = Object.keys(room.players || {}).length;
     if (playerCount < 3) {
-      setLocalError('Need 3 players');
+      setLocalError(lobbyT.needPlayers(3));
       return;
     }
     const ok = await multiplayer.startGame();
-    if (!ok) setLocalError('Failed to start game');
+    if (!ok) setLocalError(lobbyT.startFailed);
   };
 
   const playCardById = useCallback(async (cardId: string) => {
@@ -140,11 +144,11 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
     setIsSubmitting(true);
     try {
       const result = await multiplayer.submitPlay(cardId);
-      if (!result.success) setLocalError(result.error ?? 'Move rejected');
+      if (!result.success) setLocalError(result.error ? (lobbyT.errors[result.error] ?? result.error) : lobbyT.moveRejected);
     } finally {
       setIsSubmitting(false);
     }
-  }, [gameState, isMyTurn, isSubmitting, multiplayer]);
+  }, [gameState, isMyTurn, isSubmitting, multiplayer, lobbyT]);
 
   const handlePlay = async () => {
     setLocalError(null);
@@ -163,7 +167,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
     setIsSubmitting(true);
     try {
       const result = await multiplayer.submitPass();
-      if (!result.success) setLocalError(result.error ?? 'Pass rejected');
+      if (!result.success) setLocalError(result.error ? errorText(result.error) : lobbyT.passRejected);
     } finally {
       setIsSubmitting(false);
     }
@@ -221,7 +225,8 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
 
   const roomBadge = multiplayer.context.roomId ? (
     <div style={{
-      background: 'rgba(251, 191, 36, 0.12)',
+      // Opaque: the top bar is light in the light theme, and amber on it could not be read.
+      background: '#3b2a06',
       border: '1px solid rgba(251, 191, 36, 0.35)',
       borderRadius: '0.5rem',
       padding: '0.35rem 0.75rem',
@@ -232,7 +237,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
       letterSpacing: '0.12em',
       whiteSpace: 'nowrap',
     }}>
-      ROOM {multiplayer.context.roomId}
+      {lobbyT.roomBadge(multiplayer.context.roomId)}
     </div>
   ) : null;
 
@@ -290,29 +295,30 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
           {(multiplayer.context.lobbyState === 'playing' || multiplayer.context.lobbyState === 'finished') && gameState && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr',
+              gridTemplateColumns: 'minmax(0, 1fr)',
               gap: '1rem',
             }}>
               <div style={{
                 background: 'rgba(0, 0, 0, 0.92)',
                 border: '2px solid rgba(14, 165, 233, 0.35)',
                 borderRadius: '1rem',
-                padding: '1rem',
+                padding: 'clamp(0.75rem, 3vw, 1rem)',
+                minWidth: 0,
               }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>Shichinarabe (Online)</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      {gameState.playerOrder.length} players · {isMyTurn ? 'Your turn' : `${playerNameOf(gameState.currentTurnPlayerId)}'s turn`}
+                    <h2 style={{ margin: 0, color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{lobbyT.matchTitle}</h2>
+                    <div data-testid="shichinarabe-online-status" style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+                      {lobbyT.playerCount(gameState.playerOrder.length)} · {isMyTurn ? t.yourTurn : t.waitingTurn(playerNameOf(gameState.currentTurnPlayerId))}
                     </div>
                     {gameState.finished && (
                       <div style={{ color: '#fbbf24', fontWeight: 800, fontSize: '0.95rem' }}>
-                        Finished
+                        {t.finished}
                       </div>
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(7rem, 100%), 1fr))', gap: '0.5rem', width: '100%' }}>
                     {playerSummaries.map((p) => (
                       <div
                         key={p.id}
@@ -322,17 +328,21 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                           borderRadius: '0.75rem',
                           padding: '0.45rem 0.75rem',
                           color: '#e5e7eb',
-                          minWidth: '10rem',
+                          minWidth: 0,
                         }}
                       >
-                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
-                          {p.name}{p.isMe ? ' (You)' : ''}
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb', overflowWrap: 'anywhere' }}>
+                          {p.name}{p.isMe && !isDefaultYouName(p.name) ? lobbyT.youSuffix : ''}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
-                          {p.handCount} cards · Pass {p.passCount}/{gameState.maxPasses}
+                          {t.cardsLeft(p.handCount)} · {t.passesLabel(p.passCount, gameState.maxPasses)}
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: p.status === 'Eliminated' ? '#f87171' : '#9ca3af', fontWeight: 800, marginTop: '0.25rem' }}>
-                          {p.place ? `#${p.place}` : p.status}
+                        <div style={{ fontSize: '0.8rem', color: p.status === 'eliminated' ? '#f87171' : '#9ca3af', fontWeight: 800, marginTop: '0.25rem' }}>
+                          {p.place
+                            ? t.place(p.place)
+                            : p.status === 'finished' ? t.statusFinished
+                              : p.status === 'eliminated' ? t.statusEliminated
+                                : t.statusActive}
                         </div>
                       </div>
                     ))}
@@ -347,7 +357,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                     borderRadius: '0.75rem',
                     padding: '0.75rem',
                   }}>
-                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>Results</div>
+                    <h3 style={{ margin: 0, color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>{t.results}</h3>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       {playerSummaries
                         .filter(p => typeof p.place === 'number')
@@ -365,132 +375,114 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                               fontWeight: 800,
                             }}
                           >
-                            #{p.place}: {p.name}
+                            {t.place(p.place ?? 0)}: {p.name}
                           </div>
                         ))}
                     </div>
                   </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
-                  {/* Table */}
-                  <div style={{
-                    background: 'rgba(17, 24, 39, 0.6)',
-                    border: '1px solid rgba(55, 65, 81, 1)',
-                    borderRadius: '0.75rem',
-                    padding: '1rem',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Table</div>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                        {lastPlayed ? `Last: ${rankToLabel(lastPlayed.rank)}${suitLabel(lastPlayed.suit)}` : '—'}
-                      </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem', marginTop: '1rem' }}>
+                  {/* Table: on a phone the thirteen columns share the panel's width, as on the vs-AI table. */}
+                  <div className={styles.panel}>
+                    <div className={styles.panelHead}>
+                      <span className={styles.panelTitle}>{t.table}</span>
+                      <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+                        {lastPlayed ? lobbyT.lastPlayed(cardLabel(lastPlayed)) : '—'}
+                      </span>
                     </div>
 
-	                    <div style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
-	                      {SUITS.map((suit) => {
-	                        const bounds = gameState.table[suit];
-	                        const low = bounds.low;
-	                        const high = bounds.high;
-	                        const playableDown = low - 1;
-	                        const playableUp = high + 1;
-	                        return (
-	                          <div key={suit} style={{ overflowX: 'auto', paddingBottom: '0.25rem' }}>
-	                            <div style={{ display: 'grid', gridTemplateColumns: '2.25rem repeat(13, 48px)', gap: '0.25rem', alignItems: 'center' }}>
-	                              <div style={{ color: '#e5e7eb', fontWeight: 900, textAlign: 'center' }}>{suitLabel(suit)}</div>
-	                              {Array.from({ length: 13 }, (_, i) => i + 1).map((rank) => {
-	                                const played = rank >= low && rank <= high;
-	                                const isEnd = rank === playableDown || rank === playableUp;
-	                                const isLast = !!lastPlayed && lastPlayed.suit === suit && lastPlayed.rank === rank;
-	                                const slotKey = `${suit}_${rank}`;
+                    <div className={styles.tableauScroll} data-testid="shichinarabe-online-board">
+                      {SUITS.map((suit) => {
+                        const bounds = gameState.table[suit];
+                        const low = bounds.low;
+                        const high = bounds.high;
+                        const playableDown = low - 1;
+                        const playableUp = high + 1;
+                        return (
+                          <div key={suit} className={styles.tableauGrid} style={{ marginBottom: '0.35rem' }}>
+                            <div className={styles.suitLabel} data-red={RED_SUITS[suit]}>{SUIT_SYMBOL[suit]}</div>
+                            {Array.from({ length: 13 }, (_, i) => i + 1).map((rank) => {
+                              const played = rank >= low && rank <= high;
+                              const isEnd = rank === playableDown || rank === playableUp;
+                              const isLast = !!lastPlayed && lastPlayed.suit === suit && lastPlayed.rank === rank;
+                              const slotKey = `${suit}_${rank}`;
 
-	                                if (played) {
-	                                  const tableCard: Card = { id: `table_${suit}_${rank}`, suit, rank };
-	                                  return (
-	                                    <PlayingCard
-	                                      key={`${suit}_${rank}`}
-	                                      card={tableCard}
-	                                      size="small"
-	                                      disabled
-	                                      variant={isLast ? 'table' : 'static'}
-	                                    />
-	                                  );
-	                                }
+                              if (played) {
+                                const tableCard: Card = { id: `table_${suit}_${rank}`, suit, rank };
+                                return (
+                                  <div key={slotKey} className={rank === 7 ? `${styles.slotCard} ${styles.slotSeven}` : styles.slotCard}>
+                                    <div className={styles.slotCardFull}>
+                                      <PlayingCard
+                                        card={tableCard}
+                                        size="small"
+                                        disabled
+                                        variant={isLast ? 'table' : 'static'}
+                                      />
+                                    </div>
+                                    <div
+                                      className={styles.slotCardMini}
+                                      data-red={RED_SUITS[suit]}
+                                      data-last={isLast ? 'true' : 'false'}
+                                      role="img"
+                                      aria-label={cardLabel(tableCard)}
+                                    >
+                                      <span>{rankToLabel(rank)}</span>
+                                      <span aria-hidden>{SUIT_SYMBOL[suit]}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
 
-	                                if (isEnd) {
-	                                  const canAcceptDrop = !!draggingCard
-	                                    && isMyTurn
-	                                    && !isSubmitting
-	                                    && !gameState.finished
-	                                    && draggingCard.suit === suit
-	                                    && draggingCard.rank === rank;
-	                                  const isOver = dragOverSlot === slotKey;
+                              if (isEnd) {
+                                const canAcceptDrop = !!draggingCard
+                                  && isMyTurn
+                                  && !isSubmitting
+                                  && !gameState.finished
+                                  && draggingCard.suit === suit
+                                  && draggingCard.rank === rank;
+                                const isOver = dragOverSlot === slotKey;
 
-	                                  return (
-	                                    <div
-	                                      key={`${suit}_${rank}`}
-	                                      onDragEnter={() => {
-	                                        if (canAcceptDrop) setDragOverSlot(slotKey);
-	                                      }}
-	                                      onDragLeave={() => {
-	                                        setDragOverSlot((prev) => (prev === slotKey ? null : prev));
-	                                      }}
-	                                      onDragOver={(e) => {
-	                                        if (!isMyTurn || isSubmitting || gameState.finished) return;
-	                                        e.preventDefault();
-	                                        e.dataTransfer.dropEffect = 'move';
-	                                      }}
-	                                      onDrop={(e) => {
-	                                        e.preventDefault();
-	                                        setDragOverSlot(null);
-	                                        const droppedId = e.dataTransfer.getData('text/plain');
-	                                        if (!droppedId) return;
-	                                        const droppedCard = myHand.find(c => c.id === droppedId);
-	                                        if (!droppedCard) return;
-	                                        if (droppedCard.suit !== suit || droppedCard.rank !== rank) return;
-	                                        void playCardById(droppedId);
-	                                      }}
-	                                      style={{
-	                                        width: 48,
-	                                        height: 68,
-	                                        borderRadius: 8,
-	                                        border: canAcceptDrop
-	                                          ? `2px dashed ${isOver ? 'rgba(34, 197, 94, 1)' : 'rgba(34, 197, 94, 0.85)'}`
-	                                          : '1px dashed rgba(156, 163, 175, 0.55)',
-	                                        background: isOver ? 'rgba(34, 197, 94, 0.12)' : 'rgba(0,0,0,0.25)',
-	                                        display: 'flex',
-	                                        alignItems: 'center',
-	                                        justifyContent: 'center',
-	                                        color: canAcceptDrop ? '#bbf7d0' : '#6b7280',
-	                                        fontWeight: 900,
-	                                        fontSize: '0.85rem',
-	                                        userSelect: 'none',
-	                                      }}
-	                                    >
-	                                      {rankToLabel(rank)}
-	                                    </div>
-	                                  );
-	                                }
+                                return (
+                                  <div
+                                    key={slotKey}
+                                    className={styles.slotEnd}
+                                    data-droppable={canAcceptDrop ? 'true' : 'false'}
+                                    data-over={isOver ? 'true' : 'false'}
+                                    onDragEnter={() => {
+                                      if (canAcceptDrop) setDragOverSlot(slotKey);
+                                    }}
+                                    onDragLeave={() => {
+                                      setDragOverSlot((prev) => (prev === slotKey ? null : prev));
+                                    }}
+                                    onDragOver={(e) => {
+                                      if (!isMyTurn || isSubmitting || gameState.finished) return;
+                                      e.preventDefault();
+                                      e.dataTransfer.dropEffect = 'move';
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      setDragOverSlot(null);
+                                      const droppedId = e.dataTransfer.getData('text/plain');
+                                      if (!droppedId) return;
+                                      const droppedCard = myHand.find(c => c.id === droppedId);
+                                      if (!droppedCard) return;
+                                      if (droppedCard.suit !== suit || droppedCard.rank !== rank) return;
+                                      void playCardById(droppedId);
+                                    }}
+                                  >
+                                    {rankToLabel(rank)}
+                                  </div>
+                                );
+                              }
 
-	                                return (
-	                                  <div
-	                                    key={`${suit}_${rank}`}
-	                                    style={{
-	                                      width: 48,
-	                                      height: 68,
-	                                      borderRadius: 8,
-	                                      border: '1px solid rgba(55, 65, 81, 1)',
-	                                      background: 'rgba(0,0,0,0.15)',
-	                                    }}
-	                                  />
-	                                );
-	                              })}
-	                            </div>
-	                          </div>
-	                        );
-	                      })}
-	                    </div>
-	                  </div>
+                              return <div key={slotKey} className={styles.slotEmpty} />;
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   {/* Controls */}
                   <div style={{
@@ -514,7 +506,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                           cursor: (!isMyTurn || isSubmitting || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Pass
+                        {t.pass}
                       </button>
 
                       <button
@@ -530,7 +522,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                           cursor: (!canPlaySelected.ok || isSubmitting || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Play
+                        {t.play}
                       </button>
 
                       <button
@@ -546,7 +538,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                           cursor: isSubmitting || !selectedCardId ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Clear
+                        {t.clear}
                       </button>
                     </div>
 
@@ -563,7 +555,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                           cursor: 'pointer',
                         }}
                       >
-                        Leave
+                        {lobbyT.leave}
                       </button>
 
                       {multiplayer.context.isHost && gameState.finished && (
@@ -579,7 +571,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                             cursor: 'pointer',
                           }}
                         >
-                          New Game
+                          {t.newGame}
                         </button>
                       )}
                     </div>
@@ -593,59 +585,32 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
                 </div>
 
                 {/* Hand */}
-                <div style={{
-                  marginTop: '1rem',
-                  background: 'rgba(17, 24, 39, 0.6)',
-                  border: '1px solid rgba(55, 65, 81, 1)',
-                  borderRadius: '0.75rem',
-                  padding: '1rem',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Your Hand</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      {selectedCardId ? 'Selected' : 'Select a card'}
-                    </div>
+                <div className={styles.panel} style={{ marginTop: '1rem' }}>
+                  <div className={styles.panelHead}>
+                    <span className={styles.panelTitle} style={{ whiteSpace: 'nowrap' }}>{t.yourHand}</span>
+                    <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+                      {selectedCard ? t.selected(cardLabel(selectedCard)) : t.selectCard}
+                    </span>
                   </div>
-                  <div style={{
-                    marginTop: '0.75rem',
-                    display: 'flex',
-                    gap: '0.5rem',
-                    flexWrap: 'nowrap',
-                    overflowX: 'auto',
-                    paddingBottom: '0.25rem',
-                  }}>
+                  <div className={styles.hand} data-testid="shichinarabe-online-hand">
                     {myHand.map(renderCard)}
                   </div>
                 </div>
 
                 {/* Log */}
-                <div style={{
-                  marginTop: '1rem',
-                  background: 'rgba(0, 0, 0, 0.45)',
-                  border: '1px solid rgba(55, 65, 81, 1)',
-                  borderRadius: '0.75rem',
-                  padding: '1rem',
-                }}>
-                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>Log</div>
+                <div className={styles.panel} style={{ marginTop: '1rem' }}>
+                  <div className={styles.panelHead}>
+                    <span className={styles.panelTitle}>{t.activityLog}</span>
+                  </div>
                   {gameState.log.length === 0 ? (
-                    <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No actions yet</div>
+                    <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t.noActions}</div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: '#e5e7eb', fontSize: '0.85rem' }}>
-                      {gameState.log.slice(-10).map((entry, idx) => {
-                        const name = playerNameOf(entry.playerId);
-                        const text = entry.type === 'play' && entry.card
-                          ? `${name}: played ${rankToLabel(entry.card.rank)}${suitLabel(entry.card.suit)}`
-                          : entry.type === 'pass'
-                          ? `${name}: pass (${entry.passCount ?? 0}/${gameState.maxPasses})`
-                          : entry.detail
-                          ? `${name}: ${entry.detail}`
-                          : `${name}: ...`;
-                        return (
-                          <div key={`${idx}_${entry.id}`} style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                            {text}
-                          </div>
-                        );
-                      })}
+                    <div className={styles.logList} style={{ maxHeight: 'none' }}>
+                      {gameState.log.slice(-10).map((entry, idx) => (
+                        <div key={`${idx}_${entry.id}`}>
+                          {formatShichinarabeLog(t, entry, playerNameOf(entry.playerId), gameState.maxPasses)}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

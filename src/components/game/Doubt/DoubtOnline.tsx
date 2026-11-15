@@ -10,12 +10,11 @@ import { DoubtMultiplayerLobby } from './DoubtMultiplayerLobby';
 import { useDoubtMultiplayer } from './useDoubtMultiplayer';
 import { rankToLabel } from './types';
 import type { Card } from './types';
-import type { DoubtLogEntry } from './multiplayerTypes';
 import { CardBack, PlayingCard, PlayingCardStyles } from './PlayingCard';
 import screenStyles from './DoubtScreen.module.css';
 import { usePageTop } from './usePageTop';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
-import { getDoubtLobbyStrings, getDoubtStrings } from './i18n';
+import { formatDoubtLog, getDoubtLobbyStrings, getDoubtStrings, isDefaultYouName } from './i18n';
 
 interface DoubtOnlineProps {
   onBackToMenu: () => void;
@@ -39,7 +38,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
   const t = getDoubtStrings(language);
   const lobbyT = getDoubtLobbyStrings(language);
 
-  const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || 'You';
+  const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || t.yourNamePlaceholder;
 
   const myHand = useMemo<Card[]>(() => {
     if (!gameState) return [];
@@ -64,7 +63,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
     if (!gameState) return [];
     return gameState.playerOrder.map((id) => {
       const finishedPos = gameState.finishedOrder.indexOf(id);
-      const status = finishedPos >= 0 ? 'Finished' : 'Active';
+      const status = finishedPos >= 0 ? t.out : t.active;
       const place = gameState.ranks?.[id] ?? null;
       return {
         id,
@@ -76,7 +75,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
         place,
       };
     });
-  }, [gameState, multiplayer.context.playerId, playerNameOf]);
+  }, [gameState, multiplayer.context.playerId, playerNameOf, t]);
 
   const selectedCards = useMemo(() => {
     if (!selectedCardIds.length) return [];
@@ -85,28 +84,31 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
   }, [myHand, selectedCardIds]);
 
   const validatePlay = useMemo<{ ok: boolean; error: string | null }>(() => {
-    if (!gameState) return { ok: false, error: 'No game' };
-    if (!isMyTurn || isSubmitting) return { ok: false, error: 'Not your turn' };
-    if (gameState.phase !== 'play') return { ok: false, error: 'Not in play phase' };
-    if (selectedCardIds.length < 1 || selectedCardIds.length > 4) return { ok: false, error: 'Select 1–4 cards' };
+    if (!gameState) return { ok: false, error: null };
+    if (!isMyTurn || isSubmitting) return { ok: false, error: t.errorGeneric };
+    if (gameState.phase !== 'play') return { ok: false, error: lobbyT.notPlayPhase };
+    if (selectedCardIds.length < 1 || selectedCardIds.length > 4) return { ok: false, error: t.errorSelectCards };
     // Soft check: every selected id is in the player's hand.
     const handIds = new Set(myHand.map((c) => c.id));
     if (!selectedCardIds.every((id) => handIds.has(id))) {
-      return { ok: false, error: 'Card not in hand' };
+      return { ok: false, error: lobbyT.cardNotInHand };
     }
     return { ok: true, error: null };
-  }, [gameState, isMyTurn, isSubmitting, myHand, selectedCardIds]);
+  }, [gameState, isMyTurn, isSubmitting, myHand, selectedCardIds, t, lobbyT]);
+
+  /** A message to show: the hook's own (English) messages translated, a server's message as sent. */
+  const errorText = (message: string) => lobbyT.errors[message] ?? message;
 
   const handleStartGame = async () => {
     setLocalError(null);
     if (!room || !multiplayer.context.isHost) return;
     const playerCount = Object.keys(room.players || {}).length;
     if (playerCount < 3) {
-      setLocalError('Need 3 players');
+      setLocalError(lobbyT.needPlayers(3));
       return;
     }
     const ok = await multiplayer.startGame();
-    if (!ok) setLocalError('Failed to start game');
+    if (!ok) setLocalError(lobbyT.startFailed);
   };
 
   const playSelected = async () => {
@@ -121,7 +123,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
     setIsSubmitting(true);
     try {
       const res = await multiplayer.submitPlay(ids);
-      if (!res.success) setLocalError(res.error ?? 'Play rejected');
+      if (!res.success) setLocalError(res.error ? errorText(res.error) : lobbyT.playRejected);
     } finally {
       setIsSubmitting(false);
     }
@@ -133,7 +135,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
     setIsSubmitting(true);
     try {
       const res = await multiplayer.submitAccept();
-      if (!res.success) setLocalError(res.error ?? 'Accept rejected');
+      if (!res.success) setLocalError(res.error ? errorText(res.error) : lobbyT.acceptRejected);
     } finally {
       setIsSubmitting(false);
     }
@@ -145,7 +147,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
     setIsSubmitting(true);
     try {
       const res = await multiplayer.submitDoubt();
-      if (!res.success) setLocalError(res.error ?? 'Doubt rejected');
+      if (!res.success) setLocalError(res.error ? errorText(res.error) : lobbyT.doubtRejected);
     } finally {
       setIsSubmitting(false);
     }
@@ -162,7 +164,8 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
 
   const roomBadge = multiplayer.context.roomId ? (
     <div style={{
-      background: 'rgba(251, 191, 36, 0.12)',
+      // Opaque: the top bar is light in the light theme, and amber on it could not be read.
+      background: '#3b2a06',
       border: '1px solid rgba(251, 191, 36, 0.35)',
       borderRadius: '0.5rem',
       padding: '0.35rem 0.75rem',
@@ -173,7 +176,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
       letterSpacing: '0.12em',
       whiteSpace: 'nowrap',
     }}>
-      ROOM {multiplayer.context.roomId}
+      {lobbyT.roomBadge(multiplayer.context.roomId)}
     </div>
   ) : null;
 
@@ -187,24 +190,14 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
   };
 
   const claimText = pendingClaim
-    ? `${playerNameOf(pendingClaim.playerId)} claimed ${pendingClaim.cardCount} card(s) of ${rankToLabel(pendingClaim.declaredRank)}`
-    : '—';
+    ? t.claimText(playerNameOf(pendingClaim.playerId), pendingClaim.cardCount, rankToLabel(pendingClaim.declaredRank))
+    : t.noClaim;
 
   const logLines = useMemo(() => {
     if (!gameState) return [];
-    const log: DoubtLogEntry[] = gameState.log ?? [];
-    return log.slice(-10).map((entry) => {
-      const name = playerNameOf(entry.playerId);
-      if (entry.type === 'play') {
-        return `${name}: played ${entry.count ?? 0} claiming ${rankToLabel(entry.declaredRank ?? 1)}`;
-      }
-      if (entry.type === 'accept') return `${name}: accept`;
-      if (entry.type === 'doubt') return `${name}: DOUBT!`;
-      if (entry.type === 'resolve') return `${name}: ${entry.detail ?? 'resolved'}`;
-      if (entry.type === 'finish') return `${name}: finished`;
-      return `${name}: ${entry.detail ?? entry.type}`;
-    });
-  }, [gameState, playerNameOf]);
+    const log = gameState.log ?? [];
+    return log.slice(-10).map((entry) => formatDoubtLog(t, entry, playerNameOf));
+  }, [gameState, playerNameOf, t]);
 
   const renderHandCard = (card: Card, idx: number) => {
     const selected = selectedCardIds.includes(card.id);
@@ -292,10 +285,10 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
           )}
 
           {/* Game */}
-          {multiplayer.context.lobbyState === 'playing' && gameState && (
+          {(multiplayer.context.lobbyState === 'playing' || multiplayer.context.lobbyState === 'finished') && gameState && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr',
+              gridTemplateColumns: 'minmax(0, 1fr)',
               gap: '1rem',
             }}>
               <div style={{
@@ -306,16 +299,16 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
               }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>Doubt (Online)</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      {gameState.finished ? 'Finished' : isMyTurn ? 'Your turn' : `${playerNameOf(gameState.currentTurnPlayerId)}'s turn`}
+                    <h2 style={{ margin: 0, color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{lobbyT.matchTitle}</h2>
+                    <div data-testid="doubt-online-status" style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+                      {gameState.finished ? t.finished : isMyTurn ? t.yourTurn : t.turnOf(playerNameOf(gameState.currentTurnPlayerId))}
                     </div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      Phase: <span style={{ color: '#e5e7eb', fontWeight: 800 }}>{gameState.phase}</span> · Next rank: <span style={{ color: '#fbbf24', fontWeight: 900 }}>{rankToLabel(requiredRank)}</span>
+                      {lobbyT.phase}: <span style={{ color: '#e5e7eb', fontWeight: 800 }}>{gameState.finished || gameState.phase === 'finished' ? t.finished : gameState.phase === 'challenge' ? t.phaseChallenge : t.phasePlay}</span> · {t.nextRank}: <span style={{ color: '#fbbf24', fontWeight: 900 }}>{rankToLabel(requiredRank)}</span>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(7rem, 100%), 1fr))', gap: '0.5rem', width: '100%' }}>
                     {playerSummaries.map((p) => (
                       <div
                         key={p.id}
@@ -325,17 +318,17 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                           borderRadius: '0.75rem',
                           padding: '0.45rem 0.75rem',
                           color: '#e5e7eb',
-                          minWidth: '10rem',
+                          minWidth: 0,
                         }}
                       >
-                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
-                          {p.name}{p.isMe ? ' (You)' : ''}
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb', overflowWrap: 'anywhere' }}>
+                          {p.name}{p.isMe && !isDefaultYouName(p.name) ? t.youSuffix : ''}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
-                          {p.handCount} cards · {p.status}
+                          {t.handOf(p.handCount)} · {p.status}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#9ca3af', fontWeight: 800, marginTop: '0.25rem' }}>
-                          {p.place ? `#${p.place}` : '—'}
+                          {p.place ? t.place(p.place) : '—'}
                         </div>
                       </div>
                     ))}
@@ -350,7 +343,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                     borderRadius: '0.75rem',
                     padding: '0.75rem',
                   }}>
-                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>Results</div>
+                    <h3 style={{ margin: 0, color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>{t.results}</h3>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       {playerSummaries
                         .filter(p => typeof p.place === 'number')
@@ -368,14 +361,14 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                               fontWeight: 800,
                             }}
                           >
-                            #{p.place}: {p.name}
+                            {t.place(p.place ?? 0)}: {p.name}
                           </div>
                         ))}
                     </div>
                   </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem', marginTop: '1rem' }}>
                   {/* Table */}
                   <div style={{
                     background: 'rgba(17, 24, 39, 0.6)',
@@ -384,15 +377,15 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                     padding: '1rem',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Pile</div>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                        {pileCount} cards · Last claim: {claimText}
+                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{t.pile}</div>
+                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'right' }}>
+                        {t.cardsCount(pileCount)} · {t.lastClaim}: {claimText}
                       </div>
                     </div>
 
                     <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', minHeight: '4.5rem' }}>
                       {pileCount === 0 ? (
-                        <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No pile yet</div>
+                        <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>{t.noPileYet}</div>
                       ) : (
                         Array.from({ length: Math.min(12, pileCount) }, (_, i) => (
                           <CardBack key={i} size="small" />
@@ -423,7 +416,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                           cursor: (!isMyTurn || isSubmitting || gameState.phase !== 'challenge' || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Accept
+                        {t.accept}
                       </button>
 
                       <button
@@ -439,7 +432,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                           cursor: (!isMyTurn || isSubmitting || gameState.phase !== 'challenge' || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Doubt!
+                        {t.doubt}
                       </button>
 
                       <button
@@ -455,7 +448,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                           cursor: (!validatePlay.ok || isSubmitting || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Play
+                        {t.play}
                       </button>
 
                       <button
@@ -471,7 +464,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                           cursor: isSubmitting || !selectedCardIds.length ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Clear
+                        {t.clear}
                       </button>
                     </div>
 
@@ -488,7 +481,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                           cursor: 'pointer',
                         }}
                       >
-                        Leave
+                        {lobbyT.leave}
                       </button>
                     </div>
                   </div>
@@ -510,10 +503,10 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>
-                      Play Area (declare {rankToLabel(requiredRank)})
+                      {t.playAreaTitle(rankToLabel(requiredRank))}
                     </div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      {gameState.phase === 'challenge' ? 'Decide: Accept or Doubt' : selectedCardIds.length ? `Selected ${selectedCardIds.length}/4` : 'Drag cards here or click to select'}
+                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'right' }}>
+                      {gameState.phase === 'challenge' ? t.decideHint : selectedCardIds.length ? t.selected(selectedCardIds.length) : t.dropHint}
                     </div>
                   </div>
 
@@ -550,7 +543,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                   >
                     {selectedCards.length === 0 ? (
                       <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                        {canSelectMore ? 'Drop 1–4 cards here' : '—'}
+                        {canSelectMore ? t.errorSelectCards : '—'}
                       </div>
                     ) : (
                       selectedCards.map(renderSelectedCard)
@@ -567,20 +560,22 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                   padding: '1rem',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Your Hand</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      {gameState.phase === 'play' ? `Truth cards highlighted (rank ${rankToLabel(requiredRank)})` : '—'}
+                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{t.yourHand} ({myHand.length})</div>
+                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'right' }}>
+                      {gameState.phase === 'play' ? t.truthHighlight(rankToLabel(requiredRank)) : t.noClaim}
                     </div>
                   </div>
-                  <div style={{
+                  <div data-testid="doubt-online-hand" style={{
                     marginTop: '0.75rem',
                     display: 'flex',
                     gap: '0.5rem',
-                    flexWrap: 'nowrap',
-                    overflowX: 'auto',
+                    // Wrapped, as on the vs-AI table: in one row a full hand ran off the side of a phone.
+                    flexWrap: 'wrap',
                     paddingBottom: '0.25rem',
                   }}>
-                    {myHand.map(renderHandCard)}
+                    {myHand.length === 0
+                      ? <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>{t.out}</div>
+                      : myHand.map(renderHandCard)}
                   </div>
                 </div>
 
@@ -592,9 +587,9 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                   borderRadius: '0.75rem',
                   padding: '1rem',
                 }}>
-                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>Log</div>
+                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>{t.log}</div>
                   {logLines.length === 0 ? (
-                    <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No actions yet</div>
+                    <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>{t.noActions}</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: '#e5e7eb', fontSize: '0.85rem' }}>
                       {logLines.map((text, idx) => (
@@ -610,14 +605,14 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
           )}
 
           {/* Finished room state fallback */}
-          {multiplayer.context.lobbyState === 'finished' && (
+          {multiplayer.context.lobbyState === 'finished' && !gameState && (
             <div style={{
               background: 'rgba(0, 0, 0, 0.92)',
               border: '2px solid rgba(251, 191, 36, 0.35)',
               borderRadius: '1rem',
               padding: '1.5rem',
             }}>
-              <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.25rem' }}>Game finished</div>
+              <h2 style={{ margin: 0, color: '#fff', fontWeight: 900, fontSize: '1.25rem' }}>{lobbyT.gameFinished}</h2>
               <div style={{ marginTop: '1rem' }}>
                 <button
                   onClick={handleBackToMenu}
@@ -631,7 +626,7 @@ export function DoubtOnline({ onBackToMenu }: DoubtOnlineProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Leave
+                  {lobbyT.leave}
                 </button>
               </div>
             </div>

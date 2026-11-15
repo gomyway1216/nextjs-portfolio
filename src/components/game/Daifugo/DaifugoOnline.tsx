@@ -19,6 +19,8 @@ import type { DaifugoLogEntry } from './multiplayerTypes';
 import type { DaifugoUITranslations } from '../constants/gameTranslations';
 import screenStyles from './DaifugoScreen.module.css';
 import { usePageTop } from './usePageTop';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getDaifugoLobbyStrings } from './lobbyStrings';
 
 interface DaifugoOnlineProps {
   onBackToMenu: () => void;
@@ -29,6 +31,10 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   const stats = useMemo<GameStats>(() => ({ wins: 0, losses: 0, draws: 0 }), []);
   const [showInfo, setShowInfo] = useState(false);
   const { t: translate } = useTranslation();
+  const { language } = useGameLanguage();
+  const lobbyT = getDaifugoLobbyStrings(language);
+  /** A message to show: the hook's own (English) messages translated, a server's message as sent. */
+  const errorText = (message: string) => lobbyT.errors[message] ?? message;
 
   // Build translation objects from i18next
   const gameT = {
@@ -107,7 +113,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   usePageTop(inMatch ? 'match' : 'lobby');
   const isReversed = !!gameState && (gameState.revolution !== gameState.jackBack);
 
-  const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || 'You';
+  const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || d.you;
 
   const myHand = useMemo<Card[]>(() => {
     if (!gameState) return [];
@@ -281,7 +287,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       return;
     }
     const ok = await multiplayer.startGame();
-    if (!ok) setLocalError('Failed to start game');
+    if (!ok) setLocalError(lobbyT.startFailed);
   };
 
   const handlePlay = async () => {
@@ -304,7 +310,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     setIsSubmitting(true);
     try {
       const res = await multiplayer.submitPlay(cardIds, { giveCardIds, discardCardIds });
-      if (!res.success) setLocalError(res.error ?? 'Play rejected');
+      if (!res.success) setLocalError(res.error ? errorText(res.error) : lobbyT.playRejected);
     } finally {
       setIsSubmitting(false);
     }
@@ -320,7 +326,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     setIsSubmitting(true);
     try {
       const res = await multiplayer.submitPass();
-      if (!res.success) setLocalError(res.error ?? 'Pass rejected');
+      if (!res.success) setLocalError(res.error ? errorText(res.error) : lobbyT.passRejected);
     } finally {
       setIsSubmitting(false);
     }
@@ -398,7 +404,8 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
   const roomBadge = multiplayer.context.roomId ? (
     <div style={{
-      background: 'rgba(251, 191, 36, 0.12)',
+      // Opaque: the top bar is light in the light theme, and amber on it could not be read.
+      background: '#3b2a06',
       border: '1px solid rgba(251, 191, 36, 0.35)',
       borderRadius: '0.5rem',
       padding: '0.35rem 0.75rem',
@@ -409,7 +416,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       letterSpacing: '0.12em',
       whiteSpace: 'nowrap',
     }}>
-      ROOM {multiplayer.context.roomId}
+      {lobbyT.roomBadge(multiplayer.context.roomId)}
     </div>
   ) : null;
 
@@ -498,7 +505,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
               }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-	                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{gameT.title} (Online)</div>
+	                    <h2 style={{ margin: 0, color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{d.online}</h2>
 	                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
 	                      {d.round} {gameState?.round ?? 1} · {gameState?.playerOrder.length ?? 0} {d.players} · {isMyTurn ? d.yourTurn : `${playerNameOf(gameState?.currentTurnPlayerId ?? '')}${d.playerTurn}`}
 	                    </div>
@@ -509,7 +516,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                     )}
                   </div>
 
-	                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'flex-end' }}>
+	                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(7rem, 100%), 1fr))', gap: '0.5rem', width: '100%' }}>
 	                    {playerSummaries.map((p) => {
 	                      const rankLabel = p.rank === 'daifugo' ? d.daifugo
 	                        : p.rank === 'fugo' ? d.fugo
@@ -526,7 +533,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 	                            borderRadius: '0.75rem',
 	                            padding: '0.45rem 0.75rem',
 	                            color: '#e5e7eb',
-	                            minWidth: '9rem',
+	                            minWidth: 0,
 	                          }}
 	                        >
 	                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
@@ -557,7 +564,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                     borderRadius: '0.75rem',
                     padding: '0.75rem',
                   }}>
-                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>{d.results}</div>
+                    <h3 style={{ margin: 0, color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>{d.results}</h3>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       {resultRows.map((row) => {
                         const rankLabel = row.rank === 'daifugo' ? d.daifugo
@@ -853,9 +860,9 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                   borderRadius: '0.75rem',
                   padding: '1rem',
                 }}>
-                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>Log</div>
+                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>{d.log}</div>
                   {logLines.length === 0 ? (
-                    <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No actions yet</div>
+                    <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>{d.noActionsYet}</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: '#e5e7eb', fontSize: '0.85rem' }}>
                       {logLines.map((line, idx) => (

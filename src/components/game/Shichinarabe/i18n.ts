@@ -6,6 +6,8 @@
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { ShichinarabeAIDifficulty } from './ShichinarabeAI';
 import type { ShichinarabeHintReason } from './ShichinarabeHint';
+import type { ShichinarabeLogEntry } from './multiplayerTypes';
+import { rankToLabel, SUIT_SYMBOL } from './types';
 
 export interface ShichinarabeStrings {
   // Mode select
@@ -319,6 +321,18 @@ export interface ShichinarabeLobbyStrings {
   hostNote: string;
   /** The messages the room hook itself reports, by their English text. A server's own message is shown as sent. */
   errors: Record<string, string>;
+  // The online match (the rest is shared with the vs-AI table: getShichinarabeStrings).
+  /** The badge with the room's code. */
+  roomBadge: (code: string) => string;
+  matchTitle: string;
+  playerCount: (n: number) => string;
+  lastPlayed: (card: string) => string;
+  cardNotInHand: string;
+  cardNotAdjacent: string;
+  needPlayers: (min: number) => string;
+  startFailed: string;
+  moveRejected: string;
+  passRejected: string;
 }
 
 const LOBBY_STRINGS: Record<GameLanguage, ShichinarabeLobbyStrings> = {
@@ -354,6 +368,16 @@ const LOBBY_STRINGS: Record<GameLanguage, ShichinarabeLobbyStrings> = {
     backToMenu: 'Back to Menu',
     hostNote: 'Note: the host’s device runs the game. Keep the host’s tab open during play.',
     errors: {},
+    roomBadge: (code) => `ROOM ${code}`,
+    matchTitle: 'Shichinarabe (Online)',
+    playerCount: (n) => `${n} players`,
+    lastPlayed: (card) => `Last: ${card}`,
+    cardNotInHand: 'That card is not in your hand',
+    cardNotAdjacent: 'That card does not fit next to the table',
+    needPlayers: (min) => `Need ${min} players`,
+    startFailed: 'Failed to start game',
+    moveRejected: 'Move rejected',
+    passRejected: 'Pass rejected',
   },
   ja: {
     title: '七並べ',
@@ -391,10 +415,40 @@ const LOBBY_STRINGS: Record<GameLanguage, ShichinarabeLobbyStrings> = {
       'Network error': '通信エラーが発生しました',
       'Failed to create room': 'ルームを作成できませんでした',
       'Failed to join room': 'ルームに参加できませんでした',
+      'No room': 'ルームに入っていません',
     },
+    roomBadge: (code) => `ルーム ${code}`,
+    matchTitle: '七並べ（オンライン）',
+    playerCount: (n) => `${n} 人`,
+    lastPlayed: (card) => `直前：${card}`,
+    cardNotInHand: 'そのカードは手札にありません',
+    cardNotAdjacent: 'そのカードは場の列の隣に続きません',
+    needPlayers: (min) => `${min} 人以上必要です`,
+    startFailed: 'ゲームを開始できませんでした',
+    moveRejected: 'その手は受け付けられませんでした',
+    passRejected: 'パスは受け付けられませんでした',
   },
 };
 
 export function getShichinarabeLobbyStrings(language: GameLanguage): ShichinarabeLobbyStrings {
   return LOBBY_STRINGS[language] ?? LOBBY_STRINGS.en;
+}
+
+/** One line of the game log, in the page's language. The engine's English `detail` is never shown. */
+export function formatShichinarabeLog(
+  t: ShichinarabeStrings,
+  entry: ShichinarabeLogEntry,
+  name: string,
+  maxPasses: number,
+): string {
+  if (entry.type === 'play' && entry.card) {
+    const label = `${rankToLabel(entry.card.rank)}${SUIT_SYMBOL[entry.card.suit]}`;
+    if (entry.detail === 'Revealed on elimination') return t.logRevealed(name, label);
+    return t.logPlayed(name, label);
+  }
+  if (entry.type === 'pass') return t.logPassed(name, entry.passCount ?? 0, maxPasses);
+  if (entry.type === 'eliminate') return t.logEliminated(name);
+  if (entry.type === 'start') return t.logStart;
+  if (entry.type === 'finish') return t.logFinish;
+  return `${name}: …`;
 }

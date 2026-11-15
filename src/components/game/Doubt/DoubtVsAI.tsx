@@ -16,7 +16,7 @@ import { rankToLabel } from './types';
 import type { Card } from './types';
 import type { DoubtAction, DoubtLogEntry, DoubtNetworkState } from './multiplayerTypes';
 import { CardBack, PlayingCard, PlayingCardStyles } from './PlayingCard';
-import { getDoubtStrings, isDefaultYouName } from './i18n';
+import { formatDoubtLog, getDoubtStrings, isDefaultYouName } from './i18n';
 import screenStyles from './DoubtScreen.module.css';
 import { usePageTop } from './usePageTop';
 
@@ -454,23 +454,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
   const logLines = useMemo(() => {
     if (!gameState) return [];
     const log: DoubtLogEntry[] = gameState.log ?? [];
-    return log.slice(-12).map((entry) => {
-      const name = playerNameOf(entry.playerId);
-      if (entry.type === 'play') {
-        return t.logPlayed(name, entry.count ?? 0, rankToLabel(entry.declaredRank ?? 1));
-      }
-      if (entry.type === 'accept') return t.logAccept(name);
-      if (entry.type === 'doubt') return t.logDoubt(name);
-      if (entry.type === 'resolve') {
-        if (typeof entry.claimTruth === 'boolean') {
-          const taker = entry.pileTakerId ? playerNameOf(entry.pileTakerId) : name;
-          return entry.claimTruth ? t.logTruth(taker) : t.logLie(taker);
-        }
-        return t.logFinished(name);
-      }
-      if (entry.type === 'finish') return t.logFinished(name);
-      return `${name}: ${entry.detail ?? entry.type}`;
-    });
+    return log.slice(-12).map((entry) => formatDoubtLog(t, entry, playerNameOf));
   }, [gameState, playerNameOf, t]);
 
   const panel = 'rgba(0, 0, 0, 0.92)';

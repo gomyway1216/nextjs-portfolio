@@ -15,7 +15,7 @@ import { decideShichinarabeAction, ShichinarabeAIDifficulty } from './Shichinara
 import { getShichinarabeHint, type ShichinarabeHint } from './ShichinarabeHint';
 import { cardToShortLabel, rankToLabel, SUITS, SUIT_SYMBOL } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
-import { getShichinarabeStrings, isDefaultYouName, DIFFICULTY_ORDER } from './i18n';
+import { formatShichinarabeLog, getShichinarabeStrings, isDefaultYouName, DIFFICULTY_ORDER } from './i18n';
 import styles from './ShichinarabeVsAI.module.css';
 import { usePageTop } from './usePageTop';
 import type { Card, CardSuit } from './types';
@@ -370,19 +370,8 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
     );
   };
 
-  const logText = (entry: ShichinarabeLogEntry): string => {
-    const name = playerNameOf(entry.playerId);
-    if (entry.type === 'play' && entry.card) {
-      const label = `${rankToLabel(entry.card.rank)}${SUIT_SYMBOL[entry.card.suit]}`;
-      if (entry.detail === 'Revealed on elimination') return t.logRevealed(name, label);
-      return t.logPlayed(name, label);
-    }
-    if (entry.type === 'pass') return t.logPassed(name, entry.passCount ?? 0, gameState?.maxPasses ?? 3);
-    if (entry.type === 'eliminate') return t.logEliminated(name);
-    if (entry.type === 'start') return t.logStart;
-    if (entry.type === 'finish') return t.logFinish;
-    return `${name}: …`;
-  };
+  const logText = (entry: ShichinarabeLogEntry): string =>
+    formatShichinarabeLog(t, entry, playerNameOf(entry.playerId), gameState?.maxPasses ?? 3);
 
   const myPlace = gameState?.ranks?.[humanId] ?? null;
 

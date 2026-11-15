@@ -39,7 +39,7 @@ test('result cards select every next game in the same room with one request', as
     expect(members.every(player => player.partyPoints === 10)).toBe(true);
     const history = await (await host.request.get(`/api/ogiri/history/${room.history![0].id}`)).json();
     const chooser = host.getByRole('region', { name: '次のゲーム', exact: true });
-    const sent: { type?: string }[] = [];
+    const sent: ({ type?: string } | null)[] = [];
     host.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === path) sent.push(request.postDataJSON());
     });
@@ -68,7 +68,7 @@ test('result cards select every next game in the same room with one request', as
       const selected = await response;
       expect(selected.ok()).toBe(true);
       room = await selected.json();
-      const actions = sent.slice(before).filter(body => body.type !== 'heartbeat');
+      const actions = sent.slice(before).filter(body => body?.type !== 'heartbeat');
       expect(actions).toHaveLength(1);
       expect(actions[0]).toMatchObject({ type: 'rematch', gameType });
       expect(room).toMatchObject({ code, phase: 'lobby', gameType });

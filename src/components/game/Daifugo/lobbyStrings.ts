@@ -40,6 +40,12 @@ export interface DaifugoLobbyStrings {
   backToMenu: string;
   /** The messages the room hook itself reports, by their English text. A server's own message is shown as sent. */
   errors: Record<string, string>;
+  // The online match (its other words come from the site's games.daifugo.ui strings, shared with the vs-AI table).
+  /** The badge with the room's code. */
+  roomBadge: (code: string) => string;
+  startFailed: string;
+  playRejected: string;
+  passRejected: string;
 }
 
 const LOBBY_STRINGS: Record<GameLanguage, DaifugoLobbyStrings> = {
@@ -74,6 +80,10 @@ const LOBBY_STRINGS: Record<GameLanguage, DaifugoLobbyStrings> = {
     joiningRoom: 'Joining room...',
     backToMenu: 'Back to Menu',
     errors: {},
+    roomBadge: (code) => `ROOM ${code}`,
+    startFailed: 'Failed to start game',
+    playRejected: 'Play rejected',
+    passRejected: 'Pass rejected',
   },
   ja: {
     title: '大富豪',
@@ -110,7 +120,12 @@ const LOBBY_STRINGS: Record<GameLanguage, DaifugoLobbyStrings> = {
       'Network error': '通信エラーが発生しました',
       'Failed to create room': 'ルームを作成できませんでした',
       'Failed to join room': 'ルームに参加できませんでした',
+      'No room': 'ルームに入っていません',
     },
+    roomBadge: (code) => `ルーム ${code}`,
+    startFailed: 'ゲームを開始できませんでした',
+    playRejected: 'カードを出せませんでした',
+    passRejected: 'パスできませんでした',
   },
 };
 

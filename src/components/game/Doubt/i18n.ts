@@ -6,6 +6,8 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import type { DoubtLogEntry } from './multiplayerTypes';
+import { rankToLabel } from './types';
 
 export interface DoubtStrings {
   // Mode select
@@ -85,6 +87,7 @@ export interface DoubtStrings {
   logTruth: (doubter: string) => string;
   logLie: (claimant: string) => string;
   logFinished: (name: string) => string;
+  logStart: string;
 
   // results
   results: string;
@@ -205,6 +208,7 @@ const en: DoubtStrings = {
   logTruth: (doubter) => `Truth — ${doubter} takes the pile`,
   logLie: (claimant) => `Lie! — ${claimant} takes the pile`,
   logFinished: (name) => `${name} went out`,
+  logStart: 'Game started',
 
   results: 'Results',
   youWon: 'You won! 🏆',
@@ -322,6 +326,7 @@ const ja: DoubtStrings = {
   logTruth: (doubter) => `本物 — ${doubter} が山札を引き取り`,
   logLie: (claimant) => `嘘！ — ${claimant} が山札を引き取り`,
   logFinished: (name) => `${name} が上がり`,
+  logStart: 'ゲーム開始',
 
   results: '結果',
   youWon: 'あなたの勝ち！🏆',
@@ -418,6 +423,19 @@ export interface DoubtLobbyStrings {
   hostNote: string;
   /** The messages the room hook itself reports, by their English text. A server's own message is shown as sent. */
   errors: Record<string, string>;
+  // The online match (the rest is shared with the vs-AI table: getDoubtStrings).
+  /** The badge with the room's code. */
+  roomBadge: (code: string) => string;
+  matchTitle: string;
+  phase: string;
+  cardNotInHand: string;
+  notPlayPhase: string;
+  needPlayers: (min: number) => string;
+  startFailed: string;
+  playRejected: string;
+  acceptRejected: string;
+  doubtRejected: string;
+  gameFinished: string;
 }
 
 const LOBBY_STRINGS: Record<GameLanguage, DoubtLobbyStrings> = {
@@ -453,6 +471,17 @@ const LOBBY_STRINGS: Record<GameLanguage, DoubtLobbyStrings> = {
     backToMenu: 'Back to Menu',
     hostNote: 'Note: the host’s device runs the game. Keep the host’s tab open during play.',
     errors: {},
+    roomBadge: (code) => `ROOM ${code}`,
+    matchTitle: 'Doubt (Online)',
+    phase: 'Phase',
+    cardNotInHand: 'That card is not in your hand',
+    notPlayPhase: 'Not the time to play cards',
+    needPlayers: (min) => `Need ${min} players`,
+    startFailed: 'Failed to start game',
+    playRejected: 'Play rejected',
+    acceptRejected: 'Accept rejected',
+    doubtRejected: 'Doubt rejected',
+    gameFinished: 'Game finished',
   },
   ja: {
     title: 'ダウト',
@@ -490,10 +519,40 @@ const LOBBY_STRINGS: Record<GameLanguage, DoubtLobbyStrings> = {
       'Network error': '通信エラーが発生しました',
       'Failed to create room': 'ルームを作成できませんでした',
       'Failed to join room': 'ルームに参加できませんでした',
+      'No room': 'ルームに入っていません',
     },
+    roomBadge: (code) => `ルーム ${code}`,
+    matchTitle: 'ダウト（オンライン）',
+    phase: 'フェーズ',
+    cardNotInHand: 'そのカードは手札にありません',
+    notPlayPhase: '今はカードを出す番ではありません',
+    needPlayers: (min) => `${min} 人以上必要です`,
+    startFailed: 'ゲームを開始できませんでした',
+    playRejected: 'カードを出せませんでした',
+    acceptRejected: '受け入れられませんでした',
+    doubtRejected: 'ダウトできませんでした',
+    gameFinished: 'ゲーム終了',
   },
 };
 
 export function getDoubtLobbyStrings(language: GameLanguage): DoubtLobbyStrings {
   return LOBBY_STRINGS[language] ?? LOBBY_STRINGS.en;
+}
+
+/** One line of the game log, in the page's language. The engine's English `detail` is never shown. */
+export function formatDoubtLog(t: DoubtStrings, entry: DoubtLogEntry, nameOf: (playerId: string) => string): string {
+  const name = nameOf(entry.playerId);
+  if (entry.type === 'start') return t.logStart;
+  if (entry.type === 'play') return t.logPlayed(name, entry.count ?? 0, rankToLabel(entry.declaredRank ?? 1));
+  if (entry.type === 'accept') return t.logAccept(name);
+  if (entry.type === 'doubt') return t.logDoubt(name);
+  if (entry.type === 'resolve') {
+    if (typeof entry.claimTruth === 'boolean') {
+      const taker = entry.pileTakerId ? nameOf(entry.pileTakerId) : name;
+      return entry.claimTruth ? t.logTruth(taker) : t.logLie(taker);
+    }
+    return t.logFinished(name);
+  }
+  if (entry.type === 'finish') return t.logFinished(name);
+  return `${name}: …`;
 }

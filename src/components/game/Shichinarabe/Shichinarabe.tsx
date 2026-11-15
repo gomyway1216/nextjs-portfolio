@@ -12,11 +12,14 @@ import { getShichinarabeStrings } from './i18n';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import screenStyles from './ShichinarabeScreen.module.css';
+import { usePageTop } from './usePageTop';
 type ShichinarabeMode = 'menu' | 'ai' | 'online';
 
 export function Shichinarabe() {
   useFeatureLifecycle('game.shichinarabe');
   const [mode, setMode] = useState<ShichinarabeMode>('menu');
+  usePageTop(mode);
   const { language } = useGameLanguage();
   const t = getShichinarabeStrings(language);
 
@@ -29,16 +32,7 @@ export function Shichinarabe() {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'auto',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '1.25rem',
-    }}>
+    <div className={screenStyles.menu}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link
           href="/games"

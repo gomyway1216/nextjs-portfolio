@@ -17,6 +17,8 @@ import type { Card } from './types';
 import type { DoubtAction, DoubtLogEntry, DoubtNetworkState } from './multiplayerTypes';
 import { CardBack, PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { getDoubtStrings, isDefaultYouName } from './i18n';
+import screenStyles from './DoubtScreen.module.css';
+import { usePageTop } from './usePageTop';
 
 interface DoubtVsAIProps {
   onBackToMenu: () => void;
@@ -94,6 +96,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
   // The rules state plus the real cards behind every claim (for the post-game report).
   const [game, setGame] = useState<TrackedDoubtGame | null>(null);
   const gameState = game?.state ?? null;
+  usePageTop(gameState ? 'table' : 'setup');
 
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -387,6 +390,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       fontWeight: 700,
       fontFamily: 'monospace',
       letterSpacing: '0.08em',
+      whiteSpace: 'nowrap',
     }}>
       AI ×{Math.max(2, Math.min(5, aiCount))}
     </div>
@@ -474,25 +478,10 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
   const borderColor = 'rgba(55, 65, 81, 1)';
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #0b1220, #000)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
+    <div className={screenStyles.screen} style={{ background: 'linear-gradient(to bottom, #0b1220, #000)' }}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} additionalContent={modeBadge} />
 
-      <div style={{
-        flex: 1,
-        paddingTop: '4rem',
-        paddingBottom: '1.25rem',
-        display: 'flex',
-        justifyContent: 'center',
-        overflow: 'auto',
-      }}>
+      <div className={screenStyles.area}>
         <div style={{ width: 'min(1100px, 100%)', padding: '1rem' }}>
           {!gameState && (
             <DifficultySelector
@@ -508,7 +497,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
               kickerLabel={t.gameSetup}
               setupContent={(
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 700 }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: 'var(--games-route-muted, #9ca3af)', fontSize: '0.85rem', fontWeight: 700 }}>
                     {t.yourName}
                     <input
                       type="text"
@@ -528,7 +517,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
                     />
                   </label>
 
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 700 }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: 'var(--games-route-muted, #9ca3af)', fontSize: '0.85rem', fontWeight: 700 }}>
                     {t.aiPlayers}
                     <select
                       value={aiCount}
@@ -582,7 +571,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
               }}>
                 {/* Header: status + opponents */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div data-testid="doubt-status" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{t.title}</div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
                       {gameState.finished ? t.finished : isMyTurn ? t.yourTurn : t.turnOf(playerNameOf(gameState.currentTurnPlayerId))}
@@ -881,12 +870,13 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
                       {gameState.phase === 'play' ? t.truthHighlight(rankToLabel(requiredRank)) : t.noClaim}
                     </div>
                   </div>
-                  <div style={{
+                  <div data-testid="doubt-hand" style={{
                     marginTop: '0.75rem',
                     display: 'flex',
                     gap: '0.5rem',
-                    flexWrap: 'nowrap',
-                    overflowX: 'auto',
+                    // Wrapped: in one row the cards were squeezed to slivers on a phone (13 cards in 290px, and a
+                    // hand grows every time a pile is picked up).
+                    flexWrap: 'wrap',
                     paddingBottom: '0.5rem',
                   }}>
                     {myHand.length === 0

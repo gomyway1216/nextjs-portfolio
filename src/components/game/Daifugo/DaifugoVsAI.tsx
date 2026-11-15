@@ -29,6 +29,8 @@ import {
 import type { DaifugoAction, DaifugoLogEntry, DaifugoNetworkState } from './multiplayerTypes';
 import { DaifugoTableView } from './DaifugoTableView';
 import type { DaifugoUITranslations } from '../constants/gameTranslations';
+import screenStyles from './DaifugoScreen.module.css';
+import { usePageTop } from './usePageTop';
 
 interface DaifugoVsAIProps {
   onBackToMenu: () => void;
@@ -146,6 +148,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
   const [humanId] = useState(() => createLocalId('human'));
   const [players, setPlayers] = useState<Record<string, LocalPlayerMeta>>({});
   const [gameState, setGameState] = useState<DaifugoNetworkState | null>(null);
+  usePageTop(gameState ? 'table' : 'setup');
 
   const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -563,6 +566,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       fontWeight: 700,
       fontFamily: 'monospace',
       letterSpacing: '0.08em',
+      whiteSpace: 'nowrap',
     }}>
       AI ×{Math.max(2, Math.min(5, aiCount))} · {difficultyOptions.find(o => o.value === difficulty)?.label}
     </div>
@@ -596,25 +600,10 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
   const pileCards = gameState?.pile?.cards ?? [];
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
+    <div className={screenStyles.screen}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} additionalContent={modeBadge} />
 
-      <div data-testid="daifugo-game-area" style={{
-        flex: 1,
-        paddingTop: '4rem',
-        paddingBottom: '1.25rem',
-        display: 'flex',
-        justifyContent: 'center',
-        overflow: 'auto',
-      }}>
+      <div data-testid="daifugo-game-area" className={screenStyles.area}>
         <div style={{ width: 'min(1100px, 100%)', padding: '1rem' }}>
           {!gameState && (
             <div style={{
@@ -767,7 +756,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
               }}>
                 {/* Header */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div data-testid="daifugo-status" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{d.vsAI}</div>
                       <span style={{

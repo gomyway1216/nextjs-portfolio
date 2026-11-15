@@ -62,6 +62,7 @@ function PlayerAvatar({
 
   return (
     <div
+      data-testid="daifugo-seat"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -192,6 +193,7 @@ export function DaifugoTableView({
 
   return (
     <div
+      data-testid="daifugo-seats-and-table"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -232,6 +234,7 @@ export function DaifugoTableView({
         {/* Table */}
         <div
           className={styles.table}
+          data-testid="daifugo-table"
           style={{
             minHeight: '12rem',
             background: 'radial-gradient(ellipse at center, #1a472a 0%, #0f2b1a 70%, #0a1f12 100%)',

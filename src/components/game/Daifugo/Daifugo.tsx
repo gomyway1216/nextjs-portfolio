@@ -12,11 +12,14 @@ import { GameLanguageProvider, useGameLanguage, LanguageSelector } from '../cont
 import { getGameTranslation } from '../constants/gameTranslations';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import screenStyles from './DaifugoScreen.module.css';
+import { usePageTop } from './usePageTop';
 type DaifugoMode = 'menu' | 'ai' | 'online';
 
 function DaifugoContent() {
   useFeatureLifecycle('game.daifugo');
   const [mode, setMode] = useState<DaifugoMode>('menu');
+  usePageTop(mode);
   const { language } = useGameLanguage();
   const t = getGameTranslation('daifugo', language);
 
@@ -39,16 +42,7 @@ function DaifugoContent() {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'auto',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '1.25rem',
-    }}>
+    <div className={screenStyles.menu}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link
           href="/games"

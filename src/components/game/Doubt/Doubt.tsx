@@ -12,11 +12,14 @@ import { getDoubtStrings } from './i18n';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import screenStyles from './DoubtScreen.module.css';
+import { usePageTop } from './usePageTop';
 type DoubtMode = 'menu' | 'ai' | 'online';
 
 export function Doubt() {
   useFeatureLifecycle('game.doubt');
   const [mode, setMode] = useState<DoubtMode>('menu');
+  usePageTop(mode);
   const { language } = useGameLanguage();
   const t = getDoubtStrings(language);
 
@@ -29,16 +32,7 @@ export function Doubt() {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'auto',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '1.25rem',
-    }}>
+    <div className={screenStyles.menu}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link
           href="/games"

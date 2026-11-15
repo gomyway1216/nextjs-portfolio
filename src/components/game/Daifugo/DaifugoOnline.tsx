@@ -17,6 +17,8 @@ import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { DAIFUGO_RANK_PRIORITY, daifugoRankToLabel } from './multiplayerTypes';
 import type { DaifugoLogEntry } from './multiplayerTypes';
 import type { DaifugoUITranslations } from '../constants/gameTranslations';
+import screenStyles from './DaifugoScreen.module.css';
+import { usePageTop } from './usePageTop';
 
 interface DaifugoOnlineProps {
   onBackToMenu: () => void;
@@ -101,6 +103,8 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
   const room = multiplayer.room;
   const gameState = multiplayer.gameState;
+  const inMatch = multiplayer.context.lobbyState === 'playing' || multiplayer.context.lobbyState === 'finished';
+  usePageTop(inMatch ? 'match' : 'lobby');
   const isReversed = !!gameState && (gameState.revolution !== gameState.jackBack);
 
   const myPlayerName = room?.players?.[multiplayer.context.playerId]?.name || multiplayer.context.playerName || 'You';
@@ -403,6 +407,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       fontWeight: 700,
       fontFamily: 'monospace',
       letterSpacing: '0.12em',
+      whiteSpace: 'nowrap',
     }}>
       ROOM {multiplayer.context.roomId}
     </div>
@@ -438,25 +443,10 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
+    <div className={screenStyles.screen}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} additionalContent={roomBadge} />
 
-      <div style={{
-        flex: 1,
-        paddingTop: '4rem',
-        paddingBottom: '1.25rem',
-        display: 'flex',
-        justifyContent: 'center',
-        overflow: 'auto',
-      }}>
+      <div className={screenStyles.area}>
         <div style={{ width: 'min(1100px, 100%)', padding: '1rem' }}>
           {/* Lobby */}
           {(multiplayer.context.lobbyState === 'idle' ||

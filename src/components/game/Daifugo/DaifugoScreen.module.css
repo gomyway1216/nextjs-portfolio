@@ -1,0 +1,30 @@
+/*
+ * Every Daifugo screen (mode select, setup, table, results, online lobby) sits in normal flow, under the site's
+ * sticky toolbar, whatever that toolbar's height is. As fixed, full-viewport layers they slid their own first row
+ * (the title, the round and turn, the way back) beneath it. 59px is the toolbar at its shortest: the screen fills
+ * the rest of a desktop window, and on a phone, where the toolbar is taller, the page is a little longer instead.
+ */
+.screen {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 59px);
+  min-height: calc(100dvh - 59px);
+  background: linear-gradient(to bottom, #111827, #000);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.menu {
+  composes: screen;
+  padding: 1.25rem;
+}
+
+/* The game's own column, centred in the screen. */
+.area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  padding-bottom: 1.25rem;
+}

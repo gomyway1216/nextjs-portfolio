@@ -403,7 +403,7 @@ export function GlobalToolbar() {
 
         {hasGameContent && gameContent?.center && (
           <div
-            className={`${styles.gameCenter} ${styles.accentText} flex w-full items-center gap-2 border-t pt-2 text-sm font-medium md:w-auto md:border-t-0 md:pt-0`}
+            className={`${styles.gameCenter} ${styles.accentText} flex items-center gap-2 text-sm font-medium`}
             style={{ borderColor: toolbarBorder }}
           >
             {gameContent.center}

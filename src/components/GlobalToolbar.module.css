@@ -37,9 +37,35 @@
   order: 3;
 }
 
+/* A game's own toolbar content (its stats, and on smaller screens a mode badge or turn counter beside them). On phones
+   it has the whole second row, under a rule; from 768px it sits in the one row, between the site name and the
+   controls. */
+.gameCenter {
+  width: 100%;
+  border-top-width: 1px;
+  border-top-style: solid;
+  padding-top: 0.5rem;
+}
+
 @media (min-width: 768px) {
   .gameCenter {
     order: 2;
+    width: auto;
+    border-top-width: 0;
+    padding-top: 0;
+  }
+}
+
+/* Tablets, on a game that shows extra content beside its stats (a mode badge, a turn counter, level and lines): the
+   one row has no room for both next to the site name, the Games link, the game's name and the controls. The extra was
+   cut to a stub and the stats ran over the game's name, so the bar keeps the phone layout and gives them the second
+   row. From 1024px the row is wide enough and the extra moves beside the site name. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .gameCenter:has([data-game-top-bar-extra]) {
+    order: 3;
+    width: 100%;
+    border-top-width: 1px;
+    padding-top: 0.5rem;
   }
 }
 

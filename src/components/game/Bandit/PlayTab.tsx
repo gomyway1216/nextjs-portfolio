@@ -6,13 +6,14 @@ import { getBanditStrings } from './i18n';
 import { StrategyName, chooseArm, mulberry32, wilsonInterval } from './engine';
 import { ReviewPanel, type ReviewState } from './ReviewPanel';
 import { type GameReview, type Pull, reviewGame } from './review';
-import { DEFAULT_PULL_LIMIT, MAX_PULL_LIMIT, MIN_PULL_LIMIT, isLivePullLimit, pullProgress, settlePullLimit } from './playHelpers';
+import {
+  DEFAULT_ARMS, DEFAULT_PULL_LIMIT, MAX_ARMS, MAX_PULL_LIMIT, MIN_ARMS, MIN_PULL_LIMIT,
+  isLiveArmCount, isLivePullLimit, pullProgress, settleArmCount, settlePullLimit,
+} from './playHelpers';
 
 const ARM_PALETTE = ['#67e8f9', '#a78bfa', '#f472b6', '#4ade80', '#fbbf24'];
 const T_DEFAULT = DEFAULT_PULL_LIMIT;
-const K_DEFAULT = 3;
-const MIN_K = 2;
-const MAX_K = 5;
+const K_DEFAULT = DEFAULT_ARMS;
 
 // Which strategy to show as a live hint, and how to label it.
 const HINT_STRATEGY: StrategyName = 'ucb1';
@@ -35,6 +36,9 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
   const t = getBanditStrings(language);
 
   const [k, setK] = useState(K_DEFAULT);
+  // What is typed in the arms field. `k` follows it only once it is a usable
+  // count, so clearing the field or a half-typed number never deals new arms.
+  const [kText, setKText] = useState(String(K_DEFAULT));
   const [T, setT] = useState(T_DEFAULT);
   // What is typed in the limit field. `T` follows it only once it is a usable
   // limit, so a half-typed number never ends the game.
@@ -124,6 +128,15 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
     setK(nextK);
     newGame(nextK);
   };
+  const onKTextChange = (text: string) => {
+    setKText(text);
+    if (isLiveArmCount(text) && Number(text) !== k) onKChange(Number(text));
+  };
+  const settleK = () => {
+    const next = settleArmCount(kText, k);
+    setKText(String(next));
+    if (next !== k) onKChange(next);
+  };
 
   // Keyboard: number keys 1..K pull the corresponding arm; R starts a new game.
   useEffect(() => {
@@ -151,10 +164,14 @@ export const PlayTab = ({ active = true }: { active?: boolean }) => {
             <input
               type="number"
               aria-label={t.armCount}
-              value={k}
-              min={MIN_K}
-              max={MAX_K}
-              onChange={(e) => onKChange(Math.max(MIN_K, Math.min(MAX_K, Number(e.target.value) || MIN_K)))}
+              value={kText}
+              min={MIN_ARMS}
+              max={MAX_ARMS}
+              onChange={(e) => onKTextChange(e.target.value)}
+              onBlur={settleK}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') settleK();
+              }}
               style={inputStyle(80)}
             />
           </label>

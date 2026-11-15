@@ -1,12 +1,44 @@
 /**
  * Mini Adventure - local UI strings (ja/en).
- * Engine combat log messages stay in English (game flavor); everything the
- * player reads in the chrome (HUD, menus, buttons, tips) is bilingual.
+ * The engine writes its log and item texts in English (they are part of the
+ * game state); the UI shows them through `localizeLogText`, `localizeItemName`
+ * and `localizeItemDescription`, which leave English exactly as written.
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
 import type { EnemyTrait } from './Sight';
-import type { EnemyType, MiniAdventureDifficulty, PetType, StatusEffect } from './types';
+import {
+  CardEffect, ItemType, PetType, ScrollEffect,
+  type EnemyType, type Item, type MiniAdventureDifficulty, type StatusEffect,
+} from './types';
+
+/** Every item name the engine creates (Items.ts), as it writes it. */
+export const ITEM_NAMES = [
+  'Wooden Sword', 'Bronze Sword', 'Iron Sword', 'Steel Sword', 'Silver Sword',
+  'Golden Sword', 'Platinum Sword', 'Mythril Sword', 'Diamond Sword', 'Legendary Sword',
+  'Cloth Armor', 'Leather Armor', 'Chainmail', 'Scale Armor', 'Plate Armor',
+  'Silver Armor', 'Golden Armor', 'Mythril Armor', 'Diamond Armor', 'Legendary Armor',
+  'Fireball Scroll', 'Freeze Scroll', 'Teleport Scroll', 'Map Scroll', 'Power Scroll', 'Shield Scroll',
+  'Attack Card', 'Sleep Card', 'Confuse Card', 'Force Card', 'Heal Card',
+  'Bird Egg', 'Snake Egg', 'Bear Egg',
+  'Torch', 'Health Potion',
+] as const;
+export type ItemName = (typeof ITEM_NAMES)[number];
+
+/**
+ * Every message the engine logs (GameEngine.ts). Its English text is the exact
+ * engine string with the values as placeholders: {item} an item name, {enemy}
+ * an enemy name, {pet} a pet name, {n} a number.
+ */
+export type LogKey =
+  | 'welcome' | 'controls' | 'seeItem' | 'defeated' | 'dragonFalls' | 'hit' | 'levelUp'
+  | 'noStairs' | 'dragonBlocks' | 'escaped' | 'bossPresence' | 'descend' | 'nothingHere'
+  | 'inventoryFull' | 'pickedUp' | 'useTorch' | 'drinkPotion' | 'eggNotReady' | 'teleport'
+  | 'mapRevealed' | 'poweredUp' | 'shielded' | 'fireballHits' | 'noEnemiesInSight' | 'frozenEnemies'
+  | 'healCard' | 'chooseThrow' | 'cardMissed' | 'cardHits' | 'enemySleeps' | 'enemyConfused'
+  | 'enemyPushed' | 'equip' | 'noPet' | 'birdEscape' | 'pythonWeakens' | 'teddyConfuses'
+  | 'screamFreezes' | 'eggEaten' | 'enemyHits' | 'playerDefeated' | 'torchOut' | 'torchLow'
+  | 'eggHatched' | 'playerFrozen' | 'wait' | 'dropped';
 
 export interface MiniAdventureStrings {
   title: string;
@@ -77,6 +109,20 @@ export interface MiniAdventureStrings {
     status: Record<Exclude<StatusEffect, StatusEffect.NONE>, string>;
     traits: Record<EnemyTrait, string>;
   };
+  /** Item names, keyed by the engine's English name. */
+  itemNames: Record<ItemName, string>;
+  /** Item descriptions; {n} is the item's number (attack, defence, torch light). */
+  itemDescriptions: {
+    weapon: string;
+    armor: string;
+    torch: string;
+    potion: string;
+    scroll: Record<ScrollEffect, string>;
+    card: Record<CardEffect, string>;
+    egg: Record<PetType, string>;
+  };
+  /** Log messages; see `LogKey`. */
+  log: Record<LogKey, string>;
   // Accessibility labels (screen readers)
   aria: {
     surfaceMap: string;
@@ -180,6 +226,82 @@ const en: MiniAdventureStrings = {
       eatsEggs: 'Eats eggs',
       canDisable: 'Freezing scream',
     },
+  },
+  itemNames: Object.fromEntries(ITEM_NAMES.map(name => [name, name])) as Record<ItemName, string>,
+  itemDescriptions: {
+    weapon: 'Attack +{n}',
+    armor: 'Defense +{n}',
+    torch: 'Restores {n} torch light',
+    potion: 'Restores 30 HP',
+    scroll: {
+      [ScrollEffect.FIREBALL]: 'Burns all visible enemies',
+      [ScrollEffect.FREEZE]: 'Freezes all visible enemies',
+      [ScrollEffect.TELEPORT]: 'Teleport to a random location',
+      [ScrollEffect.MAP_REVEAL]: 'Reveals the entire floor',
+      [ScrollEffect.POWER_UP]: 'Boosts attack for 10 turns',
+      [ScrollEffect.SHIELD]: 'Boosts defense for 10 turns',
+    },
+    card: {
+      [CardEffect.DAMAGE]: 'Throw to deal damage from distance',
+      [CardEffect.SLEEP]: 'Puts enemy to sleep',
+      [CardEffect.CONFUSE]: 'Confuses enemy movement',
+      [CardEffect.KNOCKBACK]: 'Pushes enemy back',
+      [CardEffect.HEAL]: 'Restores HP when used on self',
+    },
+    egg: {
+      [PetType.GRABBER_BIRD]: 'Hatches into a Grabber Bird (escape ability)',
+      [PetType.PYTHON]: 'Hatches into a Python (weaken enemies)',
+      [PetType.TEDDY]: 'Hatches into a Teddy (guide enemies)',
+    },
+  },
+  log: {
+    welcome: 'Welcome to the dungeon! Find the stairs to descend.',
+    controls: 'Arrow keys or WASD to move. Press "." to wait.',
+    seeItem: "You see a {item} here. Press 'g' to pick up.",
+    defeated: 'You defeated the {enemy}! (+{n} exp)',
+    dragonFalls: 'The Dragon falls! The way out is open — reach the stairs to escape.',
+    hit: 'You hit the {enemy} for {n} damage!',
+    levelUp: 'Level up! You are now level {n}!',
+    noStairs: 'There are no stairs here.',
+    dragonBlocks: 'The Dragon blocks your escape. Defeat it first!',
+    escaped: 'You escaped the dungeon! Victory!',
+    bossPresence: 'You sense a powerful presence on this floor...',
+    descend: 'You descend to floor {n}.',
+    nothingHere: 'There is nothing here to pick up.',
+    inventoryFull: 'Your inventory is full!',
+    pickedUp: 'You picked up the {item}.',
+    useTorch: 'You use the torch. Light restored to {n}.',
+    drinkPotion: 'You drink the potion. HP restored by {n}.',
+    eggNotReady: 'The egg needs more time to hatch.',
+    teleport: 'You teleport to a new location!',
+    mapRevealed: 'The entire floor is revealed!',
+    poweredUp: 'Your attacks are powered up!',
+    shielded: 'A magical shield surrounds you!',
+    fireballHits: 'Fireball hits {n} enemies!',
+    noEnemiesInSight: 'No enemies in sight.',
+    frozenEnemies: 'Enemies are frozen in place!',
+    healCard: 'The heal card restores {n} HP!',
+    chooseThrow: 'Choose a direction to throw the card.',
+    cardMissed: 'The card flies off into the darkness...',
+    cardHits: 'The card hits {enemy} for {n} damage!',
+    enemySleeps: '{enemy} falls asleep!',
+    enemyConfused: '{enemy} is confused!',
+    enemyPushed: '{enemy} is pushed back!',
+    equip: 'You equip the {item}.',
+    noPet: 'You have no pet.',
+    birdEscape: 'The Grabber Bird carries you away!',
+    pythonWeakens: 'The Python weakens all visible enemies!',
+    teddyConfuses: 'The Teddy confuses nearby enemies!',
+    screamFreezes: "The {enemy}'s scream freezes you!",
+    eggEaten: 'The {enemy} ate your egg!',
+    enemyHits: 'The {enemy} hits you for {n} damage!',
+    playerDefeated: 'You have been defeated...',
+    torchOut: 'Your torch has gone out! Danger increases!',
+    torchLow: 'Your torch is flickering...',
+    eggHatched: 'Your egg hatched into a {pet}!',
+    playerFrozen: 'You are frozen and cannot move!',
+    wait: 'You wait...',
+    dropped: 'You dropped the {item}.',
   },
   aria: {
     surfaceMap: 'Surface map',
@@ -295,6 +417,97 @@ const ja: MiniAdventureStrings = {
       canDisable: '凍結の叫び',
     },
   },
+  itemNames: {
+    'Wooden Sword': '木の剣', 'Bronze Sword': '青銅の剣', 'Iron Sword': '鉄の剣',
+    'Steel Sword': '鋼の剣', 'Silver Sword': '銀の剣', 'Golden Sword': '金の剣',
+    'Platinum Sword': '白金の剣', 'Mythril Sword': 'ミスリルの剣', 'Diamond Sword': 'ダイヤの剣',
+    'Legendary Sword': '伝説の剣',
+    'Cloth Armor': '布の服', 'Leather Armor': '革の鎧', 'Chainmail': '鎖かたびら',
+    'Scale Armor': 'うろこの鎧', 'Plate Armor': '板金の鎧', 'Silver Armor': '銀の鎧',
+    'Golden Armor': '金の鎧', 'Mythril Armor': 'ミスリルの鎧', 'Diamond Armor': 'ダイヤの鎧',
+    'Legendary Armor': '伝説の鎧',
+    'Fireball Scroll': '火球の巻物', 'Freeze Scroll': '氷結の巻物', 'Teleport Scroll': '転移の巻物',
+    'Map Scroll': '地図の巻物', 'Power Scroll': '力の巻物', 'Shield Scroll': '守りの巻物',
+    'Attack Card': '攻撃カード', 'Sleep Card': '睡眠カード', 'Confuse Card': '混乱カード',
+    'Force Card': '衝撃カード', 'Heal Card': '回復カード',
+    'Bird Egg': '鳥の卵', 'Snake Egg': '蛇の卵', 'Bear Egg': '熊の卵',
+    'Torch': '松明', 'Health Potion': '回復薬',
+  },
+  itemDescriptions: {
+    weapon: '攻撃 +{n}',
+    armor: '防御 +{n}',
+    torch: '松明の明かりを {n} 回復',
+    potion: 'HPを30回復',
+    scroll: {
+      [ScrollEffect.FIREBALL]: '見えている敵すべてを焼く',
+      [ScrollEffect.FREEZE]: '見えている敵すべてを凍らせる',
+      [ScrollEffect.TELEPORT]: 'ランダムな場所へ転移',
+      [ScrollEffect.MAP_REVEAL]: 'フロア全体を明らかにする',
+      [ScrollEffect.POWER_UP]: '10ターンの間、攻撃力アップ',
+      [ScrollEffect.SHIELD]: '10ターンの間、防御力アップ',
+    },
+    card: {
+      [CardEffect.DAMAGE]: '投げて離れた敵にダメージ',
+      [CardEffect.SLEEP]: '敵を眠らせる',
+      [CardEffect.CONFUSE]: '敵の動きを混乱させる',
+      [CardEffect.KNOCKBACK]: '敵を押し返す',
+      [CardEffect.HEAL]: '自分に使うとHP回復',
+    },
+    egg: {
+      [PetType.GRABBER_BIRD]: 'つかみ鳥が孵る（脱出の能力）',
+      [PetType.PYTHON]: 'ニシキヘビが孵る（敵を弱らせる）',
+      [PetType.TEDDY]: 'テディが孵る（敵を導く）',
+    },
+  },
+  log: {
+    welcome: 'ダンジョンへようこそ！階段を見つけて下へ進もう。',
+    controls: '矢印キーか WASD で移動。「.」で1ターン待つ。',
+    seeItem: 'ここに{item}がある。「g」で拾う。',
+    defeated: '{enemy}を倒した！（経験値 +{n}）',
+    dragonFalls: 'ドラゴンを倒した！出口が開いた — 階段から脱出しよう。',
+    hit: '{enemy}に{n}のダメージ！',
+    levelUp: 'レベルアップ！レベル{n}になった！',
+    noStairs: 'ここに階段はない。',
+    dragonBlocks: 'ドラゴンが脱出を阻んでいる。先に倒そう！',
+    escaped: 'ダンジョンから脱出した！勝利！',
+    bossPresence: 'この階に強大な気配を感じる…',
+    descend: '{n}階へ降りた。',
+    nothingHere: 'ここに拾えるものはない。',
+    inventoryFull: '持ち物がいっぱいだ！',
+    pickedUp: '{item}を拾った。',
+    useTorch: '松明を使った。明かりが{n}に回復。',
+    drinkPotion: '回復薬を飲んだ。HPが{n}回復。',
+    eggNotReady: '卵が孵るにはまだ時間がかかる。',
+    teleport: '別の場所へ転移した！',
+    mapRevealed: 'フロア全体が明らかになった！',
+    poweredUp: '攻撃力が強化された！',
+    shielded: '魔法の盾に包まれた！',
+    fireballHits: '火球が敵{n}体に命中！',
+    noEnemiesInSight: '視界に敵はいない。',
+    frozenEnemies: '敵が凍りついた！',
+    healCard: '回復カードでHPが{n}回復！',
+    chooseThrow: 'カードを投げる方向を選ぼう。',
+    cardMissed: 'カードは闇の中へ飛んでいった…',
+    cardHits: 'カードが{enemy}に命中、{n}のダメージ！',
+    enemySleeps: '{enemy}は眠った！',
+    enemyConfused: '{enemy}は混乱した！',
+    enemyPushed: '{enemy}を押し返した！',
+    equip: '{item}を装備した。',
+    noPet: 'ペットがいない。',
+    birdEscape: 'つかみ鳥があなたを運び去った！',
+    pythonWeakens: 'ニシキヘビが見えている敵すべてを弱らせた！',
+    teddyConfuses: 'テディが近くの敵を混乱させた！',
+    screamFreezes: '{enemy}の叫びで体が凍りついた！',
+    eggEaten: '{enemy}に卵を食べられた！',
+    enemyHits: '{enemy}の攻撃で{n}のダメージ！',
+    playerDefeated: 'あなたは倒れた…',
+    torchOut: '松明が消えた！危険が増す！',
+    torchLow: '松明の火が揺らいでいる…',
+    eggHatched: '卵が孵って{pet}が生まれた！',
+    playerFrozen: '体が凍りついて動けない！',
+    wait: '様子をうかがった…',
+    dropped: '{item}を捨てた。',
+  },
   aria: {
     surfaceMap: '地上マップ',
     floorMap: (floor: number) => `ダンジョン ${floor} 階`,
@@ -319,4 +532,93 @@ const ja: MiniAdventureStrings = {
 
 export function getMiniAdventureStrings(language: GameLanguage): MiniAdventureStrings {
   return language === 'ja' ? ja : en;
+}
+
+type Placeholder = 'item' | 'enemy' | 'pet' | 'n';
+type PlaceholderValues = Partial<Record<Placeholder, string>>;
+const PLACEHOLDER = /\{(item|enemy|pet|n)\}/g;
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Each English log template as a whole-line pattern, with its placeholder names in capture order. */
+const LOG_PATTERNS = (Object.keys(en.log) as LogKey[]).map((key) => {
+  const template = en.log[key];
+  const names: Placeholder[] = [];
+  let source = '';
+  let last = 0;
+  for (const match of template.matchAll(PLACEHOLDER)) {
+    source += escapeRegExp(template.slice(last, match.index));
+    source += match[1] === 'n' ? '(\\d+)' : '(.+?)';
+    names.push(match[1] as Placeholder);
+    last = (match.index ?? 0) + match[0].length;
+  }
+  source += escapeRegExp(template.slice(last));
+  return { key, names, re: new RegExp(`^${source}$`) };
+});
+
+const fill = (template: string, values: PlaceholderValues) =>
+  template.replace(PLACEHOLDER, (_, name: Placeholder) => values[name] ?? '');
+
+function byEnglishName<K extends string>(names: Record<K, string>): Map<string, K> {
+  return new Map((Object.keys(names) as K[]).map(id => [names[id], id]));
+}
+const ENEMY_BY_NAME = byEnglishName(en.sight.enemyNames);
+const PET_BY_NAME = byEnglishName(en.petNames);
+
+/** Which log message an engine line is, with its values; null when no template matches. */
+export function parseLogText(text: string): { key: LogKey; values: PlaceholderValues } | null {
+  for (const { key, names, re } of LOG_PATTERNS) {
+    const match = re.exec(text);
+    if (!match) continue;
+    const values: PlaceholderValues = {};
+    names.forEach((name, i) => { values[name] = match[i + 1]; });
+    return { key, values };
+  }
+  return null;
+}
+
+/** An engine log line in the UI language. English, and any line no template matches, is shown as written. */
+export function localizeLogText(text: string, language: GameLanguage): string {
+  if (language !== 'ja') return text;
+  const parsed = parseLogText(text);
+  if (!parsed) return text;
+  const t = getMiniAdventureStrings(language);
+  const { item, enemy, pet, n } = parsed.values;
+  const enemyId = enemy === undefined ? undefined : ENEMY_BY_NAME.get(enemy);
+  const petId = pet === undefined ? undefined : PET_BY_NAME.get(pet);
+  return fill(t.log[parsed.key], {
+    item: item === undefined ? undefined : (t.itemNames[item as ItemName] ?? item),
+    enemy: enemyId ? t.sight.enemyNames[enemyId] : enemy,
+    pet: petId ? t.petNames[petId] : pet,
+    n,
+  });
+}
+
+/** An item's name in the UI language (in English, exactly as the engine wrote it). */
+export function localizeItemName(item: Pick<Item, 'name'>, language: GameLanguage): string {
+  if (language !== 'ja') return item.name;
+  return getMiniAdventureStrings(language).itemNames[item.name as ItemName] ?? item.name;
+}
+
+/** An item's description in the UI language, built from the item's data (in English, exactly as the engine wrote it). */
+export function localizeItemDescription(item: Item, language: GameLanguage): string {
+  if (language !== 'ja') return item.description;
+  const d = getMiniAdventureStrings(language).itemDescriptions;
+  switch (item.type) {
+    case ItemType.WEAPON:
+      return item.weaponData ? fill(d.weapon, { n: String(item.weaponData.attack) }) : item.description;
+    case ItemType.ARMOR:
+      return item.armorData ? fill(d.armor, { n: String(item.armorData.defense) }) : item.description;
+    case ItemType.TORCH:
+      return item.torchValue !== undefined ? fill(d.torch, { n: String(item.torchValue) }) : item.description;
+    case ItemType.POTION:
+      return d.potion;
+    case ItemType.SCROLL:
+      return item.scrollEffect ? d.scroll[item.scrollEffect] : item.description;
+    case ItemType.CARD:
+      return item.cardEffect ? d.card[item.cardEffect] : item.description;
+    case ItemType.EGG:
+      return item.petType ? d.egg[item.petType] : item.description;
+    default:
+      return item.description;
+  }
 }

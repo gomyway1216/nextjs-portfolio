@@ -316,13 +316,15 @@ export function GlobalToolbar() {
         className={`${styles.container} mx-auto flex min-h-[58px] max-w-[1120px] flex-wrap items-center gap-x-3 gap-y-2 px-5 py-2 sm:px-6 lg:flex-nowrap lg:py-0`}
       >
         <div className={`${styles.brandSlot} flex min-w-0 flex-1 items-center gap-3`}>
+          {/* On the narrowest phones the name can be a few pixels wider than what the controls leave: it is cut with an
+              ellipsis there rather than drawn under the first control. */}
           <Link
             href="/"
-            className="inline-flex min-w-0 shrink-0 items-center rounded-md text-[15px] font-semibold leading-7 text-foreground transition-colors hover:text-foreground/80 sm:text-base"
+            className="inline-flex min-w-0 items-center rounded-md text-[15px] font-semibold leading-7 text-foreground transition-colors hover:text-foreground/80 sm:text-base"
             style={{ color: 'var(--foreground)' }}
             aria-label={t('home.nav.home')}
           >
-            <span className="truncate">{brandName}</span>
+            <span className="min-w-0 truncate">{brandName}</span>
           </Link>
           {isGameSubPage && (
             <Link

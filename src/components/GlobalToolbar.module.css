@@ -58,6 +58,19 @@
   order: 3;
 }
 
+/* The narrowest phones: the site name and the three controls are a few pixels wider than the row with the usual gaps,
+   and the name ran under the first control. Tighter gaps keep the whole name; where it is still too wide (a Menu
+   button, a wider font) it is cut with an ellipsis. */
+@media (max-width: 359px) {
+  .toolbar .container {
+    column-gap: 0.25rem;
+  }
+
+  .toolbar .controlsSlot {
+    gap: 0.125rem;
+  }
+}
+
 /* A game's own toolbar content (its stats, and on smaller screens a mode badge or turn counter beside them). On phones
    it has the whole second row, under a rule; from 768px it sits in the one row, between the site name and the
    controls. */

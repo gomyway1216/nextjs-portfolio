@@ -28,6 +28,27 @@
   order: 1;
 }
 
+/* What the brand slot has left after the site name and the Games link. On a tablet, beside a game's stats and the
+   controls, that can be a sliver: the chip was squeezed to its emoji and padding (a stub at 834px) or, at 768px, ran
+   under the stats. Where the slot cannot hold the emoji and a few letters the chip is left out; wider, it shows the
+   whole name or as much of it as fits, cut with an ellipsis. The bar keeps its one row either way. */
+.gameTitleSlot {
+  min-width: 0;
+  flex: 1 1 0%;
+  align-items: center;
+  container-type: inline-size;
+}
+
+.gameTitle {
+  max-width: 100%;
+}
+
+@container (max-width: 5.5rem) {
+  .gameTitleSlot .gameTitle {
+    display: none;
+  }
+}
+
 .controlsSlot {
   order: 2;
 }
@@ -35,6 +56,19 @@
 .navSlot,
 .gameCenter {
   order: 3;
+}
+
+/* The narrowest phones: the site name and the three controls are a few pixels wider than the row with the usual gaps,
+   and the name ran under the first control. Tighter gaps keep the whole name; where it is still too wide (a Menu
+   button, a wider font) it is cut with an ellipsis. */
+@media (max-width: 359px) {
+  .toolbar .container {
+    column-gap: 0.25rem;
+  }
+
+  .toolbar .controlsSlot {
+    gap: 0.125rem;
+  }
 }
 
 /* A game's own toolbar content (its stats, and on smaller screens a mode badge or turn counter beside them). On phones

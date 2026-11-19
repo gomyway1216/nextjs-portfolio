@@ -7,6 +7,7 @@ import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 
 import { InfoModal } from '../common';
+import { topBarClasses, useTopBarLayout } from '../common/GameTopBar';
 import { getDifficultyColor } from '../common/utils';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
@@ -55,6 +56,7 @@ export const IqTest = () => {
   const { language } = useGameLanguage();
   const { setContent } = useGameToolbar();
   const t = getIqStrings(language);
+  const topBarLayout = useTopBarLayout(language);
 
   const [state, setState] = useState<GameState>(initialState);
   const [difficulty, setDifficulty] = useState<QuizDifficulty>('mixed');
@@ -196,35 +198,28 @@ export const IqTest = () => {
   const correctCount = state.history.filter((h) => h.correct).length;
   const answered = state.history.length;
 
-  // Register the Info button in the global toolbar.
+  // Register the Info button in the global toolbar. On the narrowest phones the first row cannot hold it beside the
+  // site name, so it goes to the end of a second row, as GameTopBar's does.
   useEffect(() => {
-    setContent({
-      right: (
-        <button
-          type="button"
-          onClick={() => setShowInfo(true)}
-          aria-label={t.howToPlay}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            background: 'rgba(14, 165, 233, 0.12)',
-            border: '1px solid rgba(14, 165, 233, 0.35)',
-            borderRadius: '999px',
-            color: '#38bdf8',
-            padding: '0.4rem 0.85rem',
-            fontWeight: 600,
-            fontSize: '0.85rem',
-            cursor: 'pointer',
-          }}
-        >
-          <Info style={{ width: '1rem', height: '1rem' }} />
-          <span>{t.howToPlay}</span>
-        </button>
-      ),
-    });
+    const infoButton = (
+      <button type="button" onClick={() => setShowInfo(true)} aria-label={t.howToPlay} className={styles.toolbarInfo}>
+        <Info className={styles.toolbarInfoIcon} />
+        <span className={styles.toolbarInfoLabel}>{t.howToPlay}</span>
+      </button>
+    );
+    setContent(
+      topBarLayout === 'narrow'
+        ? {
+          center: (
+            <div className={topBarClasses.group}>
+              <span className={`${topBarClasses.groupEnd} ${styles.toolbarInfoEnd}`}>{infoButton}</span>
+            </div>
+          ),
+        }
+        : { right: infoButton }
+    );
     return () => setContent(null);
-  }, [setContent, t.howToPlay]);
+  }, [setContent, t.howToPlay, topBarLayout]);
 
   const progressPct = useMemo(() => {
     if (state.phase === 'menu') return 0;

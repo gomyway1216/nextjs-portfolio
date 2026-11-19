@@ -619,3 +619,46 @@
 @media (max-width: 390px) {
   .reviewOptions { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* How to play, in the site toolbar. */
+.toolbarInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  border-radius: 999px;
+  color: #38bdf8;
+  padding: 0.4rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.toolbarInfoIcon {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+/* At the end of the toolbar's second row on the narrowest phones: a little taller than the stats pill of the other
+   games' bars, it must not make the row, and so the sticky bar, any taller. */
+.toolbarInfoEnd {
+  margin-block: -0.2rem;
+}
+
+/* On a phone the button is its icon, the size of the site's own controls: with its words it was wider than the room
+   beside the site name and wrapped to three lines, which made the sticky bar 137px tall. Its name stays on it. */
+@media (max-width: 640px) {
+  .toolbarInfo {
+    width: 2rem;
+    height: 2rem;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .toolbarInfoLabel {
+    display: none;
+  }
+}

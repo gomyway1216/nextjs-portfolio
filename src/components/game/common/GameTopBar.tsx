@@ -27,7 +27,7 @@ interface GameTopBarProps {
  * phones the first row cannot hold the How to play button beside the site name either (it sat on top of the name's last
  * letters), so the button moves to the end of the second row as well.
  */
-type TopBarLayout = 'wide' | 'compact' | 'narrow';
+export type TopBarLayout = 'wide' | 'compact' | 'narrow';
 
 const COMPACT_QUERY = '(max-width: 1023px)';
 /** From these widths up the first row holds the site name, How to play and the site's controls. The English name is the longer. */
@@ -64,12 +64,26 @@ function subscribeLayout(narrowQuery: string, onChange: () => void): () => void 
 
 const serverLayout = (): TopBarLayout => 'wide';
 
-function useTopBarLayout(language: GameLanguage): TopBarLayout {
-  const narrowQuery = NARROW_QUERY[language];
+/**
+ * The top bar's layout at this width, for a game that hands the site toolbar its own content instead of using
+ * GameTopBar (IQ Test, Jump). A game whose first-row buttons are wider than one How to play icon passes its own
+ * `narrowQuery`: the width below which they no longer fit beside the site name.
+ */
+export function useTopBarLayout(language: GameLanguage, narrowQuery: string = NARROW_QUERY[language]): TopBarLayout {
   const subscribe = useCallback((onChange: () => void) => subscribeLayout(narrowQuery, onChange), [narrowQuery]);
   const read = useCallback(() => readLayout(narrowQuery), [narrowQuery]);
   return useSyncExternalStore(subscribe, read, serverLayout);
 }
+
+/**
+ * The top bar's own pieces for such a game: `group` holds the second row's content, `extra` marks content that takes
+ * the second row on tablets as well (with `data-game-top-bar-extra` on it), and `groupEnd` puts buttons at the row's end.
+ */
+export const topBarClasses = {
+  group: styles.group,
+  groupEnd: styles.groupEnd,
+  extra: styles.extra,
+} as const;
 
 export const GameTopBar: React.FC<GameTopBarProps> = ({
   stats,

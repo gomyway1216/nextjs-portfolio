@@ -9,6 +9,7 @@ import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { getJumpGameUITranslation, getUITranslation } from '../constants/gameTranslations';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { InfoModal } from '../common/InfoModal';
+import { topBarClasses, useTopBarLayout } from '../common/GameTopBar';
 import {
   checkCircleSquareCollision,
   checkCollision,
@@ -75,6 +76,12 @@ const HILLS = [
   { x: 520, w: 200, h: 100, speed: 0.5 },
 ];
 
+/**
+ * Below this width the first row of the site toolbar cannot hold the sound and How to play buttons beside the site name
+ * (they sat on top of it), so they join the scores at the end of the second row.
+ */
+const JUMP_NARROW_QUERY = '(max-width: 479px)';
+
 const JumpGame = () => {
   useFeatureLifecycle('game.jump-game');
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,6 +89,7 @@ const JumpGame = () => {
   const { language } = useGameLanguage();
   const ui = getUITranslation(language);
   const jumpCopy = getJumpGameUITranslation(language);
+  const topBarLayout = useTopBarLayout(language, JUMP_NARROW_QUERY);
   const pauseCopy = getJumpGamePauseCopy(language);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [highScore, updateHighScore] = useHighScore('jumpgame');
@@ -996,56 +1004,74 @@ const JumpGame = () => {
         } catch {}
       }
     };
-    setContent({
-      center: (
-        <div className={styles.toolbarStats}>
-          {isGameStarted && currentStage > 1 && (
-            <div className={`${styles.toolbarPill} ${styles.stagePill}`}>
-              <Zap className={styles.toolbarIcon} />
-              <div className={styles.toolbarPillText}>
-                <div className={styles.toolbarLabel}>{jumpCopy.stage}</div>
-                <div className={styles.toolbarValue}>{currentStage}</div>
-              </div>
-            </div>
-          )}
-          <div className={`${styles.toolbarPill} ${styles.scorePill}`}>
-            <Trophy className={styles.toolbarIcon} />
+    const stats = (
+      <div className={styles.toolbarStats}>
+        {isGameStarted && currentStage > 1 && (
+          <div className={`${styles.toolbarPill} ${styles.stagePill}`}>
+            <Zap className={styles.toolbarIcon} />
             <div className={styles.toolbarPillText}>
-              <div className={styles.toolbarLabel}>{jumpCopy.highScore}</div>
-              <div className={styles.toolbarValue}>{highScore}</div>
+              <div className={styles.toolbarLabel}>{jumpCopy.stage}</div>
+              <div className={styles.toolbarValue}>{currentStage}</div>
             </div>
           </div>
+        )}
+        <div className={`${styles.toolbarPill} ${styles.scorePill}`}>
+          <Trophy className={styles.toolbarIcon} />
+          <div className={styles.toolbarPillText}>
+            <div className={styles.toolbarLabel}>{jumpCopy.highScore}</div>
+            <div className={styles.toolbarValue}>{highScore}</div>
+          </div>
         </div>
-      ),
-      right: (
-        <>
-          <button
-            type="button"
-            onClick={toggleMute}
-            className={`${styles.toolbarButton} ${isMuted ? styles.mutedButton : ''}`}
-            aria-label={isMuted ? jumpCopy.muted : jumpCopy.sound}
-          >
-            {isMuted ? <VolumeX className={styles.toolbarButtonIcon} /> : <Volume2 className={styles.toolbarButtonIcon} />}
-            <span className={styles.toolbarActionLabel}>{isMuted ? jumpCopy.muted : jumpCopy.sound}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              // The run would carry on unseen behind the guide otherwise.
-              if (!showInfo) pauseGame();
-              setShowInfo(!showInfo);
-            }}
-            className={styles.toolbarButton}
-            aria-label={ui.howToPlay}
-          >
-            <Info className={styles.toolbarButtonIcon} />
-            <span className={styles.toolbarActionLabel}>{ui.howToPlay}</span>
-          </button>
-        </>
-      ),
-    });
+      </div>
+    );
+    const buttons = (
+      <>
+        <button
+          type="button"
+          onClick={toggleMute}
+          className={`${styles.toolbarButton} ${isMuted ? styles.mutedButton : ''}`}
+          aria-label={isMuted ? jumpCopy.muted : jumpCopy.sound}
+        >
+          {isMuted ? <VolumeX className={styles.toolbarButtonIcon} /> : <Volume2 className={styles.toolbarButtonIcon} />}
+          <span className={styles.toolbarActionLabel}>{isMuted ? jumpCopy.muted : jumpCopy.sound}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            // The run would carry on unseen behind the guide otherwise.
+            if (!showInfo) pauseGame();
+            setShowInfo(!showInfo);
+          }}
+          className={styles.toolbarButton}
+          aria-label={ui.howToPlay}
+        >
+          <Info className={styles.toolbarButtonIcon} />
+          <span className={styles.toolbarActionLabel}>{ui.howToPlay}</span>
+        </button>
+      </>
+    );
+    // Wide, the scores sit in the toolbar's one row. Narrower, they take its second row (on tablets too: beside the
+    // site name, the Games link and the controls they ran over the Games link), as a game's extra content does in
+    // GameTopBar; on the narrowest phones the buttons join them there.
+    setContent(
+      topBarLayout === 'wide'
+        ? { center: stats, right: buttons }
+        : {
+          center: (
+            <div className={topBarClasses.group}>
+              <div className={topBarClasses.extra} data-game-top-bar-extra="">
+                {stats}
+              </div>
+              {topBarLayout === 'narrow' && (
+                <span className={`${topBarClasses.groupEnd} ${styles.toolbarButtons}`}>{buttons}</span>
+              )}
+            </div>
+          ),
+          right: topBarLayout === 'narrow' ? undefined : buttons,
+        }
+    );
     return () => setContent(null);
-  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy, pauseGame]);
+  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy, pauseGame, topBarLayout]);
 
   return (
     <div className={styles.gameShell}>

@@ -335,13 +335,17 @@ export function GlobalToolbar() {
             </Link>
           )}
           {displayedGame && !gameContent?.left && (
-            <span
-              className={`${styles.accentText} hidden min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold sm:inline-flex`}
-              style={{ backgroundColor: accentSoft }}
-              title={displayedGameTitle}
-            >
-              <span aria-hidden="true">{displayedGame.thumbnail}</span>
-              <span className="truncate">{displayedGameTitle}</span>
+            // The room the site name and the Games link leave. The chip shows only where that is enough to read the
+            // name (GlobalToolbar.module.css); the page under the bar names the game as well.
+            <span className={`${styles.gameTitleSlot} hidden sm:flex`}>
+              <span
+                className={`${styles.accentText} ${styles.gameTitle} inline-flex min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold`}
+                style={{ backgroundColor: accentSoft }}
+                title={displayedGameTitle}
+              >
+                <span aria-hidden="true">{displayedGame.thumbnail}</span>
+                <span className="truncate">{displayedGameTitle}</span>
+              </span>
             </span>
           )}
           {hasGameContent && gameContent?.left && (

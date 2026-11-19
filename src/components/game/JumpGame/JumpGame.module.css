@@ -447,9 +447,24 @@
   flex: 0 0 auto;
 }
 
+/* The sound and How to play buttons, at the end of the toolbar's second row on the narrowest phones. A little taller
+   than the row's pills, they must not make the row, and so the sticky bar, any taller. */
+.toolbarButtons {
+  gap: 0.375rem;
+  margin-block: -0.2rem;
+}
+
+/* Below 1024px the scores have the toolbar's second row. */
+@media (max-width: 1023px) {
+  .gameShell {
+    --jump-game-toolbar-height: 96px;
+    --jump-game-canvas-height-offset: 136px;
+  }
+}
+
 @media (max-width: 640px) {
   .gameShell {
-    --jump-game-toolbar-height: 98px;
+    --jump-game-toolbar-height: 92px;
     --jump-game-canvas-height-offset: 126px;
 
     align-items: flex-start;
@@ -469,7 +484,11 @@
     max-width: 7rem;
     padding-inline: 0.55rem;
   }
+}
 
+/* Below 768px the buttons are their icons: with their words they ran over the Games link at 700px. Their names stay
+   on them. */
+@media (max-width: 767px) {
   .toolbarActionLabel {
     display: none;
   }
@@ -478,5 +497,18 @@
     width: 2rem;
     justify-content: center;
     padding: 0;
+  }
+}
+
+/* The narrowest phones: the scores share the second row with the buttons, so each pill is its icon and number. The
+   label stays for screen readers. */
+@media (max-width: 479px) {
+  .toolbarLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }

@@ -28,6 +28,27 @@
   order: 1;
 }
 
+/* What the brand slot has left after the site name and the Games link. On a tablet, beside a game's stats and the
+   controls, that can be a sliver: the chip was squeezed to its emoji and padding (a stub at 834px) or, at 768px, ran
+   under the stats. Where the slot cannot hold the emoji and a few letters the chip is left out; wider, it shows the
+   whole name or as much of it as fits, cut with an ellipsis. The bar keeps its one row either way. */
+.gameTitleSlot {
+  min-width: 0;
+  flex: 1 1 0%;
+  align-items: center;
+  container-type: inline-size;
+}
+
+.gameTitle {
+  max-width: 100%;
+}
+
+@container (max-width: 5.5rem) {
+  .gameTitleSlot .gameTitle {
+    display: none;
+  }
+}
+
 .controlsSlot {
   order: 2;
 }

@@ -145,9 +145,13 @@ describe('おえかきクイズ', () => {
     act(room, 'host', { type: 'finish' }, 104, prompts);
     expect(drawingHistory(room)).toEqual([]);
     expect(Object.values(room.players).every(player => player.score === 0)).toBe(true);
-    // A removal after the end recounts, and must not pay out the unfinished picture either.
-    act(room, 'host', { type: 'kick', playerId: room.drawing!.players.find(id => id !== artist(room))! }, 105, prompts);
-    expect(Object.values(room.players).every(player => player.score === 0)).toBe(true);
+    const finished = structuredClone(room);
+    const playerId = room.drawing!.players.find(id => id !== artist(room))!;
+    expect(() => act(room, 'host', { type: 'kick', playerId }, 105, prompts)).toThrow('次のゲームの受付');
+    expect(room).toEqual(finished);
+    act(room, 'host', { type: 'rematch' }, 106, prompts);
+    act(room, 'host', { type: 'kick', playerId }, 107, prompts);
+    expect(room.players[playerId].kicked).toBe(true);
   });
 
   it('counts a quiz where nobody guessed right as played', () => {

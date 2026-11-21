@@ -27,6 +27,7 @@ import { BluffGamePanel } from './BluffGamePanel';
 import { GesturePanel } from './GesturePanel';
 import { ParticipantAccess } from './ParticipantAccess';
 import { NextGameChoices, PARTY_GAME_CHOICES } from './NextGameChoices';
+import { LobbyActions } from './LobbyActions';
 import { ReactionBar, ReactionFloats } from './Reactions';
 import { CustomPrompts } from './CustomPrompts';
 import { rememberRecovery } from '@/lib/ogiri/recovery-local';
@@ -595,6 +596,9 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   const soundMenu = useRef<HTMLDivElement | null>(null);
   const soundTrigger = useRef<HTMLButtonElement | null>(null);
   const soundDialog = useRef<HTMLElement | null>(null);
+  const hostControls = useRef<HTMLDetailsElement | null>(null);
+  const lobbyHeading = useRef<HTMLHeadingElement | null>(null);
+  const lastLobbyTransition = useRef<{ game: number; phase: RoomView['phase'] } | null>(null);
   const [syncStop, setSyncStop] = useState<SyncStop>(null);
   const sync = useRef<ReturnType<typeof startRoomPolling> | null>(null);
   const historySignature = useRef('');
@@ -665,6 +669,15 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
       clearInterval(interval);
     };
   }, [code, tv, accept]);
+  useEffect(() => {
+    if (!view) return;
+    const previous = lastLobbyTransition.current;
+    lastLobbyTransition.current = { game: view.game, phase: view.phase };
+    if (!tv && view.isHost && view.phase === 'lobby' && previous?.phase === 'finished' && previous.game !== view.game) {
+      lobbyHeading.current?.focus({ preventScroll: true });
+      lobbyHeading.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [view, tv]);
   useLayoutEffect(() => {
     if (!view) return;
     const previous = lastSoundView.current;
@@ -796,6 +809,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
   }
   const v = view,
     mine = v?.players.find((p) => p.id === v.me);
+  const activePlayers = v?.players.filter(p => p.active) ?? [];
   const gameType = v?.gameType ?? v?.settings.gameType ?? 'ogiri';
   const remaining = v
     ? Math.max(0, Math.ceil((v.deadline - (v.paused ? v.serverTime : clock + offset)) / 1000))
@@ -1092,9 +1106,19 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               <div className={styles.lobby}>
                 <section className={styles.lobbyPlayers}>
                   <div className={styles.row}>
-                    <h2>ただいま {v.players.length} 人</h2>
+                    <h2 ref={lobbyHeading} tabIndex={-1}>ただいま {activePlayers.length} 人</h2>
                     <span>{gameType === 'ogiri' ? '回答者3〜12人 / 4人以上推奨' : '参加者3〜12人'}</span>
                   </div>
+                  {activePlayers.length < v.players.length && <p>休憩中 {v.players.length - activePlayers.length} 人</p>}
+                  {!tv && v.isHost && <LobbyActions key={code} code={code} game={GAME_TITLES[gameType]}
+                    missing={Math.max(0, 3 - activePlayers.length)} disconnected={activePlayers.filter(p => !p.connected).length}
+                    disabled={busy || !connected} start={() => void send({ type: 'start' })} openSettings={() => {
+                      const details = hostControls.current;
+                      if (!details) return;
+                      details.open = true;
+                      details.querySelector('summary')?.focus();
+                      details.scrollIntoView({ block: 'start' });
+                    }} />}
                   <div className={styles.playerGrid}>
                     {v.players.map((p) => (
                       <article key={p.id} className={styles.player}>
@@ -1119,7 +1143,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {!tv && gameType === 'ogiri' && v.me && !v.isHost && v.settings.customSubmissions && (
                     <CustomPrompts view={v} busy={busy} send={send} />
                   )}
-                  {gameType === 'ogiri' ? <RoundPlan players={v.players.filter((p) => p.active).length} rounds={v.settings.rounds} /> : (
+                  {gameType === 'ogiri' ? <RoundPlan players={activePlayers.length} rounds={v.settings.rounds} /> : (
                     <section className={styles.roundPlan} aria-label="このゲームの遊び方と配点">
                       <h3>{GAME_TITLES[gameType]}</h3>
                       <p>{gameType === 'drawing' ? '1ゲーム1回の伝言。3人なら3手、4〜12人なら4手。全員の伝言がそろってから進みます。' : gameType === 'shiritori' ? '1ゲーム1回のしりとり。4〜9人なら4手、3人と10〜12人なら3手。全員の絵がそろってから進みます。' : gameType === 'gesture' ? '全員が1回ずつ演じる番。演じる人だけがスマホでお題を見て、60秒で声と文字を使わずに伝えます。当たったら当てた人を選んで次のお題へ。' : gameType === 'quiz' ? '全員が同時にお題を1枚描き、そろったら1枚ずつ4択で当てっこ。描いた本人は自分の絵には答えません。' : gameType === 'wordwolf' ? `全${v.settings.rounds}ラウンド。スマホでお題を見て、テレビの前で話し合い、ウルフだと思う人に1票。ウルフ${v.settings.wolves === 2 ? '2人（5人以下は1人）' : '1人'}。` : gameType === 'match' ? `全${v.settings.rounds}お題。全員が答えを1つ送り、同じ答えの人数で得点。` : gameType === 'bluff' ? `全${v.settings.rounds}問。全員がうその答えを1つ書き、本当の答えとまぜて1人1票。` : isChoiceGame(gameType) ? `全${v.settings.rounds}お題。全員が1お題につき1${gameType === 'thermometer' ? '回答' : '票'}ずつ送ります。` : `全${v.settings.rounds}ラウンド。1人1回答、作者以外のみんなで順番に当てます。`}</p>
@@ -1351,7 +1375,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
               </div>
             )}
             {!tv && v.isHost && (
-              <details className={styles.host} open={v.phase === 'lobby'}>
+              <details ref={hostControls} className={styles.host} open={v.phase === 'lobby'}>
                 <summary>👑 主催者の操作</summary>
                 <div className={styles.hostBody}>
                   {v.phase === 'lobby' && (
@@ -1396,62 +1420,48 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                   {['lobby', 'finished'].includes(v.phase) && (v.settings.gameType ?? 'ogiri') === 'ogiri' && (
                     <CustomPrompts view={v} busy={busy} send={send} />
                   )}
-                  <div className={styles.controls}>
-                    {v.phase === 'lobby' ? (
+                  {!['lobby', 'finished'].includes(v.phase) && <div className={styles.controls}>
+                    {!manualResult && (
                       <button
-                        className={styles.primary}
-                        disabled={busy || v.players.filter((p) => p.active).length < 3}
-                        onClick={() => void send({ type: 'start' })}
+                        className={styles.secondary}
+                        disabled={busy || !connected}
+                        onClick={() => void send({ type: 'extend' })}
                       >
-                        ゲーム開始 →
+                        {v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを＋60秒' : '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
                       </button>
-                    ) : (
-                      v.phase !== 'finished' && (
-                        <>
-                          {!manualResult && (
-                            <button
-                              className={styles.secondary}
-                              disabled={busy || !connected}
-                              onClick={() => void send({ type: 'extend' })}
-                            >
-                              {v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを＋60秒' : '回答時間を＋60秒' : v.phase === 'voting' ? '投票時間を＋30秒' : '表示時間を＋30秒'}
-                            </button>
-                          )}
-                          <button
-                            className={styles.secondary}
-                            disabled={busy}
-                            onClick={() => void send({ type: v.paused ? 'resume' : 'pause' })}
-                          >
-                            {v.paused ? '再開' : '一時停止'}
-                          </button>
-                          <button
-                            className={styles.secondary}
-                            disabled={busy || v.paused}
-                            onClick={() => {
-                              if (
-                                ['answering', 'voting'].includes(v.phase) &&
-                                !window.confirm(v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを終えて投票へ進みますか？' : gameType === 'gesture' ? v.gestureGame?.started ? 'このターンのジェスチャーを終えて結果へ進みますか？' : '演じる人の代わりに、60秒のスタートを押しますか？' : gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : gameType === 'shiritori' || gameType === 'quiz' ? 'まだ描いている人がいても、絵を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
-                              )
-                                return;
-                              void send({ type: 'next' });
-                            }}
-                          >
-                            次へ進む
-                          </button>
-                          <button
-                            className={styles.textButton}
-                            onClick={() => {
-                              if (window.confirm('ゲームを終了して結果を表示しますか？'))
-                                void send({ type: 'finish' });
-                            }}
-                          >
-                            ゲーム終了
-                          </button>
-                        </>
-                      )
                     )}
-                  </div>
-                  <details>
+                    <button
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={() => void send({ type: v.paused ? 'resume' : 'pause' })}
+                    >
+                      {v.paused ? '再開' : '一時停止'}
+                    </button>
+                    <button
+                      className={styles.secondary}
+                      disabled={busy || v.paused}
+                      onClick={() => {
+                        if (
+                          ['answering', 'voting'].includes(v.phase) &&
+                          !window.confirm(v.phase === 'answering' ? gameType === 'wordwolf' ? '話し合いを終えて投票へ進みますか？' : gameType === 'gesture' ? v.gestureGame?.started ? 'このターンのジェスチャーを終えて結果へ進みますか？' : '演じる人の代わりに、60秒のスタートを押しますか？' : gameType === 'drawing' ? 'まだ伝言中の人がいても、この手の伝言を締め切って次へ進みますか？' : gameType === 'shiritori' || gameType === 'quiz' ? 'まだ描いている人がいても、絵を締め切って次へ進みますか？' : 'まだ回答中の人がいても、回答を締め切って投票へ進みますか？' : '投票を締め切って結果を表示しますか？')
+                        )
+                          return;
+                        void send({ type: 'next' });
+                      }}
+                    >
+                      次へ進む
+                    </button>
+                    <button
+                      className={styles.textButton}
+                      onClick={() => {
+                        if (window.confirm('ゲームを終了して結果を表示しますか？'))
+                          void send({ type: 'finish' });
+                      }}
+                    >
+                      ゲーム終了
+                    </button>
+                  </div>}
+                  {v.phase !== 'finished' && <details>
                     <summary>参加者の管理</summary>
                     {v.players
                       .filter((p) => p.id !== v.me)
@@ -1471,7 +1481,7 @@ export function OgiriRoom({ code, tv = false }: { code: string; tv?: boolean }) 
                           </button>
                         </div>
                       ))}
-                  </details>
+                  </details>}
                 </div>
               </details>
             )}

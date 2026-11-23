@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createSeededRng, credibleIntervalExact, flip, posteriorMean } from '@/components/game/BayesianUpdate/engine';
+import { createSeededRng, credibleIntervalExact, flip, posteriorMean, posteriorStd } from '@/components/game/BayesianUpdate/engine';
 import {
   EMPTY_TRACE,
   TRACE_MAX_POINTS,
   beliefPath,
   extendTrace,
   formatInterval,
+  formatIntervalEnds,
+  formatStd,
   formatWidth,
 } from '@/components/game/BayesianUpdate/trace';
 
@@ -150,5 +152,29 @@ describe('formatInterval', () => {
   it('stops at six decimals and handles non-finite input', () => {
     expect(formatInterval(0.5, 0.5)).toBe('[0.500000, 0.500000]');
     expect(formatInterval(Number.NaN, 0.5)).toBe('–');
+  });
+});
+
+describe('formatIntervalEnds', () => {
+  it('gives the two ends formatInterval prints, for the chart description', () => {
+    expect(formatIntervalEnds(0.0253, 0.9747)).toEqual(['0.03', '0.97']);
+    expect(formatIntervalEnds(0.6991, 0.7009)).toEqual(['0.6991', '0.7009']);
+    expect(formatIntervalEnds(Number.NaN, 0.5)).toEqual(['–', '–']);
+    const [lo, hi] = credibleIntervalExact({ alpha: 70_001, beta: 30_001 }, 0.95);
+    expect(`[${formatIntervalEnds(lo, hi).join(', ')}]`).toBe(formatInterval(lo, hi));
+  });
+});
+
+describe('formatStd', () => {
+  it('keeps three decimals while the uncertainty is large', () => {
+    expect(formatStd(posteriorStd({ alpha: 1, beta: 1 }))).toBe('0.289');
+    expect(formatStd(0.0458)).toBe('0.046');
+  });
+
+  it('keeps two significant digits once it shrinks, instead of 0.001', () => {
+    const sigma = posteriorStd({ alpha: 70_001, beta: 30_001 });
+    expect(sigma.toFixed(3)).toBe('0.001');
+    expect(formatStd(sigma)).toBe('0.0014');
+    expect(formatStd(0.000456)).toBe('0.00046');
   });
 });

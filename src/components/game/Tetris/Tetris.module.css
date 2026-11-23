@@ -311,6 +311,21 @@
   .root {
     padding-top: 6.75rem;
   }
+
+  /* In a short window (900 × 700) the 30px board ran past the bottom of the screen. Here a cell is also no taller than
+     lets the board and the buttons under it fit: the root's top and bottom padding (6.75rem + 1.5rem), the board
+     frame (12px), the gap (0.75rem) and the action row (44px). */
+  .game {
+    --cell: clamp(16px, min(4.4vw, (100vh - 9rem - 56px) / 20), 30px);
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (min-width: 641px) and (max-width: 1023px) {
+    .game {
+      --cell: clamp(16px, min(4.4vw, (100dvh - 9rem - 56px) / 20), 30px);
+    }
+  }
 }
 
 @media (max-width: 640px) {
@@ -404,12 +419,22 @@
   .nextList { gap: 5px; }
   .controlsPanel { display: none; }
 
+  /* The toolbar's second row has room for both on one line, beside the stats (about 104px of it at 360px wide). */
+  .topInfo {
+    gap: 0.3rem;
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+}
+
+/* At 320px the slot between the stats and How to play is about 68px: too narrow for one line, so the two are
+   stacked there rather than cut off with an ellipsis. */
+@media (max-width: 359px) {
   .topInfo {
     flex-direction: column;
     align-items: flex-start;
     gap: 0;
     font-size: 0.68rem;
-    line-height: 1.25;
   }
 }
 

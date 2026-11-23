@@ -375,7 +375,7 @@ const MemoryBattle = () => {
           />
         </div>
       ) : (
-        <div className={styles.board}>
+        <div className={styles.board} data-testid="mb-board">
           <div className={styles.scoreRow}>
             <div
               className={`${styles.scoreCard} ${styles.scorePlayer}`}

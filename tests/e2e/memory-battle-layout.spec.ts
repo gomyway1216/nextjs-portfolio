@@ -56,3 +56,49 @@ test.describe('on a 1280×800 screen', () => {
     await expect(card(15)).not.toHaveAttribute('data-state', 'down');
   });
 });
+
+// Memory Battle on a phone. The game was a fixed, full-viewport layer with a fixed top padding, so whenever its content
+// was taller than the screen the panel's top edge sat a few pixels under the two-row site toolbar (~94px). It is now in
+// normal flow under the toolbar.
+test.describe('on a 390×844 phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, deviceScaleFactor: 2 });
+
+  /** The panel's top edge, the toolbar's bottom edge, whether a tap just inside the panel's top lands on it, and sideways overflow. */
+  const measure = (page: Page, selector: string) =>
+    page.evaluate((selector) => {
+      window.scrollTo(0, 0);
+      const panel = document.querySelector(selector)!;
+      // The site toolbar, by the classes it has in every build (a production build names it `<hash>_toolbar`).
+      const bar = document.querySelector('div[class*="toolbar"].sticky.top-0')!;
+      const box = panel.getBoundingClientRect();
+      const at = document.elementFromPoint(box.left + box.width / 2, box.top + 6);
+      return {
+        top: box.top,
+        barBottom: bar.getBoundingClientRect().bottom,
+        hit: !!at && panel.contains(at),
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }, selector);
+
+  test('the setup panel starts below the site toolbar and a tap at its top lands on it', async ({ page }) => {
+    await page.goto('/games/memory-battle');
+    await arrived(page);
+    await expect(page.locator('section[class*="selector"]')).toBeVisible();
+    const seen = await measure(page, 'section[class*="selector"]');
+    expect(seen.barBottom, 'the site toolbar is on the page').toBeGreaterThan(40);
+    expect(seen.top, 'the panel starts below the toolbar').toBeGreaterThanOrEqual(seen.barBottom);
+    expect(seen.hit, 'nothing lies over the top of the panel').toBe(true);
+    expect(seen.sideways, 'the page does not scroll sideways').toBeLessThanOrEqual(0);
+  });
+
+  for (const [grid, cards] of [[t.grids.medium, 16], [t.grids.large, 24]] as const) {
+    test(`the ${grid} board's panel starts below the site toolbar and a tap at its top lands on it`, async ({ page }) => {
+      await openBoard(page, grid, cards);
+      const seen = await measure(page, '[data-testid="mb-board"]');
+      expect(seen.barBottom, 'the site toolbar is on the page').toBeGreaterThan(40);
+      expect(seen.top, 'the panel starts below the toolbar').toBeGreaterThanOrEqual(seen.barBottom);
+      expect(seen.hit, 'nothing lies over the top of the panel').toBe(true);
+      expect(seen.sideways, 'the page does not scroll sideways').toBeLessThanOrEqual(0);
+    });
+  }
+});

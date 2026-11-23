@@ -95,7 +95,8 @@ export interface KellyStrings {
   never: string;
   ofBankroll: string;
   perBet: string;
-  bets: string;
+  /** The unit after a count shown as `shown` (already formatted, e.g. "1", "0.5", "34.4"). */
+  bets: (shown: string) => string;
   timesKelly: (multiple: string) => string;
   formulaLine: (p: string, q: string, b: string, kelly: string) => string;
   noEdge: string;
@@ -254,7 +255,7 @@ const en: KellyStrings = {
   never: 'never',
   ofBankroll: 'of your bankroll',
   perBet: 'per bet',
-  bets: 'bets',
+  bets: (shown) => (shown === '1' ? 'bet' : 'bets'),
   timesKelly: (multiple) => `${multiple} × Kelly`,
   formulaLine: (p, q, b, kelly) => `f* = p − q / b = ${p} − ${q} / ${b} = ${kelly}`,
   noEdge: 'This bet has no edge, so the Kelly stake is zero. No bet size turns a losing bet into a winning one.',
@@ -421,7 +422,7 @@ const ja: KellyStrings = {
   never: 'なし',
   ofBankroll: '所持金に対して',
   perBet: '1回あたり',
-  bets: '回',
+  bets: () => '回',
   timesKelly: (multiple) => `ケリーの${multiple}倍`,
   formulaLine: (p, q, b, kelly) => `f* = p − q / b = ${p} − ${q} / ${b} = ${kelly}`,
   noEdge: 'この賭けには優位性がないので、ケリーの賭け額はゼロです。どんな賭け方をしても、不利な賭けは有利になりません。',

@@ -11,7 +11,7 @@ import {
   posteriorMode,
   posteriorStd,
 } from './engine';
-import { EMPTY_TRACE, FlipTrace, beliefPath, extendTrace, formatInterval, formatWidth } from './trace';
+import { EMPTY_TRACE, FlipTrace, beliefPath, extendTrace, formatInterval, formatIntervalEnds, formatStd, formatWidth } from './trace';
 import styles from './BayesianUpdate.module.css';
 
 const DEFAULT_TRUE_P = 0.7;
@@ -188,7 +188,7 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
           ariaLabel={
             trace.n === 0
               ? t.chartAriaTraceEmpty
-              : t.chartAriaTrace(trace.n, pathEnd.mean.toFixed(3), pathEnd.lo.toFixed(3), pathEnd.hi.toFixed(3))
+              : t.chartAriaTrace(trace.n, pathEnd.mean.toFixed(3), ...formatIntervalEnds(pathEnd.lo, pathEnd.hi))
           }
         />
         <p className={styles.traceSummary}>
@@ -282,7 +282,7 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
           <Stat label={t.statObserved} value={`${heads} / ${tails}`} />
           <Stat label={t.statMean} value={stats.mean.toFixed(3)} />
           <Stat label={t.statMode} value={stats.mode === null ? t.statModeNone : stats.mode.toFixed(3)} />
-          <Stat label={t.statStd} value={stats.std.toFixed(3)} />
+          <Stat label={t.statStd} value={formatStd(stats.std)} />
           <Stat label={t.statCI} value={formatInterval(stats.ci[0], stats.ci[1])} />
         </div>
 

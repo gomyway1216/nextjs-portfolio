@@ -5,6 +5,9 @@ export const money = (amount: number) => `$${amount.toFixed(2)}`;
 /** A fraction as a percentage with no trailing zeros: 20%, 6.25%. */
 export const percent = (fraction: number, digits = 2) => `${Number((fraction * 100).toFixed(digits))}%`;
 
+/** A count to one decimal place with no trailing zero: 34.4, 0.5, 1 (not 1.0), 2. */
+export const oneDecimal = (value: number) => String(Number(value.toFixed(1)));
+
 /** A rate with its sign, to a fixed number of digits: +2.01%, −0.25%, −∞. */
 export function signedPercent(rate: number, digits = 2): string {
   if (rate === -Infinity) return '−∞';

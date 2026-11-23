@@ -15,7 +15,7 @@ import {
   zeroGrowthFraction,
   type Wager,
 } from './engine';
-import { formatMultiple, percent, signedPercent } from './format';
+import { formatMultiple, oneDecimal, percent, signedPercent } from './format';
 import { getStrings } from './i18n';
 import { HALF, STRATEGY_COLORS, STRATEGY_IDS, strategyFraction } from './sim';
 import styles from './KellyCriterion.module.css';
@@ -135,9 +135,9 @@ export const OddsTab = () => {
           <div className={styles.stat}>
             <span className={styles.statLabel}>{t.statDouble}</span>
             <span className={styles.statValue} data-testid="kelly-double">
-              {doubling === null ? t.never : doubling.toFixed(1)}
+              {doubling === null ? t.never : oneDecimal(doubling)}
             </span>
-            {doubling !== null && <span className={styles.statNote}>{t.bets}</span>}
+            {doubling !== null && <span className={styles.statNote}>{t.bets(oneDecimal(doubling))}</span>}
           </div>
           <div className={styles.stat}>
             <span className={styles.statLabel}>{t.statZero}</span>

@@ -107,3 +107,41 @@ for (const { width, height, language } of phones) {
     });
   });
 }
+
+// Level and lines in the toolbar's second row: one line at 390px (they were stacked as two tiny lines), in both languages.
+for (const language of ['ja', 'en'] as const) {
+  test(`tetris at 390 × 844 (${language}): level and lines are one line in the toolbar`, async ({ page, baseURL }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.context().addCookies([{ name: 'i18nextLng', value: language, url: baseURL ?? 'http://localhost:3000' }]);
+    await page.goto('/games/tetris');
+    await arrived(page);
+    await page.locator('section[class*="selector"] button').last().click();
+    const extra = page.locator('[data-game-top-bar-extra]');
+    await expect(extra).toBeVisible();
+    const seen = await extra.evaluate((element) => {
+      const [level, lines] = [...element.querySelectorAll('span')].map((span) => span.getBoundingClientRect());
+      const bar = element.closest('div[class*="toolbar"].sticky.top-0')!.getBoundingClientRect();
+      return { sameLine: Math.abs(level.top - lines.top) < 1 && level.right <= lines.left, cut: element.firstElementChild!.scrollWidth > element.firstElementChild!.clientWidth + 1, bar: bar.height };
+    });
+    expect(seen.sameLine, 'level and lines are side by side').toBe(true);
+    expect(seen.cut, 'nothing is cut off').toBe(false);
+    expect(seen.bar, 'the toolbar is still its two rows').toBeLessThanOrEqual(100);
+  });
+}
+
+// A tablet-width window that is short (900 × 700): the board and the buttons under it fit on the screen. The board was
+// 30px a cell whatever the height, so its bottom edge was ~20px below the window.
+test('tetris at 900 × 700: the board and its buttons are inside the window', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.goto('/games/tetris');
+  await arrived(page);
+  await page.locator('section[class*="selector"] button').last().click();
+  await expect(page.getByTestId('tetris-board')).toBeVisible();
+  const [board] = await boxesOf(page, '[data-testid="tetris-board"]');
+  const [actions] = await boxesOf(page, '[data-testid="tetris-actions"]');
+  expect(board.bottom, 'the board ends inside the window').toBeLessThanOrEqual(700);
+  expect(actions.bottom, 'the buttons under it end inside the window').toBeLessThanOrEqual(700);
+  expect(board.height, 'the board is still a usable size').toBeGreaterThanOrEqual(20 * 16);
+  const barBottom = await page.evaluate(() => document.querySelector('div[class*="toolbar"].sticky.top-0')!.getBoundingClientRect().bottom);
+  expect(board.top, 'the board starts below the toolbar').toBeGreaterThanOrEqual(barBottom);
+});

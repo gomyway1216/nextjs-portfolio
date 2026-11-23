@@ -1,12 +1,19 @@
+/*
+ * The game sits in normal flow, under the site's sticky toolbar, whatever that toolbar's height. As a fixed,
+ * full-viewport layer with a fixed top padding, the panel's top edge slid under the taller two-row toolbar on a phone
+ * whenever the content was taller than the screen. 59px is the toolbar at its shortest: the game fills the rest of a
+ * desktop window, and on a phone, where the toolbar is taller, the page is a little longer instead.
+ */
 .root {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  box-sizing: border-box;
+  min-height: calc(100vh - 59px);
+  min-height: calc(100dvh - 59px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: safe center;
-  overflow: auto;
-  padding: 5rem 1rem 1.5rem;
+  padding: 1.25rem 1rem 1.5rem;
   background: linear-gradient(to bottom, #0b1120, #020617);
   color: #e2e8f0;
   font-family: system-ui, -apple-system, sans-serif;

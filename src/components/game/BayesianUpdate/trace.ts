@@ -82,15 +82,30 @@ export function formatWidth(width: number): string {
 }
 
 /**
- * An interval as "[lo, hi]" with enough decimals to tell its ends apart: two
- * by default, more (up to six) once the interval is narrower than two units
- * of the last digit shown — after ~100,000 flips a 95% interval of
- * [0.6972, 0.7028] would otherwise print as the degenerate "[0.70, 0.70]".
+ * The posterior's standard deviation shrinks like an interval width (≈ 0.0014
+ * after 100,000 flips), so it keeps two significant digits the same way
+ * instead of printing a fixed three decimals ("0.001").
  */
-export function formatInterval(lo: number, hi: number): string {
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '–';
+export const formatStd = formatWidth;
+
+/**
+ * An interval's two ends with enough decimals to tell them apart: two by
+ * default, more (up to six) once the interval is narrower than two units of
+ * the last digit shown — after ~100,000 flips a 95% interval of
+ * [0.6972, 0.7028] would otherwise print as the degenerate "[0.70, 0.70]".
+ * Both ends are '–' if either is not a number.
+ */
+export function formatIntervalEnds(lo: number, hi: number): [string, string] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return ['–', '–'];
   const width = Math.abs(hi - lo);
   let digits = 2;
   while (digits < 6 && (width < 2 * 10 ** -digits || lo.toFixed(digits) === hi.toFixed(digits))) digits++;
-  return `[${lo.toFixed(digits)}, ${hi.toFixed(digits)}]`;
+  return [lo.toFixed(digits), hi.toFixed(digits)];
+}
+
+/** An interval as "[lo, hi]", its ends formatted by `formatIntervalEnds`. */
+export function formatInterval(lo: number, hi: number): string {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '–';
+  const [a, b] = formatIntervalEnds(lo, hi);
+  return `[${a}, ${b}]`;
 }
